@@ -1,0 +1,22 @@
+# STAY living state and secrets — never commit
+/data/*
+!/data/.gitkeep
+*.state.json
+genesis-state.json
+operator-token.txt
+.env
+.env.*
+
+# Local/runtime noise
+node_modules/
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db
+
+# Deployment/runtime artifacts
+releases/
+current
+backups/
+*.tar.gz
+*.zip
