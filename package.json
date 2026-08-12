@@ -1,0 +1,11 @@
+{
+  "name": "genesis-stay-poc",
+  "version": "0.6.0",
+  "private": true,
+  "description": "STAY / Project Genesis POC 0.6: adaptive device-wide compute, agency, prediction, layered memory and Living Sky UI.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node self-test.js && node agency-learning-test.js && node compute-budget-test.js && node resilience-test.js && node world-test.js && node experience-integration-test.js"
+  }
+}
