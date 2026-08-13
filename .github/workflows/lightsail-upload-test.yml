@@ -1,0 +1,38 @@
+name: Verify Lightsail upload
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/lightsail-upload-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  upload-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Prepare SSH
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 600 ~/.ssh/stay_deploy
+          ssh-keyscan -H 35.157.242.167 >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Upload harmless marker to Lightsail
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'ChatGPT -> GitHub Actions -> Lightsail verified\n' > lightsail-upload-test.txt
+          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes lightsail-upload-test.txt staydeploy@35.157.242.167:/opt/stay/incoming/chatgpt-upload-test.txt
+      - name: Verify marker on Lightsail
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes staydeploy@35.157.242.167 'test -f /opt/stay/incoming/chatgpt-upload-test.txt && cat /opt/stay/incoming/chatgpt-upload-test.txt && sha256sum /opt/stay/incoming/chatgpt-upload-test.txt'
