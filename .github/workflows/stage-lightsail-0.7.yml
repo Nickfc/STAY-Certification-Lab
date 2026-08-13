@@ -37,7 +37,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ARCHIVE="stay-0.7.0-${GITHUB_SHA}.tar.gz"
+          VERSION="$(node -p "require('./package.json').version")"
+          ARCHIVE="stay-${VERSION}-${GITHUB_SHA}.tar.gz"
           tar \
             --exclude='.git' \
             --exclude='.github' \
