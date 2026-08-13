@@ -1,6 +1,7 @@
 # STAY living state and secrets — never commit
 /data/*
 !/data/.gitkeep
+.stay-data/
 *.state.json
 genesis-state.json
 operator-token.txt
