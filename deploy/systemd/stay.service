@@ -1,0 +1,36 @@
+[Unit]
+Description=STAY / Genesis Living Runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=staydeploy
+Group=staydeploy
+WorkingDirectory=/opt/stay/current
+ExecStart=/usr/bin/node /opt/stay/current/server.js
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=15
+UMask=0077
+
+Environment=NODE_ENV=production
+Environment=STAY_HOST=127.0.0.1
+Environment=PORT=8787
+Environment=STAY_DATA_DIR=/var/lib/stay/data
+Environment=STAY_LEGACY_SOURCE_DIR=/opt/stay/legacy/0.6.0
+Environment=STAY_LEGACY_PORT=8788
+Environment=STAY_BOOT_CORE=/opt/stay/current/cores/fetus-legacy-0.6/index.js
+Environment=STAY_REQUIRE_HIBERNATION_STATE=1
+Environment=STAY_EXPECTED_HIBERNATION_SHA256=b45d6addd70b13bfa684f53c075edb3ca6a76bae7d7384849f84a1df2d7d073d
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/stay
+ReadWritePaths=/var/lib/stay/data
+
+[Install]
+WantedBy=multi-user.target
