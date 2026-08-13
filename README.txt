@@ -1,16 +1,20 @@
-STAY 0.7.1.2 public HTML proxy framing fix
+STAY 0.7.1.3 — per-browser compute slider
 
-Changes only:
-- package.json: STAY display/release version 0.7.1.1 -> 0.7.1.2
-- server.js: removes upstream Transfer-Encoding before setting the injected HTML Content-Length
+Files to replace:
+- package.json
+- server.js
+- runtime/ui/live-badge.js
 
-Why:
-Nginx rejected GET / with:
-  upstream sent "Content-Length" and "Transfer-Encoding" headers at the same time
+What changes:
+- STAY release/display version: 0.7.1.3
+- Top-right live panel gains a 1–100% compute contribution slider.
+- Default contribution is 5%.
+- Setting is stored locally in that browser.
+- Changing it restarts only that browser's Worker pool; the server/organism does not restart.
+- Low percentages use fewer Workers and smaller real CPU-time budgets.
+- Requested and effective contribution are shown separately.
+- Legacy 0.6 source files on disk are untouched; the Living Kernel transforms served client.js/worker.js responses in transit.
+- Includes the 0.7.1.2 Content-Length/Transfer-Encoding framing fix.
 
-Kernel/core code is unchanged. The Living Kernel remains 0.7.1.1.
-The preserved 0.6 source is unchanged.
-
-Copy these two code files into the existing repo root, commit and push manually with Actions disabled.
-Suggested commit:
-  STAY 0.7.1.2 fix injected HTML response framing
+Suggested manual commit (Actions disabled):
+STAY 0.7.1.3 add live compute contribution slider

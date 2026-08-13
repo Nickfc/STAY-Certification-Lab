@@ -43,6 +43,79 @@ function injectBadgeScript(html) {
   return html + tag;
 }
 
+
+function transformLegacyHtml(html) {
+  let output = injectBadgeScript(html);
+  output = output.replace(
+    'browser contribution <span id="budget">10% target</span>',
+    'browser contribution <span id="budget">5% target</span>'
+  );
+  output = output.replace(
+    'Browsers use an adaptive Worker pool targeting 10% of the logical compute exposed by each device.',
+    'Each browser chooses its own live compute contribution from 1% to 100%.'
+  );
+  return output;
+}
+
+function transformLegacyClient(source) {
+  const fixedShare = '  const targetShare = 0.10;';
+  const adaptiveShare = [
+    "  const storedShare = Number(localStorage.getItem('stay-compute-share'));",
+    "  const targetShare = Math.max(0.01, Math.min(1, Number.isFinite(storedShare) && storedShare > 0 ? storedShare : 0.05));"
+  ].join('\n');
+
+  if (!source.includes(fixedShare)) {
+    throw new Error('legacy client compute-share marker not found');
+  }
+
+  let output = source.replace(fixedShare, adaptiveShare);
+
+  const oldPool = [
+    '  let poolSize = Math.max(1, Math.min(logicalCores, 8));',
+    '  while (targetCpuMsPerSecond / poolSize > 850 && poolSize < Math.min(logicalCores, 16)) poolSize++;',
+    '  const budgetMsPerWorker = Math.max(20, Math.min(850, targetCpuMsPerSecond / poolSize));'
+  ].join('\n');
+
+  const newPool = [
+    '  const maxPoolSize = Math.max(1, Math.min(logicalCores, 32));',
+    '  const poolSize = Math.max(1, Math.min(maxPoolSize, Math.ceil(targetCpuMsPerSecond / 1000)));',
+    '  const budgetMsPerWorker = Math.max(5, Math.min(1000, targetCpuMsPerSecond / poolSize));'
+  ].join('\n');
+
+  if (!output.includes(oldPool)) {
+    throw new Error('legacy client worker-pool marker not found');
+  }
+  output = output.replace(oldPool, newPool);
+
+  output = output.replace(
+    '  state.computePlan = createComputePlan();',
+    '  state.computePlan = createComputePlan();\n  window.__stayComputePlan = { ...state.computePlan };'
+  );
+
+  output = output.replace(
+    "Math.round((msg.cognitiveBudget?.targetDeviceShare ?? state.computePlan.targetShare) * 100)",
+    "Math.round(state.computePlan.targetShare * 100)"
+  );
+
+  output += [
+    '',
+    "window.addEventListener('stay-compute-share-change', () => {",
+    "  startWorkerPool('user-compute-share-change');",
+    '});',
+    ''
+  ].join('\n');
+
+  return output;
+}
+
+function transformLegacyWorker(source) {
+  const marker = 'Math.min(900, Number(task.budgetMs) || 100)';
+  if (!source.includes(marker)) {
+    throw new Error('legacy worker budget marker not found');
+  }
+  return source.replace(marker, 'Math.min(1000, Number(task.budgetMs) || 100)');
+}
+
 function proxyToLegacy(req, res) {
   if (!legacyProxyPort) {
     res.statusCode = 404;
@@ -64,9 +137,13 @@ function proxyToLegacy(req, res) {
     headers
   }, (upstreamRes) => {
     const contentType = String(upstreamRes.headers['content-type'] || '');
-    const shouldInject = req.method === 'GET' && /text\/html/i.test(contentType);
+    const pathname = String(req.url || '').split('?')[0];
+    const transformHtml = req.method === 'GET' && /text\/html/i.test(contentType);
+    const transformClient = req.method === 'GET' && pathname === '/client.js';
+    const transformWorker = req.method === 'GET' && pathname === '/worker.js';
+    const shouldTransform = transformHtml || transformClient || transformWorker;
 
-    if (!shouldInject) {
+    if (!shouldTransform) {
       res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
       upstreamRes.pipe(res);
       return;
@@ -75,7 +152,12 @@ function proxyToLegacy(req, res) {
     const chunks = [];
     upstreamRes.on('data', chunk => chunks.push(Buffer.from(chunk)));
     upstreamRes.on('end', () => {
-      const body = injectBadgeScript(Buffer.concat(chunks).toString('utf8'));
+      const original = Buffer.concat(chunks).toString('utf8');
+      const body = transformHtml
+        ? transformLegacyHtml(original)
+        : transformClient
+          ? transformLegacyClient(original)
+          : transformLegacyWorker(original);
       const responseHeaders = { ...upstreamRes.headers };
       delete responseHeaders['content-length'];
       delete responseHeaders['transfer-encoding'];
