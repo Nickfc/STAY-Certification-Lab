@@ -78,6 +78,7 @@ function proxyToLegacy(req, res) {
       const body = injectBadgeScript(Buffer.concat(chunks).toString('utf8'));
       const responseHeaders = { ...upstreamRes.headers };
       delete responseHeaders['content-length'];
+      delete responseHeaders['transfer-encoding'];
       delete responseHeaders.etag;
       responseHeaders['cache-control'] = 'no-store';
       responseHeaders['content-length'] = Buffer.byteLength(body);
