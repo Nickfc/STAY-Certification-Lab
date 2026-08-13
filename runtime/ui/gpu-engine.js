@@ -5,7 +5,7 @@
   const INPUTS = 31;
   const HIDDEN = 8;
   const OUTPUTS = 12;
-  const GENOME_SIZE = 308;
+  const GENOME_SIZE = (INPUTS + 1) * HIDDEN + (HIDDEN + 1) * OUTPUTS; // 364
   const WORKGROUP_SIZE = 32;
   const GPU_SHARD_ID = 31;
   const MIN_CANDIDATES = 32;
@@ -272,7 +272,12 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
     const genome = Array.isArray(task.genome) ? task.genome : [];
     const scenarios = Array.isArray(task.scenarios) ? task.scenarios : [];
 
-    if (genome.length !== GENOME_SIZE) throw new Error('GPU task genome has unexpected size');
+    if (Number(C.GENOME_SIZE) !== GENOME_SIZE) {
+      throw new Error(`GPU/cognitive genome contract mismatch: GPU ${GENOME_SIZE}, cognitive ${C.GENOME_SIZE}`);
+    }
+    if (genome.length !== GENOME_SIZE) {
+      throw new Error(`GPU task genome has unexpected size: got ${genome.length}, expected ${GENOME_SIZE}`);
+    }
     if (!scenarios.length) throw new Error('GPU task has no scenarios');
 
     const candidateCount = chooseCandidateCount(share, scenarios.length);

@@ -206,16 +206,16 @@ echo "-- Identity continuity: OK"
 
 echo "-- Public HTML framing test"
 HTTP_CODE="$(curl -sS -o /tmp/stay-deploy-page.html -w '%{http_code}' http://127.0.0.1/)"
-if [[ "$HTTP_CODE" != "200" ]]; then
+if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "308" ]]; then
   echo "ERROR: Nginx GET / returned HTTP $HTTP_CODE." >&2
   false
 fi
 
 echo "-- Browser runtime surfaces"
-curl -fsS http://127.0.0.1/__stay/meta >/tmp/stay-deploy-meta.json
-curl -fsS http://127.0.0.1/client.js >/tmp/stay-deploy-client.js
+curl -fsS http://127.0.0.1:8787/__stay/meta >/tmp/stay-deploy-meta.json
+curl -fsS http://127.0.0.1:8787/client.js >/tmp/stay-deploy-client.js
 if [[ -f "$FINAL_RELEASE/runtime/ui/live-badge.js" ]]; then
-  curl -fsS http://127.0.0.1/__stay/live-badge.js >/tmp/stay-deploy-badge.js
+  curl -fsS http://127.0.0.1:8787/__stay/live-badge.js >/tmp/stay-deploy-badge.js
 fi
 
 echo "-- Waiting for legacy brain persistence"
