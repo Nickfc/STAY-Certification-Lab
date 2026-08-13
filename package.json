@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node scripts/check-runtime.js"
+    "test": "node scripts/continuity-check.js"
   },
   "engines": {
     "node": ">=22"
