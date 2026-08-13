@@ -31,7 +31,7 @@ class LivingKernel {
     this.snapshotRetention = snapshotRetention;
     this.heartbeatTimer = null;
     this.snapshotTimer = null;
-    this.maintenanceError = null;
+    this.maintenanceErrors = {};
   }
 
   async start() {
@@ -67,9 +67,11 @@ class LivingKernel {
   }
 
   recordMaintenanceError(operation, error) {
-    this.maintenanceError = { operation, at: new Date().toISOString(), code: error.code || null, message: error.message };
+    this.maintenanceErrors[operation] = { operation, at: new Date().toISOString(), code: error.code || null, message: error.message };
     this.logger.error('[STAY] maintenance failure [' + operation + '] ' + error.message);
   }
+
+  clearMaintenanceError(operation) { delete this.maintenanceErrors[operation]; }
 
   async writeHeartbeat() {
     const cores = await this.registry.status();
@@ -80,12 +82,13 @@ class LivingKernel {
       startedAt: this.startedAt,
       coreHealth: cores.map((slot) => ({ coreId: slot.coreId, ok: !slot.active || !slot.active.health || slot.active.health.ok !== false }))
     });
-    this.maintenanceError = null;
+    this.clearMaintenanceError('heartbeat');
   }
 
   async createSnapshot(reason) {
     const snapshot = await this.stateStore.createSnapshot({ reason, retention: this.snapshotRetention });
     await this.stateStore.appendJournal({ type: 'state.snapshot', at: snapshot.createdAt, reason, snapshot: snapshot.name });
+    this.clearMaintenanceError('snapshot');
     return snapshot;
   }
 
@@ -99,17 +102,31 @@ class LivingKernel {
     const cores = await this.registry.status();
     const persistence = await this.stateStore.persistenceStatus(Math.max(120000, this.heartbeatIntervalMs * 4));
     const unhealthyCores = cores.filter((slot) => slot.active && slot.active.health && slot.active.health.ok === false).map((slot) => slot.coreId);
-    const ok = persistence.ok && unhealthyCores.length === 0 && !this.maintenanceError;
+    const maintenanceErrors = Object.values(this.maintenanceErrors);
     return {
-      ok,
+      ok: persistence.ok && unhealthyCores.length === 0 && maintenanceErrors.length === 0,
       kernelVersion: KERNEL_VERSION,
       persistence,
-      maintenanceError: this.maintenanceError,
+      maintenanceErrors,
       unhealthyCores
     };
   }
 
   async status() {
+    const health = await this.health();
+    const realCores = await this.registry.status();
+    const persistenceContract = {
+      coreId: 'kernel-persistence',
+      active: {
+        manifest: { coreId: 'kernel-persistence', version: KERNEL_VERSION, protocol: 'genesis-kernel-health-v1', stateSchema: 1, hotSwap: false, inputs: [], outputs: [] },
+        mode: 'active',
+        handledEvents: 0,
+        bufferedOutputs: 0,
+        health: { ok: health.persistence.ok && health.maintenanceErrors.length === 0, persistence: health.persistence, maintenanceErrors: health.maintenanceErrors }
+      },
+      candidate: null,
+      standby: null
+    };
     return {
       kernel: {
         version: KERNEL_VERSION,
@@ -118,9 +135,9 @@ class LivingKernel {
         pid: process.pid,
         dataDir: this.dataDir
       },
-      health: await this.health(),
+      health,
       snapshots: await this.stateStore.snapshotStatus(),
-      cores: await this.registry.status()
+      cores: [persistenceContract, ...realCores]
     };
   }
 
