@@ -6,6 +6,12 @@
   const clampPercent = (value) => Math.max(1, Math.min(100, Math.round(Number(value) || 5)));
   const storedShare = Number(localStorage.getItem(SHARE_KEY));
   let selectedPercent = clampPercent(Number.isFinite(storedShare) && storedShare > 0 ? storedShare * 100 : 5);
+  const ENGINE_KEY = 'stay-compute-engine';
+  const HYBRID_KEY = 'stay-hybrid-gpu-share';
+  const validEngines = new Set(['auto', 'cpu', 'gpu', 'hybrid']);
+  let selectedEngine = String(localStorage.getItem(ENGINE_KEY) || 'auto').toLowerCase();
+  if (!validEngines.has(selectedEngine)) selectedEngine = 'auto';
+  let hybridGpuPercent = Math.max(10, Math.min(90, Math.round((Number(localStorage.getItem(HYBRID_KEY)) || 0.8) * 100)));
 
   const host = document.createElement('div');
   host.id = 'stay-live-runtime-host';
@@ -44,6 +50,22 @@
     <div style="margin-top:6px">runtime revision <b id="stay-revision">—</b></div>
     <div id="stay-cores" style="margin-top:6px"></div>
     <div style="height:1px;background:rgba(255,255,255,.10);margin:12px 0"></div>
+    <label style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:6px">
+      <span>Compute engine</span>
+      <select id="stay-compute-engine" style="background:#111722;color:white;border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:4px 6px;font:inherit">
+        <option value="auto">Auto</option>
+        <option value="gpu">GPU</option>
+        <option value="cpu">CPU</option>
+        <option value="hybrid">Hybrid</option>
+      </select>
+    </label>
+    <div id="stay-engine-status" style="opacity:.62;margin-bottom:10px">Detecting compute engines…</div>
+    <div id="stay-hybrid-row" style="display:none;margin:0 0 10px">
+      <label for="stay-hybrid-slider" style="display:flex;justify-content:space-between;gap:12px">
+        <span>Hybrid GPU share</span><b id="stay-hybrid-value">${hybridGpuPercent}%</b>
+      </label>
+      <input id="stay-hybrid-slider" type="range" min="10" max="90" step="5" value="${hybridGpuPercent}" style="width:100%;margin:7px 0 0;accent-color:#fff">
+    </div>
     <label for="stay-compute-slider" style="display:flex;justify-content:space-between;gap:12px;align-items:center">
       <span>This browser contributes</span>
       <b id="stay-compute-value">${selectedPercent}%</b>
@@ -60,6 +82,12 @@
   const slider = panel.querySelector('#stay-compute-slider');
   const valueEl = panel.querySelector('#stay-compute-value');
   const effectiveEl = panel.querySelector('#stay-compute-effective');
+  const engineSelect = panel.querySelector('#stay-compute-engine');
+  const engineStatusEl = panel.querySelector('#stay-engine-status');
+  const hybridRow = panel.querySelector('#stay-hybrid-row');
+  const hybridSlider = panel.querySelector('#stay-hybrid-slider');
+  const hybridValue = panel.querySelector('#stay-hybrid-value');
+  engineSelect.value = selectedEngine;
 
   let latestMeta = null;
   let previousFingerprint = '';
@@ -68,25 +96,76 @@
 
   function updateBadge() {
     if (!latestMeta) return;
-    badge.textContent = `${latestMeta.ok === false ? '○' : '●'} LIVE · v${latestMeta.version || '?'} · R${latestMeta.revision ?? '?'} · ${selectedPercent}%`;
+    const plan = window.__stayComputePlan || {};
+    const engine = String(plan.engineResolved || selectedEngine || 'auto').toUpperCase();
+    badge.textContent = `${latestMeta.ok === false ? '○' : '●'} LIVE · v${latestMeta.version || '?'} · R${latestMeta.revision ?? '?'} · ${engine} ${selectedPercent}%`;
   }
 
   function updateComputeReadout() {
     const plan = window.__stayComputePlan;
+    const gpu = window.__stayGpuStatus || {};
+    hybridRow.style.display = selectedEngine === 'hybrid' ? 'block' : 'none';
+
+    if (!window.isSecureContext) {
+      engineStatusEl.textContent = 'GPU locked: HTTPS is required by WebGPU';
+    } else if (gpu.ready) {
+      const adapter = gpu.adapterInfo || {};
+      const adapterName = adapter.description || adapter.device || adapter.architecture || adapter.vendor || 'WebGPU adapter';
+      engineStatusEl.textContent = `GPU ready · ${adapterName}${gpu.lastCandidates ? ` · ${Math.round((gpu.candidatesPerMs || 0) * 1000).toLocaleString()} candidates/s` : ' · awaiting first task'}`;
+    } else if (gpu.supported === false) {
+      engineStatusEl.textContent = `GPU unavailable · ${gpu.reason || 'browser/device does not expose WebGPU'}`;
+    } else {
+      engineStatusEl.textContent = `GPU ${gpu.reason || 'initializing…'}`;
+    }
+
     if (!plan) {
       effectiveEl.textContent = `Requested ${selectedPercent}%`;
       return;
     }
+
+    const resolved = String(plan.engineResolved || selectedEngine || 'cpu').toUpperCase();
+    const cpu = Math.max(0, Number(plan.cpuShare) || 0) * 100;
+    const gpuShare = Math.max(0, Number(plan.gpuShare) || 0) * 100;
     const effective = Math.max(0, Number(plan.effectiveShare) || 0) * 100;
-    const slice = Math.max(0, Number(plan.sliceMs) || 0);
-    const spread = Math.max(0, Number(plan.dispatchWindowMs) || 0);
+
     effectiveEl.textContent =
-      `effective ~${effective.toFixed(1)}% · quiet spread · ${plan.poolSize} workers / ${plan.logicalCores} threads · ${slice.toFixed(0)} ms slices across ${spread.toFixed(0)} ms`;
+      `${resolved} · requested ${selectedPercent}% · CPU ${cpu.toFixed(1)}% · GPU ${gpuShare.toFixed(1)}% · effective CPU ~${effective.toFixed(1)}%`;
   }
 
   badge.addEventListener('click', () => {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     updateComputeReadout();
+  });
+
+  engineSelect.addEventListener('change', () => {
+    selectedEngine = validEngines.has(engineSelect.value) ? engineSelect.value : 'auto';
+    localStorage.setItem(ENGINE_KEY, selectedEngine);
+    hybridRow.style.display = selectedEngine === 'hybrid' ? 'block' : 'none';
+    window.dispatchEvent(new CustomEvent('stay-compute-engine-change', {
+      detail: { engine: selectedEngine }
+    }));
+    updateBadge();
+    setTimeout(updateComputeReadout, 80);
+  });
+
+  hybridSlider.addEventListener('input', () => {
+    hybridGpuPercent = Math.max(10, Math.min(90, Math.round(Number(hybridSlider.value) || 80)));
+    hybridValue.textContent = `${hybridGpuPercent}%`;
+  });
+
+  hybridSlider.addEventListener('change', () => {
+    hybridGpuPercent = Math.max(10, Math.min(90, Math.round(Number(hybridSlider.value) || 80)));
+    localStorage.setItem(HYBRID_KEY, String(hybridGpuPercent / 100));
+    hybridValue.textContent = `${hybridGpuPercent}%`;
+    window.dispatchEvent(new CustomEvent('stay-hybrid-split-change', {
+      detail: { gpuShare: hybridGpuPercent / 100 }
+    }));
+    setTimeout(updateComputeReadout, 80);
+  });
+
+  window.addEventListener('stay-gpu-status', () => {
+    updateComputeReadout();
+    updateBadge();
   });
 
   slider.addEventListener('input', () => {

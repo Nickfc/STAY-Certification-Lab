@@ -12,6 +12,7 @@ const host = process.env.STAY_HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 8787);
 const legacyProxyPort = Number(process.env.STAY_LEGACY_PORT || 0);
 const badgePath = path.join(__dirname, 'runtime', 'ui', 'live-badge.js');
+const gpuEnginePath = path.join(__dirname, 'runtime', 'ui', 'gpu-engine.js');
 
 function publicMetadata(status) {
   const cores = [];
@@ -36,16 +37,25 @@ function publicMetadata(status) {
   };
 }
 
-function injectBadgeScript(html) {
-  const tag = '<script src="/__stay/live-badge.js" defer></script>';
-  if (html.includes('/__stay/live-badge.js')) return html;
-  if (/<\/body\s*>/i.test(html)) return html.replace(/<\/body\s*>/i, tag + '</body>');
-  return html + tag;
+function injectRuntimeScripts(html) {
+  if (html.includes('/__stay/gpu-engine.js')) return html;
+  const runtimeTags = [
+    '<script src="/cognitive-core.js?v=0.6.0" defer></script>',
+    '<script src="/__stay/gpu-engine.js" defer></script>',
+    '<script src="/__stay/live-badge.js" defer></script>'
+  ].join('');
+
+  const clientTag = /<script\s+src=["']\/client\.js[^"']*["']\s+defer><\/script>/i;
+  if (clientTag.test(html)) {
+    return html.replace(clientTag, (match) => runtimeTags + match);
+  }
+  if (/<\/body\s*>/i.test(html)) return html.replace(/<\/body\s*>/i, runtimeTags + '</body>');
+  return html + runtimeTags;
 }
 
 
 function transformLegacyHtml(html) {
-  let output = injectBadgeScript(html);
+  let output = injectRuntimeScripts(html);
   output = output.replace(
     'browser contribution <span id="budget">10% target</span>',
     'browser contribution <span id="budget">5% target</span>'
@@ -61,7 +71,14 @@ function transformLegacyClient(source) {
   const fixedShare = '  const targetShare = 0.10;';
   const adaptiveShare = [
     "  const storedShare = Number(localStorage.getItem('stay-compute-share'));",
-    "  const targetShare = Math.max(0.01, Math.min(1, Number.isFinite(storedShare) && storedShare > 0 ? storedShare : 0.05));"
+    "  const targetShare = Math.max(0.01, Math.min(1, Number.isFinite(storedShare) && storedShare > 0 ? storedShare : 0.05));",
+    "  const enginePreference = String(localStorage.getItem('stay-compute-engine') || 'auto').toLowerCase();",
+    "  const gpuReady = Boolean(window.__stayGpuStatus?.ready);",
+    "  const engineResolved = enginePreference === 'cpu' ? 'cpu' : enginePreference === 'hybrid' ? (gpuReady ? 'hybrid' : 'cpu') : enginePreference === 'gpu' ? (gpuReady ? 'gpu' : 'cpu') : (gpuReady ? 'gpu' : 'cpu');",
+    "  const storedHybridGpu = Number(localStorage.getItem('stay-hybrid-gpu-share'));",
+    "  const hybridGpuFraction = Math.max(0.1, Math.min(0.9, Number.isFinite(storedHybridGpu) && storedHybridGpu > 0 ? storedHybridGpu : 0.8));",
+    "  const cpuShare = engineResolved === 'gpu' ? 0 : engineResolved === 'hybrid' ? targetShare * (1 - hybridGpuFraction) : targetShare;",
+    "  const gpuShare = engineResolved === 'gpu' ? targetShare : engineResolved === 'hybrid' ? targetShare * hybridGpuFraction : 0;"
   ].join('\n');
 
   if (!source.includes(fixedShare)) {
@@ -92,15 +109,15 @@ function transformLegacyClient(source) {
     '  // Quiet Spread: contribution percentage controls total CPU-time, while',
     '  // many short, staggered workers avoid concentrating that work on a few hot cores.',
     '  const maxShardPool = 32;',
-    '  const baseSpreadPool = Math.max(1, Math.min(logicalCores, 12));',
+    '  const baseSpreadPool = cpuShare > 0 ? Math.max(1, Math.min(logicalCores, 12)) : 0;',
     '  const maxBudgetMsPerWorker = 850;',
-    '  const requiredPool = Math.max(1, Math.ceil(targetCpuMsPerSecond / maxBudgetMsPerWorker));',
-    '  const poolSize = Math.max(1, Math.min(maxShardPool, Math.max(baseSpreadPool, requiredPool)));',
-    '  const budgetMsPerWorker = Math.max(5, Math.min(maxBudgetMsPerWorker, targetCpuMsPerSecond / poolSize));',
-    '  const sliceMs = Math.max(5, Math.min(20, budgetMsPerWorker <= 40 ? Math.max(5, budgetMsPerWorker / 2) : 12));',
-    '  const estimatedYieldMs = Math.max(0, Math.ceil(budgetMsPerWorker / sliceMs) - 1);',
-    '  const dispatchWindowMs = Math.max(0, Math.min(800, 900 - budgetMsPerWorker - estimatedYieldMs));',
-    "  const mode = 'quiet-spread';"
+    '  const requiredPool = cpuShare > 0 ? Math.max(1, Math.ceil(targetCpuMsPerSecond / maxBudgetMsPerWorker)) : 0;',
+    '  const poolSize = cpuShare > 0 ? Math.max(1, Math.min(maxShardPool - 1, Math.max(baseSpreadPool, requiredPool))) : 0;',
+    '  const budgetMsPerWorker = poolSize > 0 ? Math.max(5, Math.min(maxBudgetMsPerWorker, targetCpuMsPerSecond / poolSize)) : 0;',
+    '  const sliceMs = poolSize > 0 ? Math.max(5, Math.min(20, budgetMsPerWorker <= 40 ? Math.max(5, budgetMsPerWorker / 2) : 12)) : 0;',
+    '  const estimatedYieldMs = poolSize > 0 ? Math.max(0, Math.ceil(budgetMsPerWorker / Math.max(1, sliceMs)) - 1) : 0;',
+    '  const dispatchWindowMs = poolSize > 0 ? Math.max(0, Math.min(800, 900 - budgetMsPerWorker - estimatedYieldMs)) : 0;',
+    "  const mode = engineResolved === 'cpu' ? 'cpu-quiet-spread' : engineResolved === 'hybrid' ? 'hybrid' : 'gpu';"
   ].join('\n');
 
   if (!output.includes(oldPool)) {
@@ -114,7 +131,7 @@ function transformLegacyClient(source) {
   }
   output = output.replace(
     returnMarker,
-    '    budgetMsPerWorker,\n    sliceMs,\n    dispatchWindowMs,\n    mode\n  };'
+    '    budgetMsPerWorker,\n    sliceMs,\n    dispatchWindowMs,\n    mode,\n    enginePreference,\n    engineResolved,\n    cpuShare,\n    gpuShare,\n    hybridGpuFraction\n  };'
   );
 
   // Keep the UI's public plan current both at initial boot and after live slider changes.
@@ -213,6 +230,29 @@ function transformLegacyClient(source) {
     '}'
   ].join('\n');
   const quietDispatchLatest = [
+    'async function dispatchGpuTask() {',
+    '  if (!state.latestTask || !state.computePlan || state.computePlan.gpuShare <= 0) return;',
+    '  const engine = window.STAYGpuEngine;',
+    '  if (!engine) return;',
+    '  const generation = state.workerGeneration;',
+    '  const epoch = Number(state.latestTask.epoch) || -1;',
+    '  const shardId = 31;',
+    '  const workHash = cognitiveHash32(`${state.nodeId}:shard:${shardId}`);',
+    '  try {',
+    '    const result = await engine.runTask(state.latestTask, { share: state.computePlan.gpuShare, shardId, workHash });',
+    '    if (generation !== state.workerGeneration) return;',
+    '    if (!state.latestTask || Number(state.latestTask.epoch) !== epoch) return;',
+    '    state.lastWorkerResultAt = performance.now();',
+    '    await submitWorkResult(result, generation, shardId);',
+    '  } catch (error) {',
+    '    console.warn(`[STAY GPU] ${error?.message || error}`);',
+    '    if (state.computePlan.engineResolved === \'gpu\') {',
+    '      window.__stayGpuStatus = { ...(window.__stayGpuStatus || {}), ready: false, reason: String(error?.message || error) };',
+    '      startWorkerPool(\'gpu-fallback\');',
+    '    }',
+    '  }',
+    '}',
+    '',
     'function dispatchLatestTask() {',
     '  if (!state.latestTask) return;',
     '  clearScheduledDispatches();',
@@ -220,6 +260,7 @@ function transformLegacyClient(source) {
     '  for (let index = 0; index < slots.length; index++) {',
     '    scheduleTaskForSlot(slots[index], index, slots.length);',
     '  }',
+    '  if (state.computePlan.gpuShare > 0) dispatchGpuTask();',
     '}'
   ].join('\n');
   if (!output.includes(oldDispatchLatest)) {
@@ -249,7 +290,7 @@ function transformLegacyClient(source) {
       '          budgetMsPerWorker: plan.budgetMsPerWorker,',
       '          sliceMs: plan.sliceMs,',
       '          dispatchWindowMs: plan.dispatchWindowMs,',
-      '          mode: plan.mode'
+      '          mode: result.engine || plan.mode,\n          engine: result.engine || plan.engineResolved,\n          cpuShare: plan.cpuShare,\n          gpuShare: plan.gpuShare'
     ].join('\n')
   );
 
@@ -263,6 +304,18 @@ function transformLegacyClient(source) {
     "window.addEventListener('stay-compute-share-change', () => {",
     "  startWorkerPool('user-compute-share-change');",
     '});',
+    "window.addEventListener('stay-compute-engine-change', () => {",
+    "  startWorkerPool('user-engine-change');",
+    '});',
+    "window.addEventListener('stay-hybrid-split-change', () => {",
+    "  startWorkerPool('user-hybrid-split-change');",
+    '});',
+    "window.addEventListener('stay-gpu-status', (event) => {",
+    "  if (event.detail?.ready) startWorkerPool('gpu-ready');",
+    '});',
+    "if (window.STAYGpuEngine) {",
+    "  window.STAYGpuEngine.init().catch(() => {});",
+    '}',
     ''
   ].join('\n');
 
@@ -418,6 +471,7 @@ async function main() {
   }
 
   const badgeSource = await fs.readFile(badgePath, 'utf8');
+  const gpuEngineSource = await fs.readFile(gpuEnginePath, 'utf8');
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -428,6 +482,14 @@ async function main() {
         res.setHeader('content-type', 'application/javascript; charset=utf-8');
         res.setHeader('cache-control', 'no-store');
         res.end(badgeSource);
+        return;
+      }
+
+      if (pathname === '/__stay/gpu-engine.js') {
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/javascript; charset=utf-8');
+        res.setHeader('cache-control', 'no-store');
+        res.end(gpuEngineSource);
         return;
       }
 
