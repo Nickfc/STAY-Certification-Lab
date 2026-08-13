@@ -1,49 +1,30 @@
-STAY 0.7.1.6 — GPU Compute Foundation
+STAY 0.7.1.7 — Strict GPU-only semantics
 
-What this release adds
-----------------------
-1. Compute engine selector in the live top-right panel:
-   Auto / GPU / CPU / Hybrid
+Fixes two confusing behaviors in 0.7.1.6:
 
-2. Real WebGPU candidate search:
-   - candidate genome mutations run on a WebGPU compute shader
-   - neural forward passes and fitness scoring run on the GPU
-   - only candidate scores are read back
-   - the GPU-selected winner is re-scored with the canonical JavaScript cognitive core
-     before submission so the existing server-side 1e-7 winner verification remains valid
+1. Selecting GPU no longer silently falls back to CPU.
+   - GPU selected + GPU ready: CPU share = 0%, GPU gets the selected contribution.
+   - GPU selected + GPU unavailable/not secure: CPU share = 0%, GPU work pauses.
+   - The panel explicitly says GPU ONLY / CPU fallback OFF.
 
-3. Auto mode:
-   - HTTPS + WebGPU available -> GPU
-   - otherwise -> CPU fallback
+2. Auto remains the fallback mode.
+   - Auto + GPU ready -> GPU
+   - Auto + GPU unavailable -> CPU
 
-4. GPU mode:
-   - uses GPU search only when available
-   - safely falls back to CPU if WebGPU initialization fails
+3. Hybrid no longer reallocates the missing GPU share to CPU.
+   Example: Hybrid 80/20 with GPU unavailable keeps only the CPU 20% portion active;
+   the GPU 80% portion is paused until WebGPU is available.
 
-5. Hybrid mode:
-   - default 80% of the user's selected contribution goes to GPU
-   - 20% goes to CPU
-   - the GPU share is adjustable from 10–90%
+IMPORTANT:
+WebGPU itself still requires a secure context. If STAY is opened over plain HTTP,
+GPU-only mode will correctly show 0% CPU and 0% GPU rather than pretending GPU mode works.
 
-6. Existing contribution slider still represents the user's total requested contribution.
+After push:
+  sudo stay-deploy-git
 
-7. One-time HTTPS helper:
-   deploy/enable-ip-https.sh
-   WebGPU requires a secure context. The helper obtains a short-lived Let's Encrypt
-   IP certificate and converts nginx to HTTPS while retaining /runtime/ blocking.
-
-Important
----------
-The preserved 0.6 source remains byte-for-byte untouched on disk.
-The Living Kernel transforms the served browser client and injects the GPU engine.
+If HTTPS has not yet been enabled:
+  certbot --version
+  sudo /opt/stay/current/deploy/enable-ip-https.sh 35.157.242.167
 
 Suggested commit:
-STAY 0.7.1.6 add WebGPU compute engine and hybrid selector
-
-Normal code deployment after push:
-sudo stay-deploy-git
-
-Then, once, on Lightsail for WebGPU:
-sudo /opt/stay/current/deploy/enable-ip-https.sh 35.157.242.167
-
-The HTTPS helper requires Certbot 5.4+.
+STAY 0.7.1.7 make GPU mode strict with zero CPU fallback

@@ -74,10 +74,10 @@ function transformLegacyClient(source) {
     "  const targetShare = Math.max(0.01, Math.min(1, Number.isFinite(storedShare) && storedShare > 0 ? storedShare : 0.05));",
     "  const enginePreference = String(localStorage.getItem('stay-compute-engine') || 'auto').toLowerCase();",
     "  const gpuReady = Boolean(window.__stayGpuStatus?.ready);",
-    "  const engineResolved = enginePreference === 'cpu' ? 'cpu' : enginePreference === 'hybrid' ? (gpuReady ? 'hybrid' : 'cpu') : enginePreference === 'gpu' ? (gpuReady ? 'gpu' : 'cpu') : (gpuReady ? 'gpu' : 'cpu');",
+    "  const engineResolved = enginePreference === 'cpu' ? 'cpu' : enginePreference === 'gpu' ? (gpuReady ? 'gpu' : 'gpu-waiting') : enginePreference === 'hybrid' ? (gpuReady ? 'hybrid' : 'hybrid-degraded') : (gpuReady ? 'gpu' : 'cpu');",
     "  const storedHybridGpu = Number(localStorage.getItem('stay-hybrid-gpu-share'));",
     "  const hybridGpuFraction = Math.max(0.1, Math.min(0.9, Number.isFinite(storedHybridGpu) && storedHybridGpu > 0 ? storedHybridGpu : 0.8));",
-    "  const cpuShare = engineResolved === 'gpu' ? 0 : engineResolved === 'hybrid' ? targetShare * (1 - hybridGpuFraction) : targetShare;",
+    "  const cpuShare = engineResolved === 'cpu' ? targetShare : (engineResolved === 'hybrid' || engineResolved === 'hybrid-degraded') ? targetShare * (1 - hybridGpuFraction) : 0;",
     "  const gpuShare = engineResolved === 'gpu' ? targetShare : engineResolved === 'hybrid' ? targetShare * hybridGpuFraction : 0;"
   ].join('\n');
 
@@ -117,7 +117,7 @@ function transformLegacyClient(source) {
     '  const sliceMs = poolSize > 0 ? Math.max(5, Math.min(20, budgetMsPerWorker <= 40 ? Math.max(5, budgetMsPerWorker / 2) : 12)) : 0;',
     '  const estimatedYieldMs = poolSize > 0 ? Math.max(0, Math.ceil(budgetMsPerWorker / Math.max(1, sliceMs)) - 1) : 0;',
     '  const dispatchWindowMs = poolSize > 0 ? Math.max(0, Math.min(800, 900 - budgetMsPerWorker - estimatedYieldMs)) : 0;',
-    "  const mode = engineResolved === 'cpu' ? 'cpu-quiet-spread' : engineResolved === 'hybrid' ? 'hybrid' : 'gpu';"
+    "  const mode = engineResolved === 'cpu' ? 'cpu-quiet-spread' : engineResolved === 'hybrid' ? 'hybrid' : engineResolved === 'hybrid-degraded' ? 'hybrid-cpu-only' : engineResolved === 'gpu-waiting' ? 'gpu-waiting' : 'gpu';"
   ].join('\n');
 
   if (!output.includes(oldPool)) {

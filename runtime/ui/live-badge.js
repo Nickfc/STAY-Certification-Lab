@@ -107,15 +107,21 @@
     hybridRow.style.display = selectedEngine === 'hybrid' ? 'block' : 'none';
 
     if (!window.isSecureContext) {
-      engineStatusEl.textContent = 'GPU locked: HTTPS is required by WebGPU';
+      engineStatusEl.textContent = selectedEngine === 'gpu'
+        ? 'GPU ONLY selected · CPU fallback OFF · HTTPS required before GPU can run'
+        : 'GPU locked: HTTPS is required by WebGPU';
     } else if (gpu.ready) {
       const adapter = gpu.adapterInfo || {};
       const adapterName = adapter.description || adapter.device || adapter.architecture || adapter.vendor || 'WebGPU adapter';
       engineStatusEl.textContent = `GPU ready · ${adapterName}${gpu.lastCandidates ? ` · ${Math.round((gpu.candidatesPerMs || 0) * 1000).toLocaleString()} candidates/s` : ' · awaiting first task'}`;
     } else if (gpu.supported === false) {
-      engineStatusEl.textContent = `GPU unavailable · ${gpu.reason || 'browser/device does not expose WebGPU'}`;
+      engineStatusEl.textContent = selectedEngine === 'gpu'
+        ? `GPU ONLY selected · CPU fallback OFF · ${gpu.reason || 'WebGPU unavailable'}`
+        : `GPU unavailable · ${gpu.reason || 'browser/device does not expose WebGPU'}`;
     } else {
-      engineStatusEl.textContent = `GPU ${gpu.reason || 'initializing…'}`;
+      engineStatusEl.textContent = selectedEngine === 'gpu'
+        ? `GPU ONLY selected · CPU fallback OFF · ${gpu.reason || 'initializing…'}`
+        : `GPU ${gpu.reason || 'initializing…'}`;
     }
 
     if (!plan) {
@@ -128,8 +134,16 @@
     const gpuShare = Math.max(0, Number(plan.gpuShare) || 0) * 100;
     const effective = Math.max(0, Number(plan.effectiveShare) || 0) * 100;
 
-    effectiveEl.textContent =
-      `${resolved} · requested ${selectedPercent}% · CPU ${cpu.toFixed(1)}% · GPU ${gpuShare.toFixed(1)}% · effective CPU ~${effective.toFixed(1)}%`;
+    if (resolved === 'GPU-WAITING') {
+      effectiveEl.textContent =
+        `GPU ONLY · requested ${selectedPercent}% · CPU 0.0% · GPU paused until available`;
+    } else if (resolved === 'HYBRID-DEGRADED') {
+      effectiveEl.textContent =
+        `HYBRID · requested ${selectedPercent}% · CPU ${cpu.toFixed(1)}% · GPU share paused (not moved to CPU)`;
+    } else {
+      effectiveEl.textContent =
+        `${resolved} · requested ${selectedPercent}% · CPU ${cpu.toFixed(1)}% · GPU ${gpuShare.toFixed(1)}% · effective CPU ~${effective.toFixed(1)}%`;
+    }
   }
 
   badge.addEventListener('click', () => {
