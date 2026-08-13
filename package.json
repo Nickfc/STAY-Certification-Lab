@@ -1,8 +1,8 @@
 {
   "name": "genesis-stay-living-runtime",
-  "version": "0.7.1",
+  "version": "0.7.1.1",
   "private": true,
-  "description": "STAY / Project Genesis 0.7.1 Production Closure: persistent identity, truthful persistence health, recovery snapshots, event fabric and hot-swappable versioned cores.",
+  "description": "STAY / Project Genesis Living Runtime with persistent identity, production closure, live runtime identity and hot-swappable versioned cores.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
