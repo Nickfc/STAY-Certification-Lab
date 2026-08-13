@@ -7,7 +7,7 @@ const { StateStore } = require('./state-store');
 const { RuntimeRegistry } = require('./registry');
 const { UpgradeManager } = require('./upgrades');
 
-const KERNEL_VERSION = '0.7.1';
+const KERNEL_VERSION = '0.7.1.1';
 
 class LivingKernel {
   constructor({
@@ -26,6 +26,7 @@ class LivingKernel {
     this.upgrades = new UpgradeManager({ registry: this.registry, stateStore: this.stateStore });
     this.identity = null;
     this.startedAt = null;
+    this.runtimeRevision = 0;
     this.heartbeatIntervalMs = heartbeatIntervalMs;
     this.snapshotIntervalMs = snapshotIntervalMs;
     this.snapshotRetention = snapshotRetention;
@@ -44,11 +45,28 @@ class LivingKernel {
     };
     if (!existing) await this.stateStore.writeLife('identity', this.identity);
     this.startedAt = new Date().toISOString();
-    await this.stateStore.appendJournal({ type: 'kernel.start', at: this.startedAt, version: KERNEL_VERSION, organismId: this.identity.organismId, pid: process.pid });
+    await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
+    await this.stateStore.appendJournal({ type: 'kernel.start', at: this.startedAt, version: KERNEL_VERSION, runtimeRevision: this.runtimeRevision, organismId: this.identity.organismId, pid: process.pid });
     await this.writeHeartbeat();
     await this.createSnapshot('kernel-start');
     this.startMaintenance();
     return this;
+  }
+
+  async bumpRuntimeRevision(reason, details = {}) {
+    const stored = await this.stateStore.readLife('runtime-revision', { revision: 0 });
+    const previous = Number(stored && stored.revision) || 0;
+    this.runtimeRevision = Math.max(this.runtimeRevision, previous) + 1;
+    const record = {
+      revision: this.runtimeRevision,
+      reason,
+      at: new Date().toISOString(),
+      kernelVersion: KERNEL_VERSION,
+      ...details
+    };
+    await this.stateStore.writeLife('runtime-revision', record);
+    await this.stateStore.appendJournal({ type: 'runtime.revision', ...record });
+    return this.runtimeRevision;
   }
 
   startMaintenance() {
@@ -77,6 +95,7 @@ class LivingKernel {
     const cores = await this.registry.status();
     await this.stateStore.heartbeat({
       kernelVersion: KERNEL_VERSION,
+      runtimeRevision: this.runtimeRevision,
       organismId: this.identity ? this.identity.organismId : null,
       pid: process.pid,
       startedAt: this.startedAt,
@@ -92,10 +111,30 @@ class LivingKernel {
     return snapshot;
   }
 
-  async installCore(modulePath) { return this.upgrades.installInitial(path.resolve(modulePath)); }
-  async stageCoreUpgrade(modulePath) { return this.upgrades.stage(path.resolve(modulePath)); }
-  async commitCoreUpgrade(coreId, options) { return this.upgrades.commit(coreId, options); }
-  async rollbackCore(coreId) { return this.upgrades.rollback(coreId); }
+  async installCore(modulePath) {
+    const result = await this.upgrades.installInitial(path.resolve(modulePath));
+    await this.bumpRuntimeRevision('core.install', { coreId: result.manifest ? result.manifest.coreId : null, coreVersion: result.manifest ? result.manifest.version : null });
+    return result;
+  }
+
+  async stageCoreUpgrade(modulePath) {
+    const result = await this.upgrades.stage(path.resolve(modulePath));
+    await this.bumpRuntimeRevision('core.stage', { coreId: result.manifest ? result.manifest.coreId : null, coreVersion: result.manifest ? result.manifest.version : null });
+    return result;
+  }
+
+  async commitCoreUpgrade(coreId, options) {
+    const result = await this.upgrades.commit(coreId, options);
+    await this.bumpRuntimeRevision('core.commit', { coreId, coreVersion: result.active ? result.active.version : null });
+    return result;
+  }
+
+  async rollbackCore(coreId) {
+    const result = await this.upgrades.rollback(coreId);
+    await this.bumpRuntimeRevision('core.rollback', { coreId, coreVersion: result.active ? result.active.version : null });
+    return result;
+  }
+
   async publish(topic, payload, meta) { return this.fabric.publish(topic, payload, meta); }
 
   async health() {
@@ -106,6 +145,7 @@ class LivingKernel {
     return {
       ok: persistence.ok && unhealthyCores.length === 0 && maintenanceErrors.length === 0,
       kernelVersion: KERNEL_VERSION,
+      runtimeRevision: this.runtimeRevision,
       persistence,
       maintenanceErrors,
       unhealthyCores
@@ -130,6 +170,7 @@ class LivingKernel {
     return {
       kernel: {
         version: KERNEL_VERSION,
+        runtimeRevision: this.runtimeRevision,
         organismId: this.identity ? this.identity.organismId : null,
         startedAt: this.startedAt,
         pid: process.pid,
@@ -150,7 +191,7 @@ class LivingKernel {
     await this.writeHeartbeat();
     await this.createSnapshot('kernel-stop');
     await this.registry.stop();
-    await this.stateStore.appendJournal({ type: 'kernel.stop', at: new Date().toISOString(), version: KERNEL_VERSION, organismId: this.identity ? this.identity.organismId : null });
+    await this.stateStore.appendJournal({ type: 'kernel.stop', at: new Date().toISOString(), version: KERNEL_VERSION, runtimeRevision: this.runtimeRevision, organismId: this.identity ? this.identity.organismId : null });
   }
 }
 
