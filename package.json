@@ -1,7 +1,7 @@
 {
   "name": "genesis-stay-living-runtime",
   "version": "0.7.1",
-  "stayVersion": "0.7.1.4",
+  "stayVersion": "0.7.1.5",
   "private": true,
   "description": "STAY / Project Genesis Living Runtime with persistent identity, production closure, live runtime identity and hot-swappable versioned cores.",
   "main": "server.js",

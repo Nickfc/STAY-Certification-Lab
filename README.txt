@@ -1,24 +1,35 @@
-STAY 0.7.1.4 — UI placement + deployment automation
+STAY 0.7.1.5 — Quiet Distributed Compute
 
-Changes:
-- STAY release/display version -> 0.7.1.4
-- live runtime badge no longer sits on top of the original top-right presence/user UI
-- badge anchors dynamically 8px below `.presence`, including resize/mobile changes
-- adds permanent controlled deployment engine
-- adds optional private-GitHub read-only deployment path
-- adds Windows release builder fallback
+Purpose:
+Keep the user's selected compute contribution as the TOTAL amount of donated CPU time,
+but deliver it much more gently across the machine.
 
-Files:
+At 2% on a 24-thread machine:
+- target remains about 480 CPU-ms per second total
+- Quiet Spread uses up to 12 workers at low loads
+- each worker receives a much smaller budget (about 40 ms at 2%)
+- worker starts are staggered across most of the one-second cognitive epoch
+- each worker's budget is split into short 5–20 ms active slices with scheduler yields
+- this reduces long single-core boost bursts and should reduce temperature/fan spikes
+
+The browser still controls actual thread placement; Web Workers cannot pin themselves to
+specific CPU cores. The OS/browser scheduler decides which cores execute each worker.
+
+Also included:
+- STAY release/display version 0.7.1.5
+- .gitattributes forces Linux shell scripts to LF line endings
+- top-right panel reports Quiet Spread worker count, slice size and spread window
+
+Changed files:
 - package.json
+- server.js
 - runtime/ui/live-badge.js
-- deploy/stay-deploy.sh
-- deploy/stay-deploy-git.sh
-- deploy/install-deployer.sh
-- deploy/DEPLOYMENT_AUTOMATION.md
-- tools/build-release.ps1
+- .gitattributes
 
-No 0.6 source file is modified.
-server.js remains the 0.7.1.3 version with the compute slider and framing fix.
+No preserved 0.6 source file is modified on disk.
 
 Suggested commit:
-STAY 0.7.1.4 fix runtime badge placement and automate deployment
+STAY 0.7.1.5 add quiet distributed compute scheduler
+
+After pushing, deploy with:
+sudo stay-deploy-git

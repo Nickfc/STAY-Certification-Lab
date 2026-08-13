@@ -78,8 +78,10 @@
       return;
     }
     const effective = Math.max(0, Number(plan.effectiveShare) || 0) * 100;
+    const slice = Math.max(0, Number(plan.sliceMs) || 0);
+    const spread = Math.max(0, Number(plan.dispatchWindowMs) || 0);
     effectiveEl.textContent =
-      `effective ~${effective.toFixed(1)}% · ${plan.poolSize} worker${plan.poolSize === 1 ? '' : 's'} / ${plan.logicalCores} threads`;
+      `effective ~${effective.toFixed(1)}% · quiet spread · ${plan.poolSize} workers / ${plan.logicalCores} threads · ${slice.toFixed(0)} ms slices across ${spread.toFixed(0)} ms`;
   }
 
   badge.addEventListener('click', () => {

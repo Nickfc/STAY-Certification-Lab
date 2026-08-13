@@ -70,26 +70,187 @@ function transformLegacyClient(source) {
 
   let output = source.replace(fixedShare, adaptiveShare);
 
+  const stateWorkerMarker = '  workers: new Map(),';
+  if (!output.includes(stateWorkerMarker)) {
+    throw new Error('legacy client worker-state marker not found');
+  }
+  output = output.replace(
+    stateWorkerMarker,
+    "  workers: new Map(),\n  dispatchTimers: new Set(),"
+  );
+
   const oldPool = [
+    '  // A bounded pool avoids spawning dozens of Workers on high-core machines.',
+    '  // The per-worker duty budget grows instead, so total CPU-time still targets',
+    '  // ~10% of the logical compute exposed by the browser.',
     '  let poolSize = Math.max(1, Math.min(logicalCores, 8));',
     '  while (targetCpuMsPerSecond / poolSize > 850 && poolSize < Math.min(logicalCores, 16)) poolSize++;',
     '  const budgetMsPerWorker = Math.max(20, Math.min(850, targetCpuMsPerSecond / poolSize));'
   ].join('\n');
 
-  const newPool = [
-    '  const maxPoolSize = Math.max(1, Math.min(logicalCores, 32));',
-    '  const poolSize = Math.max(1, Math.min(maxPoolSize, Math.ceil(targetCpuMsPerSecond / 1000)));',
-    '  const budgetMsPerWorker = Math.max(5, Math.min(1000, targetCpuMsPerSecond / poolSize));'
+  const quietPool = [
+    '  // Quiet Spread: contribution percentage controls total CPU-time, while',
+    '  // many short, staggered workers avoid concentrating that work on a few hot cores.',
+    '  const maxShardPool = 32;',
+    '  const baseSpreadPool = Math.max(1, Math.min(logicalCores, 12));',
+    '  const maxBudgetMsPerWorker = 850;',
+    '  const requiredPool = Math.max(1, Math.ceil(targetCpuMsPerSecond / maxBudgetMsPerWorker));',
+    '  const poolSize = Math.max(1, Math.min(maxShardPool, Math.max(baseSpreadPool, requiredPool)));',
+    '  const budgetMsPerWorker = Math.max(5, Math.min(maxBudgetMsPerWorker, targetCpuMsPerSecond / poolSize));',
+    '  const sliceMs = Math.max(5, Math.min(20, budgetMsPerWorker <= 40 ? Math.max(5, budgetMsPerWorker / 2) : 12));',
+    '  const estimatedYieldMs = Math.max(0, Math.ceil(budgetMsPerWorker / sliceMs) - 1);',
+    '  const dispatchWindowMs = Math.max(0, Math.min(800, 900 - budgetMsPerWorker - estimatedYieldMs));',
+    "  const mode = 'quiet-spread';"
   ].join('\n');
 
   if (!output.includes(oldPool)) {
     throw new Error('legacy client worker-pool marker not found');
   }
-  output = output.replace(oldPool, newPool);
+  output = output.replace(oldPool, quietPool);
 
+  const returnMarker = '    budgetMsPerWorker\n  };';
+  if (!output.includes(returnMarker)) {
+    throw new Error('legacy client compute-plan return marker not found');
+  }
   output = output.replace(
-    '  state.computePlan = createComputePlan();',
+    returnMarker,
+    '    budgetMsPerWorker,\n    sliceMs,\n    dispatchWindowMs,\n    mode\n  };'
+  );
+
+  // Keep the UI's public plan current both at initial boot and after live slider changes.
+  output = output.split('  state.computePlan = createComputePlan();').join(
     '  state.computePlan = createComputePlan();\n  window.__stayComputePlan = { ...state.computePlan };'
+  );
+
+  const immediateDispatch = '  if (state.latestTask) dispatchTaskToSlot(slot);';
+  if (!output.includes(immediateDispatch)) {
+    throw new Error('legacy client immediate-dispatch marker not found');
+  }
+  output = output.replace(immediateDispatch, '');
+
+  const startPoolMarker = [
+    "function startWorkerPool(reason = 'startup') {",
+    '  for (const slot of state.workers.values()) {'
+  ].join('\n');
+  if (!output.includes(startPoolMarker)) {
+    throw new Error('legacy client start-pool marker not found');
+  }
+  output = output.replace(
+    startPoolMarker,
+    [
+      "function startWorkerPool(reason = 'startup') {",
+      '  clearScheduledDispatches();',
+      '  for (const slot of state.workers.values()) {'
+    ].join('\n')
+  );
+
+  const startPoolTail = [
+    '  for (let shardId = 0; shardId < state.computePlan.poolSize; shardId++) {',
+    '    makeWorkerSlot(shardId, generation);',
+    '  }',
+    '}'
+  ].join('\n');
+  if (!output.includes(startPoolTail)) {
+    throw new Error('legacy client start-pool tail marker not found');
+  }
+  output = output.replace(
+    startPoolTail,
+    [
+      '  for (let shardId = 0; shardId < state.computePlan.poolSize; shardId++) {',
+      '    makeWorkerSlot(shardId, generation);',
+      '  }',
+      '  if (state.latestTask) dispatchLatestTask();',
+      '}'
+    ].join('\n')
+  );
+
+  const dispatchMarker = 'function dispatchTaskToSlot(slot) {';
+  if (!output.includes(dispatchMarker)) {
+    throw new Error('legacy client dispatch marker not found');
+  }
+
+  const schedulerHelpers = [
+    'function clearScheduledDispatches() {',
+    '  for (const timer of state.dispatchTimers) clearTimeout(timer);',
+    '  state.dispatchTimers.clear();',
+    '}',
+    '',
+    'function scheduleTaskForSlot(slot, index, total) {',
+    '  if (!slot?.worker || !state.latestTask) return;',
+    '  const generation = state.workerGeneration;',
+    '  const epoch = Number(state.latestTask.epoch) || -1;',
+    '  const plan = state.computePlan;',
+    '  const count = Math.max(1, Number(total) || 1);',
+    '  const position = Math.max(0, Number(index) || 0);',
+    '  const offsetMs = count > 1 ? (plan.dispatchWindowMs * position) / (count - 1) : 0;',
+    '  const timer = setTimeout(() => {',
+    '    state.dispatchTimers.delete(timer);',
+    '    if (generation !== state.workerGeneration) return;',
+    '    if (!state.latestTask || Number(state.latestTask.epoch) !== epoch) return;',
+    '    dispatchTaskToSlot(slot);',
+    '  }, offsetMs);',
+    '  state.dispatchTimers.add(timer);',
+    '}',
+    '',
+    dispatchMarker
+  ].join('\n');
+
+  output = output.replace(dispatchMarker, schedulerHelpers);
+
+  const budgetMarker = '    budgetMs: state.computePlan.budgetMsPerWorker';
+  if (!output.includes(budgetMarker)) {
+    throw new Error('legacy client task-budget marker not found');
+  }
+  output = output.replace(
+    budgetMarker,
+    '    budgetMs: state.computePlan.budgetMsPerWorker,\n    sliceMs: state.computePlan.sliceMs'
+  );
+
+  const oldDispatchLatest = [
+    'function dispatchLatestTask() {',
+    '  if (!state.latestTask) return;',
+    '  for (const slot of state.workers.values()) dispatchTaskToSlot(slot);',
+    '}'
+  ].join('\n');
+  const quietDispatchLatest = [
+    'function dispatchLatestTask() {',
+    '  if (!state.latestTask) return;',
+    '  clearScheduledDispatches();',
+    '  const slots = Array.from(state.workers.values()).sort((a, b) => a.shardId - b.shardId);',
+    '  for (let index = 0; index < slots.length; index++) {',
+    '    scheduleTaskForSlot(slots[index], index, slots.length);',
+    '  }',
+    '}'
+  ].join('\n');
+  if (!output.includes(oldDispatchLatest)) {
+    throw new Error('legacy client dispatch-latest marker not found');
+  }
+  output = output.replace(oldDispatchLatest, quietDispatchLatest);
+
+  const restartSlotMarker = '  makeWorkerSlot(shardId, state.workerGeneration);';
+  if (!output.includes(restartSlotMarker)) {
+    throw new Error('legacy client restart-slot marker not found');
+  }
+  output = output.replace(
+    restartSlotMarker,
+    [
+      '  const replacement = makeWorkerSlot(shardId, state.workerGeneration);',
+      '  if (state.latestTask) scheduleTaskForSlot(replacement, 0, 1);'
+    ].join('\n')
+  );
+
+  const schedulerMarker = '          budgetMsPerWorker: plan.budgetMsPerWorker';
+  if (!output.includes(schedulerMarker)) {
+    throw new Error('legacy client scheduler-report marker not found');
+  }
+  output = output.replace(
+    schedulerMarker,
+    [
+      '          budgetMsPerWorker: plan.budgetMsPerWorker,',
+      '          sliceMs: plan.sliceMs,',
+      '          dispatchWindowMs: plan.dispatchWindowMs,',
+      '          mode: plan.mode'
+    ].join('\n')
   );
 
   output = output.replace(
@@ -109,11 +270,79 @@ function transformLegacyClient(source) {
 }
 
 function transformLegacyWorker(source) {
-  const marker = 'Math.min(900, Number(task.budgetMs) || 100)';
-  if (!source.includes(marker)) {
-    throw new Error('legacy worker budget marker not found');
+  const messageMarker = 'self.onmessage = (event) => {';
+  const budgetMarker = 'const budgetMs = Math.max(5, Math.min(900, Number(task.budgetMs) || 100));';
+  const deadlineMarker = [
+    '    const workStarted = performance.now();',
+    '    const deadline = workStarted + budgetMs;'
+  ].join('\n');
+
+  if (!source.includes(messageMarker) || !source.includes(budgetMarker) || !source.includes(deadlineMarker)) {
+    throw new Error('legacy worker quiet-scheduler markers not found');
   }
-  return source.replace(marker, 'Math.min(1000, Number(task.budgetMs) || 100)');
+
+  let output = source.replace(messageMarker, 'self.onmessage = async (event) => {');
+  output = output.replace(
+    budgetMarker,
+    [
+      'const budgetMs = Math.max(5, Math.min(850, Number(task.budgetMs) || 100));',
+      '    const sliceMs = Math.max(5, Math.min(20, Number(task.sliceMs) || 12));'
+    ].join('\n')
+  );
+  output = output.replace(
+    deadlineMarker,
+    [
+      '    const workStarted = performance.now();',
+      '    let activeWorkMs = 0;'
+    ].join('\n')
+  );
+
+  const oldLoop = [
+    '    while (performance.now() < deadline) {',
+    '      for (let batch = 0; batch < 32; batch++) {',
+    '        const result = C.evaluateCandidate(genome, task.seed, workHash, candidates, scenarios);',
+    '        const score = result.score;',
+    '        scoreSum += score;',
+    '        scoreSquareSum += score * score;',
+    '        if (score > bestScore) {',
+    '          bestScore = score;',
+    '          bestIndex = candidates;',
+    '          bestOutputs = result.outputs;',
+    '        }',
+    '        candidates++;',
+    '      }',
+    '    }'
+  ].join('\n');
+
+  const quietLoop = [
+    '    while (activeWorkMs < budgetMs) {',
+    '      const sliceStarted = performance.now();',
+    '      const activeTarget = Math.min(sliceMs, budgetMs - activeWorkMs);',
+    '      const sliceDeadline = sliceStarted + activeTarget;',
+    '      while (performance.now() < sliceDeadline) {',
+    '        for (let batch = 0; batch < 32; batch++) {',
+    '          const result = C.evaluateCandidate(genome, task.seed, workHash, candidates, scenarios);',
+    '          const score = result.score;',
+    '          scoreSum += score;',
+    '          scoreSquareSum += score * score;',
+    '          if (score > bestScore) {',
+    '            bestScore = score;',
+    '            bestIndex = candidates;',
+    '            bestOutputs = result.outputs;',
+    '          }',
+    '          candidates++;',
+    '        }',
+    '      }',
+    '      activeWorkMs += Math.max(0, performance.now() - sliceStarted);',
+    '      if (activeWorkMs < budgetMs) await new Promise((resolve) => setTimeout(resolve, 0));',
+    '    }'
+  ].join('\n');
+
+  if (!output.includes(oldLoop)) {
+    throw new Error('legacy worker compute-loop marker not found');
+  }
+
+  return output.replace(oldLoop, quietLoop);
 }
 
 function proxyToLegacy(req, res) {
