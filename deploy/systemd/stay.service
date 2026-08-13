@@ -8,13 +8,14 @@ Type=simple
 User=staydeploy
 Group=staydeploy
 WorkingDirectory=/opt/stay/current
-ExecStart=/usr/bin/node /opt/stay/current/server.js
+ExecStart=/usr/bin/env node /opt/stay/current/server.js
 Restart=on-failure
 RestartSec=3
 KillSignal=SIGTERM
 TimeoutStopSec=15
 UMask=0077
 
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
 Environment=STAY_HOST=127.0.0.1
 Environment=PORT=8787
