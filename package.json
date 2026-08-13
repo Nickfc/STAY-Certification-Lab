@@ -1,11 +1,15 @@
 {
-  "name": "genesis-stay-poc",
-  "version": "0.6.0",
+  "name": "genesis-stay-living-runtime",
+  "version": "0.7.0",
   "private": true,
-  "description": "STAY / Project Genesis POC 0.6: adaptive device-wide compute, agency, prediction, layered memory and Living Sky UI.",
+  "description": "STAY / Project Genesis 0.7 Living Runtime Foundation: persistent identity, event fabric and hot-swappable versioned cores.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node self-test.js && node agency-learning-test.js && node compute-budget-test.js && node resilience-test.js && node world-test.js && node experience-integration-test.js"
+    "test": "node --test test/*.test.js",
+    "verify:release": "node scripts/verify-release.js"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
