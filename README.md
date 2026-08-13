@@ -1,11 +1,17 @@
 # STAY / Project Genesis
 
-## 0.7.0 Living Runtime Foundation
+## 0.7.1 Production Closure
 
-STAY 0.7 adds persistent identity and state plus versioned runtime components that can be staged, observed, switched and restored while the service remains available.
+STAY 0.7.1 closes the first production deployment of the Living Runtime before native physiological or cognitive cores are introduced.
 
-The supplied stable 0.6 fetus is now represented by a transitional compatibility core. It preserves the original 0.6 server/UI/brain-state boundary while the new Living Kernel becomes the persistent runtime around it. The old monolith is deliberately not claimed to be live hot-swappable; future native cores are.
+It preserves the stable 0.6 organism as a transitional compatibility core while adding truthful persistence health, periodic life-state heartbeats, automatic timestamped recovery snapshots, restart continuity checks and a stricter public/private gateway boundary.
 
-See `docs/LIVING_RUNTIME_0.7.md` for the architecture and `docs/AWAKENING_0.7.md` for the first Lightsail awakening procedure.
+The old 0.6 monolith is deliberately not claimed to be live hot-swappable. Future native cores are designed for shadow validation, atomic authority switching and warm rollback while the Living Runtime remains available.
+
+See:
+
+- `docs/LIVING_RUNTIME_0.7.md` for the architecture
+- `docs/AWAKENING_0.7.md` for the first Lightsail awakening procedure
+- `docs/PRODUCTION_CLOSURE_0.7.1.md` for the accepted production baseline and 0.7.1 gate
 
 Production state belongs in `/var/lib/stay/data` and remains separate from immutable release code.
