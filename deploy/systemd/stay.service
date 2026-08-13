@@ -29,8 +29,9 @@ Environment=STAY_EXPECTED_HIBERNATION_SHA256=b45d6addd70b13bfa684f53c075edb3ca6a
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
-ProtectSystem=full
+ProtectSystem=strict
 ReadOnlyPaths=/opt/stay
+ReadWritePaths=/var/lib/stay/data
 
 [Install]
 WantedBy=multi-user.target
