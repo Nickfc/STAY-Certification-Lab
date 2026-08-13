@@ -9,6 +9,7 @@ This runbook is for the first transition from the hibernated stable 0.6.0 fetus 
 - Never start the compatibility core if source or state fingerprints do not match.
 - Take a byte-for-byte backup of the hibernation state before the first start.
 - The stable 0.6 monolith is a compatibility core and is **not** a live hot-swap target.
+- Do not expose the public gateway until both runtime health and persistence have been proven.
 
 ## Production locations
 
@@ -32,6 +33,18 @@ Extract the package into a temporary directory. Copy the package's `source/0.6.0
 
 The source directory should be treated as immutable after installation. The state directory must be writable by `staydeploy`.
 
+The stable 0.6 server honors `GENESIS_STATE_PATH`, but its unchanged save routine also calls `mkdir(__dirname/data)` before writing the external state file. Preserve the original source while satisfying that legacy assumption with a compatibility symlink:
+
+```bash
+sudo rm -rf /opt/stay/legacy/0.6.0/data
+sudo ln -s /var/lib/stay/data/legacy-0.6.0 /opt/stay/legacy/0.6.0/data
+sudo chown -h root:root /opt/stay/legacy/0.6.0/data
+```
+
+Verify that `/opt/stay/legacy/0.6.0/data` resolves to `/var/lib/stay/data/legacy-0.6.0`. Do not copy live state back into the immutable source tree.
+
+Also ensure the service account can traverse `/var/lib/stay` and owns the actual data tree. On the current Lightsail layout the parent is group-traversable by `staydeploy` while the data tree itself is private to `staydeploy`.
+
 ## 3. Verify the hibernation state
 
 The expected SHA-256 for the supplied hibernation state is:
@@ -44,11 +57,11 @@ Verify the file before proceeding:
 sha256sum /var/lib/stay/data/legacy-0.6.0/genesis-state.json
 ```
 
-If it differs, stop. Do not start STAY.
+If it differs before the first accepted awakening, stop. Do not start STAY.
 
 ## 4. Make the pre-awakening backup
 
-Before the first start:
+Before the first accepted start:
 
 ```bash
 sudo mkdir -p /var/backups/stay/pre-0.7-awakening
@@ -56,7 +69,7 @@ sudo cp -a /var/lib/stay/data/legacy-0.6.0/genesis-state.json /var/backups/stay/
 sha256sum /var/backups/stay/pre-0.7-awakening/genesis-state.json
 ```
 
-The backup hash must be identical to the hibernation hash above.
+The backup hash must be identical to the hibernation hash above. After a successful awakening and save, the live state is expected to diverge from this frozen backup.
 
 ## 5. Stage the 0.7 release
 
@@ -73,26 +86,33 @@ The repository contains:
 
 Install the systemd unit and Nginx gateway, validate Nginx configuration, and reload systemd. The Living Kernel listens only on `127.0.0.1:8787`; the stable fetus listens only on `127.0.0.1:8788`; Nginx is the public observation gateway on port 80.
 
-## 7. First start
+Keep Nginx on the old/public-safe configuration until private awakening acceptance is complete.
+
+## 7. First start and persistence acceptance
 
 Start `stay.service`. The compatibility core will refuse to awaken if its stable runtime file fingerprints or the first-import hibernation state fingerprint do not match.
 
-Immediately verify:
+Immediately verify privately:
 
 ```bash
 curl -fsS http://127.0.0.1:8787/healthz
 curl -fsS http://127.0.0.1:8787/runtime/status
-curl -I http://127.0.0.1/
 ```
 
-Expected result: the kernel reports healthy, `fetus-legacy` reports healthy with `sourceVerified` and `hibernationVerified`, and `/` is served through the original 0.6 UI.
+Expected result: the kernel reports healthy and `fetus-legacy` reports healthy with `sourceVerified` and `hibernationVerified`.
+
+Then keep it private for at least one 0.6 persistence interval (more than five seconds). Check the journal for `Could not save state` messages. There must be none. Verify the live `genesis-state.json` receives a new `savedAt` value and that its SHA-256 can diverge from the untouched pre-awakening backup. That divergence is expected evidence of a successful live save, not corruption.
+
+If persistence fails, stop `stay.service` immediately and do not expose Nginx. A process being reachable is not sufficient for awakening acceptance if organism history cannot be persisted.
+
+Only after health **and** persistence are accepted should Nginx be reloaded and `/` exposed publicly.
 
 ## 8. Observe before evolving
 
-For the first awakening, do not add new cognitive cores. Let the exact stable fetus run behind 0.7 first and verify that its website, persistence, compute participation, world state and operator path behave as they did in 0.6.
+For the first accepted awakening, do not add new cognitive cores. Let the exact stable fetus run behind 0.7 first and verify that its website, persistence, compute participation, world state and operator path behave as they did in 0.6.
 
 Only after that baseline is accepted should we begin extracting native cores such as primordial instincts, SNTSS, memory, self-model and morphology.
 
 ## Rollback principle
 
-A failed 0.7 startup must never delete or regenerate organism state. Stop the service, preserve the failed-run state separately for inspection, and retain the untouched pre-awakening backup. Release code can be replaced; organism history cannot.
+A failed 0.7 startup or persistence acceptance must never delete or regenerate organism state. Stop the service, preserve any failed-run evidence separately for inspection, and retain the untouched pre-awakening backup. Release code can be replaced; organism history cannot.
