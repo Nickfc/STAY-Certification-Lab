@@ -9,8 +9,24 @@
 
   const host = document.createElement('div');
   host.id = 'stay-live-runtime-host';
-  host.style.cssText = 'position:fixed;top:14px;right:14px;z-index:2147483647;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:white;';
+  host.style.cssText = 'position:fixed;z-index:2147483647;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:white;';
   document.body.appendChild(host);
+
+  function positionRuntimeHost() {
+    const presence = document.querySelector('.presence');
+    if (presence) {
+      const rect = presence.getBoundingClientRect();
+      host.style.top = `${Math.ceil(rect.bottom + 8)}px`;
+      host.style.right = `${Math.max(14, Math.ceil(window.innerWidth - rect.right))}px`;
+      return;
+    }
+    host.style.top = '64px';
+    host.style.right = '14px';
+  }
+
+  positionRuntimeHost();
+  requestAnimationFrame(positionRuntimeHost);
+  window.addEventListener('resize', positionRuntimeHost);
 
   const badge = document.createElement('button');
   badge.type = 'button';
