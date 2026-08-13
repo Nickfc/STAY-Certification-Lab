@@ -1,0 +1,73 @@
+name: Stage STAY 0.7 on Lightsail
+
+on:
+  push:
+    branches:
+      - agent/living-runtime-0.7.0
+    paths:
+      - '.github/workflows/stage-lightsail-0.7.yml'
+      - 'runtime/**'
+      - 'cores/**'
+      - 'deploy/**'
+      - 'server.js'
+      - 'package.json'
+      - 'scripts/**'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Verify runtime
+        run: npm test
+
+      - name: Build immutable staging archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="stay-0.7.0-${GITHUB_SHA}.tar.gz"
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='data' \
+            --exclude='.stay-data' \
+            -czf "$ARCHIVE" \
+            README.md README_DEPLOYMENT.md package.json server.js runtime cores deploy docs scripts legacy
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          printf 'ARCHIVE=%s\n' "$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 600 ~/.ssh/stay_deploy
+          ssh-keyscan -H 35.157.242.167 >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload to incoming only
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes "$ARCHIVE" "$ARCHIVE.sha256" staydeploy@35.157.242.167:/opt/stay/incoming/
+
+      - name: Verify staged archive on Lightsail
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes staydeploy@35.157.242.167 "cd /opt/stay/incoming && sha256sum -c '$ARCHIVE.sha256'"
