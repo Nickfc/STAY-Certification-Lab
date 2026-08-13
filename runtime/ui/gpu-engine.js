@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ENGINE_VERSION = 'stay-webgpu-search-v1';
+  const ENGINE_VERSION = 'stay-webgpu-search-v2';
   const INPUTS = 31;
   const HIDDEN = 8;
   const OUTPUTS = 12;
@@ -9,7 +9,7 @@
   const WORKGROUP_SIZE = 32;
   const GPU_SHARD_ID = 31;
   const MIN_CANDIDATES = 32;
-  const MAX_CANDIDATES = 131072;
+  const ABSOLUTE_MAX_CANDIDATES = 4194304; // 4M; runtime-clamped to device limits
 
   const shader = `
 struct Params {
@@ -17,6 +17,10 @@ struct Params {
   nodeHash: u32,
   scenarioCount: u32,
   candidateCount: u32,
+  rowStride: u32,
+  _pad0: u32,
+  _pad1: u32,
+  _pad2: u32,
 };
 
 @group(0) @binding(0) var<storage, read> baseGenome: array<f32>;
@@ -45,7 +49,7 @@ fn candidateSeed(taskSeed: u32, nodeHash: u32, candidateIndex: u32) -> u32 {
 
 @compute @workgroup_size(${WORKGROUP_SIZE})
 fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
-  let candidateIndex = globalId.x;
+  let candidateIndex = globalId.x + globalId.y * params.rowStride;
   if (candidateIndex >= params.candidateCount) {
     return;
   }
@@ -123,6 +127,10 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
     completedTasks: 0,
     lastError: '',
     adapterInfo: null,
+    maxCandidates: ABSOLUTE_MAX_CANDIDATES,
+    maxWorkgroupsPerDimension: 65535,
+    lastTargetMs: 0,
+    lastDutyPercent: 0,
   };
 
   function publish() {
@@ -138,6 +146,9 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
       lastCandidates: state.lastCandidates,
       completedTasks: state.completedTasks,
       adapterInfo: state.adapterInfo,
+      maxCandidates: state.maxCandidates,
+      lastTargetMs: state.lastTargetMs,
+      lastDutyPercent: state.lastDutyPercent,
     };
     window.__stayGpuStatus = info;
     window.dispatchEvent(new CustomEvent('stay-gpu-status', { detail: info }));
@@ -191,6 +202,17 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
         state.adapter = adapter;
         state.device = device;
         state.pipeline = pipeline;
+        const storageLimit = Number(device.limits?.maxStorageBufferBindingSize || 0);
+        const bufferLimit = Number(device.limits?.maxBufferSize || 0);
+        const scoreLimitBytes = Math.min(
+          storageLimit > 0 ? storageLimit : Number.MAX_SAFE_INTEGER,
+          bufferLimit > 0 ? bufferLimit : Number.MAX_SAFE_INTEGER
+        );
+        state.maxCandidates = Math.max(
+          MIN_CANDIDATES,
+          Math.min(ABSOLUTE_MAX_CANDIDATES, Math.floor(scoreLimitBytes / 4))
+        );
+        state.maxWorkgroupsPerDimension = Math.max(1, Number(device.limits?.maxComputeWorkgroupsPerDimension || 65535));
         const rawInfo = device.adapterInfo || {};
         state.adapterInfo = {
           vendor: String(rawInfo.vendor || ''),
@@ -219,18 +241,22 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
 
   function chooseCandidateCount(share, scenarioCount) {
     const fraction = Math.max(0.01, Math.min(1, Number(share) || 0.05));
-    const targetMs = Math.max(5, Math.min(800, fraction * 1000));
+    // Leave headroom for readback, canonical winner verification, POST /work and UI.
+    // This makes the slider a real GPU duty-cycle target rather than a cosmetic hint.
+    const targetMs = Math.max(8, Math.min(850, fraction * 900));
+    state.lastTargetMs = targetMs;
 
     if (state.candidatesPerMs > 0) {
       const predicted = Math.round(targetMs * state.candidatesPerMs);
-      return Math.max(MIN_CANDIDATES, Math.min(MAX_CANDIDATES, predicted));
+      return Math.max(MIN_CANDIDATES, Math.min(state.maxCandidates, predicted));
     }
 
-    // Conservative first dispatch. Scenario depth can be up to ~24.
+    // Conservative first dispatch; subsequent jobs self-calibrate from measured throughput.
     const depthPenalty = Math.max(1, Number(scenarioCount) || 1);
-    const bootstrap = Math.round(1536 / Math.sqrt(depthPenalty));
-    return Math.max(MIN_CANDIDATES, Math.min(512, bootstrap));
+    const bootstrap = Math.round(4096 / Math.sqrt(depthPenalty));
+    return Math.max(MIN_CANDIDATES, Math.min(2048, bootstrap, state.maxCandidates));
   }
+
 
   function createBufferFromF32(device, values, usage) {
     const data = values instanceof Float32Array ? values : new Float32Array(values);
@@ -241,9 +267,9 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
     return buffer;
   }
 
-  function createUniformParams(device, seed, nodeHash, scenarioCount, candidateCount) {
+  function createUniformParams(device, seed, nodeHash, scenarioCount, candidateCount, rowStride) {
     const buffer = device.createBuffer({
-      size: 16,
+      size: 32,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true
     });
@@ -253,6 +279,10 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
     view[1] = Number(nodeHash) >>> 0;
     view[2] = Number(scenarioCount) >>> 0;
     view[3] = Number(candidateCount) >>> 0;
+    view[4] = Number(rowStride) >>> 0;
+    view[5] = 0;
+    view[6] = 0;
+    view[7] = 0;
     buffer.unmap();
     return buffer;
   }
@@ -315,8 +345,16 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
       size: scoreBytes,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
     });
+    const totalGroups = Math.ceil(candidateCount / WORKGROUP_SIZE);
+    const groupsX = Math.min(state.maxWorkgroupsPerDimension, totalGroups);
+    const groupsY = Math.max(1, Math.ceil(totalGroups / groupsX));
+    if (groupsY > state.maxWorkgroupsPerDimension) {
+      throw new Error(`GPU dispatch exceeds device workgroup limits: ${groupsX}x${groupsY}`);
+    }
+    const rowStride = groupsX * WORKGROUP_SIZE;
+
     const paramsBuffer = createUniformParams(
-      device, task.seed, workHash, scenarios.length, candidateCount
+      device, task.seed, workHash, scenarios.length, candidateCount, rowStride
     );
 
     const bindGroup = device.createBindGroup({
@@ -335,7 +373,7 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
     const pass = encoder.beginComputePass();
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bindGroup);
-    pass.dispatchWorkgroups(Math.ceil(candidateCount / WORKGROUP_SIZE));
+    pass.dispatchWorkgroups(groupsX, groupsY, 1);
     pass.end();
     encoder.copyBufferToBuffer(scoreBuffer, 0, readback, 0, scoreBytes);
     device.queue.submit([encoder.finish()]);
@@ -371,6 +409,7 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
       : measuredRate;
     state.lastElapsedMs = elapsedMs;
     state.lastCandidates = candidateCount;
+    state.lastDutyPercent = Math.max(0, Math.min(100, elapsedMs / 10));
     state.completedTasks += 1;
     state.lastError = '';
     publish();
