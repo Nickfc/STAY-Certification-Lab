@@ -120,6 +120,7 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
     candidatesPerMs: 0,
     lastElapsedMs: 0,
     lastCandidates: 0,
+    completedTasks: 0,
     lastError: '',
     adapterInfo: null,
   };
@@ -135,6 +136,7 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
       candidatesPerMs: state.candidatesPerMs,
       lastElapsedMs: state.lastElapsedMs,
       lastCandidates: state.lastCandidates,
+      completedTasks: state.completedTasks,
       adapterInfo: state.adapterInfo,
     };
     window.__stayGpuStatus = info;
@@ -369,6 +371,7 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
       : measuredRate;
     state.lastElapsedMs = elapsedMs;
     state.lastCandidates = candidateCount;
+    state.completedTasks += 1;
     state.lastError = '';
     publish();
 

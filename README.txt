@@ -1,31 +1,27 @@
-STAY 0.7.1.9 — GPU genome contract fix
+STAY 0.7.1.10 — GPU result acceptance / recovery-loop fix
 
-Observed on real GPU-only execution:
-  GPU task genome has unexpected size
-
-Root cause:
-The canonical 0.6 cognitive network is:
-  31 inputs
-  8 hidden neurons
-  12 outputs
-
-Genome size is therefore:
-  (31 + 1) * 8 + (8 + 1) * 12 = 364
-
-The 0.6 cognitive core computes this correctly, but an old comment said 308.
-The first WebGPU engine copied that stale comment into a hard-coded constant.
+Root cause found from live behavior:
+- WebGPU runTask() publishes telemetry when a GPU job completes.
+- The transformed legacy client listened to every stay-gpu-status event.
+- Every `ready:true` telemetry update called startWorkerPool('gpu-ready').
+- startWorkerPool increments workerGeneration.
+- Control then returned to dispatchGpuTask(), which saw its generation had changed
+  and discarded the GPU result before POST /work.
+- The server consequently saw zero verified candidates and invoked its 3-empty-epoch
+  recovery watchdog repeatedly.
 
 Fixes:
-- WebGPU GENOME_SIZE is now derived from INPUTS/HIDDEN/OUTPUTS, yielding 364.
-- Runtime verifies GPU GENOME_SIZE matches GenesisCognitive.GENOME_SIZE.
-- Genome-size failures now report both actual and expected sizes.
-- Repository deploy/stay-deploy.sh is synchronized with the HTTPS-aware production deployer:
-  HTTP 308 redirect is healthy, and browser-surface checks use the kernel directly on 8787.
+- GPU status only rebuilds compute on a real NOT READY -> READY transition.
+- Routine GPU telemetry can no longer invalidate an in-flight result.
+- Only one GPU task is allowed in flight per browser.
+- A completed result is submitted; server decides if it is stale.
+- If a newer epoch arrived while GPU was busy, the latest task starts immediately after.
+- GPU telemetry now counts completed jobs.
 
 No preserved 0.6 source/state is modified.
 
 Suggested commit:
-STAY 0.7.1.9 fix GPU genome contract and sync HTTPS deployer
+STAY 0.7.1.10 fix GPU result acceptance and recovery loop
 
-Deploy after push:
+Deploy:
 sudo stay-deploy-git

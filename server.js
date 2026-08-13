@@ -93,7 +93,7 @@ function transformLegacyClient(source) {
   }
   output = output.replace(
     stateWorkerMarker,
-    "  workers: new Map(),\n  dispatchTimers: new Set(),"
+    "  workers: new Map(),\n  dispatchTimers: new Set(),\n  gpuWasReady: Boolean(window.__stayGpuStatus?.ready),\n  gpuTaskInFlight: false,"
   );
 
   const oldPool = [
@@ -232,23 +232,30 @@ function transformLegacyClient(source) {
   const quietDispatchLatest = [
     'async function dispatchGpuTask() {',
     '  if (!state.latestTask || !state.computePlan || state.computePlan.gpuShare <= 0) return;',
+    '  if (state.gpuTaskInFlight) return;',
     '  const engine = window.STAYGpuEngine;',
     '  if (!engine) return;',
     '  const generation = state.workerGeneration;',
     '  const epoch = Number(state.latestTask.epoch) || -1;',
     '  const shardId = 31;',
     '  const workHash = cognitiveHash32(`${state.nodeId}:shard:${shardId}`);',
+    '  state.gpuTaskInFlight = true;',
     '  try {',
-    '    const result = await engine.runTask(state.latestTask, { share: state.computePlan.gpuShare, shardId, workHash });',
+    '    const task = state.latestTask;',
+    '    const result = await engine.runTask(task, { share: state.computePlan.gpuShare, shardId, workHash });',
     '    if (generation !== state.workerGeneration) return;',
-    '    if (!state.latestTask || Number(state.latestTask.epoch) !== epoch) return;',
     '    state.lastWorkerResultAt = performance.now();',
     '    await submitWorkResult(result, generation, shardId);',
     '  } catch (error) {',
     '    console.warn(`[STAY GPU] ${error?.message || error}`);',
     '    if (state.computePlan.engineResolved === \'gpu\') {',
     '      window.__stayGpuStatus = { ...(window.__stayGpuStatus || {}), ready: false, reason: String(error?.message || error) };',
-    '      startWorkerPool(\'gpu-fallback\');',
+    '      startWorkerPool(\'gpu-unavailable\');',
+    '    }',
+    '  } finally {',
+    '    state.gpuTaskInFlight = false;',
+    '    if (generation === state.workerGeneration && state.latestTask && Number(state.latestTask.epoch) !== epoch && state.computePlan?.gpuShare > 0) {',
+    '      queueMicrotask(() => dispatchGpuTask());',
     '    }',
     '  }',
     '}',
@@ -341,7 +348,13 @@ function transformLegacyClient(source) {
     "  startWorkerPool('user-hybrid-split-change');",
     '});',
     "window.addEventListener('stay-gpu-status', (event) => {",
-    "  if (event.detail?.ready) startWorkerPool('gpu-ready');",
+    "  const ready = Boolean(event.detail?.ready);",
+    "  if (ready && !state.gpuWasReady) {",
+    "    state.gpuWasReady = true;",
+    "    startWorkerPool('gpu-became-ready');",
+    "  } else if (!ready) {",
+    "    state.gpuWasReady = false;",
+    "  }",
     '});',
     "if (window.STAYGpuEngine) {",
     "  window.STAYGpuEngine.init().catch(() => {});",

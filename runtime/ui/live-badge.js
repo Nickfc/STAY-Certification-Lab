@@ -113,7 +113,7 @@
     } else if (gpu.ready) {
       const adapter = gpu.adapterInfo || {};
       const adapterName = adapter.description || adapter.device || adapter.architecture || adapter.vendor || 'WebGPU adapter';
-      engineStatusEl.textContent = `GPU ready · ${adapterName}${gpu.lastCandidates ? ` · ${Math.round((gpu.candidatesPerMs || 0) * 1000).toLocaleString()} candidates/s` : ' · awaiting first task'}`;
+      engineStatusEl.textContent = `GPU ready · ${adapterName}${gpu.lastCandidates ? ` · ${Math.round((gpu.candidatesPerMs || 0) * 1000).toLocaleString()} candidates/s · ${Number(gpu.completedTasks || 0).toLocaleString()} jobs` : ' · awaiting first task'}`;
     } else if (gpu.supported === false) {
       const detail = gpu.lastError ? `${gpu.reason || 'WebGPU unavailable'} · ${gpu.lastError}` : (gpu.reason || 'WebGPU unavailable');
       engineStatusEl.textContent = selectedEngine === 'gpu'
