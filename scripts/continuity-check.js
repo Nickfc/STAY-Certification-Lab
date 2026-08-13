@@ -28,7 +28,7 @@ async function main() {
   await kernel.publish('probe.tick', {});
   if (seen.at(-1).ticks !== 4 || seen.at(-1).generation !== 'v1') throw new Error('warm rollback continuity failed');
   const status = await kernel.status();
-  if (status.kernel.version !== '0.7.1') throw new Error('kernel version mismatch');
+  if (status.kernel.version !== '0.7.1.1') throw new Error('kernel version mismatch');
   if (!status.health.ok || !status.health.persistence.ok) throw new Error('persistence health check failed');
   if (!status.snapshots.latest) throw new Error('automatic snapshot missing');
   await kernel.stop();
@@ -52,7 +52,7 @@ async function main() {
   catch (error) { rejected = /controlled compatibility migration/.test(error.message); }
   if (!rejected) throw new Error('kernel did not protect the legacy monolith from live hot-swap');
 
-  console.log('Living Runtime 0.7.1 production closure and stable 0.6 compatibility verified');
+  console.log('Living Runtime 0.7.1.1 production closure and stable 0.6 compatibility verified');
 }
 
 main().catch((error) => {
