@@ -1,0 +1,6 @@
+b45d6addd70b13bfa684f53c075edb3ca6a76bae7d7384849f84a1df2d7d073d  genesis-state.json
+
+Source ZIP supplied in chat:
+e93f70f99ee6d61a93f630e61118a937a9d0f705ad76f4fab7c7012d111e2ffc  STAY_Genesis_Adaptive_Compute_POC_0.6.0.zip
+
+The hibernation state and operator credential are intentionally not committed to Git.
