@@ -17,13 +17,14 @@ function validateManifest(manifest) {
   if (!Number.isInteger(manifest.stateSchema) || manifest.stateSchema < 1) throw new Error('manifest.stateSchema must be an integer >= 1');
   requireTopics(manifest.inputs || [], 'inputs');
   requireTopics(manifest.outputs || [], 'outputs');
-  if (manifest.hotSwap !== true) throw new Error('manifest.hotSwap must be true');
+  if (typeof manifest.hotSwap !== 'boolean') throw new Error('manifest.hotSwap must be a boolean');
   return Object.freeze({ ...manifest, inputs: Object.freeze([...(manifest.inputs || [])]), outputs: Object.freeze([...(manifest.outputs || [])]) });
 }
 
 function assertUpgradeCompatible(currentManifest, candidateManifest) {
   if (currentManifest.coreId !== candidateManifest.coreId) throw new Error('candidate coreId does not match active core');
   if (currentManifest.protocol !== candidateManifest.protocol) throw new Error('candidate protocol does not match active core');
+  if (currentManifest.hotSwap !== true || candidateManifest.hotSwap !== true) throw new Error('this core requires a controlled compatibility migration rather than a live hot-swap');
   return true;
 }
 
