@@ -299,6 +299,36 @@ function transformLegacyClient(source) {
     "Math.round(state.computePlan.targetShare * 100)"
   );
 
+
+  const workerControlMarker = [
+    "} else if (msg.type === 'worker-control' && msg.action === 'restart') {",
+    '      if (msg.task) {',
+    '        state.latestTask = msg.task;',
+    '        state.lastComputeAt = performance.now();',
+    '      }',
+    "      restartWorkerPool(`server:${msg.reason || 'recovery'}`);",
+    '    }'
+  ].join('\n');
+
+  const gpuAwareWorkerControl = [
+    "} else if (msg.type === 'worker-control' && msg.action === 'restart') {",
+    '      if (msg.task) {',
+    '        state.latestTask = msg.task;',
+    '        state.lastComputeAt = performance.now();',
+    '      }',
+    "      if (state.computePlan?.engineResolved === 'gpu-waiting') {",
+    "        if (window.STAYGpuEngine) window.STAYGpuEngine.init().catch(() => {});",
+    '        return;',
+    '      }',
+    "      restartWorkerPool(`server:${msg.reason || 'recovery'}`);",
+    '    }'
+  ].join('\n');
+
+  if (!output.includes(workerControlMarker)) {
+    throw new Error('legacy client worker-control marker not found');
+  }
+  output = output.replace(workerControlMarker, gpuAwareWorkerControl);
+
   output += [
     '',
     "window.addEventListener('stay-compute-share-change', () => {",

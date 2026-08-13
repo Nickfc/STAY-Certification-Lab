@@ -115,13 +115,15 @@
       const adapterName = adapter.description || adapter.device || adapter.architecture || adapter.vendor || 'WebGPU adapter';
       engineStatusEl.textContent = `GPU ready · ${adapterName}${gpu.lastCandidates ? ` · ${Math.round((gpu.candidatesPerMs || 0) * 1000).toLocaleString()} candidates/s` : ' · awaiting first task'}`;
     } else if (gpu.supported === false) {
+      const detail = gpu.lastError ? `${gpu.reason || 'WebGPU unavailable'} · ${gpu.lastError}` : (gpu.reason || 'WebGPU unavailable');
       engineStatusEl.textContent = selectedEngine === 'gpu'
-        ? `GPU ONLY selected · CPU fallback OFF · ${gpu.reason || 'WebGPU unavailable'}`
-        : `GPU unavailable · ${gpu.reason || 'browser/device does not expose WebGPU'}`;
+        ? `GPU ONLY selected · CPU fallback OFF · ${detail}`
+        : `GPU unavailable · ${detail}`;
     } else {
+      const detail = gpu.lastError ? `${gpu.reason || 'initializing…'} · ${gpu.lastError}` : (gpu.reason || 'initializing…');
       engineStatusEl.textContent = selectedEngine === 'gpu'
-        ? `GPU ONLY selected · CPU fallback OFF · ${gpu.reason || 'initializing…'}`
-        : `GPU ${gpu.reason || 'initializing…'}`;
+        ? `GPU ONLY selected · CPU fallback OFF · ${detail}`
+        : `GPU ${detail}`;
     }
 
     if (!plan) {

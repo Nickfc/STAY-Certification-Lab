@@ -96,8 +96,8 @@ fn main(@builtin(global_invocation_id) globalId: vec3<u32>) {
     }
 
     for (var o: u32 = 0u; o < ${OUTPUTS}u; o = o + 1u) {
-      let target = targets[scenarioIndex * ${OUTPUTS}u + o];
-      let d = outputs[o] - target;
+      let expectedValue = targets[scenarioIndex * ${OUTPUTS}u + o];
+      let d = outputs[o] - expectedValue;
       mse = mse + d * d;
       let edge = abs(outputs[o] - 0.5) * 2.0;
       saturation = saturation + max(0.0, edge - 0.965) * 0.002;
