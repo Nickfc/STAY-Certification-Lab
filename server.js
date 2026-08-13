@@ -5,6 +5,7 @@ const http = require('node:http');
 const { LivingKernel } = require('./runtime');
 
 const dataDir = process.env.STAY_DATA_DIR || path.join(process.cwd(), '.stay-data');
+const host = process.env.STAY_HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 8787);
 const legacyProxyPort = Number(process.env.STAY_LEGACY_PORT || 0);
 
@@ -66,7 +67,7 @@ async function main() {
     }
   });
 
-  server.listen(port, '0.0.0.0', () => console.log('[STAY] Living Kernel 0.7.0 listening on :' + port));
+  server.listen(port, host, () => console.log('[STAY] Living Kernel 0.7.0 listening on ' + host + ':' + port));
 
   const shutdown = async (signal) => {
     console.log('[STAY] ' + signal + ': persisting active state');
