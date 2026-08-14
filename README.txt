@@ -1,40 +1,67 @@
-STAY 0.7.1.11 — GPU Throughput Scaling
+STAY 0.7.1.12 — Fetus Memory Guardian
 
-Why:
-0.7.1.10 proved the GPU path stable, but live testing showed ~3.7–4.0M kernel candidates/s
-while the actual candidate search stayed around ~126K/s and GPU utilization was only ~13%.
+Why
+---
+The overnight endurance run exposed a real production failure: the preserved 0.6 fetus
+reached the Node/V8 heap limit after several hours of high-throughput distributed compute.
+The Living Kernel survived, but the legacy child exited with SIGABRT and was not restarted.
 
-Root bottleneck:
-The GPU job size was hard-capped at 131,072 candidates. At ~4M candidates/s the Radeon
-finished that batch in only a few tens of milliseconds, then sat idle waiting for the next epoch.
-The contribution slider therefore could not increase real GPU duty once the cap was reached.
+This release protects continuity without modifying any preserved 0.6 source bytes.
 
-Changes:
-- Raises absolute batch ceiling from 131,072 to 4,194,304 candidates.
-- Runtime-clamps the ceiling to the browser/device WebGPU buffer limits.
-- Adds 2D WebGPU dispatch so batches larger than 65,535 workgroups remain legal.
-- Slider now targets approximately 8–850 ms of GPU work per one-second epoch.
-- Candidate count self-calibrates from measured GPU throughput.
-- Leaves ~150 ms headroom at 100% for readback, canonical winner verification, network and UI.
-- Live panel shows kernel candidates/s, actual batch size, job milliseconds and job count.
+What changes
+------------
+1. Memory guardian around the immutable 0.6 child
+   - samples Linux /proc/<pid>/status every 15 seconds
+   - warning threshold defaults to 512 MiB RSS
+   - controlled recycle threshold defaults to 700 MiB RSS
+   - requires 2 consecutive high samples before recycling
+   - thresholds are configurable with environment variables
 
-Expected on the currently observed ~3.7–4.0M candidates/s device:
-  5%  -> roughly 0.18M candidates / ~45 ms target
-  10% -> roughly 0.36M candidates / ~90 ms target
-  35% -> roughly 1.2–1.3M candidates / ~315 ms target
-  50% -> roughly 1.7–1.8M candidates / ~450 ms target
- 100% -> roughly 3.1–3.4M candidates / ~850 ms target
+2. Graceful continuity-preserving recycle
+   - creates a pre-recycle copy of the last durable genesis-state.json
+   - sends SIGTERM so 0.6 can persist its active state normally
+   - verifies whether state mtime advanced
+   - respawns the same preserved 0.6 source against the same state path
+   - retains only the 3 newest guardian backup copies
 
-This should make the contribution slider materially affect GPU utilization and actual accepted
-candidate throughput instead of hitting the old 131K ceiling almost immediately.
+3. Unexpected crash recovery
+   - if the fetus exits unexpectedly, Living Kernel automatically respawns it
+   - exponential backoff prevents rapid restart loops
+   - restart-storm protection delays retries after repeated failures
 
-This patch intentionally does NOT yet replace full-score readback with a GPU-side reduction.
-That is the next performance tier after measuring this scaling change on real hardware.
+4. Bounded memory telemetry
+   - stores current status in /var/lib/stay/data/legacy-0.6.0/memory-guardian.json
+   - keeps up to 720 one-minute samples (about 12 hours) for leak/slope diagnosis
+   - reports RSS, peak RSS, recycle count, crash restart count and last events
 
-No preserved 0.6 source/state is modified.
+5. Live UI telemetry
+   - the runtime panel shows fetus RSS / guard threshold
+   - G<n> = proactive guardian recycles
+   - R<n> = unexpected crash restarts
 
-Suggested commit:
-STAY 0.7.1.11 scale GPU batches with real contribution budget
+Important
+---------
+This is a containment + diagnostic fix, not a claim that the underlying 0.6 allocation
+growth has already been identified. It prevents another hard V8 OOM while collecting the
+memory curve we need to identify the actual retained objects later.
 
-Deploy:
+The immutable 0.6 source hashes and the original hibernation-state contract are unchanged.
+
+Defaults
+--------
+STAY_FETUS_GUARDIAN_INTERVAL_MS=15000
+STAY_FETUS_GUARDIAN_HISTORY_MS=60000
+STAY_FETUS_WARN_RSS_MIB=512
+STAY_FETUS_RECYCLE_RSS_MIB=700
+STAY_FETUS_RECYCLE_CONFIRMATIONS=2
+STAY_FETUS_GRACEFUL_STOP_MS=8000
+STAY_FETUS_CRASH_WINDOW_MS=600000
+STAY_FETUS_MAX_CRASH_RESTARTS=5
+
+Suggested commit
+----------------
+STAY 0.7.1.12 add fetus memory guardian and crash recovery
+
+Deploy
+------
 sudo stay-deploy-git

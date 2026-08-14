@@ -213,9 +213,13 @@
       updateBadge();
       versionEl.textContent = `v${meta.version || '?'}`;
       revisionEl.textContent = `R${meta.revision ?? '?'}`;
-      coresEl.innerHTML = cores.map(c =>
-        `<div style="margin-top:6px">${esc(c.id)} <b>v${esc(c.version)}</b> · ${esc(c.mode || 'active')}</div>`
-      ).join('');
+      coresEl.innerHTML = cores.map(c => {
+        const g = c.memoryGuardian;
+        const memory = g && Number.isFinite(Number(g.rssMiB))
+          ? ` · ${Number(g.rssMiB).toFixed(0)} MiB RSS / ${Number(g.recycleAtMiB || 0).toFixed(0)} MiB guard · G${Number(g.guardianRecycles || 0)} R${Number(g.crashRestarts || 0)}`
+          : '';
+        return `<div style="margin-top:6px">${esc(c.id)} <b>v${esc(c.version)}</b> · ${esc(c.mode || 'active')}${memory}</div>`;
+      }).join('');
       updateComputeReadout();
 
       if (previousFingerprint && previousFingerprint !== fingerprint && badge.animate) {

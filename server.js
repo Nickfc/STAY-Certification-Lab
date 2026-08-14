@@ -20,11 +20,22 @@ function publicMetadata(status) {
     for (const mode of ['active', 'candidate', 'standby']) {
       const unit = slot[mode];
       if (!unit || !unit.manifest) continue;
+      const guardian = unit.health && unit.health.memoryGuardian;
       cores.push({
         id: slot.coreId,
         version: unit.manifest.version || '?',
         mode,
-        ok: !(unit.health && unit.health.ok === false)
+        ok: !(unit.health && unit.health.ok === false),
+        memoryGuardian: guardian ? {
+          status: guardian.status || null,
+          rssMiB: Number.isFinite(Number(guardian.rssMiB)) ? Number(guardian.rssMiB) : null,
+          peakRssMiB: Number.isFinite(Number(guardian.peakRssMiB)) ? Number(guardian.peakRssMiB) : null,
+          warnAtMiB: Number.isFinite(Number(guardian.warnAtMiB)) ? Number(guardian.warnAtMiB) : null,
+          recycleAtMiB: Number.isFinite(Number(guardian.recycleAtMiB)) ? Number(guardian.recycleAtMiB) : null,
+          guardianRecycles: Number(guardian.guardianRecycles) || 0,
+          crashRestarts: Number(guardian.crashRestarts) || 0,
+          lastSampleAt: guardian.lastSampleAt || null
+        } : null
       });
     }
   }
