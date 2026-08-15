@@ -9,7 +9,7 @@ const { makeDataDir, makeKernel, fs, path } = require('./helpers');
 const v1 = path.join(__dirname, 'fixtures', 'cores', 'counter-v1.js');
 const v2 = path.join(__dirname, 'fixtures', 'cores', 'counter-v2.js');
 
-test('production identity fails closed and legacy JSON identity migrates into StateStore v2', async t => {
+test('production identity fails closed and legacy JSON identity migrates into StateStore v3', async t => {
   const empty = await makeDataDir();
   t.after(() => fs.rm(empty, { recursive: true, force: true }));
   const denied = new LivingKernel({ dataDir: empty, heartbeatIntervalMs: 0, snapshotIntervalMs: 0 });
@@ -24,7 +24,7 @@ test('production identity fails closed and legacy JSON identity migrates into St
   const kernel = new LivingKernel({ dataDir: migrated, heartbeatIntervalMs: 0, snapshotIntervalMs: 0 });
   await kernel.start();
   assert.equal(kernel.identity.organismId, identity.organismId);
-  assert.equal((await kernel.status()).health.persistence.format, 'stay-statestore-v2');
+  assert.equal((await kernel.status()).health.persistence.format, 'stay-statestore-v3');
   await kernel.stop();
 });
 

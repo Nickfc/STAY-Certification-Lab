@@ -249,11 +249,11 @@ class CoreHostClient extends EventEmitter {
         }
       }
       if (requestError) throw requestError;
+      let checkpoint = null;
       if (['critical', 'durable'].includes(event.class)) {
-        const checkpoint = await this.request('snapshot', {}, this.policy.handlerTimeoutMs);
-        this.recoveryState = structuredClone(checkpoint || {});
+        checkpoint = await this.request('snapshot', {}, this.policy.handlerTimeoutMs);
       }
-      return result;
+      return { result, checkpoint };
     } finally { this.outputsByEvent.delete(eventSequence); }
   }
 
@@ -283,13 +283,13 @@ class CoreHostClient extends EventEmitter {
     this.lifecycle = 'recovering';
     this.emit('lifecycle', this.lifecycle, { reason, detail });
     try {
-      if (this.child?.connected && reason !== 'timeout:event' && reason !== 'timeout:health') {
+      if (this.child?.connected && !['timeout:event', 'timeout:health', 'actor-handler-timeout', 'uncommitted-transition'].includes(reason)) {
         try { this.recoveryState = await this.request('snapshot', {}, Math.min(1000, this.policy.handlerTimeoutMs)); }
         catch {}
       }
       const old = this.child;
       if (old) {
-        if (reason === 'timeout:event' || reason === 'timeout:health' || reason === 'actor-handler-timeout') {
+        if (['timeout:event', 'timeout:health', 'actor-handler-timeout', 'uncommitted-transition'].includes(reason)) {
           old.kill('SIGKILL');
           await waitForExit(old, 1000);
         } else {

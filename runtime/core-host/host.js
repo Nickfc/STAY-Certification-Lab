@@ -98,7 +98,7 @@ async function initialize(payload) {
       || execution.outputBytes > Math.max(1024, Number(payload.outputBytesPerEvent) || 1024 * 1024)) {
       throw Object.assign(new Error('CoreHost per-event output quota exceeded'), { code: 'COREHOST_OUTPUT_QUOTA' });
     }
-    await sendAsync({ type: 'output', topic, payload: outputPayload, meta, context, mode });
+    await sendAsync({ type: 'output', topic, payload: outputPayload, meta: { ...meta, outputIndex: execution.outputCount }, context, mode });
     return null;
   };
   let initialState = structuredClone(payload.initialState || {});

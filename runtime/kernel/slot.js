@@ -6,6 +6,13 @@ const { BoundedActorQueue } = require('./actor-queue');
 const { ShadowEvidence } = require('./shadow-evidence');
 const { assertUpgradeCompatible } = require('./manifest');
 const { serializedSize } = require('./protocol');
+const { stableStringify } = require('./canonical-json');
+
+function transitionId(consumerId, event) {
+  return 'sha256:' + crypto.createHash('sha256').update(stableStringify({
+    protocol: 'stay-biological-transition-v1', consumerId, eventId: event.id, sequence: event.sequence
+  })).digest('hex');
+}
 
 class HostedUnit {
   constructor({ definition, client, mode, instanceId, assignedEpoch, queue, evidence = null }) {
@@ -40,6 +47,7 @@ class HostedUnit {
 class RuntimeSlot {
   constructor({ coreId, fabric, stateStore, logger = console }) {
     this.coreId = coreId;
+    this.consumerId = `core:${coreId}`;
     this.fabric = fabric;
     this.stateStore = stateStore;
     this.logger = logger;
@@ -69,12 +77,29 @@ class RuntimeSlot {
       capacity: client.policy.queueCapacity,
       handlerTimeoutMs: client.policy.handlerTimeoutMs,
       handler: async event => {
-        await client.dispatch(event, {
+        const dispatched = await client.dispatch(event, {
           coreId: this.coreId,
           implementationInstanceId: instanceId,
           authorityEpoch: unit.assignedEpoch,
-          eventSequence: event.sequence
+          eventSequence: event.sequence,
+          eventId: event.id
         });
+        if (unit === this.active && unit.mode === 'active' && event.ledger?.durable) {
+          try {
+            await this.persistUnit(unit, unit.assignedEpoch, true, {
+              event,
+              state: dispatched.checkpoint,
+              transitionId: transitionId(this.consumerId, event)
+            });
+          } catch (error) {
+            await client.recycle('uncommitted-transition', { eventSequence: event.sequence, code: error.code || null });
+            throw Object.assign(new Error(`durable transition ${event.sequence} was not committed: ${error.message}`), {
+              code: 'BIOLOGICAL_COMMIT_FAILED', cause: error, eventSequence: event.sequence
+            });
+          }
+        } else if (dispatched.checkpoint != null) {
+          client.setRecoveryState(dispatched.checkpoint, unit.manifest.stateSchema);
+        }
         unit.handledEvents += 1;
       },
       onFault: (error, event) => {
@@ -126,6 +151,11 @@ class RuntimeSlot {
       }
       unit.authoritativeOutputs += 1;
       if (this.candidate?.evidence) this.candidate.evidence.recordActive({ eventSequence, topic, payload });
+      const outputIndex = Number(message.meta?.outputIndex) || 0;
+      const deduplicationKey = 'core-output:' + crypto.createHash('sha256').update(stableStringify({
+        protocol: 'stay-core-output-v1', coreId: this.coreId, authorityEpoch: this.authorityEpoch,
+        causeSequence: eventSequence, outputIndex, topic, payload
+      })).digest('hex');
       await this.fabric.publish(topic, payload, {
         ...message.meta,
         sourceCore: this.coreId,
@@ -133,6 +163,8 @@ class RuntimeSlot {
         sourceInstanceId: unit.instanceId,
         authorityEpoch: this.authorityEpoch,
         causeSequence: eventSequence,
+        causalParent: message.context?.eventId || null,
+        deduplicationKey,
         eventClass: message.meta?.eventClass || 'durable'
       });
       return;
@@ -168,7 +200,15 @@ class RuntimeSlot {
     this.authorityEpoch = authority.epoch;
     this.cutoverBarrier = authority.barrierSequence || 0;
     this.active = unit;
+    this.stateStore.registerBiologicalConsumer({
+      consumerId: this.consumerId,
+      coreId: this.coreId,
+      topics: unit.manifest.inputs,
+      required: true,
+      authorityEpoch: this.authorityEpoch
+    });
     await this.persistActive();
+    await this.replayPendingBiologicalEvents();
     return unit;
   }
 
@@ -190,6 +230,10 @@ class RuntimeSlot {
   }
 
   async dispatch(event) {
+    if (event.ledger?.durable) {
+      const delivery = this.stateStore.getBiologicalDelivery(this.consumerId, event.sequence);
+      if (!delivery || delivery.status === 'ACKED') return { delivered: false, duplicate: Boolean(delivery), ignored: true };
+    }
     if (this.cutover && event.sequence > this.cutover.barrierSequence) {
       const relevant = this.active?.manifest.inputs.includes(event.topic)
         || this.candidate?.manifest.inputs.includes(event.topic)
@@ -215,6 +259,13 @@ class RuntimeSlot {
     }
     if (!this.active || !this.active.manifest.inputs.includes(event.topic)) {
       if (this.candidate?.manifest.inputs.includes(event.topic)) this.enqueueCandidate(event);
+      if (this.active && event.ledger?.durable) {
+        this.stateStore.acknowledgeBiologicalEvent({
+          consumerId: this.consumerId,
+          sequence: event.sequence,
+          transitionId: transitionId(this.consumerId, event)
+        });
+      }
       return { delivered: false, ignored: true };
     }
     const activePromise = this.active.queue.enqueue(event);
@@ -307,6 +358,13 @@ class RuntimeSlot {
       next.assignedEpoch = nextEpoch;
       this.active = next;
       this.candidate = null;
+      this.stateStore.registerBiologicalConsumer({
+        consumerId: this.consumerId,
+        coreId: this.coreId,
+        topics: next.manifest.inputs,
+        required: true,
+        authorityEpoch: this.authorityEpoch
+      });
       const oldStandby = this.standby;
       this.standby = previous;
       this.releaseHeld(next);
@@ -368,6 +426,13 @@ class RuntimeSlot {
       previous.assignedEpoch = nextEpoch;
       this.active = previous;
       this.standby = current;
+      this.stateStore.registerBiologicalConsumer({
+        consumerId: this.consumerId,
+        coreId: this.coreId,
+        topics: previous.manifest.inputs,
+        required: true,
+        authorityEpoch: this.authorityEpoch
+      });
       this.releaseHeld(previous);
       await Promise.all([previous.client.setMode('active'), current.client.setMode('standby')]);
       await this.persistActive();
@@ -408,8 +473,21 @@ class RuntimeSlot {
     return this.persistUnit(this.active, this.authorityEpoch, true);
   }
 
-  async persistUnit(unit, authorityEpoch, updateAuthority) {
-    const state = await unit.snapshot();
+  async replayPendingBiologicalEvents() {
+    let replayed = 0;
+    for (;;) {
+      const events = this.stateStore.listPendingBiologicalEvents(this.consumerId, 256);
+      if (!events.length) return replayed;
+      for (const event of events) {
+        const result = await this.dispatch(event);
+        if (result?.deferredRecursive) await this.active?.queue.drainThrough(event.sequence);
+        replayed += 1;
+      }
+    }
+  }
+
+  async persistUnit(unit, authorityEpoch, updateAuthority, transition = null) {
+    const state = transition && transition.state != null ? transition.state : await unit.snapshot();
     const bytes = serializedSize(state);
     if (bytes > unit.client.policy.storageBytes) {
       throw Object.assign(new Error(`core checkpoint exceeds ${unit.client.policy.storageBytes} byte budget`), { code: 'CORE_STORAGE_BUDGET' });
@@ -421,7 +499,12 @@ class RuntimeSlot {
       authorityEpoch,
       stateSchema: unit.manifest.stateSchema,
       state,
-      updateAuthority
+      updateAuthority,
+      consumerAck: transition?.event?.ledger?.durable ? {
+        consumerId: this.consumerId,
+        sequence: transition.event.sequence,
+        transitionId: transition.transitionId
+      } : null
     });
     unit.client.setRecoveryState(state, unit.manifest.stateSchema);
     return checkpoint;

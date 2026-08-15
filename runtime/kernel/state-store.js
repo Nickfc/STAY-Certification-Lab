@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
+const { stableStringify } = require('./canonical-json');
 
 async function fsyncDirectory(dirPath) {
   let handle;
@@ -114,10 +115,51 @@ class StateStore {
         generation INTEGER NOT NULL,
         blob_hash TEXT NOT NULL,
         byte_length INTEGER NOT NULL,
+        input_cursor INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         UNIQUE(core_id, generation)
       );
       CREATE INDEX IF NOT EXISTS checkpoint_latest ON checkpoints(core_id, generation DESC);
+      CREATE TABLE IF NOT EXISTS biological_events (
+        sequence INTEGER PRIMARY KEY,
+        event_id TEXT NOT NULL UNIQUE,
+        topic TEXT NOT NULL,
+        event_class TEXT NOT NULL CHECK(event_class IN ('critical', 'durable')),
+        at_ms INTEGER NOT NULL,
+        deadline_at_ms INTEGER,
+        envelope_json TEXT NOT NULL,
+        envelope_sha256 TEXT NOT NULL,
+        payload_sha256 TEXT NOT NULL,
+        provenance_sha256 TEXT NOT NULL,
+        deduplication_key TEXT UNIQUE,
+        deduplication_sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS biological_consumers (
+        consumer_id TEXT PRIMARY KEY,
+        core_id TEXT NOT NULL,
+        required INTEGER NOT NULL DEFAULT 1 CHECK(required IN (0, 1)),
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1)),
+        topics_json TEXT NOT NULL,
+        topics_sha256 TEXT NOT NULL,
+        cursor INTEGER NOT NULL DEFAULT 0,
+        authority_epoch INTEGER NOT NULL DEFAULT 0,
+        checkpoint_hash TEXT,
+        registered_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS biological_deliveries (
+        sequence INTEGER NOT NULL,
+        consumer_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'ACKED')),
+        transition_id TEXT,
+        checkpoint_hash TEXT,
+        acknowledged_at TEXT,
+        PRIMARY KEY(sequence, consumer_id),
+        FOREIGN KEY(sequence) REFERENCES biological_events(sequence) ON DELETE CASCADE,
+        FOREIGN KEY(consumer_id) REFERENCES biological_consumers(consumer_id) ON DELETE RESTRICT
+      );
+      CREATE INDEX IF NOT EXISTS biological_delivery_pending ON biological_deliveries(consumer_id, status, sequence);
       CREATE TABLE IF NOT EXISTS recovery_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
@@ -134,6 +176,8 @@ class StateStore {
     const upgradeColumns = new Set(this.db.prepare('PRAGMA table_info(upgrade_transactions)').all().map(row => row.name));
     if (!upgradeColumns.has('to_checkpoint_hash')) this.db.exec('ALTER TABLE upgrade_transactions ADD COLUMN to_checkpoint_hash TEXT');
     if (!upgradeColumns.has('to_state_schema')) this.db.exec('ALTER TABLE upgrade_transactions ADD COLUMN to_state_schema INTEGER');
+    const checkpointColumns = new Set(this.db.prepare('PRAGMA table_info(checkpoints)').all().map(row => row.name));
+    if (!checkpointColumns.has('input_cursor')) this.db.exec('ALTER TABLE checkpoints ADD COLUMN input_cursor INTEGER NOT NULL DEFAULT 0');
     const schemaRow = this.db.prepare("SELECT version FROM schema_versions WHERE name='continuity'").get();
     if (Number(schemaRow?.version || 0) > 3) {
       throw Object.assign(new Error('continuity schema is newer than this runtime supports'), { code: 'STATE_SCHEMA_UNSUPPORTED' });
@@ -229,6 +273,191 @@ class StateStore {
     });
   }
 
+  appendBiologicalEvent({ topic, payload, meta = {}, eventClass, at, deadlineAt = null, minimum = 0 }) {
+    this.assertOpen();
+    if (!['critical', 'durable'].includes(eventClass)) throw Object.assign(new Error('biological ledger accepts only critical or durable events'), { code: 'BIOLOGICAL_EVENT_CLASS' });
+    if (typeof topic !== 'string' || !topic || topic.length > 200) throw Object.assign(new Error('invalid biological event topic'), { code: 'BIOLOGICAL_EVENT_TOPIC' });
+    if (!Number.isSafeInteger(at) || at < 0) throw Object.assign(new Error('invalid biological event time'), { code: 'BIOLOGICAL_EVENT_TIME' });
+    const normalizedDeadline = deadlineAt == null ? null : Number(deadlineAt);
+    if (normalizedDeadline != null && (!Number.isSafeInteger(normalizedDeadline) || normalizedDeadline < at)) {
+      throw Object.assign(new Error('invalid biological event deadline'), { code: 'BIOLOGICAL_EVENT_DEADLINE' });
+    }
+    const deduplicationKey = meta.deduplicationKey == null ? null : String(meta.deduplicationKey);
+    if (deduplicationKey && deduplicationKey.length > 256) throw Object.assign(new Error('event deduplication key is too long'), { code: 'EVENT_DEDUP_KEY' });
+    const payloadJson = stableStringify(payload);
+    const payloadHash = sha256(payloadJson);
+    const provenance = {
+      sourceCore: meta.sourceCore ?? null,
+      sourceVersion: meta.sourceVersion ?? null,
+      sourceInstanceId: meta.sourceInstanceId ?? null,
+      authorityEpoch: meta.authorityEpoch ?? null,
+      causeSequence: meta.causeSequence ?? null,
+      causalParent: meta.causalParent ?? null,
+      evidenceHash: meta.evidenceHash ?? null
+    };
+    const provenanceHash = sha256(stableStringify(provenance));
+    const deduplicationHash = sha256(stableStringify({
+      topic, class: eventClass, payload, deadlineAt: normalizedDeadline, provenance,
+      outputIndex: meta.outputIndex ?? null
+    }));
+    return this.withTransaction(() => {
+      if (deduplicationKey) {
+        const existing = this.db.prepare('SELECT * FROM biological_events WHERE deduplication_key=?').get(deduplicationKey);
+        if (existing) {
+          if (existing.deduplication_sha256 !== deduplicationHash) {
+            throw Object.assign(new Error('event deduplication key was reused with different content'), { code: 'EVENT_DEDUP_CONFLICT' });
+          }
+          return { event: this.biologicalEventFromRow(existing, true), deduplicated: true };
+        }
+      }
+      const stored = this.metadataGet('life:event-sequence', { sequence: 0 });
+      const sequence = Math.max(Number(stored?.sequence) || 0, Number(minimum) || 0) + 1;
+      if (!Number.isSafeInteger(sequence)) throw Object.assign(new Error('event sequence exhausted'), { code: 'EVENT_SEQUENCE_EXHAUSTED' });
+      const eventId = `evt-${sequence.toString(36)}-${deduplicationHash.slice(0, 16)}`;
+      const eventMeta = { ...meta, eventClass, payloadHash: `sha256:${payloadHash}`, provenanceHash: `sha256:${provenanceHash}` };
+      const envelope = { id: eventId, sequence, topic, class: eventClass, payload, at, deadlineAt: normalizedDeadline, meta: eventMeta };
+      const envelopeJson = stableStringify(envelope);
+      const envelopeHash = sha256(envelopeJson);
+      const createdAt = new Date().toISOString();
+      this.db.prepare(`INSERT INTO biological_events(sequence, event_id, topic, event_class, at_ms, deadline_at_ms,
+        envelope_json, envelope_sha256, payload_sha256, provenance_sha256, deduplication_key, deduplication_sha256, created_at)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        sequence, eventId, topic, eventClass, at, normalizedDeadline, envelopeJson, envelopeHash,
+        payloadHash, provenanceHash, deduplicationKey, deduplicationHash, createdAt
+      );
+      this.db.prepare(`INSERT INTO biological_deliveries(sequence, consumer_id)
+        SELECT ?, consumer_id FROM biological_consumers WHERE active=1`).run(sequence);
+      this.metadataSet('life:event-sequence', { sequence, at: createdAt, durability: 'envelope-appended-before-delivery' });
+      return { event: this.biologicalEventFromRow(this.db.prepare('SELECT * FROM biological_events WHERE sequence=?').get(sequence), false), deduplicated: false };
+    });
+  }
+
+  biologicalEventFromRow(row, deduplicated = false) {
+    const envelope = JSON.parse(row.envelope_json);
+    if (sha256(stableStringify(envelope)) !== row.envelope_sha256) {
+      throw Object.assign(new Error(`biological event envelope ${row.sequence} is corrupt`), { code: 'BIOLOGICAL_EVENT_CORRUPT' });
+    }
+    if (sha256(stableStringify(envelope.payload)) !== row.payload_sha256) {
+      throw Object.assign(new Error(`biological event payload ${row.sequence} is corrupt`), { code: 'BIOLOGICAL_EVENT_CORRUPT' });
+    }
+    return Object.freeze({
+      ...envelope,
+      meta: Object.freeze(envelope.meta || {}),
+      ledger: Object.freeze({
+        durable: true,
+        deduplicated,
+        envelopeHash: `sha256:${row.envelope_sha256}`,
+        payloadHash: `sha256:${row.payload_sha256}`,
+        provenanceHash: `sha256:${row.provenance_sha256}`
+      })
+    });
+  }
+
+  registerBiologicalConsumer({ consumerId, coreId, topics = [], required = true, authorityEpoch = 0 }) {
+    if (typeof consumerId !== 'string' || !consumerId || consumerId.length > 200) throw Object.assign(new Error('invalid biological consumer id'), { code: 'BIOLOGICAL_CONSUMER_ID' });
+    if (typeof coreId !== 'string' || !coreId) throw Object.assign(new Error('invalid biological consumer core'), { code: 'BIOLOGICAL_CONSUMER_CORE' });
+    const normalizedTopics = [...new Set(topics.map(String))].sort();
+    const topicsJson = stableStringify(normalizedTopics);
+    const topicsHash = sha256(topicsJson);
+    const at = new Date().toISOString();
+    return this.withTransaction(() => {
+      const existing = this.db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?').get(consumerId);
+      if (existing && existing.core_id !== coreId) throw Object.assign(new Error('biological consumer identity changed core'), { code: 'BIOLOGICAL_CONSUMER_MISMATCH' });
+      if (!existing) {
+        const highWater = Number(this.db.prepare('SELECT COALESCE(MAX(sequence), 0) AS value FROM biological_events').get()?.value || 0);
+        this.db.prepare(`INSERT INTO biological_consumers(consumer_id, core_id, required, active, topics_json, topics_sha256,
+          cursor, authority_epoch, registered_at, updated_at) VALUES(?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`).run(
+          consumerId, coreId, required ? 1 : 0, topicsJson, topicsHash, highWater, Number(authorityEpoch) || 0, at, at
+        );
+      } else {
+        this.db.prepare(`UPDATE biological_consumers SET required=?, active=1, topics_json=?, topics_sha256=?, authority_epoch=?, updated_at=?
+          WHERE consumer_id=?`).run(required ? 1 : 0, topicsJson, topicsHash, Number(authorityEpoch) || 0, at, consumerId);
+      }
+      return this.getBiologicalConsumer(consumerId);
+    });
+  }
+
+  getBiologicalConsumer(consumerId) {
+    const row = this.db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?').get(consumerId);
+    return row ? {
+      consumerId: row.consumer_id, coreId: row.core_id, required: Boolean(row.required), active: Boolean(row.active),
+      topics: JSON.parse(row.topics_json), topicsHash: row.topics_sha256, cursor: Number(row.cursor) || 0,
+      authorityEpoch: Number(row.authority_epoch) || 0, checkpointHash: row.checkpoint_hash || null,
+      registeredAt: row.registered_at, updatedAt: row.updated_at
+    } : null;
+  }
+
+  getBiologicalDelivery(consumerId, sequence) {
+    const row = this.db.prepare('SELECT * FROM biological_deliveries WHERE consumer_id=? AND sequence=?').get(consumerId, sequence);
+    return row ? {
+      consumerId: row.consumer_id, sequence: Number(row.sequence), status: row.status,
+      transitionId: row.transition_id || null, checkpointHash: row.checkpoint_hash || null, acknowledgedAt: row.acknowledged_at || null
+    } : null;
+  }
+
+  advanceBiologicalCursor(consumerId, at = new Date().toISOString()) {
+    const consumer = this.db.prepare('SELECT cursor FROM biological_consumers WHERE consumer_id=?').get(consumerId);
+    if (!consumer) throw Object.assign(new Error('biological consumer is not registered'), { code: 'BIOLOGICAL_CONSUMER_UNKNOWN' });
+    const pending = this.db.prepare(`SELECT MIN(sequence) AS value FROM biological_deliveries
+      WHERE consumer_id=? AND status='PENDING' AND sequence>?`).get(consumerId, consumer.cursor)?.value;
+    const next = pending == null
+      ? this.db.prepare(`SELECT COALESCE(MAX(sequence), ?) AS value FROM biological_deliveries
+          WHERE consumer_id=? AND status='ACKED'`).get(consumer.cursor, consumerId)?.value
+      : this.db.prepare(`SELECT COALESCE(MAX(sequence), ?) AS value FROM biological_deliveries
+          WHERE consumer_id=? AND status='ACKED' AND sequence<?`).get(consumer.cursor, consumerId, pending)?.value;
+    const cursor = Math.max(Number(consumer.cursor) || 0, Number(next) || 0);
+    this.db.prepare('UPDATE biological_consumers SET cursor=?, updated_at=? WHERE consumer_id=?').run(cursor, at, consumerId);
+    return cursor;
+  }
+
+  acknowledgeBiologicalEvent({ consumerId, sequence, transitionId = null, checkpointHash = null }) {
+    const at = new Date().toISOString();
+    return this.withTransaction(() => {
+      const delivery = this.db.prepare('SELECT status FROM biological_deliveries WHERE consumer_id=? AND sequence=?').get(consumerId, sequence);
+      if (!delivery) return { acknowledged: false, absent: true, cursor: this.getBiologicalConsumer(consumerId)?.cursor || 0 };
+      if (delivery.status !== 'ACKED') {
+        this.db.prepare(`UPDATE biological_deliveries SET status='ACKED', transition_id=?, checkpoint_hash=?, acknowledged_at=?
+          WHERE consumer_id=? AND sequence=? AND status='PENDING'`).run(transitionId, checkpointHash, at, consumerId, sequence);
+      }
+      return { acknowledged: true, duplicate: delivery.status === 'ACKED', cursor: this.advanceBiologicalCursor(consumerId, at) };
+    });
+  }
+
+  listPendingBiologicalEvents(consumerId, limit = 256) {
+    const boundedLimit = Math.max(1, Math.min(1024, Number(limit) || 256));
+    return this.db.prepare(`SELECT e.* FROM biological_events e JOIN biological_deliveries d ON d.sequence=e.sequence
+      WHERE d.consumer_id=? AND d.status='PENDING' ORDER BY e.sequence LIMIT ?`).all(consumerId, boundedLimit)
+      .map(row => this.biologicalEventFromRow(row, false));
+  }
+
+  biologicalLedgerStatus() {
+    const events = this.db.prepare('SELECT COUNT(*) AS count, COALESCE(MIN(sequence), 0) AS minimum, COALESCE(MAX(sequence), 0) AS maximum FROM biological_events').get();
+    const pending = this.db.prepare("SELECT COUNT(*) AS count FROM biological_deliveries WHERE status='PENDING'").get();
+    const consumers = this.db.prepare('SELECT COUNT(*) AS count FROM biological_consumers WHERE active=1').get();
+    return {
+      protocol: 'stay-biological-ledger-v1', events: Number(events.count), minimumSequence: Number(events.minimum),
+      maximumSequence: Number(events.maximum), pendingDeliveries: Number(pending.count), activeConsumers: Number(consumers.count)
+    };
+  }
+
+  pruneBiologicalEvents({ retainCount = 4096 } = {}) {
+    const retained = Math.max(1, Math.min(1000000, Number(retainCount) || 4096));
+    return this.withTransaction(() => {
+      const required = this.db.prepare('SELECT MIN(cursor) AS value FROM biological_consumers WHERE active=1 AND required=1').get()?.value;
+      if (required == null) return { removed: 0, throughSequence: 0, retained };
+      const keepBoundary = this.db.prepare('SELECT sequence FROM biological_events ORDER BY sequence DESC LIMIT 1 OFFSET ?').get(retained - 1)?.sequence;
+      if (keepBoundary == null) return { removed: 0, throughSequence: 0, retained };
+      const throughSequence = Math.min(Number(required) || 0, Number(keepBoundary) - 1);
+      if (throughSequence < 1) return { removed: 0, throughSequence: 0, retained };
+      const blocked = this.db.prepare(`SELECT COUNT(*) AS count FROM biological_deliveries d
+        JOIN biological_consumers c ON c.consumer_id=d.consumer_id
+        WHERE d.sequence<=? AND d.status='PENDING' AND c.active=1 AND c.required=1`).get(throughSequence)?.count;
+      if (Number(blocked) > 0) throw Object.assign(new Error('biological retention boundary still has required pending deliveries'), { code: 'BIOLOGICAL_RETENTION_BLOCKED' });
+      const result = this.db.prepare('DELETE FROM biological_events WHERE sequence<=?').run(throughSequence);
+      return { removed: Number(result.changes) || 0, throughSequence, retained };
+    });
+  }
+
   async reconcileMetadataMirrors() {
     const rows = this.db.prepare('SELECT * FROM pending_metadata_mirrors ORDER BY created_at').all();
     for (const row of rows) {
@@ -300,7 +529,7 @@ class StateStore {
     const healthy = integrity === 'ok' && Boolean(heartbeatAt) && heartbeatAgeMs <= maxHeartbeatAgeMs && !this.lastWriteError;
     return {
       ok: healthy,
-      format: 'stay-statestore-v2',
+      format: 'stay-statestore-v3',
       sqliteJournalMode: String(this.db.prepare('PRAGMA journal_mode').get()?.journal_mode || '').toLowerCase(),
       sqliteSynchronous: this.db.prepare('PRAGMA synchronous').get()?.synchronous,
       integrity,
@@ -329,7 +558,7 @@ class StateStore {
     return bytes;
   }
 
-  async commitCheckpoint({ coreId, instanceId, version, authorityEpoch, stateSchema, state, updateAuthority = true }) {
+  async commitCheckpoint({ coreId, instanceId, version, authorityEpoch, stateSchema, state, updateAuthority = true, consumerAck = null }) {
     const json = JSON.stringify(state ?? {});
     const blob = await this.putBlob(json);
     const createdAt = new Date().toISOString();
@@ -337,9 +566,10 @@ class StateStore {
     const result = this.withTransaction(() => {
       const row = this.db.prepare('SELECT COALESCE(MAX(generation), 0) AS generation FROM checkpoints WHERE core_id = ?').get(coreId);
       const generation = Number(row?.generation || 0) + 1;
-      this.db.prepare(`INSERT INTO checkpoints(checkpoint_id, core_id, instance_id, version, authority_epoch, state_schema, generation, blob_hash, byte_length, created_at)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-        checkpointId, coreId, instanceId, version, authorityEpoch, stateSchema, generation, blob.hash, blob.byteLength, createdAt
+      const inputCursor = consumerAck ? Number(consumerAck.sequence) || 0 : 0;
+      this.db.prepare(`INSERT INTO checkpoints(checkpoint_id, core_id, instance_id, version, authority_epoch, state_schema, generation, blob_hash, byte_length, input_cursor, created_at)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        checkpointId, coreId, instanceId, version, authorityEpoch, stateSchema, generation, blob.hash, blob.byteLength, inputCursor, createdAt
       );
       if (updateAuthority) {
         const updated = this.db.prepare(`UPDATE authority SET checkpoint_hash = ?, updated_at = ?
@@ -347,6 +577,23 @@ class StateStore {
           .run(blob.hash, createdAt, coreId, instanceId, version, authorityEpoch);
         if (updated.changes !== 1) {
           throw Object.assign(new Error('checkpoint does not belong to current authority'), { code: 'CHECKPOINT_AUTHORITY_CONFLICT' });
+        }
+      }
+      if (consumerAck) {
+        const delivery = this.db.prepare('SELECT status FROM biological_deliveries WHERE consumer_id=? AND sequence=?')
+          .get(consumerAck.consumerId, consumerAck.sequence);
+        if (!delivery) throw Object.assign(new Error('checkpoint acknowledgement has no durable delivery'), { code: 'BIOLOGICAL_DELIVERY_MISSING' });
+        if (delivery.status !== 'ACKED') {
+          this.db.prepare(`UPDATE biological_deliveries SET status='ACKED', transition_id=?, checkpoint_hash=?, acknowledged_at=?
+            WHERE consumer_id=? AND sequence=? AND status='PENDING'`).run(
+            consumerAck.transitionId || null, blob.hash, createdAt, consumerAck.consumerId, consumerAck.sequence
+          );
+        }
+        const cursor = this.advanceBiologicalCursor(consumerAck.consumerId, createdAt);
+        this.db.prepare('UPDATE biological_consumers SET checkpoint_hash=?, authority_epoch=?, updated_at=? WHERE consumer_id=?')
+          .run(blob.hash, authorityEpoch, createdAt, consumerAck.consumerId);
+        if (cursor < consumerAck.sequence) {
+          // Out-of-order completion is legal; the cursor advances only after earlier pending deliveries cross.
         }
       }
       return { checkpointId, generation };
@@ -388,6 +635,7 @@ class StateStore {
       generation: row.generation,
       blobHash: row.blob_hash,
       byteLength: row.byte_length,
+      inputCursor: Number(row.input_cursor) || 0,
       createdAt: row.created_at,
       state: JSON.parse(bytes.toString('utf8'))
     };
@@ -418,6 +666,7 @@ class StateStore {
       generation: row.generation,
       blobHash: row.blob_hash,
       byteLength: row.byte_length,
+      inputCursor: Number(row.input_cursor) || 0,
       createdAt: row.created_at,
       state: JSON.parse(bytes.toString('utf8'))
     };

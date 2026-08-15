@@ -7,6 +7,7 @@ const { StateStore } = require('./state-store');
 const { RuntimeRegistry } = require('./registry');
 const { UpgradeManager } = require('./upgrades');
 const { ComputeFabric } = require('../compute/compute-fabric');
+const { stableStringify } = require('./canonical-json');
 
 const KERNEL_VERSION = '0.8.11.3';
 
@@ -21,11 +22,13 @@ class LivingKernel {
     snapshotRetention = Number(process.env.STAY_SNAPSHOT_RETENTION || 24)
   }) {
     this.dataDir = dataDir;
+    this.clock = clock;
     this.logger = logger;
     this.stateStore = new StateStore(dataDir);
     this.fabric = new EventFabric({
       clock,
-      sequenceAllocator: ({ minimum }) => this.stateStore.reserveEventSequence(minimum)
+      sequenceAllocator: ({ minimum }) => this.stateStore.reserveEventSequence(minimum),
+      durableAppender: envelope => this.stateStore.appendBiologicalEvent(envelope)
     });
     this.registry = new RuntimeRegistry({ fabric: this.fabric, stateStore: this.stateStore, logger });
     this.upgrades = new UpgradeManager({ registry: this.registry, stateStore: this.stateStore });
@@ -43,6 +46,8 @@ class LivingKernel {
     this.statusCache = null;
     this.statusInFlight = null;
     this.statusCacheTtlMs = 1000;
+    this.trustedTimePulseSequence = 0;
+    this.lastBiologicalRetention = null;
   }
 
   async start() {
@@ -133,6 +138,7 @@ class LivingKernel {
 
   async writeHeartbeat() {
     const cores = await this.registry.status();
+    this.lastBiologicalRetention = this.stateStore.pruneBiologicalEvents({ retainCount: 4096 });
     await this.stateStore.writeLife('event-sequence', {
       sequence: this.fabric.sequence,
       at: new Date().toISOString()
@@ -146,7 +152,8 @@ class LivingKernel {
       coreHealth: cores.map(slot => ({
         coreId: slot.coreId,
         ok: !slot.active || !slot.active.health || slot.active.health.ok !== false
-      }))
+      })),
+      biologicalRetention: this.lastBiologicalRetention
     });
     this.clearMaintenanceError('heartbeat');
   }
@@ -173,7 +180,54 @@ class LivingKernel {
       coreId: unit.manifest ? unit.manifest.coreId : null,
       coreVersion: unit.manifest ? unit.manifest.version : null
     });
+    if (unit.manifest?.coreId === 'sntss') await this.publishOrganismBinding();
     return unit;
+  }
+
+  async publishOrganismBinding() {
+    const identityHash = 'sha256:' + crypto.createHash('sha256').update(stableStringify(this.identity)).digest('hex');
+    let binding = await this.stateStore.readLife('organism-binding', null);
+    if (!binding) {
+      binding = {
+        bindingVersion: 1,
+        identitySha256: identityHash,
+        organismLineage: this.identity.lineage,
+        issuedAt: Number(this.clock()),
+        runtimeRevision: this.runtimeRevision,
+        authorityEpoch: this.runtimeRevision,
+        kernelVersion: KERNEL_VERSION
+      };
+      await this.stateStore.writeLife('organism-binding', binding);
+    }
+    if (binding.identitySha256 !== identityHash || binding.organismLineage !== this.identity.lineage) {
+      throw Object.assign(new Error('persisted organism binding does not match living identity'), { code: 'ORGANISM_BINDING_MISMATCH' });
+    }
+    return this.publish('runtime.organism.binding', binding, {
+      eventClass: 'critical',
+      sourceCore: 'living-kernel',
+      sourceVersion: binding.kernelVersion,
+      authorityEpoch: binding.authorityEpoch,
+      evidenceHash: identityHash,
+      deduplicationKey: `runtime.organism.binding:v${binding.bindingVersion}:${identityHash}`
+    });
+  }
+
+  async publishTimePulse(clockStatus = 'trusted') {
+    if (!['trusted', 'degraded', 'uncertain'].includes(clockStatus)) throw Object.assign(new Error('invalid runtime clock status'), { code: 'RUNTIME_CLOCK_STATUS' });
+    const pulseSequence = ++this.trustedTimePulseSequence;
+    const wallClockMs = Number(this.clock());
+    return this.publish('runtime.time.pulse', {
+      wallClockMs,
+      runtimeRevision: this.runtimeRevision,
+      pulseSequence,
+      clockStatus
+    }, {
+      eventClass: 'durable',
+      sourceCore: 'living-kernel',
+      sourceVersion: KERNEL_VERSION,
+      authorityEpoch: this.runtimeRevision,
+      deduplicationKey: `runtime.time.pulse:${this.runtimeRevision}:${pulseSequence}`
+    });
   }
 
   async stageCoreUpgrade(modulePath) {
@@ -204,11 +258,7 @@ class LivingKernel {
   }
 
   async publish(topic, payload, meta) {
-    const event = await this.fabric.publish(topic, payload, meta);
-    if (event.class === 'critical' || event.class === 'durable') {
-      await Promise.all([...this.registry.slots.values()].map(slot => slot.persistActive()));
-    }
-    return event;
+    return this.fabric.publish(topic, payload, meta);
   }
 
   async health(knownCores = null) {
@@ -233,6 +283,8 @@ class LivingKernel {
       unhealthyCores,
       blockingCores,
       eventFabric: this.fabric.status(),
+      biologicalLedger: this.stateStore.biologicalLedgerStatus(),
+      biologicalRetention: this.lastBiologicalRetention,
       authority: this.stateStore.listAuthority(),
       computeFabric: this.computeFabric.status()
     };
@@ -280,6 +332,7 @@ class LivingKernel {
       snapshots: await this.stateStore.snapshotStatus(),
       authority: this.stateStore.listAuthority(),
       eventFabric: this.fabric.status(),
+      biologicalLedger: this.stateStore.biologicalLedgerStatus(),
       computeFabric: this.computeFabric.status(),
       cores: [persistenceContract, ...realCores]
     };

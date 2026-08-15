@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://sntss/runtime-organism-binding.schema.json",
+  "title": "Trusted runtime organism binding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bindingVersion", "identitySha256", "organismLineage", "issuedAt", "runtimeRevision", "authorityEpoch", "kernelVersion"],
+  "properties": {
+    "bindingVersion": { "const": 1 },
+    "identitySha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "organismLineage": { "const": "STAY/Genesis" },
+    "issuedAt": { "type": "integer", "minimum": 0 },
+    "runtimeRevision": { "type": "integer", "minimum": 1 },
+    "authorityEpoch": { "type": "integer", "minimum": 1 },
+    "kernelVersion": { "type": "string", "minLength": 1 },
+    "bindingEventId": { "type": "string", "minLength": 1 }
+  }
+}

@@ -3,10 +3,11 @@
 const { assertPayload, normalizeEventClass } = require('./protocol');
 
 class EventFabric {
-  constructor({ clock = () => Date.now(), maxPayloadBytes = 1024 * 1024, sequenceAllocator = null } = {}) {
+  constructor({ clock = () => Date.now(), maxPayloadBytes = 1024 * 1024, sequenceAllocator = null, durableAppender = null } = {}) {
     this.clock = clock;
     this.maxPayloadBytes = maxPayloadBytes;
     this.sequenceAllocator = typeof sequenceAllocator === 'function' ? sequenceAllocator : null;
+    this.durableAppender = typeof durableAppender === 'function' ? durableAppender : null;
     this.sequence = 0;
     this.topicSubscribers = new Map();
     this.anySubscribers = new Set();
@@ -14,6 +15,8 @@ class EventFabric {
       published: 0,
       deliveryFailures: 0,
       bestEffortFailures: 0,
+      durablyAppended: 0,
+      deduplicated: 0,
       lastFailure: null
     };
   }
@@ -33,23 +36,39 @@ class EventFabric {
     if (typeof topic !== 'string' || !topic || topic.length > 200) throw new Error('invalid event topic');
     assertPayload(payload, `event ${topic}`, this.maxPayloadBytes);
     const eventClass = normalizeEventClass(meta.eventClass);
-    const sequence = this.sequenceAllocator
-      ? Number(this.sequenceAllocator({ topic, payload, meta, eventClass, minimum: this.sequence }))
-      : this.sequence + 1;
-    if (!Number.isSafeInteger(sequence) || sequence <= this.sequence) {
-      throw Object.assign(new Error('event sequence allocator did not return a strictly increasing safe integer'), { code: 'EVENT_SEQUENCE_INVALID' });
+    const at = Number(this.clock());
+    if (!Number.isSafeInteger(at) || at < 0) throw Object.assign(new Error('event clock is invalid'), { code: 'EVENT_CLOCK_INVALID' });
+    let event;
+    let deduplicated = false;
+    if (this.durableAppender && (eventClass === 'critical' || eventClass === 'durable')) {
+      const appended = await this.durableAppender({ topic, payload, meta, eventClass, at, deadlineAt: Number(meta.deadlineAt) || null, minimum: this.sequence });
+      event = appended.event;
+      deduplicated = Boolean(appended.deduplicated);
+      this.metrics.durablyAppended += deduplicated ? 0 : 1;
+      this.metrics.deduplicated += deduplicated ? 1 : 0;
+    } else {
+      const sequence = this.sequenceAllocator
+        ? Number(this.sequenceAllocator({ topic, payload, meta, eventClass, minimum: this.sequence }))
+        : this.sequence + 1;
+      if (!Number.isSafeInteger(sequence) || sequence <= this.sequence) {
+        throw Object.assign(new Error('event sequence allocator did not return a strictly increasing safe integer'), { code: 'EVENT_SEQUENCE_INVALID' });
+      }
+      event = Object.freeze({
+        id: sequence,
+        sequence,
+        topic,
+        class: eventClass,
+        payload,
+        at,
+        deadlineAt: Number(meta.deadlineAt) || null,
+        meta: Object.freeze({ ...meta, eventClass })
+      });
     }
-    this.sequence = sequence;
-    const event = Object.freeze({
-      id: sequence,
-      sequence,
-      topic,
-      class: eventClass,
-      payload,
-      at: this.clock(),
-      deadlineAt: Number(meta.deadlineAt) || null,
-      meta: Object.freeze({ ...meta, eventClass })
-    });
+    const sequence = Number(event.sequence);
+    if (!Number.isSafeInteger(sequence) || sequence < 1 || (!deduplicated && sequence <= this.sequence)) {
+      throw Object.assign(new Error('event ledger did not return a valid sequence'), { code: 'EVENT_SEQUENCE_INVALID' });
+    }
+    this.sequence = Math.max(this.sequence, sequence);
     this.metrics.published += 1;
     const handlers = [...(this.topicSubscribers.get(topic) || []), ...this.anySubscribers];
     const required = [];
@@ -91,7 +110,7 @@ class EventFabric {
 
   status() {
     return {
-      protocol: 'stay-event-fabric-v2',
+      protocol: 'stay-event-fabric-v3',
       sequence: this.sequence,
       subscribers: [...this.topicSubscribers.values()].reduce((sum, set) => sum + set.size, 0) + this.anySubscribers.size,
       ...this.metrics

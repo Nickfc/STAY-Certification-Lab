@@ -42,8 +42,8 @@ async function main() {
     if (seen.at(-1).generation !== 'v1' || seen.at(-1).ticks !== 4 || seen.at(-1).epoch !== 3) throw new Error('warm epoch rollback failed');
     const status = await kernel.status();
     if (status.kernel.version !== '0.8.11.3') throw new Error('kernel version mismatch');
-    if (!status.health.ok || status.health.persistence.format !== 'stay-statestore-v2') throw new Error('StateStore v2 health failed');
-    if (status.eventFabric.protocol !== 'stay-event-fabric-v2') throw new Error('Event Fabric v2 missing');
+    if (!status.health.ok || status.health.persistence.format !== 'stay-statestore-v3') throw new Error('StateStore v3 health failed');
+    if (status.eventFabric.protocol !== 'stay-event-fabric-v3') throw new Error('Event Fabric v3 missing');
     await kernel.stop();
 
     const restarted = new LivingKernel({ dataDir: dir, heartbeatIntervalMs: 0, snapshotIntervalMs: 0 });
