@@ -1,6 +1,11 @@
 name: R8 isolated Lightsail host drill
 
 on:
+  push:
+    branches:
+      - agent/living-runtime-0.7.0
+    paths:
+      - .github/workflows/lightsail-upload-test.yml
   workflow_dispatch:
     inputs:
       duration_seconds:
@@ -15,6 +20,8 @@ jobs:
   r8-host-drill:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      DURATION_SECONDS: ${{ inputs.duration_seconds || '600' }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -28,8 +35,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "${{ inputs.duration_seconds }}" =~ ^[0-9]+$ ]]
-          (( ${{ inputs.duration_seconds }} >= 180 && ${{ inputs.duration_seconds }} <= 1200 ))
+          [[ "$DURATION_SECONDS" =~ ^[0-9]+$ ]]
+          (( DURATION_SECONDS >= 180 && DURATION_SECONDS <= 1200 ))
           node --check scripts/sntss-r8-pressure-worker.js
           node --check scripts/sntss-r8-host-drill.js
           node scripts/sntss-r8-containment-lab.js
@@ -66,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes staydeploy@35.157.242.167 \
-            "bash -s -- '$GITHUB_RUN_ID' '$GITHUB_SHA' '${{ inputs.duration_seconds }}' '$ARCHIVE'" <<'REMOTE'
+            "bash -s -- '$GITHUB_RUN_ID' '$GITHUB_SHA' '$DURATION_SECONDS' '$ARCHIVE'" <<'REMOTE'
           set -Eeuo pipefail
           RUN_ID="$1"; COMMIT="$2"; DURATION="$3"; ARCHIVE="$4"
           [[ "$RUN_ID" =~ ^[0-9]+$ && "$COMMIT" =~ ^[0-9a-f]{40}$ && "$DURATION" =~ ^[0-9]+$ && "$ARCHIVE" =~ ^stay-r8-host-drill-[0-9a-f]{40}\.tar\.gz$ ]]
