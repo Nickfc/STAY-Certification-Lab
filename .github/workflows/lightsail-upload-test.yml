@@ -72,7 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes staydeploy@35.157.242.167 \
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=30 staydeploy@35.157.242.167 \
             "bash -s -- '$GITHUB_RUN_ID' '$GITHUB_SHA' '$DURATION_SECONDS' '$ARCHIVE'" <<'REMOTE'
           set -Eeuo pipefail
           RUN_ID="$1"; COMMIT="$2"; DURATION="$3"; ARCHIVE="$4"
@@ -84,6 +84,15 @@ jobs:
           NODE_BIN="$(command -v node)"
           NODE_BIN="$(readlink -f "$NODE_BIN")"
           [[ "$NODE_BIN" == /* && -x "$NODE_BIN" ]]
+          STALE_UNIT='stay-r8-host-31901720781.service'
+          if systemctl --user is-active --quiet "$STALE_UNIT"; then
+            systemctl --user stop "$STALE_UNIT"
+          elif sudo -n systemctl is-active --quiet "$STALE_UNIT"; then
+            sudo -n systemctl stop "$STALE_UNIT"
+          fi
+          rm -rf -- /opt/stay/incoming/r8-host-drill-31901720781
+          rm -f -- /opt/stay/incoming/stay-r8-host-drill-f8b47885d3afe286f496fd98607718b22aba740c.tar.gz \
+            /opt/stay/incoming/stay-r8-host-drill-f8b47885d3afe286f496fd98607718b22aba740c.tar.gz.sha256
           BEFORE_PID="$(systemctl show stay.service --property=MainPID --value)"
           [[ "$(systemctl is-active stay.service)" == active && "$BEFORE_PID" =~ ^[1-9][0-9]*$ ]]
           test ! -e "$RUN_ROOT"
