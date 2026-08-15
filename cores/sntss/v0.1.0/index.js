@@ -62,7 +62,8 @@ async function createCore({ initialState }) {
         sourceRegistryHash: sourceRegistry.registryHash,
         laboratoryReceptorProfiles: Object.keys(receptorProfileRegistry.profiles).length,
         productionReceptorConsumers: 0,
-        receptorProfileRegistryHash: receptorProfileRegistry.registryHash
+        receptorProfileRegistryHash: receptorProfileRegistry.registryHash,
+        productionGenesis: false
       };
     },
     async stop() {}
