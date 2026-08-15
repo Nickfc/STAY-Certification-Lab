@@ -14,6 +14,18 @@ NODE="/usr/local/bin/node"
 STAY_USER="staydeploy"
 STAY_GROUP="staydeploy"
 
+sqlite_quick_check() {
+  local database_path="$1"
+  "$NODE" - "$database_path" <<'NODE'
+const { DatabaseSync } = require('node:sqlite');
+const db = new DatabaseSync(process.argv[2], { readOnly: true });
+try {
+  const row = db.prepare('PRAGMA quick_check').get();
+  if (String(row?.quick_check || '').toLowerCase() !== 'ok') throw new Error('continuity SQLite quick_check failed');
+} finally { db.close(); }
+NODE
+}
+
 if [[ "${EUID}" -ne 0 ]]; then
   echo "ERROR: run with sudo/root." >&2
   exit 1
@@ -220,6 +232,7 @@ fi
 
 IDENTITY_FILE="$DATA_ROOT/life/identity.json"
 BRAIN_FILE="$DATA_ROOT/legacy-0.6.0/genesis-state.json"
+CONTINUITY_DB="$DATA_ROOT/continuity.sqlite3"
 
 IDENTITY_SHA_BEFORE="$(sha256sum "$IDENTITY_FILE" | awk '{print $1}')"
 BRAIN_MTIME_BEFORE="$(stat -c %Y "$BRAIN_FILE")"
@@ -247,14 +260,25 @@ sha256sum -c "$BACKUP_DIR/stay-data.tar.gz.sha256"
 cp "$IDENTITY_FILE" "$BACKUP_DIR/identity.json"
 sha256sum "$BRAIN_FILE" > "$BACKUP_DIR/live-brain.sha256"
 readlink -f "$CURRENT" > "$BACKUP_DIR/previous-release.txt"
-"$NODE" - "$DATA_ROOT/continuity.sqlite3" <<'NODE'
-const { DatabaseSync } = require('node:sqlite');
-const db = new DatabaseSync(process.argv[2], { readOnly: true });
-try {
-  const row = db.prepare('PRAGMA quick_check').get();
-  if (String(row?.quick_check || '').toLowerCase() !== 'ok') throw new Error('continuity SQLite quick_check failed');
-} finally { db.close(); }
+
+if [[ -f "$CONTINUITY_DB" ]]; then
+  echo "-- Existing StateStore quick check"
+  sqlite_quick_check "$CONTINUITY_DB"
+else
+  echo "-- Pre-v3 dataset detected; validating migration inputs"
+  "$NODE" - "$IDENTITY_FILE" "$BRAIN_FILE" <<'NODE'
+const fs = require('node:fs');
+const identity = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const brain = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+if (!identity || typeof identity !== 'object' || !identity.organismId || !identity.createdAt || identity.lineage !== 'STAY/Genesis') {
+  throw new Error('pre-v3 organism identity is incomplete or invalid');
+}
+if (!brain || typeof brain !== 'object' || Array.isArray(brain)) {
+  throw new Error('pre-v3 legacy brain state is missing or invalid');
+}
+console.log('Pre-v3 identity and legacy brain: OK');
 NODE
+fi
 
 echo "-- Atomic release switch"
 ln -sfn "$FINAL_RELEASE" "$CURRENT.new"
@@ -295,6 +319,13 @@ if [[ "$IDENTITY_SHA_AFTER" != "$IDENTITY_SHA_BEFORE" ]]; then
   false
 fi
 echo "-- Identity continuity: OK"
+
+if [[ ! -f "$CONTINUITY_DB" ]]; then
+  echo "ERROR: StateStore v3 database was not created by the candidate." >&2
+  false
+fi
+sqlite_quick_check "$CONTINUITY_DB"
+echo "-- StateStore v3 migration/integrity: OK"
 
 echo "-- Public HTML framing test"
 HTTP_CODE="$(curl -sS -o /tmp/stay-deploy-page.html -w '%{http_code}' http://127.0.0.1/)"

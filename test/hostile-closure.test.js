@@ -150,6 +150,9 @@ test('H-12: production launcher and deployer enforce inspector, digest and prove
   assert.match(deployer, /ARCHIVE\.sha256/);
   assert.match(deployer, /RELEASE_PROVENANCE\.json/);
   assert.match(deployer, /manual recovery is required/);
+  assert.match(deployer, /Pre-v3 dataset detected; validating migration inputs/);
+  assert.match(deployer, /StateStore v3 database was not created by the candidate/);
+  assert.match(deployer, /StateStore v3 migration\/integrity: OK/);
   assert.match(gitDeployer, /install -d -o "\$STAY_USER" -g "\$STAY_USER" -m 0750 "\$INCOMING"/);
   assert.ok(gitDeployer.indexOf('chown "$STAY_USER:$STAY_USER" "$BUILD_DIR"') < gitDeployer.indexOf('git -C "$SOURCE" archive'));
 });

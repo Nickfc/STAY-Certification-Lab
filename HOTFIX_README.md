@@ -1,10 +1,15 @@
-# STAY 0.8.11.3 deployment bootstrap hotfix
+# STAY 0.8.11.3 pre-v3 migration hotfix
 
 Upload the two included files to the existing `agent/living-runtime-0.7.0` branch at these exact repository paths:
 
-- `deploy/stay-deploy-git.sh`
+- `deploy/stay-deploy.sh`
 - `test/hostile-closure.test.js`
 
-This correction makes `/opt/stay/incoming` and the temporary archive-build directory writable only by `staydeploy` before the script deliberately drops privileges for `git archive` and extraction. The regression test requires that ownership transition to occur before the unprivileged archive command.
+The deployer now distinguishes two valid cases:
 
-After GitHub reports 40 passed and 0 failed, use the new full 40-character commit SHA for the server bootstrap and deployment. Do not deploy commit `10e5072824b66e8c0baf54c049d36620364056fd`; it predates this hotfix.
+1. Existing v3 installations must pass SQLite `quick_check` before switching.
+2. The first migration from 0.7, where `continuity.sqlite3` does not yet exist, must instead pass strict identity and legacy-brain JSON validation.
+
+After candidate startup, both cases require the v3 database to exist and pass SQLite `quick_check`. A failed migration still triggers the existing code-and-state rollback.
+
+Do not redeploy commit `3c03e1e4fddbd831dc280f80a461cddbe20dc940`; use the new commit produced by this hotfix.
