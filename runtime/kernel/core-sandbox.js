@@ -1,14 +1,28 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
+
+function realPathOrSelf(targetPath) {
+  try { return fs.realpathSync.native(targetPath); }
+  catch { return targetPath; }
+}
+
+function canonicalCoreModulePath(modulePath) {
+  return fs.realpathSync.native(path.resolve(modulePath));
+}
 
 function nativeCoreExecArgv(modulePath) {
   const runtimeRoot = path.resolve(__dirname, '..');
-  const coreRoot = path.dirname(path.resolve(modulePath));
+  const absoluteModule = canonicalCoreModulePath(modulePath);
+  const readRoots = new Set([
+    runtimeRoot,
+    realPathOrSelf(runtimeRoot),
+    path.dirname(absoluteModule)
+  ]);
   return [
     '--permission',
-    `--allow-fs-read=${runtimeRoot}`,
-    `--allow-fs-read=${coreRoot}`
+    ...Array.from(readRoots, root => `--allow-fs-read=${root}`)
   ];
 }
 
@@ -21,4 +35,4 @@ function coreHostEnvironment({ compatibility = false } = {}) {
   return env;
 }
 
-module.exports = { nativeCoreExecArgv, coreHostEnvironment };
+module.exports = { canonicalCoreModulePath, nativeCoreExecArgv, coreHostEnvironment };

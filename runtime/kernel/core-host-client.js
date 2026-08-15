@@ -7,7 +7,7 @@ const { EventEmitter } = require('node:events');
 const { validateManifest } = require('./manifest');
 const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION, assertPayload } = require('./protocol');
 const { ResourceGovernor, normalizePolicy } = require('./resource-governor');
-const { nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
+const { canonicalCoreModulePath, nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
 const { CgroupGovernor } = require('./cgroup-governor');
 
 const HOST_PATH = path.join(__dirname, '..', 'core-host', 'host.js');
@@ -34,7 +34,7 @@ async function waitForExit(child, timeoutMs) {
 class CoreHostClient extends EventEmitter {
   constructor({ modulePath, expectedManifest = null, instanceId = crypto.randomUUID(), mode = 'standby', logger = console, policy = {} }) {
     super();
-    this.modulePath = path.resolve(modulePath);
+    this.modulePath = canonicalCoreModulePath(modulePath);
     this.expectedManifest = expectedManifest;
     this.instanceId = instanceId;
     this.mode = mode;

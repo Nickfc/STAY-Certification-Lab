@@ -114,6 +114,17 @@ test('H-08: timed-out manifest inspection reaps its child', async () => {
   await assert.rejects(() => inspectCoreModule(fixture('blocking-inspector-core.js'), 100), error => error.code === 'CORE_INSPECT_TIMEOUT');
 });
 
+test('H-08b: manifest inspection authorizes the immutable target behind a release symlink', async t => {
+  const linkRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-release-link-'));
+  t.after(() => fs.rm(linkRoot, { recursive: true, force: true }));
+  const current = path.join(linkRoot, 'current');
+  await fs.symlink(path.join(__dirname, '..'), current, 'dir');
+  const inspected = await inspectCoreModule(path.join(current, 'test', 'fixtures', 'cores', 'counter-v1.js'));
+  assert.equal(inspected.modulePath, fixture('counter-v1.js'));
+  assert.equal(inspected.manifest.coreId, 'test-counter');
+  assert.equal(inspected.manifest.version, '1.0.0');
+});
+
 test('H-09: third-party workflow actions are pinned to immutable commits', async () => {
   const workflowDir = path.join(__dirname, '..', '.github', 'workflows');
   for (const name of await fs.readdir(workflowDir)) {

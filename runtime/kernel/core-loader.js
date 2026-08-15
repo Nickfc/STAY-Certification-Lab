@@ -1,12 +1,11 @@
 'use strict';
 
-const path = require('node:path');
 const crypto = require('node:crypto');
 const { fork } = require('node:child_process');
 const { validateManifest } = require('./manifest');
 const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION } = require('./protocol');
 const { HOST_PATH } = require('./core-host-client');
-const { nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
+const { canonicalCoreModulePath, nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
 
 function hasExited(child) { return !child || child.exitCode != null || child.signalCode != null; }
 async function waitForExit(child, timeoutMs) {
@@ -20,7 +19,10 @@ async function waitForExit(child, timeoutMs) {
 }
 
 async function inspectCoreModule(modulePath, timeoutMs = 5000) {
-  const absolute = path.resolve(modulePath);
+  // Pin the inspected and subsequently launched Core to the immutable target.
+  // Node's permission model otherwise rejects a require through /opt/stay/current,
+  // and retaining the symlink would permit a retarget between inspection and use.
+  const absolute = canonicalCoreModulePath(modulePath);
   const child = fork(HOST_PATH, [], {
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     serialization: 'advanced',
