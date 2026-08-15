@@ -81,6 +81,9 @@ jobs:
           SOURCE="$RUN_ROOT/source"
           EVIDENCE="$RUN_ROOT/R8_HOST_EVIDENCE.json"
           UNIT="stay-r8-host-${RUN_ID}"
+          NODE_BIN="$(command -v node)"
+          NODE_BIN="$(readlink -f "$NODE_BIN")"
+          [[ "$NODE_BIN" == /* && -x "$NODE_BIN" ]]
           BEFORE_PID="$(systemctl show stay.service --property=MainPID --value)"
           [[ "$(systemctl is-active stay.service)" == active && "$BEFORE_PID" =~ ^[1-9][0-9]*$ ]]
           test ! -e "$RUN_ROOT"
@@ -109,7 +112,7 @@ jobs:
               --property=WorkingDirectory="$SOURCE" --property=Delegate=yes --property=MemoryMax=256M \
               --property=CPUQuota=50% --property=TasksMax=64 \
               /usr/bin/env STAY_REQUIRE_CGROUPS=1 STAY_R8_RUN_ID="$RUN_ID" STAY_R8_HOST_COMMIT="$COMMIT" \
-              /usr/bin/node scripts/sntss-r8-host-drill.js --duration-seconds "$DURATION" --output "$EVIDENCE"
+              "$NODE_BIN" scripts/sntss-r8-host-drill.js --duration-seconds "$DURATION" --output "$EVIDENCE"
             DRILL_STATUS=$?
           else
             sudo -n systemd-run --wait --pipe --collect --unit="$UNIT" \
@@ -118,7 +121,7 @@ jobs:
               --property=NoNewPrivileges=yes --property=PrivateDevices=yes --property=ProtectHome=yes \
               --property=ProtectSystem=strict --property=ReadWritePaths="$RUN_ROOT" --property=ProtectControlGroups=false \
               /usr/bin/env STAY_REQUIRE_CGROUPS=1 STAY_R8_RUN_ID="$RUN_ID" STAY_R8_HOST_COMMIT="$COMMIT" \
-              /usr/bin/node scripts/sntss-r8-host-drill.js --duration-seconds "$DURATION" --output "$EVIDENCE"
+              "$NODE_BIN" scripts/sntss-r8-host-drill.js --duration-seconds "$DURATION" --output "$EVIDENCE"
             DRILL_STATUS=$?
           fi
           set -e
