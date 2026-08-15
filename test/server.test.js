@@ -27,7 +27,7 @@ function request(port, pathname) {
   });
 }
 
-test('server exposes bounded public metadata and browser runtime surfaces, then stops cleanly', async t => {
+test('server exposes bounded public metadata, drains active connections, then stops cleanly', async t => {
   const dataDir = await makeDataDir('stay-server-test-');
   const port = await freePort();
   const child = spawn(process.execPath, ['server.js'], {
@@ -50,6 +50,13 @@ test('server exposes bounded public metadata and browser runtime surfaces, then 
   assert.equal(meta.version, '0.8.11.3');
   assert.match((await request(port, '/__stay/compute-governor.js')).body, /stay-viewer-responsiveness-v1/);
   assert.match((await request(port, '/__stay/gpu-engine.js')).body, /stay-webgpu-search-v3/);
+  const blockingSocket = net.createConnection({ host: '127.0.0.1', port });
+  t.after(() => blockingSocket.destroy());
+  await new Promise((resolve, reject) => {
+    blockingSocket.once('connect', resolve);
+    blockingSocket.once('error', reject);
+  });
+  blockingSocket.write('GET /healthz HTTP/1.1\r\nHost: 127.0.0.1\r\n');
   child.kill('SIGTERM');
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('server did not stop: ' + stderr)), 5000);

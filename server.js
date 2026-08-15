@@ -659,17 +659,35 @@ async function main() {
     console.log('[STAY] Living Kernel ' + STAY_VERSION + ' listening on ' + host + ':' + port);
   });
 
-  const shutdown = async (signal) => {
-    console.log('[STAY] ' + signal + ': persisting active state');
-    for (const socket of upgradedSockets) socket.destroy();
-    upgradedSockets.clear();
-    await new Promise(resolve => server.close(resolve));
-    await kernel.stop();
-    process.exit(0);
+  let shutdownPromise = null;
+  const shutdown = (signal) => {
+    if (shutdownPromise) return shutdownPromise;
+    shutdownPromise = (async () => {
+      console.log('[STAY] ' + signal + ': persisting active state');
+      for (const socket of upgradedSockets) socket.destroy();
+      upgradedSockets.clear();
+      await new Promise((resolve, reject) => {
+        // Stop accepting first, then terminate active proxied HTTP requests.
+        // Upgraded sockets are tracked and closed separately above.
+        server.close(error => error ? reject(error) : resolve());
+        server.closeAllConnections();
+      });
+      await kernel.stop();
+    })();
+    return shutdownPromise;
   };
 
-  process.once('SIGTERM', () => shutdown('SIGTERM'));
-  process.once('SIGINT', () => shutdown('SIGINT'));
+  const requestShutdown = signal => {
+    shutdown(signal).then(
+      () => process.exit(0),
+      error => {
+        console.error('[STAY] shutdown failed', error);
+        process.exit(1);
+      }
+    );
+  };
+  process.once('SIGTERM', () => requestShutdown('SIGTERM'));
+  process.once('SIGINT', () => requestShutdown('SIGINT'));
 }
 
 if (require.main === module) {
