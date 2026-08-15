@@ -14,7 +14,9 @@ ExecStart=/usr/bin/env node --disable-sigusr1 /opt/stay/current/server.js
 Restart=on-failure
 RestartSec=3
 KillSignal=SIGTERM
-KillMode=control-group
+# Let the Kernel persist and stop its CoreHosts in causal order. If it does
+# not exit before TimeoutStopSec, systemd still SIGKILLs all descendants.
+KillMode=mixed
 TimeoutStopSec=45
 UMask=0077
 StateDirectory=stay

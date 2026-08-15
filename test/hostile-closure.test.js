@@ -190,3 +190,10 @@ test('H-13: delegated cgroup hierarchy enables controllers at both distribution 
     ['writeFile', '/cgroup/stay.service/stay-cores/cgroup.subtree_control', '+cpu +memory +pids']
   ]);
 });
+
+test('H-14: systemd signals the Kernel before force-cleaning CoreHost descendants', async () => {
+  const service = await fs.readFile(path.join(__dirname, '..', 'deploy', 'systemd', 'stay.service'), 'utf8');
+  assert.match(service, /^KillMode=mixed$/m);
+  assert.doesNotMatch(service, /^KillMode=control-group$/m);
+  assert.match(service, /^TimeoutStopSec=45$/m);
+});
