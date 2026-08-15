@@ -1,11 +1,6 @@
 name: R8 isolated Lightsail host drill
 
 on:
-  push:
-    branches:
-      - agent/living-runtime-0.7.0
-    paths:
-      - .github/workflows/lightsail-upload-test.yml
   workflow_dispatch:
     inputs:
       duration_seconds:

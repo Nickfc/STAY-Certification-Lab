@@ -58,7 +58,7 @@ No production deployment, StateStore mutation, organism genesis, or behavior inf
 | R1 | durable biological event plane | R0 map frozen | complete crash matrix and exact replay | Candidate implementation |
 | R2 | neutral SNTSS package | R1 accepted | inert lifecycle/restart/rollback proof | Candidate implementation |
 | R3-R7 | chemistry, families, stimuli, receptors, lineage | R2 accepted | laboratory gates only | R3-R7 laboratory candidates complete; independent review and later hardening remain required |
-| R8 | security, containment and resource enforcement | R3-R7 complete | isolated hostile matrix and evidence-preserving neutralization | Laboratory candidate complete; isolated production-host cgroup pressure drill pending |
+| R8 | security, containment and resource enforcement | R3-R7 complete | isolated hostile matrix and evidence-preserving neutralization | Laboratory candidate and provisional host pressure/headroom gates passing; non-positive long-window RSS slope and independent review pending |
 | R9-R11 | audit, packaging and certification | R8 accepted | pinned certification bundle | Blocked |
 | R12 | neutral production | R11 plus operator approval | production neutral acceptance | Blocked |
 | R13+ | genesis, shadow, probe and influence | irreversible approval at each boundary | phase-specific evidence | Blocked |
