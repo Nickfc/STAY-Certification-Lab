@@ -2,6 +2,7 @@
 
 const HASH = /^sha256:[0-9a-f]{64}$/;
 const { speciesProfile } = require('./species-profile');
+const { sourceRegistry } = require('./source-registry');
 
 const manifest = Object.freeze({
   coreId: 'sntss',
@@ -54,7 +55,10 @@ async function createCore({ initialState }) {
         chemistryActive: false,
         calibratedFamilies: speciesProfile.activeFamilies.length,
         dormantFamilies: speciesProfile.dormantFamilies.length,
-        profileHash: speciesProfile.profileHash
+        profileHash: speciesProfile.profileHash,
+        semanticPolicies: Object.keys(sourceRegistry.policies).length,
+        productionSemanticTopics: 0,
+        sourceRegistryHash: sourceRegistry.registryHash
       };
     },
     async stop() {}
