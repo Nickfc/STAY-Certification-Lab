@@ -110,6 +110,7 @@ async function runPressure(coresRoot, kind, runId) {
 
 async function main() {
   const durationSeconds = Math.max(180, Number(option('--duration-seconds', 600)) || 600);
+  const warmupSeconds = Math.max(30, Number(option('--warmup-seconds', 300)) || 300);
   const output = path.resolve(option('--output', path.join(process.cwd(), 'R8_HOST_EVIDENCE.json')));
   const runId = String(process.env.STAY_R8_RUN_ID || crypto.randomUUID()).replace(/[^a-zA-Z0-9_.-]/g, '-');
   const workRoot = await fs.mkdtemp(path.join(process.cwd(), `r8-state-${runId}-`));
@@ -118,7 +119,8 @@ async function main() {
     format: 'stay-sntss-r8-host-evidence-v1', evidenceVersion: 1, runId,
     sourceCommit: process.env.STAY_R8_HOST_COMMIT || null, startedAt: new Date().toISOString(),
     activeStatePathTouched: false, activeReleasePointerChanged: false, serviceRestarted: false,
-    disposableState: true, productionEligible: false, requestedSteadyDurationSeconds: durationSeconds,
+    disposableState: true, productionEligible: false, requestedWarmupSeconds: warmupSeconds,
+    requestedSteadyDurationSeconds: durationSeconds,
     limits: { steadyRssBytes: 64 * 1024 * 1024, hardRssBytes: 96 * 1024 * 1024, rssSlopeBytesPerHour: 1024 * 1024, sustainedCpuDuty: 0.05, handlerP99Ms: 25, queueDepth: 64, checkpointBytes: 1024 * 1024 },
     failures: []
   };
@@ -140,11 +142,20 @@ async function main() {
 
     const initialGeneration = client.generation; client.child.kill('SIGKILL');
     const restartDeadline = Date.now() + 10000;
-    while (Date.now() < restartDeadline && client.generation === initialGeneration) await new Promise(resolve => setTimeout(resolve, 50));
-    report.sigkill = { generationBefore: initialGeneration, generationAfter: client.generation, recovered: client.generation > initialGeneration && client.lifecycle === 'active' };
+    while (Date.now() < restartDeadline && !(client.generation > initialGeneration && client.lifecycle === 'active')) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    const recoveredHealth = client.generation > initialGeneration && client.lifecycle === 'active'
+      ? await client.health().catch(() => ({ ok: false }))
+      : { ok: false };
+    report.sigkill = {
+      generationBefore: initialGeneration, generationAfter: client.generation,
+      lifecycleAfter: client.lifecycle, healthOk: recoveredHealth.ok === true,
+      recovered: client.generation > initialGeneration && client.lifecycle === 'active' && recoveredHealth.ok === true
+    };
     if (!report.sigkill.recovered) report.failures.push('SNTSS did not recover locally after SIGKILL');
 
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    await new Promise(resolve => setTimeout(resolve, warmupSeconds * 1000));
     const samples = []; const handlerLatenciesMs = []; const startTicks = (await readProcessSample(client.pid))?.cpuTicks || 0; const startedAtMs = Date.now();
     const sample = async () => {
       const before = performance.now(); const health = await client.health(); handlerLatenciesMs.push(performance.now() - before);
@@ -160,8 +171,10 @@ async function main() {
     report.steady = {
       observedDurationMs: elapsedMs, samples: samples.length, rssMinimumBytes: Math.min(...samples.map(entry => entry.rssBytes)),
       rssPeakBytes: Math.max(...samples.map(entry => entry.rssBytes)), rssSlopeBytesPerHour: regressionPerHour(samples, 'rssBytes'),
+      rssNetChangeBytes: samples.at(-1).rssBytes - samples[0].rssBytes,
       cpuDuty, handlerP99Ms: percentile(handlerLatenciesMs, 0.99), queuePeak: Math.max(...samples.map(entry => entry.queueDepth)), checkpointBytes,
-      allHealthOk: samples.every(entry => entry.healthOk)
+      allHealthOk: samples.every(entry => entry.healthOk),
+      rssSamples: samples.map(entry => ({ at: entry.at, rssBytes: entry.rssBytes }))
     };
     if (report.steady.rssPeakBytes >= report.limits.steadyRssBytes) report.failures.push('steady SNTSS RSS reached or exceeded 64 MiB');
     if (report.steady.rssPeakBytes >= report.limits.hardRssBytes) report.failures.push('SNTSS RSS crossed 96 MiB hard ceiling');

@@ -11,7 +11,7 @@ on:
       duration_seconds:
         description: Steady-state SNTSS observation duration in seconds (minimum 180)
         required: true
-        default: '600'
+        default: '1200'
 
 permissions:
   contents: read
@@ -19,9 +19,9 @@ permissions:
 jobs:
   r8-host-drill:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
-      DURATION_SECONDS: ${{ inputs.duration_seconds || '600' }}
+      DURATION_SECONDS: ${{ inputs.duration_seconds || '1200' }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -84,15 +84,6 @@ jobs:
           NODE_BIN="$(command -v node)"
           NODE_BIN="$(readlink -f "$NODE_BIN")"
           [[ "$NODE_BIN" == /* && -x "$NODE_BIN" ]]
-          STALE_UNIT='stay-r8-host-31901720781.service'
-          if systemctl --user is-active --quiet "$STALE_UNIT"; then
-            systemctl --user stop "$STALE_UNIT"
-          elif sudo -n systemctl is-active --quiet "$STALE_UNIT"; then
-            sudo -n systemctl stop "$STALE_UNIT"
-          fi
-          rm -rf -- /opt/stay/incoming/r8-host-drill-31901720781
-          rm -f -- /opt/stay/incoming/stay-r8-host-drill-f8b47885d3afe286f496fd98607718b22aba740c.tar.gz \
-            /opt/stay/incoming/stay-r8-host-drill-f8b47885d3afe286f496fd98607718b22aba740c.tar.gz.sha256
           BEFORE_PID="$(systemctl show stay.service --property=MainPID --value)"
           [[ "$(systemctl is-active stay.service)" == active && "$BEFORE_PID" =~ ^[1-9][0-9]*$ ]]
           test ! -e "$RUN_ROOT"
@@ -121,7 +112,7 @@ jobs:
               --property=WorkingDirectory="$SOURCE" --property=Delegate=yes --property=MemoryMax=256M \
               --property=CPUQuota=50% --property=TasksMax=64 \
               /usr/bin/env STAY_REQUIRE_CGROUPS=1 STAY_R8_RUN_ID="$RUN_ID" STAY_R8_HOST_COMMIT="$COMMIT" \
-              "$NODE_BIN" --disable-sigusr1 scripts/sntss-r8-host-drill.js --duration-seconds "$DURATION" --output "$EVIDENCE"
+              "$NODE_BIN" --disable-sigusr1 scripts/sntss-r8-host-drill.js --warmup-seconds 300 --duration-seconds "$DURATION" --output "$EVIDENCE"
             DRILL_STATUS=$?
           else
             sudo -n systemd-run --wait --pipe --collect --unit="$UNIT" \
@@ -130,7 +121,7 @@ jobs:
               --property=NoNewPrivileges=yes --property=PrivateDevices=yes --property=ProtectHome=yes \
               --property=ProtectSystem=strict --property=ReadWritePaths="$RUN_ROOT" --property=ProtectControlGroups=false \
               /usr/bin/env STAY_REQUIRE_CGROUPS=1 STAY_R8_RUN_ID="$RUN_ID" STAY_R8_HOST_COMMIT="$COMMIT" \
-              "$NODE_BIN" --disable-sigusr1 scripts/sntss-r8-host-drill.js --duration-seconds "$DURATION" --output "$EVIDENCE"
+              "$NODE_BIN" --disable-sigusr1 scripts/sntss-r8-host-drill.js --warmup-seconds 300 --duration-seconds "$DURATION" --output "$EVIDENCE"
             DRILL_STATUS=$?
           fi
           set -e
