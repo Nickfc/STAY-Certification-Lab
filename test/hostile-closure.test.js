@@ -9,6 +9,7 @@ const { spawnSync } = require('node:child_process');
 const { LivingKernel } = require('../runtime');
 const { CoreHostClient } = require('../runtime/kernel/core-host-client');
 const { inspectCoreModule } = require('../runtime/kernel/core-loader');
+const { prepareDelegatedHierarchy } = require('../runtime/kernel/cgroup-governor');
 const { validateHardwareEvidence } = require('../scripts/endurance-runner');
 
 const fixture = name => path.join(__dirname, 'fixtures', 'cores', name);
@@ -166,4 +167,26 @@ test('H-12: production launcher and deployer enforce inspector, digest and prove
   assert.match(deployer, /StateStore v3 migration\/integrity: OK/);
   assert.match(gitDeployer, /install -d -o "\$STAY_USER" -g "\$STAY_USER" -m 0750 "\$INCOMING"/);
   assert.ok(gitDeployer.indexOf('chown "$STAY_USER:$STAY_USER" "$BUILD_DIR"') < gitDeployer.indexOf('git -C "$SOURCE" archive'));
+});
+
+test('H-13: delegated cgroup hierarchy enables controllers at both distribution levels', async () => {
+  const operations = [];
+  const io = {
+    mkdir: async (target, options) => operations.push(['mkdir', target, options]),
+    writeFile: async (target, value) => operations.push(['writeFile', target, value])
+  };
+  await prepareDelegatedHierarchy({
+    current: '/cgroup/stay.service',
+    kernel: '/cgroup/stay.service/stay-kernel',
+    cores: '/cgroup/stay.service/stay-cores',
+    pid: 4242,
+    io
+  });
+  assert.deepEqual(operations, [
+    ['mkdir', '/cgroup/stay.service/stay-kernel', { recursive: true }],
+    ['writeFile', '/cgroup/stay.service/stay-kernel/cgroup.procs', '4242'],
+    ['writeFile', '/cgroup/stay.service/cgroup.subtree_control', '+cpu +memory +pids'],
+    ['mkdir', '/cgroup/stay.service/stay-cores', { recursive: true }],
+    ['writeFile', '/cgroup/stay.service/stay-cores/cgroup.subtree_control', '+cpu +memory +pids']
+  ]);
 });

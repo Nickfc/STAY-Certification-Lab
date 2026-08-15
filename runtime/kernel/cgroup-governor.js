@@ -16,6 +16,19 @@ async function readUnifiedCgroup() {
 
 let delegatedRootPromise = null;
 
+const REQUIRED_CONTROLLERS = '+cpu +memory +pids';
+
+async function prepareDelegatedHierarchy({ current, kernel, cores, pid, io = fs }) {
+  // A controller governs the immediate children of the cgroup where it is
+  // enabled. Keep the service cgroup empty, then enable controllers at both
+  // distribution levels so each per-Core cgroup receives its limit files.
+  await io.mkdir(kernel, { recursive: true });
+  await io.writeFile(path.join(kernel, 'cgroup.procs'), String(pid));
+  await io.writeFile(path.join(current, 'cgroup.subtree_control'), REQUIRED_CONTROLLERS);
+  await io.mkdir(cores, { recursive: true });
+  await io.writeFile(path.join(cores, 'cgroup.subtree_control'), REQUIRED_CONTROLLERS);
+}
+
 async function prepareDelegatedRoot() {
   if (delegatedRootPromise) return delegatedRootPromise;
   delegatedRootPromise = (async () => {
@@ -26,10 +39,7 @@ async function prepareDelegatedRoot() {
     if (current !== root && !current.startsWith(root + path.sep)) throw new Error('current cgroup resolves outside cgroup root');
     const kernel = path.join(current, 'stay-kernel');
     const cores = path.join(current, 'stay-cores');
-    await fs.mkdir(kernel, { recursive: true });
-    await fs.mkdir(cores, { recursive: true });
-    await fs.writeFile(path.join(kernel, 'cgroup.procs'), String(process.pid));
-    await fs.writeFile(path.join(current, 'cgroup.subtree_control'), '+cpu +memory +pids');
+    await prepareDelegatedHierarchy({ current, kernel, cores, pid: process.pid });
     return cores;
   })();
   try { return await delegatedRootPromise; }
@@ -103,4 +113,4 @@ class CgroupGovernor {
   }
 }
 
-module.exports = { CgroupGovernor, readUnifiedCgroup, safeName, prepareDelegatedRoot };
+module.exports = { CgroupGovernor, readUnifiedCgroup, safeName, prepareDelegatedHierarchy, prepareDelegatedRoot };
