@@ -1,9 +1,12 @@
-24-thread example plan
+STAY 0.8 CPU Quiet Governor examples
 
-  1% -> 12 workers,   20.0 ms/worker, 10.0 ms slices,  800.0 ms stagger window, effective   1.0%
-  2% -> 12 workers,   40.0 ms/worker, 20.0 ms slices,  800.0 ms stagger window, effective   2.0%
-  5% -> 12 workers,  100.0 ms/worker, 12.0 ms slices,  792.0 ms stagger window, effective   5.0%
- 10% -> 12 workers,  200.0 ms/worker, 12.0 ms slices,  684.0 ms stagger window, effective  10.0%
- 25% -> 12 workers,  500.0 ms/worker, 12.0 ms slices,  359.0 ms stagger window, effective  25.0%
- 50% -> 15 workers,  800.0 ms/worker, 12.0 ms slices,   34.0 ms stagger window, effective  50.0%
-100% -> 29 workers,  827.6 ms/worker, 12.0 ms slices,    4.4 ms stagger window, effective 100.0%
+Low requested shares are constrained by CPU time, concurrency and burst length at once.
+The exact effective share is hardware- and contention-dependent and is reported truthfully.
+
+Requested <= 5%  : peak 1 worker, 4 ms slices, <= 250 ms CPU/second desktop
+Requested <= 10% : peak 2 workers, 4-6 ms slices, <= 350 ms/worker/second desktop
+Requested <= 25% : peak 4 workers, 4-8 ms slices, <= 500 ms/worker/second desktop
+Requested > 25%  : peak 16 workers desktop / 3 mobile, 5-10 ms slices
+
+Interaction, long tasks, >250 ms freezes, mobile limits, GPU latency inflation and
+heap growth reduce effective duty automatically. Requested and effective values remain separate.

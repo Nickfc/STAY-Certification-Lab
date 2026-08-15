@@ -2,18 +2,29 @@
 Description=STAY / Genesis Living Runtime
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=staydeploy
 Group=staydeploy
 WorkingDirectory=/opt/stay/current
-ExecStart=/usr/bin/env node /opt/stay/current/server.js
+ExecStart=/usr/bin/env node --disable-sigusr1 /opt/stay/current/server.js
 Restart=on-failure
 RestartSec=3
 KillSignal=SIGTERM
-TimeoutStopSec=15
+KillMode=control-group
+TimeoutStopSec=45
 UMask=0077
+StateDirectory=stay
+StateDirectoryMode=0700
+RuntimeDirectory=stay
+RuntimeDirectoryMode=0700
+Delegate=cpu memory pids
+TasksMax=256
+MemoryAccounting=true
+CPUAccounting=true
 
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
@@ -24,10 +35,24 @@ Environment=STAY_LEGACY_SOURCE_DIR=/opt/stay/legacy/0.6.0
 Environment=STAY_LEGACY_PORT=8788
 Environment=STAY_BOOT_CORE=/opt/stay/current/cores/fetus-legacy-0.6/index.js
 Environment=STAY_REQUIRE_HIBERNATION_STATE=1
+Environment=STAY_REQUIRE_CGROUPS=1
 Environment=STAY_EXPECTED_HIBERNATION_SHA256=b45d6addd70b13bfa684f53c075edb3ca6a76bae7d7384849f84a1df2d7d073d
 
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectControlGroups=false
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
 ProtectHome=true
 ProtectSystem=strict
 ReadOnlyPaths=/opt/stay

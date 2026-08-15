@@ -1,35 +1,40 @@
 'use strict';
 
-const { RuntimeUnit } = require('./instance');
+const crypto = require('node:crypto');
+const { CoreHostClient } = require('./core-host-client');
+const { BoundedActorQueue } = require('./actor-queue');
+const { ShadowEvidence } = require('./shadow-evidence');
 const { assertUpgradeCompatible } = require('./manifest');
+const { serializedSize } = require('./protocol');
 
-async function buildUnit(definition, state, fabric, mode, logger) {
-  const bufferedOutputs = [];
-  const emit = async (topic, payload, meta = {}) => {
-    if (!definition.manifest.outputs.includes(topic)) throw new Error('undeclared output topic: ' + topic);
-    if (unit.mode !== 'active') {
-      bufferedOutputs.push({ topic, payload, meta });
-      return null;
-    }
-    return fabric.publish(topic, payload, { ...meta, sourceCore: definition.manifest.coreId, sourceVersion: definition.manifest.version });
-  };
-
-  const api = await definition.createCore({
-    manifest: definition.manifest,
-    initialState: structuredClone(state || {}),
-    emit,
-    now: () => Date.now(),
-    logger
-  });
-
-  for (const method of ['start', 'handle', 'snapshot', 'health']) {
-    if (!api || typeof api[method] !== 'function') throw new Error('core missing method: ' + method);
+class HostedUnit {
+  constructor({ definition, client, mode, instanceId, assignedEpoch, queue, evidence = null }) {
+    this.definition = definition;
+    this.manifest = definition.manifest;
+    this.client = client;
+    this.mode = mode;
+    this.instanceId = instanceId;
+    this.assignedEpoch = assignedEpoch;
+    this.queue = queue;
+    this.evidence = evidence;
+    this.handledEvents = 0;
+    this.suppressedOutputs = 0;
+    this.authoritativeOutputs = 0;
+    this.staleOutputs = 0;
+    this.shadowRequiredFailures = 0;
+    this.lastShadowFailure = null;
+    this.lifecycle = mode;
   }
 
-  const unit = new RuntimeUnit(definition, api, mode);
-  unit.bufferedOutputs = bufferedOutputs;
-  await api.start();
-  return unit;
+  async setMode(mode, epoch = this.assignedEpoch) {
+    this.mode = mode;
+    this.assignedEpoch = epoch;
+    await this.client.setMode(mode);
+  }
+
+  async snapshot() { return this.client.snapshot(); }
+  async health() { return this.client.health(); }
+  async stop() { this.queue.close(); await this.client.stop(); }
 }
 
 class RuntimeSlot {
@@ -41,73 +46,355 @@ class RuntimeSlot {
     this.active = null;
     this.candidate = null;
     this.standby = null;
-    this.unsubscribe = fabric.subscribeAll((event) => this.dispatch(event));
+    this.authorityEpoch = 0;
+    this.cutoverBarrier = 0;
+    this.cutover = null;
+    this.transitioning = false;
+    this.lastAuthorityError = null;
+    this.unsubscribe = fabric.subscribeAll(event => this.dispatch(event));
   }
 
-  async migrate(definition, envelope) {
-    if (!envelope) return {};
-    if (envelope.stateSchema === definition.manifest.stateSchema) return structuredClone(envelope.state || {});
-    if (!definition.migrateState) throw new Error('state migration required but not supplied');
-    return definition.migrateState({ state: structuredClone(envelope.state || {}), fromSchema: envelope.stateSchema, toSchema: definition.manifest.stateSchema });
+  async buildUnit(definition, stateEnvelope, mode, instanceId, assignedEpoch, evidence = null) {
+    const client = new CoreHostClient({
+      modulePath: definition.modulePath,
+      expectedManifest: definition.manifest,
+      instanceId,
+      mode,
+      logger: this.logger,
+      policy: { resources: definition.manifest.resources, priority: definition.manifest.priority }
+    });
+    const unit = new HostedUnit({ definition, client, mode, instanceId, assignedEpoch, queue: null, evidence });
+    const queue = new BoundedActorQueue({
+      name: `${this.coreId}:${instanceId}`,
+      capacity: client.policy.queueCapacity,
+      handlerTimeoutMs: client.policy.handlerTimeoutMs,
+      handler: async event => {
+        await client.dispatch(event, {
+          coreId: this.coreId,
+          implementationInstanceId: instanceId,
+          authorityEpoch: unit.assignedEpoch,
+          eventSequence: event.sequence
+        });
+        unit.handledEvents += 1;
+      },
+      onFault: (error, event) => {
+        unit.lifecycle = 'degraded';
+        if (error.code === 'ACTOR_HANDLER_TIMEOUT') client.recycle('actor-handler-timeout', { eventSequence: event?.sequence }).catch(() => {});
+      }
+    });
+    unit.queue = queue;
+    client.on('output', message => this.handleOutput(unit, message));
+    client.on('lifecycle', lifecycle => { unit.lifecycle = lifecycle; });
+    client.on('quarantined', detail => {
+      unit.lifecycle = 'failed';
+      this.stateStore.recordRecovery('core.quarantined', this.coreId, { instanceId, ...detail });
+    });
+    client.on('error', error => {
+      unit.lifecycle = 'degraded';
+      this.logger.error?.(`[STAY] CoreHost ${this.coreId}/${instanceId}: ${error.message}`);
+    });
+    client.on('protocol-error', error => { unit.lifecycle = 'degraded'; this.logger.error?.(error.message); });
+    const envelope = stateEnvelope || { stateSchema: definition.manifest.stateSchema, state: {} };
+    await client.start(envelope.state || {}, envelope.stateSchema);
+    return unit;
+  }
+
+  async handleOutput(unit, message) {
+    const context = message.context;
+    const topic = message.topic;
+    if (!unit.manifest.outputs.includes(topic)) throw new Error('CoreHost emitted undeclared output: ' + topic);
+    const eventSequence = Number(context?.eventSequence) || 0;
+    const payload = message.payload;
+    if (unit === this.active && unit.mode === 'active') {
+      const valid = context
+        && context.coreId === this.coreId
+        && context.implementationInstanceId === unit.instanceId
+        && Number(context.authorityEpoch) === this.authorityEpoch
+        && Number(context.authorityEpoch) === unit.assignedEpoch
+        && eventSequence > this.cutoverBarrier;
+      if (!valid) {
+        unit.staleOutputs += 1;
+        this.lastAuthorityError = {
+          at: new Date().toISOString(),
+          code: 'STALE_AUTHORITY_OUTPUT',
+          instanceId: unit.instanceId,
+          eventSequence,
+          outputEpoch: context?.authorityEpoch ?? null,
+          authorityEpoch: this.authorityEpoch
+        };
+        return;
+      }
+      unit.authoritativeOutputs += 1;
+      if (this.candidate?.evidence) this.candidate.evidence.recordActive({ eventSequence, topic, payload });
+      await this.fabric.publish(topic, payload, {
+        ...message.meta,
+        sourceCore: this.coreId,
+        sourceVersion: unit.manifest.version,
+        sourceInstanceId: unit.instanceId,
+        authorityEpoch: this.authorityEpoch,
+        causeSequence: eventSequence,
+        eventClass: message.meta?.eventClass || 'durable'
+      });
+      return;
+    }
+    unit.suppressedOutputs += 1;
+    if (unit === this.candidate && unit.evidence) {
+      unit.evidence.recordShadow({ eventSequence, topic, payload, invariantOk: Boolean(context) });
+    }
   }
 
   async installInitial(definition) {
     if (this.active) throw new Error('slot already has an active implementation');
-    const stored = await this.stateStore.readCore(this.coreId, 'active', null);
-    const state = await this.migrate(definition, stored);
-    this.active = await buildUnit(definition, state, this.fabric, 'active', this.logger);
+    const existingAuthority = this.stateStore.getAuthority(this.coreId);
+    if (existingAuthority && existingAuthority.version !== definition.manifest.version) {
+      throw Object.assign(new Error(`persisted authority for ${this.coreId} is ${existingAuthority.version}, not ${definition.manifest.version}`), { code: 'AUTHORITY_VERSION_MISMATCH' });
+    }
+    const checkpoint = existingAuthority
+      ? await this.stateStore.readAuthoritativeCheckpoint(this.coreId)
+      : null;
+    const instanceId = existingAuthority?.instanceId || crypto.randomUUID();
+    const epoch = existingAuthority?.epoch || 1;
+    const envelope = checkpoint
+      ? { stateSchema: checkpoint.stateSchema, state: checkpoint.state }
+      : { stateSchema: definition.manifest.stateSchema, state: {} };
+    const unit = await this.buildUnit(definition, envelope, 'active', instanceId, epoch);
+    const authority = existingAuthority || this.stateStore.setInitialAuthority({
+      coreId: this.coreId,
+      instanceId,
+      version: definition.manifest.version,
+      epoch,
+      barrierSequence: 0
+    });
+    this.authorityEpoch = authority.epoch;
+    this.cutoverBarrier = authority.barrierSequence || 0;
+    this.active = unit;
     await this.persistActive();
-    return this.active;
+    return unit;
   }
 
   async prepare(definition) {
     if (!this.active) throw new Error('cannot prepare upgrade without active core');
     if (this.candidate) throw new Error('candidate already prepared');
     assertUpgradeCompatible(this.active.manifest, definition.manifest);
-    const envelope = { stateSchema: this.active.manifest.stateSchema, state: await this.active.snapshot() };
-    const state = await this.migrate(definition, envelope);
-    this.candidate = await buildUnit(definition, state, this.fabric, 'shadow', this.logger);
+    const state = await this.active.snapshot();
+    const evidence = new ShadowEvidence({ sampleLimit: 128, activeWindow: 512 });
+    this.candidate = await this.buildUnit(
+      definition,
+      { stateSchema: this.active.manifest.stateSchema, state },
+      'shadow',
+      crypto.randomUUID(),
+      this.authorityEpoch,
+      evidence
+    );
     return this.candidate;
   }
 
   async dispatch(event) {
-    for (const unit of [this.active, this.candidate, this.standby].filter(Boolean)) {
-      if (unit.manifest.inputs.includes(event.topic)) await unit.handle(event);
+    if (this.cutover && event.sequence > this.cutover.barrierSequence) {
+      const relevant = this.active?.manifest.inputs.includes(event.topic)
+        || this.candidate?.manifest.inputs.includes(event.topic)
+        || this.standby?.manifest.inputs.includes(event.topic);
+      if (!relevant) return { delivered: false, ignored: true };
+      if (this.cutover.held.length >= this.cutover.heldCapacity) {
+        if (event.class === 'best-effort' || event.class === 'telemetry') {
+          return { delivered: false, dropped: true, reason: 'cutover-capacity' };
+        }
+        throw Object.assign(new Error(`authority cutover queue capacity ${this.cutover.heldCapacity} exceeded`), {
+          code: 'AUTHORITY_CUTOVER_OVERFLOW'
+        });
+      }
+      let resolve;
+      let reject;
+      const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+      this.cutover.held.push({ event, resolve, reject });
+      if (event.meta?.sourceInstanceId === this.active?.instanceId) {
+        promise.catch(error => this.logger.warn?.(`[STAY] held recursive event ${event.sequence}: ${error.message}`));
+        return { delivered: true, deferredRecursive: true, heldForCutover: true };
+      }
+      return promise;
     }
+    if (!this.active || !this.active.manifest.inputs.includes(event.topic)) {
+      if (this.candidate?.manifest.inputs.includes(event.topic)) this.enqueueCandidate(event);
+      return { delivered: false, ignored: true };
+    }
+    const activePromise = this.active.queue.enqueue(event);
+    if (this.candidate?.manifest.inputs.includes(event.topic)) this.enqueueCandidate(event);
+    if (this.standby?.manifest.inputs.includes(event.topic)) {
+      this.standby.queue.enqueue(event).catch(() => {});
+    }
+    if (event.meta?.sourceInstanceId === this.active.instanceId) {
+      activePromise.catch(error => this.logger.warn?.(`[STAY] recursive event ${event.sequence}: ${error.message}`));
+      return { delivered: true, deferredRecursive: true };
+    }
+    return activePromise;
+  }
+
+  enqueueCandidate(event) {
+    const unit = this.candidate;
+    if (!unit) return;
+    unit.queue.enqueue(event).then(result => {
+      if (result?.dropped && !['best-effort', 'telemetry'].includes(event.class)) {
+        this.recordRequiredShadowFailure(unit, event, Object.assign(new Error('required shadow event was dropped'), { code: 'SHADOW_REQUIRED_DROP' }));
+      }
+    }).catch(error => {
+      if (['critical', 'durable'].includes(event.class)) this.recordRequiredShadowFailure(unit, event, error);
+      if (!['ACTOR_QUEUE_CLOSED', 'COREHOST_EXIT'].includes(error.code)) {
+        this.logger.warn?.(`[STAY] shadow queue ${this.coreId}: ${error.message}`);
+      }
+    });
+  }
+
+  recordRequiredShadowFailure(unit, event, error) {
+    unit.shadowRequiredFailures += 1;
+    unit.lastShadowFailure = {
+      at: new Date().toISOString(), sequence: event.sequence, topic: event.topic,
+      code: error.code || null, message: error.message
+    };
+    unit.lifecycle = 'degraded';
   }
 
   async candidateHealth(minEvents = 1) {
     if (!this.candidate) throw new Error('no candidate prepared');
+    await this.candidate.queue.drainThrough(this.fabric.sequence);
+    if (this.candidate.shadowRequiredFailures > 0) {
+      throw Object.assign(new Error(`candidate missed ${this.candidate.shadowRequiredFailures} required shadow events`), {
+        code: 'SHADOW_INCOMPLETE', detail: this.candidate.lastShadowFailure
+      });
+    }
     const health = await this.candidate.health();
-    if (health && health.ok === false) throw new Error('candidate health check failed');
+    if (health?.ok === false) throw new Error('candidate health check failed');
     if (this.candidate.handledEvents < minEvents) throw new Error('candidate has insufficient shadow evidence');
     return health;
   }
 
   async commit(minEvents = 1) {
-    await this.candidateHealth(minEvents);
+    if (this.transitioning) throw Object.assign(new Error('authority transition already in progress'), { code: 'AUTHORITY_TRANSITION_BUSY' });
+    this.transitioning = true;
+    let transaction = null;
+    let committed = false;
     const previous = this.active;
     const next = this.candidate;
-    previous.setMode('standby');
-    next.setMode('active');
-    this.active = next;
-    this.candidate = null;
-    if (this.standby) await this.standby.stop();
-    this.standby = previous;
-    await this.persistActive();
-    return { active: this.active.manifest, standby: this.standby.manifest };
+    try {
+      await this.candidateHealth(minEvents);
+      await this.persistActive();
+      const barrierSequence = this.fabric.sequence;
+      this.cutover = {
+        barrierSequence,
+        held: [],
+        heldCapacity: Math.max(previous.client.policy.queueCapacity, next.client.policy.queueCapacity)
+      };
+      await Promise.all([
+        previous.queue.drainThrough(barrierSequence),
+        next.queue.drainThrough(barrierSequence)
+      ]);
+      const nextEpoch = this.authorityEpoch + 1;
+      const checkpoint = await this.persistUnit(next, nextEpoch, false);
+      transaction = this.stateStore.prepareUpgrade({
+        coreId: this.coreId,
+        from: { instanceId: previous.instanceId, version: previous.manifest.version, epoch: this.authorityEpoch },
+        to: { instanceId: next.instanceId, version: next.manifest.version, epoch: nextEpoch },
+        barrierSequence,
+        checkpoint,
+        detail: { shadowEvidence: next.evidence?.summary() || null }
+      });
+      const authority = this.stateStore.commitUpgrade(transaction.transactionId);
+      committed = true;
+      this.authorityEpoch = authority.epoch;
+      this.cutoverBarrier = authority.barrierSequence;
+      previous.mode = 'standby';
+      next.mode = 'active';
+      previous.assignedEpoch = nextEpoch - 1;
+      next.assignedEpoch = nextEpoch;
+      this.active = next;
+      this.candidate = null;
+      const oldStandby = this.standby;
+      this.standby = previous;
+      this.releaseHeld(next);
+      await Promise.all([next.client.setMode('active'), previous.client.setMode('standby')]);
+      if (oldStandby) await oldStandby.stop();
+      await this.persistActive();
+      return { active: this.active.manifest, standby: this.standby.manifest, authority, transactionId: transaction.transactionId };
+    } catch (error) {
+      if (!committed) {
+        if (transaction) this.stateStore.abortUpgrade(transaction.transactionId, error.code || error.message);
+        this.releaseHeld(previous);
+      } else if (this.cutover) {
+        this.releaseHeld(this.active);
+      }
+      throw error;
+    } finally {
+      this.cutover = null;
+      this.transitioning = false;
+    }
   }
 
   async rollback() {
     if (!this.standby) throw new Error('no standby implementation available');
+    if (this.transitioning) throw Object.assign(new Error('authority transition already in progress'), { code: 'AUTHORITY_TRANSITION_BUSY' });
+    this.transitioning = true;
     const current = this.active;
     const previous = this.standby;
-    current.setMode('standby');
-    previous.setMode('active');
-    this.active = previous;
-    this.standby = current;
-    await this.persistActive();
-    return { active: this.active.manifest, standby: this.standby.manifest };
+    let transaction = null;
+    let committed = false;
+    try {
+      await this.persistActive();
+      const barrierSequence = this.fabric.sequence;
+      this.cutover = {
+        barrierSequence,
+        held: [],
+        heldCapacity: Math.max(current.client.policy.queueCapacity, previous.client.policy.queueCapacity)
+      };
+      await Promise.all([
+        current.queue.drainThrough(barrierSequence),
+        previous.queue.drainThrough(barrierSequence)
+      ]);
+      const nextEpoch = this.authorityEpoch + 1;
+      const checkpoint = await this.persistUnit(previous, nextEpoch, false);
+      transaction = this.stateStore.prepareUpgrade({
+        coreId: this.coreId,
+        from: { instanceId: current.instanceId, version: current.manifest.version, epoch: this.authorityEpoch },
+        to: { instanceId: previous.instanceId, version: previous.manifest.version, epoch: nextEpoch },
+        barrierSequence,
+        checkpoint,
+        detail: { rollback: true }
+      });
+      const authority = this.stateStore.commitUpgrade(transaction.transactionId);
+      committed = true;
+      this.authorityEpoch = authority.epoch;
+      this.cutoverBarrier = authority.barrierSequence;
+      current.mode = 'standby';
+      previous.mode = 'active';
+      current.assignedEpoch = nextEpoch - 1;
+      previous.assignedEpoch = nextEpoch;
+      this.active = previous;
+      this.standby = current;
+      this.releaseHeld(previous);
+      await Promise.all([previous.client.setMode('active'), current.client.setMode('standby')]);
+      await this.persistActive();
+      return { active: this.active.manifest, standby: this.standby.manifest, authority, transactionId: transaction.transactionId };
+    } catch (error) {
+      if (!committed) {
+        if (transaction) this.stateStore.abortUpgrade(transaction.transactionId, error.code || error.message);
+        this.releaseHeld(current);
+      } else if (this.cutover) this.releaseHeld(this.active);
+      throw error;
+    } finally {
+      this.cutover = null;
+      this.transitioning = false;
+    }
+  }
+
+  releaseHeld(unit) {
+    const cutover = this.cutover;
+    if (!cutover) return;
+    this.cutover = null;
+    for (const held of cutover.held) {
+      if (!unit?.manifest.inputs.includes(held.event.topic)) {
+        held.resolve({ delivered: false, ignored: true });
+        continue;
+      }
+      unit.queue.enqueue(held.event).then(held.resolve, held.reject);
+    }
   }
 
   async abort() {
@@ -117,23 +404,71 @@ class RuntimeSlot {
   }
 
   async persistActive() {
-    if (!this.active) return;
-    await this.stateStore.writeCore(this.coreId, {
-      version: this.active.manifest.version,
-      stateSchema: this.active.manifest.stateSchema,
-      state: await this.active.snapshot()
+    if (!this.active) return null;
+    return this.persistUnit(this.active, this.authorityEpoch, true);
+  }
+
+  async persistUnit(unit, authorityEpoch, updateAuthority) {
+    const state = await unit.snapshot();
+    const bytes = serializedSize(state);
+    if (bytes > unit.client.policy.storageBytes) {
+      throw Object.assign(new Error(`core checkpoint exceeds ${unit.client.policy.storageBytes} byte budget`), { code: 'CORE_STORAGE_BUDGET' });
+    }
+    const checkpoint = await this.stateStore.commitCheckpoint({
+      coreId: this.coreId,
+      instanceId: unit.instanceId,
+      version: unit.manifest.version,
+      authorityEpoch,
+      stateSchema: unit.manifest.stateSchema,
+      state,
+      updateAuthority
     });
+    unit.client.setRecoveryState(state, unit.manifest.stateSchema);
+    return checkpoint;
+  }
+
+  async describe(unit) {
+    if (!unit) return null;
+    let health;
+    try { health = await unit.health(); }
+    catch (error) { health = { ok: false, code: error.code || null, message: error.message }; }
+    return {
+      manifest: unit.manifest,
+      instanceId: unit.instanceId,
+      authorityEpoch: unit.assignedEpoch,
+      mode: unit.mode,
+      lifecycle: unit.lifecycle,
+      handledEvents: unit.handledEvents,
+      authoritativeOutputs: unit.authoritativeOutputs,
+      suppressedOutputs: unit.suppressedOutputs,
+      staleOutputs: unit.staleOutputs,
+      shadowCompleteness: {
+        requiredFailures: unit.shadowRequiredFailures,
+        lastFailure: unit.lastShadowFailure
+      },
+      queue: unit.queue.snapshotMetrics(),
+      evidence: unit.evidence?.summary() || null,
+      host: unit.client.status(),
+      health
+    };
   }
 
   async status() {
-    const describe = async (unit) => unit ? { manifest: unit.manifest, mode: unit.mode, handledEvents: unit.handledEvents, bufferedOutputs: unit.bufferedOutputs ? unit.bufferedOutputs.length : 0, health: await unit.health() } : null;
-    return { coreId: this.coreId, active: await describe(this.active), candidate: await describe(this.candidate), standby: await describe(this.standby) };
+    return {
+      coreId: this.coreId,
+      authorityEpoch: this.authorityEpoch,
+      cutoverBarrier: this.cutoverBarrier,
+      lastAuthorityError: this.lastAuthorityError,
+      active: await this.describe(this.active),
+      candidate: await this.describe(this.candidate),
+      standby: await this.describe(this.standby)
+    };
   }
 
   async stop() {
-    if (this.unsubscribe) this.unsubscribe();
+    this.unsubscribe?.();
     for (const unit of [this.active, this.candidate, this.standby].filter(Boolean)) await unit.stop();
   }
 }
 
-module.exports = { RuntimeSlot };
+module.exports = { RuntimeSlot, HostedUnit };

@@ -45,14 +45,24 @@ fi
 
 mkdir -p "$INCOMING"
 ARCHIVE="$INCOMING/stay-${VERSION}-${COMMIT}.tar.gz"
+BUILD_DIR="$(mktemp -d "$INCOMING/.git-release-${VERSION}-XXXXXX")"
+trap 'rm -rf "$BUILD_DIR"' EXIT
 
 echo "Building immutable release:"
 echo "  STAY   $VERSION"
 echo "  commit $COMMIT"
 
-sudo -u "$STAY_USER" git -C "$SOURCE" archive --format=tar.gz --output="$ARCHIVE.tmp" "$COMMIT"
+sudo -u "$STAY_USER" git -C "$SOURCE" archive --format=tar --output="$BUILD_DIR/source.tar" "$COMMIT"
+sudo -u "$STAY_USER" tar -xf "$BUILD_DIR/source.tar" -C "$BUILD_DIR"
+rm "$BUILD_DIR/source.tar"
+"$NODE" -e "require('fs').writeFileSync(process.argv[1], JSON.stringify({format:'stay-release-provenance-v1',version:process.argv[2],commit:process.argv[3],builder:'stay-deploy-git',branch:process.argv[4]}, null, 2) + '\n')" "$BUILD_DIR/RELEASE_PROVENANCE.json" "$VERSION" "$COMMIT" "$BRANCH"
+chown -R "$STAY_USER:$STAY_USER" "$BUILD_DIR"
+sudo -u "$STAY_USER" tar -C "$BUILD_DIR" --exclude='./source.tar' -czf "$ARCHIVE.tmp" .
 chown "$STAY_USER:$STAY_USER" "$ARCHIVE.tmp"
 chmod 0600 "$ARCHIVE.tmp"
 mv "$ARCHIVE.tmp" "$ARCHIVE"
+sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+chown "$STAY_USER:$STAY_USER" "$ARCHIVE.sha256"
+chmod 0600 "$ARCHIVE.sha256"
 
 exec /usr/local/sbin/stay-deploy "$ARCHIVE"

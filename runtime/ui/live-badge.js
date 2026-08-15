@@ -12,6 +12,7 @@
   let selectedEngine = String(localStorage.getItem(ENGINE_KEY) || 'auto').toLowerCase();
   if (!validEngines.has(selectedEngine)) selectedEngine = 'auto';
   let hybridGpuPercent = Math.max(10, Math.min(90, Math.round((Number(localStorage.getItem(HYBRID_KEY)) || 0.8) * 100)));
+  let shareDebounce = null;
 
   const host = document.createElement('div');
   host.id = 'stay-live-runtime-host';
@@ -73,7 +74,7 @@
     <input id="stay-compute-slider" type="range" min="1" max="100" step="1" value="${selectedPercent}"
       style="width:100%;margin:9px 0 5px;accent-color:#fff">
     <div id="stay-compute-effective" style="opacity:.65">Preparing worker plan…</div>
-    <div style="opacity:.45;margin-top:6px;line-height:1.35">1–100% · saved on this browser · applies when released</div>
+    <div style="opacity:.45;margin-top:6px;line-height:1.35">1–100% · measured duty · applies live · saved on this browser</div>
   `;
 
   const versionEl = panel.querySelector('#stay-version');
@@ -113,7 +114,7 @@
     } else if (gpu.ready) {
       const adapter = gpu.adapterInfo || {};
       const adapterName = adapter.description || adapter.device || adapter.architecture || adapter.vendor || 'WebGPU adapter';
-      engineStatusEl.textContent = `GPU ready · ${adapterName}${gpu.lastCandidates ? ` · ${Math.round((gpu.candidatesPerMs || 0) * 1000).toLocaleString()} kernel cand/s · ${(Number(gpu.lastCandidates || 0) / 1e6).toFixed(2)}M batch · ${Number(gpu.lastElapsedMs || 0).toFixed(0)} ms job · ${Number(gpu.completedTasks || 0).toLocaleString()} jobs` : ' · awaiting first task'}`;
+      engineStatusEl.textContent = `GPU ready · ${adapterName}${gpu.lastCandidates ? ` · ${Math.round((gpu.candidatesPerMs || 0) * 1000).toLocaleString()} cand/s · ${Number(gpu.lastElapsedMs || 0).toFixed(1)} ms job · ${Number(gpu.lastCooldownMs || 0).toFixed(0)} ms cooldown · 5s ${(Number(gpu.measuredDuty5s || 0) * 100).toFixed(1)}% / 30s ${(Number(gpu.measuredDuty30s || 0) * 100).toFixed(1)}% · ${Math.round(Number(gpu.allocatedBufferBytes || 0) / 1024)} KiB buffers` : ' · awaiting first task'}`;
     } else if (gpu.supported === false) {
       const detail = gpu.lastError ? `${gpu.reason || 'WebGPU unavailable'} · ${gpu.lastError}` : (gpu.reason || 'WebGPU unavailable');
       engineStatusEl.textContent = selectedEngine === 'gpu'
@@ -135,6 +136,9 @@
     const cpu = Math.max(0, Number(plan.cpuShare) || 0) * 100;
     const gpuShare = Math.max(0, Number(plan.gpuShare) || 0) * 100;
     const effective = Math.max(0, Number(plan.effectiveShare) || 0) * 100;
+    const responsive = window.__stayResponsivenessStatus || {};
+    const safeGpu = Math.max(0, Number(gpu.effectiveDuty) || 0) * 100;
+    const reason = responsive.backoffReason && responsive.backoffReason !== 'none' ? ` · backoff: ${responsive.backoffReason}` : '';
 
     if (resolved === 'GPU-WAITING') {
       effectiveEl.textContent =
@@ -144,13 +148,14 @@
         `HYBRID · requested ${selectedPercent}% · CPU ${cpu.toFixed(1)}% · GPU share paused (not moved to CPU)`;
     } else {
       effectiveEl.textContent =
-        `${resolved} · requested ${selectedPercent}% · CPU ${cpu.toFixed(1)}% · GPU ${gpuShare.toFixed(1)}% · effective CPU ~${effective.toFixed(1)}%`;
+        `${resolved} · requested ${selectedPercent}% · CPU ${cpu.toFixed(1)}% (safe ${effective.toFixed(1)}%, peak ${Number(plan.peakConcurrency || 0)}) · GPU ${gpuShare.toFixed(1)}% (safe ${safeGpu.toFixed(1)}%)${reason}`;
     }
   }
 
   badge.addEventListener('click', () => {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     updateComputeReadout();
+    if (panel.style.display !== 'none') refresh();
   });
 
   engineSelect.addEventListener('change', () => {
@@ -183,14 +188,21 @@
     updateComputeReadout();
     updateBadge();
   });
+  window.addEventListener('stay-responsiveness-status', updateComputeReadout);
 
   slider.addEventListener('input', () => {
     selectedPercent = clampPercent(slider.value);
     valueEl.textContent = `${selectedPercent}%`;
     updateBadge();
+    clearTimeout(shareDebounce);
+    shareDebounce = setTimeout(() => {
+      localStorage.setItem(SHARE_KEY, String(selectedPercent / 100));
+      window.dispatchEvent(new CustomEvent('stay-compute-share-change', { detail: { share: selectedPercent / 100, dragging: true } }));
+    }, 120);
   });
 
   slider.addEventListener('change', () => {
+    clearTimeout(shareDebounce);
     selectedPercent = clampPercent(slider.value);
     localStorage.setItem(SHARE_KEY, String(selectedPercent / 100));
     valueEl.textContent = `${selectedPercent}%`;
@@ -231,6 +243,15 @@
     }
   }
 
+  let refreshTimer = null;
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(async () => {
+      await refresh();
+      scheduleRefresh();
+    }, document.visibilityState === 'visible' ? 5000 : 30000);
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); scheduleRefresh(); });
   refresh();
-  setInterval(refresh, 1000);
+  scheduleRefresh();
 })();

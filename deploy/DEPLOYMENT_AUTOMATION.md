@@ -12,13 +12,13 @@ That is not the intended steady-state workflow.
 
 1. Build once on Windows:
    `powershell -ExecutionPolicy Bypass -File tools\build-release.ps1`
-2. Upload the one generated `.tar.gz` with WinSCP.
+2. Upload the generated `.tar.gz` and matching `.sha256` with WinSCP.
 3. Run one command:
    `sudo stay-deploy /home/ubuntu/<archive>`
 
 `stay-deploy` automatically performs:
 
-- archive validation
+- mandatory checksum-sidecar and embedded-provenance validation
 - version/filename validation
 - JavaScript syntax checks
 - isolated Living Runtime continuity test

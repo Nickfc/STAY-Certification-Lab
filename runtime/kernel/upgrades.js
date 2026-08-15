@@ -1,6 +1,6 @@
 'use strict';
 
-const { loadCoreModule } = require('./core-loader');
+const { inspectCoreModule } = require('./core-loader');
 
 class UpgradeManager {
   constructor({ registry, stateStore }) {
@@ -13,7 +13,7 @@ class UpgradeManager {
   }
 
   async installInitial(modulePath) {
-    const definition = loadCoreModule(modulePath);
+    const definition = await inspectCoreModule(modulePath);
     const slot = this.registry.getOrCreate(definition.manifest.coreId);
     const unit = await slot.installInitial(definition);
     await this.audit('core.install', { coreId: definition.manifest.coreId, version: definition.manifest.version });
@@ -21,7 +21,7 @@ class UpgradeManager {
   }
 
   async stage(modulePath) {
-    const definition = loadCoreModule(modulePath);
+    const definition = await inspectCoreModule(modulePath);
     const slot = this.registry.get(definition.manifest.coreId);
     if (!slot) throw new Error('cannot upgrade an uninstalled core');
     const unit = await slot.prepare(definition);

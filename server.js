@@ -13,6 +13,7 @@ const port = Number(process.env.PORT || 8787);
 const legacyProxyPort = Number(process.env.STAY_LEGACY_PORT || 0);
 const badgePath = path.join(__dirname, 'runtime', 'ui', 'live-badge.js');
 const gpuEnginePath = path.join(__dirname, 'runtime', 'ui', 'gpu-engine.js');
+const computeGovernorPath = path.join(__dirname, 'runtime', 'ui', 'compute-governor.js');
 
 function publicMetadata(status) {
   const cores = [];
@@ -52,6 +53,7 @@ function injectRuntimeScripts(html) {
   if (html.includes('/__stay/gpu-engine.js')) return html;
   const runtimeTags = [
     '<script src="/cognitive-core.js?v=0.6.0" defer></script>',
+    '<script src="/__stay/compute-governor.js" defer></script>',
     '<script src="/__stay/gpu-engine.js" defer></script>',
     '<script src="/__stay/live-badge.js" defer></script>'
   ].join('');
@@ -117,17 +119,18 @@ function transformLegacyClient(source) {
   ].join('\n');
 
   const quietPool = [
-    '  // Quiet Spread: contribution percentage controls total CPU-time, while',
-    '  // many short, staggered workers avoid concentrating that work on a few hot cores.',
-    '  const maxShardPool = 32;',
-    '  const baseSpreadPool = cpuShare > 0 ? Math.max(1, Math.min(logicalCores, 12)) : 0;',
-    '  const maxBudgetMsPerWorker = 850;',
-    '  const requiredPool = cpuShare > 0 ? Math.max(1, Math.ceil(targetCpuMsPerSecond / maxBudgetMsPerWorker)) : 0;',
-    '  const poolSize = cpuShare > 0 ? Math.max(1, Math.min(maxShardPool - 1, Math.max(baseSpreadPool, requiredPool))) : 0;',
-    '  const budgetMsPerWorker = poolSize > 0 ? Math.max(5, Math.min(maxBudgetMsPerWorker, targetCpuMsPerSecond / poolSize)) : 0;',
-    '  const sliceMs = poolSize > 0 ? Math.max(5, Math.min(20, budgetMsPerWorker <= 40 ? Math.max(5, budgetMsPerWorker / 2) : 12)) : 0;',
-    '  const estimatedYieldMs = poolSize > 0 ? Math.max(0, Math.ceil(budgetMsPerWorker / Math.max(1, sliceMs)) - 1) : 0;',
-    '  const dispatchWindowMs = poolSize > 0 ? Math.max(0, Math.min(800, 900 - budgetMsPerWorker - estimatedYieldMs)) : 0;',
+    '  // CPU Quiet Governor constrains aggregate time, concurrency and continuous burst length.',
+    '  const quietPolicy = window.STAYComputeGovernor?.cpuPolicy(cpuShare, logicalCores) || {',
+    '    poolSize: cpuShare > 0 ? 1 : 0, budgetMsPerWorker: Math.min(250, targetCpuMsPerSecond),',
+    '    sliceMs: 4, dispatchWindowMs: 700, effectiveShare: Math.min(cpuShare, 0.01), peakConcurrency: 1, reason: \'fallback\'',
+    '  };',
+    '  const poolSize = quietPolicy.poolSize;',
+    '  const budgetMsPerWorker = quietPolicy.budgetMsPerWorker;',
+    '  const sliceMs = quietPolicy.sliceMs;',
+    '  const dispatchWindowMs = quietPolicy.dispatchWindowMs;',
+    '  const governedEffectiveShare = quietPolicy.effectiveShare;',
+    '  const peakConcurrency = quietPolicy.peakConcurrency;',
+    '  const governorReason = quietPolicy.reason;',
     "  const mode = engineResolved === 'cpu' ? 'cpu-quiet-spread' : engineResolved === 'hybrid' ? 'hybrid' : engineResolved === 'hybrid-degraded' ? 'hybrid-cpu-only' : engineResolved === 'gpu-waiting' ? 'gpu-waiting' : 'gpu';"
   ].join('\n');
 
@@ -142,7 +145,7 @@ function transformLegacyClient(source) {
   }
   output = output.replace(
     returnMarker,
-    '    budgetMsPerWorker,\n    sliceMs,\n    dispatchWindowMs,\n    mode,\n    enginePreference,\n    engineResolved,\n    cpuShare,\n    gpuShare,\n    hybridGpuFraction\n  };'
+    '    budgetMsPerWorker,\n    sliceMs,\n    dispatchWindowMs,\n    mode,\n    enginePreference,\n    engineResolved,\n    cpuShare,\n    gpuShare,\n    hybridGpuFraction,\n    governedEffectiveShare,\n    peakConcurrency,\n    governorReason\n  };'
   );
 
   // Keep the UI's public plan current both at initial boot and after live slider changes.
@@ -259,8 +262,7 @@ function transformLegacyClient(source) {
     '    await submitWorkResult(result, generation, shardId);',
     '  } catch (error) {',
     '    console.warn(`[STAY GPU] ${error?.message || error}`);',
-    '    if (state.computePlan.engineResolved === \'gpu\') {',
-    '      window.__stayGpuStatus = { ...(window.__stayGpuStatus || {}), ready: false, reason: String(error?.message || error) };',
+    '    if (state.computePlan.engineResolved === \'gpu\' && window.__stayGpuStatus?.ready === false) {',
     '      startWorkerPool(\'gpu-unavailable\');',
     '    }',
     '  } finally {',
@@ -392,8 +394,8 @@ function transformLegacyWorker(source) {
   output = output.replace(
     budgetMarker,
     [
-      'const budgetMs = Math.max(5, Math.min(850, Number(task.budgetMs) || 100));',
-      '    const sliceMs = Math.max(5, Math.min(20, Number(task.sliceMs) || 12));'
+      'const budgetMs = Math.max(1, Math.min(800, Number(task.budgetMs) || 100));',
+      '    const sliceMs = Math.max(4, Math.min(10, Number(task.sliceMs) || 4));'
     ].join('\n')
   );
   output = output.replace(
@@ -427,7 +429,7 @@ function transformLegacyWorker(source) {
     '      const activeTarget = Math.min(sliceMs, budgetMs - activeWorkMs);',
     '      const sliceDeadline = sliceStarted + activeTarget;',
     '      while (performance.now() < sliceDeadline) {',
-    '        for (let batch = 0; batch < 32; batch++) {',
+      '        for (let batch = 0; batch < 4; batch++) {',
     '          const result = C.evaluateCandidate(genome, task.seed, workHash, candidates, scenarios);',
     '          const score = result.score;',
     '          scoreSum += score;',
@@ -440,8 +442,10 @@ function transformLegacyWorker(source) {
     '          candidates++;',
     '        }',
     '      }',
-    '      activeWorkMs += Math.max(0, performance.now() - sliceStarted);',
-    '      if (activeWorkMs < budgetMs) await new Promise((resolve) => setTimeout(resolve, 0));',
+    '      const sliceElapsedMs = Math.max(0, performance.now() - sliceStarted);',
+    '      activeWorkMs += sliceElapsedMs;',
+    "      self.postMessage({ type: 'stay-worker-telemetry', activeMs: sliceElapsedMs });",
+      '      if (activeWorkMs < budgetMs) await new Promise((resolve) => setTimeout(resolve, 2));',
     '    }'
   ].join('\n');
 
@@ -486,8 +490,27 @@ function proxyToLegacy(req, res) {
     }
 
     const chunks = [];
-    upstreamRes.on('data', chunk => chunks.push(Buffer.from(chunk)));
+    let transformedBytes = 0;
+    let transformFailed = false;
+    const maximumTransformedBytes = 5 * 1024 * 1024;
+    upstreamRes.on('data', chunk => {
+      transformedBytes += chunk.length;
+      if (transformedBytes > maximumTransformedBytes) {
+        transformFailed = true;
+        upstreamRes.destroy(Object.assign(new Error('legacy transform response exceeded 5 MiB'), { code: 'LEGACY_TRANSFORM_LIMIT' }));
+        return;
+      }
+      chunks.push(Buffer.from(chunk));
+    });
+    upstreamRes.on('error', error => {
+      transformFailed = true;
+      if (res.headersSent) return res.destroy(error);
+      res.statusCode = error.code === 'LEGACY_TRANSFORM_LIMIT' ? 502 : 500;
+      res.setHeader('content-type', 'text/plain; charset=utf-8');
+      res.end('STAY legacy response transformation failed\n');
+    });
     upstreamRes.on('end', () => {
+      if (transformFailed) return;
       const original = Buffer.concat(chunks).toString('utf8');
       const body = transformHtml
         ? transformLegacyHtml(original)
@@ -517,7 +540,11 @@ function proxyToLegacy(req, res) {
 }
 
 async function main() {
-  const kernel = new LivingKernel({ dataDir });
+  const localDefaultData = path.resolve(dataDir) === path.resolve(path.join(process.cwd(), '.stay-data'));
+  const kernel = new LivingKernel({
+    dataDir,
+    allowIdentityBootstrap: process.env.STAY_ALLOW_IDENTITY_BOOTSTRAP === '1' || localDefaultData
+  });
   await kernel.start();
 
   if (process.env.STAY_BOOT_CORE) {
@@ -526,7 +553,9 @@ async function main() {
 
   const badgeSource = await fs.readFile(badgePath, 'utf8');
   const gpuEngineSource = await fs.readFile(gpuEnginePath, 'utf8');
+  const computeGovernorSource = await fs.readFile(computeGovernorPath, 'utf8');
 
+  const upgradedSockets = new Set();
   const server = http.createServer(async (req, res) => {
     try {
       const pathname = String(req.url || '').split('?')[0];
@@ -544,6 +573,14 @@ async function main() {
         res.setHeader('content-type', 'application/javascript; charset=utf-8');
         res.setHeader('cache-control', 'no-store');
         res.end(gpuEngineSource);
+        return;
+      }
+
+      if (pathname === '/__stay/compute-governor.js') {
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/javascript; charset=utf-8');
+        res.setHeader('cache-control', 'no-store');
+        res.end(computeGovernorSource);
         return;
       }
 
@@ -583,12 +620,49 @@ async function main() {
     }
   });
 
+  server.on('upgrade', (req, socket, head) => {
+    if (!legacyProxyPort) return socket.destroy();
+    const upstream = http.request({
+      host: '127.0.0.1',
+      port: legacyProxyPort,
+      method: req.method || 'GET',
+      path: req.url,
+      headers: { ...req.headers, host: `127.0.0.1:${legacyProxyPort}` }
+    });
+    upstream.once('upgrade', (response, upstreamSocket, upstreamHead) => {
+      upgradedSockets.add(socket);
+      upgradedSockets.add(upstreamSocket);
+      const status = `HTTP/1.1 ${response.statusCode || 101} ${response.statusMessage || 'Switching Protocols'}\r\n`;
+      const headers = [];
+      for (let index = 0; index < response.rawHeaders.length; index += 2) {
+        headers.push(`${response.rawHeaders[index]}: ${response.rawHeaders[index + 1]}\r\n`);
+      }
+      socket.write(status + headers.join('') + '\r\n');
+      if (head?.length) upstreamSocket.write(head);
+      if (upstreamHead?.length) socket.write(upstreamHead);
+      socket.pipe(upstreamSocket).pipe(socket);
+      const closeBoth = () => {
+        upgradedSockets.delete(socket);
+        upgradedSockets.delete(upstreamSocket);
+        socket.destroy();
+        upstreamSocket.destroy();
+      };
+      socket.on('error', closeBoth);
+      upstreamSocket.on('error', closeBoth);
+    });
+    upstream.once('response', response => { response.resume(); socket.destroy(); });
+    upstream.once('error', () => socket.destroy());
+    upstream.end();
+  });
+
   server.listen(port, host, () => {
     console.log('[STAY] Living Kernel ' + STAY_VERSION + ' listening on ' + host + ':' + port);
   });
 
   const shutdown = async (signal) => {
     console.log('[STAY] ' + signal + ': persisting active state');
+    for (const socket of upgradedSockets) socket.destroy();
+    upgradedSockets.clear();
     await new Promise(resolve => server.close(resolve));
     await kernel.stop();
     process.exit(0);
@@ -598,7 +672,18 @@ async function main() {
   process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
-main().catch((error) => {
-  console.error('[STAY] fatal kernel error', error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('[STAY] fatal kernel error', error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  main,
+  publicMetadata,
+  injectRuntimeScripts,
+  transformLegacyHtml,
+  transformLegacyClient,
+  transformLegacyWorker
+};

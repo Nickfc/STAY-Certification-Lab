@@ -1,0 +1,11 @@
+{
+  "format": "stay-source-handoff-provenance-v1",
+  "version": "0.8.11.3",
+  "releaseChannel": "pre-certification",
+  "baseRepository": "Nickfc/STAY-Genesis",
+  "baseBranch": "agent/living-runtime-0.7.0",
+  "baseCommit": "41f7c5fabfae10de398b63f1ca7b5f2bc694264b",
+  "builtAt": "2026-08-15T11:25:00Z",
+  "purpose": "hostile-audit repair candidate for manual GitHub handoff",
+  "productionCertified": false
+}

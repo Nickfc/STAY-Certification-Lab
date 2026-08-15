@@ -1,15 +1,21 @@
 {
   "name": "genesis-stay-living-runtime",
-  "version": "0.7.1",
-  "stayVersion": "0.7.1.12",
+  "version": "0.8.11.3",
+  "stayVersion": "0.8.11.3",
+  "releaseChannel": "pre-certification",
   "private": true,
-  "description": "STAY / Project Genesis Living Runtime with persistent identity, production closure, live runtime identity and hot-swappable versioned cores.",
+  "description": "STAY Permanent Living Foundation pre-certification runtime: isolated CoreHosts, transactional continuity and governed browser compute.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node scripts/continuity-check.js"
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "test:continuity": "node scripts/continuity-check.js",
+    "test:faults": "node scripts/failure-injection-lab.js",
+    "test:smoke": "node scripts/endurance-runner.js --seconds 15",
+    "endurance:24h": "node scripts/endurance-runner.js --hours 24",
+    "endurance:72h": "node scripts/endurance-runner.js --hours 72"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   }
 }

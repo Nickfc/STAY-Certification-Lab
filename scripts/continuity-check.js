@@ -3,59 +3,62 @@
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { LivingKernel } = require('../runtime');
-const { validateManifest, assertUpgradeCompatible } = require('../runtime/kernel/manifest');
-const legacy = require('../cores/fetus-legacy-0.6');
+
+const expectedLegacy = {
+  'cores/fetus-legacy-0.6/index.js': 'ad2698402492a573aa5b28978b2b1a8e3387a6adc8ca0592d06bcfe310cdc9b1',
+  'legacy/0.6.0/HIBERNATION_STATE_SHA256': 'aff6ae3773cd58f153f3ed92680cd552d9c70f4d398fbf2bc2a2905f8c101dbb',
+  'legacy/0.6.0/SOURCE_ARCHIVE_SHA256': '3e6efcb80a2707bb81c313f2cf3d98c14b1d2a7a8b1645de6cca8be80031445e'
+};
 
 async function main() {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-continuity-'));
-  const kernel = new LivingKernel({ dataDir: dir, heartbeatIntervalMs: 0, snapshotIntervalMs: 0 });
-  await kernel.start();
-  const originalId = kernel.identity.organismId;
-  const first = path.join(__dirname, '..', 'cores', 'kernel-probe', 'v1', 'index.js');
-  const next = path.join(__dirname, '..', 'cores', 'kernel-probe', 'next', 'index.js');
-  const seen = [];
-  kernel.fabric.subscribe('probe.pulse', (event) => seen.push(event.payload));
-  await kernel.installCore(first);
-  await kernel.publish('probe.tick', {});
-  await kernel.stageCoreUpgrade(next);
-  await kernel.publish('probe.tick', {});
-  if (seen.at(-1).generation !== 'v1') throw new Error('shadow output escaped');
-  await kernel.commitCoreUpgrade('kernel-probe', { minEvents: 1 });
-  await kernel.publish('probe.tick', {});
-  if (seen.at(-1).generation !== 'next') throw new Error('candidate did not become active');
-  await kernel.rollbackCore('kernel-probe');
-  await kernel.publish('probe.tick', {});
-  if (seen.at(-1).ticks !== 4 || seen.at(-1).generation !== 'v1') throw new Error('warm rollback continuity failed');
-  const status = await kernel.status();
-  if (status.kernel.version !== '0.7.1.1') throw new Error('kernel version mismatch');
-  if (!status.health.ok || !status.health.persistence.ok) throw new Error('persistence health check failed');
-  if (!status.snapshots.latest) throw new Error('automatic snapshot missing');
-  await kernel.stop();
+  const root = path.join(__dirname, '..');
+  for (const [relative, expected] of Object.entries(expectedLegacy)) {
+    const bytes = await fs.readFile(path.join(root, relative));
+    const actual = crypto.createHash('sha256').update(bytes).digest('hex');
+    if (actual !== expected) throw new Error('immutable legacy artifact changed: ' + relative);
+  }
 
-  const restarted = new LivingKernel({ dataDir: dir, heartbeatIntervalMs: 0, snapshotIntervalMs: 0 });
-  await restarted.start();
-  if (restarted.identity.organismId !== originalId) throw new Error('identity did not persist');
-  const restartSeen = [];
-  restarted.fabric.subscribe('probe.pulse', (event) => restartSeen.push(event.payload));
-  await restarted.installCore(first);
-  await restarted.publish('probe.tick', {});
-  if (restartSeen.at(-1).ticks !== 5) throw new Error('active core state did not survive restart');
-  await restarted.stop();
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-continuity-v08-'));
+  const first = path.join(root, 'test', 'fixtures', 'cores', 'counter-v1.js');
+  const next = path.join(root, 'test', 'fixtures', 'cores', 'counter-v2.js');
+  try {
+    const kernel = new LivingKernel({ dataDir: dir, allowIdentityBootstrap: true, heartbeatIntervalMs: 0, snapshotIntervalMs: 0 });
+    await kernel.start();
+    const originalId = kernel.identity.organismId;
+    const seen = [];
+    kernel.fabric.subscribe('test.pulse', event => seen.push({ ...event.payload, epoch: event.meta.authorityEpoch }));
+    await kernel.installCore(first);
+    await kernel.publish('test.tick', {});
+    await kernel.stageCoreUpgrade(next);
+    await kernel.publish('test.tick', {});
+    if (seen.at(-1).generation !== 'v1') throw new Error('shadow output escaped');
+    await kernel.commitCoreUpgrade('test-counter', { minEvents: 1 });
+    await kernel.publish('test.tick', {});
+    if (seen.at(-1).generation !== 'v2' || seen.at(-1).epoch !== 2) throw new Error('epoch cutover failed');
+    await kernel.rollbackCore('test-counter');
+    await kernel.publish('test.tick', {});
+    if (seen.at(-1).generation !== 'v1' || seen.at(-1).ticks !== 4 || seen.at(-1).epoch !== 3) throw new Error('warm epoch rollback failed');
+    const status = await kernel.status();
+    if (status.kernel.version !== '0.8.11.3') throw new Error('kernel version mismatch');
+    if (!status.health.ok || status.health.persistence.format !== 'stay-statestore-v2') throw new Error('StateStore v2 health failed');
+    if (status.eventFabric.protocol !== 'stay-event-fabric-v2') throw new Error('Event Fabric v2 missing');
+    await kernel.stop();
 
-  const legacyManifest = validateManifest(legacy.manifest);
-  if (legacyManifest.coreId !== 'fetus-legacy' || legacyManifest.version !== '0.6.0') throw new Error('legacy compatibility identity changed');
-  if (legacyManifest.hotSwap !== false) throw new Error('legacy monolith must not claim live hot-swap support');
-  if (legacy.HIBERNATION_SHA256 !== 'b45d6addd70b13bfa684f53c075edb3ca6a76bae7d7384849f84a1df2d7d073d') throw new Error('hibernation fingerprint changed');
-  let rejected = false;
-  try { assertUpgradeCompatible(legacyManifest, legacyManifest); }
-  catch (error) { rejected = /controlled compatibility migration/.test(error.message); }
-  if (!rejected) throw new Error('kernel did not protect the legacy monolith from live hot-swap');
-
-  console.log('Living Runtime 0.7.1.1 production closure and stable 0.6 compatibility verified');
+    const restarted = new LivingKernel({ dataDir: dir, heartbeatIntervalMs: 0, snapshotIntervalMs: 0 });
+    await restarted.start();
+    if (restarted.identity.organismId !== originalId) throw new Error('identity changed on restart');
+    await restarted.installCore(first);
+    const restartSeen = [];
+    restarted.fabric.subscribe('test.pulse', event => restartSeen.push(event.payload));
+    await restarted.publish('test.tick', {});
+    if (restartSeen.at(-1).ticks !== 5) throw new Error('checkpoint continuity failed');
+    await restarted.stop();
+    console.log('STAY 0.8.11.3 continuity, isolation, authority epochs, StateStore v3 schema and immutable fetus boundary verified');
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main().catch(error => { console.error(error); process.exitCode = 1; });

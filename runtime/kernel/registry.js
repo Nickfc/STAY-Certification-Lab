@@ -20,13 +20,11 @@ class RuntimeRegistry {
   get(coreId) { return this.slots.get(coreId) || null; }
 
   async status() {
-    const result = [];
-    for (const slot of this.slots.values()) result.push(await slot.status());
-    return result;
+    return Promise.all([...this.slots.values()].map(slot => slot.status()));
   }
 
   async stop() {
-    for (const slot of this.slots.values()) await slot.stop();
+    await Promise.allSettled([...this.slots.values()].map(slot => slot.stop()));
   }
 }
 

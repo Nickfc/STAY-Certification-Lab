@@ -1,10 +1,7 @@
 name: Verify Lightsail upload
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/lightsail-upload-test.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
