@@ -15,6 +15,8 @@
     "evidence:sntss-r4": "node scripts/sntss-r4-calibration.js",
     "test:sntss-r5": "node --test --test-concurrency=1 test/sntss-stimuli.test.js",
     "evidence:sntss-r5": "node scripts/sntss-r5-hostile-lab.js",
+    "test:sntss-r6": "node --test --test-concurrency=1 test/sntss-receptors.test.js",
+    "evidence:sntss-r6": "node scripts/sntss-r6-receptor-lab.js",
     "test:smoke": "node scripts/endurance-runner.js --seconds 15",
     "endurance:24h": "node scripts/endurance-runner.js --hours 24",
     "endurance:72h": "node scripts/endurance-runner.js --hours 72"

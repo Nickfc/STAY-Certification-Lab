@@ -3,6 +3,7 @@
 const HASH = /^sha256:[0-9a-f]{64}$/;
 const { speciesProfile } = require('./species-profile');
 const { sourceRegistry } = require('./source-registry');
+const { receptorProfileRegistry } = require('./receptor-profiles');
 
 const manifest = Object.freeze({
   coreId: 'sntss',
@@ -58,7 +59,10 @@ async function createCore({ initialState }) {
         profileHash: speciesProfile.profileHash,
         semanticPolicies: Object.keys(sourceRegistry.policies).length,
         productionSemanticTopics: 0,
-        sourceRegistryHash: sourceRegistry.registryHash
+        sourceRegistryHash: sourceRegistry.registryHash,
+        laboratoryReceptorProfiles: Object.keys(receptorProfileRegistry.profiles).length,
+        productionReceptorConsumers: 0,
+        receptorProfileRegistryHash: receptorProfileRegistry.registryHash
       };
     },
     async stop() {}

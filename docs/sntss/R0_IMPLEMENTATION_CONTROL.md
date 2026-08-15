@@ -46,7 +46,7 @@ No production deployment, StateStore mutation, organism genesis, or behavior inf
 | CoreHost execution | `runtime/core-host/host.js` | deterministic per-cause output index |
 | Manifest/resource policy | `runtime/kernel/manifest.js`, `resource-governor.js`, `cgroup-governor.js` | SNTSS-specific declared ceilings; no new authority |
 | Neutral package | `cores/sntss/neutral/` | new R2 package |
-| Laboratory core | `cores/sntss/v0.1.0/` | R3 deterministic engine, R4 hashed family profiles, and R5 authoritative semantic boundary; CoreHost lifecycle remains inert |
+| Laboratory core | `cores/sntss/v0.1.0/` | R3 deterministic engine, R4 hashed families, R5 semantic boundary, and R6 receptor/lease/frame engine; CoreHost lifecycle remains inert |
 | Verification | `test/`, `scripts/` | Gate Zero crash matrix, neutral lifecycle, later property/endurance suites |
 | Release controls | `deploy/`, `.github/workflows/` | unchanged until R10; production remains blocked |
 
@@ -57,7 +57,7 @@ No production deployment, StateStore mutation, organism genesis, or behavior inf
 | R0 | traceability, map, decisions and risks | pinned baseline | no orphan/ambiguous critical requirement | In progress |
 | R1 | durable biological event plane | R0 map frozen | complete crash matrix and exact replay | Candidate implementation |
 | R2 | neutral SNTSS package | R1 accepted | inert lifecycle/restart/rollback proof | Candidate implementation |
-| R3-R7 | chemistry, families, stimuli, receptors, lineage | R2 accepted | laboratory gates only | R3 numerical candidate; R4 family candidate; R5 semantic-boundary candidate; R6-R7 blocked |
+| R3-R7 | chemistry, families, stimuli, receptors, lineage | R2 accepted | laboratory gates only | R3 numerical candidate; R4 family candidate; R5 semantic candidate; R6 receptor candidate; R7 blocked |
 | R8-R11 | containment, audit, packaging and certification | R3-R7 complete | pinned certification bundle | Blocked |
 | R12 | neutral production | R11 plus operator approval | production neutral acceptance | Blocked |
 | R13+ | genesis, shadow, probe and influence | irreversible approval at each boundary | phase-specific evidence | Blocked |
