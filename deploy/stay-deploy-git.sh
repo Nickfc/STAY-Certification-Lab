@@ -43,9 +43,11 @@ if [[ -z "$VERSION" ]]; then
   exit 2
 fi
 
-mkdir -p "$INCOMING"
+install -d -o "$STAY_USER" -g "$STAY_USER" -m 0750 "$INCOMING"
 ARCHIVE="$INCOMING/stay-${VERSION}-${COMMIT}.tar.gz"
 BUILD_DIR="$(mktemp -d "$INCOMING/.git-release-${VERSION}-XXXXXX")"
+chown "$STAY_USER:$STAY_USER" "$BUILD_DIR"
+chmod 0700 "$BUILD_DIR"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
 echo "Building immutable release:"

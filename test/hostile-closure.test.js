@@ -145,8 +145,11 @@ test('H-12: production launcher and deployer enforce inspector, digest and prove
   const root = path.join(__dirname, '..');
   const service = await fs.readFile(path.join(root, 'deploy', 'systemd', 'stay.service'), 'utf8');
   const deployer = await fs.readFile(path.join(root, 'deploy', 'stay-deploy.sh'), 'utf8');
+  const gitDeployer = await fs.readFile(path.join(root, 'deploy', 'stay-deploy-git.sh'), 'utf8');
   assert.match(service, /ExecStart=.*node --disable-sigusr1 .*server\.js/);
   assert.match(deployer, /ARCHIVE\.sha256/);
   assert.match(deployer, /RELEASE_PROVENANCE\.json/);
   assert.match(deployer, /manual recovery is required/);
+  assert.match(gitDeployer, /install -d -o "\$STAY_USER" -g "\$STAY_USER" -m 0750 "\$INCOMING"/);
+  assert.ok(gitDeployer.indexOf('chown "$STAY_USER:$STAY_USER" "$BUILD_DIR"') < gitDeployer.indexOf('git -C "$SOURCE" archive'));
 });
