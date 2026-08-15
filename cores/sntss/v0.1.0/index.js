@@ -1,6 +1,7 @@
 'use strict';
 
 const HASH = /^sha256:[0-9a-f]{64}$/;
+const { speciesProfile } = require('./species-profile');
 
 const manifest = Object.freeze({
   coreId: 'sntss',
@@ -9,7 +10,7 @@ const manifest = Object.freeze({
   stateSchema: 1,
   hotSwap: true,
   priority: 'optional',
-  stage: 'laboratory-skeleton',
+  stage: 'laboratory-r4-profile',
   productionEligible: false,
   inputs: Object.freeze(['runtime.organism.binding', 'runtime.time.pulse']),
   outputs: Object.freeze([]),
@@ -45,7 +46,17 @@ async function createCore({ initialState }) {
       if (event.topic === 'runtime.organism.binding' && !state.organismBinding) state.organismBinding = { ...event.payload, bindingEventId: event.id };
     },
     async snapshot() { return project(state); },
-    async health() { return { ok: true, stage: 'laboratory-skeleton', bound: Boolean(state.organismBinding), chemistryActive: false }; },
+    async health() {
+      return {
+        ok: true,
+        stage: 'laboratory-r4-profile',
+        bound: Boolean(state.organismBinding),
+        chemistryActive: false,
+        calibratedFamilies: speciesProfile.activeFamilies.length,
+        dormantFamilies: speciesProfile.dormantFamilies.length,
+        profileHash: speciesProfile.profileHash
+      };
+    },
     async stop() {}
   };
 }

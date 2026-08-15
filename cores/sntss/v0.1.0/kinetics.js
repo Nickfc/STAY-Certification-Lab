@@ -4,31 +4,39 @@ const fp = require('./fixed-point');
 
 const STATE_KEYS = Object.freeze(['P', 'R', 'C', 'B', 'X', 'O', 'F']);
 
+function boundedInteger(value, label, minimum = 0, maximum = fp.SCALE) {
+  const result = fp.integer(value, label);
+  if (result < minimum || result > maximum) {
+    throw Object.assign(new Error(`${label} is outside ${minimum}..${maximum}`), { code: 'SNTSS_KINETIC_RANGE' });
+  }
+  return result;
+}
+
 function validateState(state) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) throw Object.assign(new Error('transmitter state is invalid'), { code: 'SNTSS_KINETIC_STATE' });
   const result = {};
-  for (const key of STATE_KEYS) result[key] = fp.clamp(fp.integer(state[key], `state.${key}`));
+  for (const key of STATE_KEYS) result[key] = boundedInteger(state[key], `state.${key}`);
   return result;
 }
 
 function validateProfile(profile) {
   if (!profile || typeof profile !== 'object' || Array.isArray(profile)) throw Object.assign(new Error('kinetic profile is invalid'), { code: 'SNTSS_KINETIC_PROFILE' });
   const normalized = {
-    synthCap: fp.clamp(fp.integer(profile.synthCap, 'profile.synthCap')),
-    precursorRecovery: fp.clamp(fp.integer(profile.precursorRecovery, 'profile.precursorRecovery')),
-    reserveRetention: fp.clamp(fp.integer(profile.reserveRetention, 'profile.reserveRetention')),
-    maxReleasePerStep: fp.clamp(fp.integer(profile.maxReleasePerStep, 'profile.maxReleasePerStep')),
-    maxSuppressionPerStep: fp.clamp(fp.integer(profile.maxSuppressionPerStep, 'profile.maxSuppressionPerStep')),
-    concentrationRetention: fp.clamp(fp.integer(profile.concentrationRetention, 'profile.concentrationRetention')),
-    exposureAlpha: fp.clamp(fp.integer(profile.exposureAlpha, 'profile.exposureAlpha')),
-    exposureRetention: fp.clamp(fp.integer(profile.exposureRetention, 'profile.exposureRetention')),
-    toleranceStrength: fp.clamp(fp.integer(profile.toleranceStrength, 'profile.toleranceStrength')),
-    opponentBuildAlpha: fp.clamp(fp.integer(profile.opponentBuildAlpha, 'profile.opponentBuildAlpha')),
-    opponentRetention: fp.clamp(fp.integer(profile.opponentRetention, 'profile.opponentRetention')),
-    refractoryRecovery: fp.clamp(fp.integer(profile.refractoryRecovery, 'profile.refractoryRecovery')),
-    refractoryRetention: fp.clamp(fp.integer(profile.refractoryRetention, 'profile.refractoryRetention')),
-    refractoryCost: fp.clamp(fp.integer(profile.refractoryCost, 'profile.refractoryCost')),
-    affinity: fp.clamp(fp.integer(profile.affinity, 'profile.affinity'), 1, fp.SCALE),
+    synthCap: boundedInteger(profile.synthCap, 'profile.synthCap'),
+    precursorRecovery: boundedInteger(profile.precursorRecovery, 'profile.precursorRecovery'),
+    reserveRetention: boundedInteger(profile.reserveRetention, 'profile.reserveRetention'),
+    maxReleasePerStep: boundedInteger(profile.maxReleasePerStep, 'profile.maxReleasePerStep'),
+    maxSuppressionPerStep: boundedInteger(profile.maxSuppressionPerStep, 'profile.maxSuppressionPerStep'),
+    concentrationRetention: boundedInteger(profile.concentrationRetention, 'profile.concentrationRetention'),
+    exposureAlpha: boundedInteger(profile.exposureAlpha, 'profile.exposureAlpha'),
+    exposureRetention: boundedInteger(profile.exposureRetention, 'profile.exposureRetention'),
+    toleranceStrength: boundedInteger(profile.toleranceStrength, 'profile.toleranceStrength'),
+    opponentBuildAlpha: boundedInteger(profile.opponentBuildAlpha, 'profile.opponentBuildAlpha'),
+    opponentRetention: boundedInteger(profile.opponentRetention, 'profile.opponentRetention'),
+    refractoryRecovery: boundedInteger(profile.refractoryRecovery, 'profile.refractoryRecovery'),
+    refractoryRetention: boundedInteger(profile.refractoryRetention, 'profile.refractoryRetention'),
+    refractoryCost: boundedInteger(profile.refractoryCost, 'profile.refractoryCost'),
+    affinity: boundedInteger(profile.affinity, 'profile.affinity', 1),
     hill: fp.integer(profile.hill, 'profile.hill')
   };
   if (normalized.hill < 1 || normalized.hill > 4) throw Object.assign(new Error('profile.hill must be 1..4'), { code: 'SNTSS_KINETIC_PROFILE' });
@@ -54,8 +62,10 @@ function step(inputState, inputProfile, driveValue) {
   const P = fp.clamp(precursorAvailable - synthesis);
   const occupancy = fp.hill(C, profile.affinity, profile.hill);
   const tonicOccupancy = fp.hill(state.B, profile.affinity, profile.hill);
-  const X = fp.clamp(state.X + fp.mul(occupancy - state.X, profile.exposureAlpha));
-  const opponentTarget = occupancy;
+  const activation = Math.max(0, occupancy - tonicOccupancy);
+  const exposureRate = activation >= state.X ? profile.exposureAlpha : fp.SCALE - profile.exposureRetention;
+  const X = fp.clamp(state.X + fp.mul(activation - state.X, exposureRate));
+  const opponentTarget = activation;
   const O = opponentTarget >= state.O
     ? fp.clamp(state.O + fp.mul(opponentTarget - state.O, profile.opponentBuildAlpha))
     : fp.clamp(state.O + fp.mul(opponentTarget - state.O, fp.SCALE - profile.opponentRetention));
@@ -65,7 +75,7 @@ function step(inputState, inputProfile, driveValue) {
   const relativeEffect = fp.clamp(occupancy - tonicOccupancy - O, fp.SIGNED_MIN, fp.SIGNED_MAX);
   return {
     state: { P, R, C, B: state.B, X, O, F },
-    transition: { drive, toleranceGate, precursorRecovery, synthesis, release, suppression, occupancy, tonicOccupancy, relativeEffect }
+    transition: { drive, toleranceGate, precursorRecovery, synthesis, release, suppression, occupancy, tonicOccupancy, activation, relativeEffect }
   };
 }
 

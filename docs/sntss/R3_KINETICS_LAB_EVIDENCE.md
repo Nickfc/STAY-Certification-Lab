@@ -18,7 +18,8 @@ Status: numerical substrate candidate; chemistry is not wired into the SNTSS Cor
 - Release never exceeds reserve; synthesis never exceeds available precursor; reserve and precursor equations reconcile exactly.
 - Repeated equal evidence develops acquired exposure and a smaller late marginal release.
 - 365 days of quiet analytical time emits no release and converges concentration, exposure, opponent and refractory state safely.
-- Identical checkpoint/time/drive inputs reproduce golden SHA-256 `e56a1e8ff6f603d64418ffd3bb96ebcb22adcd6a20d2ca5e79736fa34e2683d9`.
+- Exposure and opponent adaptation track activation above tonic occupancy, so baseline chemistry does not create false tolerance during short quiet intervals.
+- Identical checkpoint/time/drive inputs reproduce golden SHA-256 `069227dfbb97151b0022415b9490705d5177cc307f95b43846d55731f86cf65a`.
 - Invalid numerics, overflow, missing profiles, invalid clocks and unbounded active downtime fail closed.
 
 ## Deliberate boundary

@@ -1,0 +1,774 @@
+{
+  "evidenceVersion": 1,
+  "phase": "R4",
+  "status": "laboratory-candidate-not-production-authorized",
+  "profileHash": "sha256:0b80dcefd6a7862ac357aadee583fb90bf5aea2048c33a92b30ee318798f7001",
+  "familyHashes": {
+    "acetylcholine-like": "sha256:cf055540f8b07f59d163f1b4a322cf6a0fb834c5c72ddfca21f0682361946279",
+    "dopamine-like": "sha256:0912311137092400f37f078171917813ec19fa1c4a1c7eba84a919e46aa41867",
+    "endogenous-opioid-like": "sha256:e691153ce345b400acf563b063ad50f9fa2738e9f0b670de21e88640295adff8",
+    "gaba-like": "sha256:e8182b6daa2ec16b9caf8aff55a93bcddce1b169d0c3e0409559bf9f9e20f898",
+    "glutamate-like": "sha256:e20691def1eb704e2b165e3f0699254606ecc3db17699aa7da03af39e62ea616",
+    "noradrenaline-like": "sha256:53d399b14101d1f32dad686d1d8d339db4077a7e0657525317e146a3a27d30aa",
+    "oxytocin-like": "sha256:7c7e832ab0a14e0758a0cd69e43fac112c47f3c9fbc2051ae1706c80d727cff1",
+    "serotonin-like": "sha256:7a7bac8ef095ae76e4dc8c4c4d879f4cd687c968bd6fc6705bb04f787c80c276"
+  },
+  "implementationHashes": {
+    "cores/sntss/v0.1.0/fixed-point.js": "sha256:2735868a843abaa31d1b2ff5ea40840f94c148076d1b6c497ddf8093c794f368",
+    "cores/sntss/v0.1.0/kinetics.js": "sha256:cea3ca6b7bb5b8130dce5513f67406d765a3b6e9d6c9b16acd1cc27585e0bfb3",
+    "cores/sntss/v0.1.0/integrator.js": "sha256:95c17069a8d7645cfbc00c0ecc5196764779541625976e6cb24d9dcd856dffab",
+    "cores/sntss/v0.1.0/species-profile.js": "sha256:fff2600be16213032d9ab97c82f7674dc9e403011ee85f7450e830db5bbda0e3",
+    "cores/sntss/v0.1.0/validation.js": "sha256:466f7286315fc90680dc343812b9b559287e0814b554293244446aba42ca387a",
+    "cores/sntss/v0.1.0/interactions.js": "sha256:3b83aacd5b67082fd72cd32a91294b8b598239181af76074c954b37409c6d481",
+    "cores/sntss/v0.1.0/laboratory.js": "sha256:3badf859ae20d22a4419f44df71d0c0fbb4c6971cfbacc0bfed0860b816b3056",
+    "cores/sntss/schemas/species-profile.schema.json": "sha256:b0e7d68eb86077b284afc01f9e6928d862432632dea01fc8eb24c2b986fd5944"
+  },
+  "goldenScenarioHash": "fdedc30f270628768681c3ef685376aa71bd4cfdff1bd10361d8332467bff16d",
+  "goldenFinalModelClock": 315000,
+  "sweepDrives": [
+    -1000000,
+    -750000,
+    -500000,
+    -250000,
+    0,
+    250000,
+    500000,
+    750000,
+    1000000
+  ],
+  "sensitivityMap": {
+    "acetylcholine-like": [
+      {
+        "drive": -1000000,
+        "concentration": 27512,
+        "reserve": 835035,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -212057,
+        "bounded": true
+      },
+      {
+        "drive": -750000,
+        "concentration": 68137,
+        "reserve": 835035,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -183279,
+        "bounded": true
+      },
+      {
+        "drive": -500000,
+        "concentration": 108762,
+        "reserve": 835035,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -134223,
+        "bounded": true
+      },
+      {
+        "drive": -250000,
+        "concentration": 149387,
+        "reserve": 835035,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -70964,
+        "bounded": true
+      },
+      {
+        "drive": 0,
+        "concentration": 190000,
+        "reserve": 835035,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": 0,
+        "bounded": true
+      },
+      {
+        "drive": 250000,
+        "concentration": 255353,
+        "reserve": 352663,
+        "exposure": 103503,
+        "opponent": 55175,
+        "refractory": 843715,
+        "terminalRelease": 5191,
+        "terminalRelativeEffect": 61681,
+        "bounded": true
+      },
+      {
+        "drive": 500000,
+        "concentration": 288123,
+        "reserve": 6458,
+        "exposure": 173212,
+        "opponent": 94021,
+        "refractory": 736838,
+        "terminalRelease": 6458,
+        "terminalRelativeEffect": 78563,
+        "bounded": true
+      },
+      {
+        "drive": 750000,
+        "concentration": 270966,
+        "reserve": 6458,
+        "exposure": 175909,
+        "opponent": 95836,
+        "refractory": 754903,
+        "terminalRelease": 6458,
+        "terminalRelativeEffect": 47948,
+        "bounded": true
+      },
+      {
+        "drive": 1000000,
+        "concentration": 270798,
+        "reserve": 6458,
+        "exposure": 171823,
+        "opponent": 95186,
+        "refractory": 759235,
+        "terminalRelease": 6458,
+        "terminalRelativeEffect": 48312,
+        "bounded": true
+      }
+    ],
+    "dopamine-like": [
+      {
+        "drive": -1000000,
+        "concentration": 0,
+        "reserve": 837950,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -183257,
+        "bounded": true
+      },
+      {
+        "drive": -750000,
+        "concentration": 30063,
+        "reserve": 837950,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -177038,
+        "bounded": true
+      },
+      {
+        "drive": -500000,
+        "concentration": 80044,
+        "reserve": 837950,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -140772,
+        "bounded": true
+      },
+      {
+        "drive": -250000,
+        "concentration": 130027,
+        "reserve": 837950,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -78445,
+        "bounded": true
+      },
+      {
+        "drive": 0,
+        "concentration": 180000,
+        "reserve": 837950,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": 0,
+        "bounded": true
+      },
+      {
+        "drive": 250000,
+        "concentration": 258240,
+        "reserve": 388620,
+        "exposure": 121071,
+        "opponent": 70199,
+        "refractory": 837880,
+        "terminalRelease": 4634,
+        "terminalRelativeEffect": 62468,
+        "bounded": true
+      },
+      {
+        "drive": 500000,
+        "concentration": 308311,
+        "reserve": 63444,
+        "exposure": 202110,
+        "opponent": 119374,
+        "refractory": 723832,
+        "terminalRelease": 7550,
+        "terminalRelativeEffect": 94334,
+        "bounded": true
+      },
+      {
+        "drive": 750000,
+        "concentration": 282120,
+        "reserve": 5964,
+        "exposure": 226999,
+        "opponent": 131644,
+        "refractory": 720021,
+        "terminalRelease": 5964,
+        "terminalRelativeEffect": 40432,
+        "bounded": true
+      },
+      {
+        "drive": 1000000,
+        "concentration": 280366,
+        "reserve": 5964,
+        "exposure": 224957,
+        "opponent": 130288,
+        "refractory": 726056,
+        "terminalRelease": 5964,
+        "terminalRelativeEffect": 38936,
+        "bounded": true
+      }
+    ],
+    "gaba-like": [
+      {
+        "drive": -1000000,
+        "concentration": 10098,
+        "reserve": 894504,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -368114,
+        "bounded": true
+      },
+      {
+        "drive": -750000,
+        "concentration": 72576,
+        "reserve": 894504,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -325416,
+        "bounded": true
+      },
+      {
+        "drive": -500000,
+        "concentration": 135054,
+        "reserve": 894504,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -232716,
+        "bounded": true
+      },
+      {
+        "drive": -250000,
+        "concentration": 197531,
+        "reserve": 894504,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -116642,
+        "bounded": true
+      },
+      {
+        "drive": 0,
+        "concentration": 260000,
+        "reserve": 894504,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": 0,
+        "bounded": true
+      },
+      {
+        "drive": 250000,
+        "concentration": 358670,
+        "reserve": 380253,
+        "exposure": 137863,
+        "opponent": 72776,
+        "refractory": 838152,
+        "terminalRelease": 5855,
+        "terminalRelativeEffect": 84932,
+        "bounded": true
+      },
+      {
+        "drive": 500000,
+        "concentration": 420917,
+        "reserve": 7542,
+        "exposure": 215135,
+        "opponent": 115230,
+        "refractory": 724681,
+        "terminalRelease": 7534,
+        "terminalRelativeEffect": 120927,
+        "bounded": true
+      },
+      {
+        "drive": 750000,
+        "concentration": 387423,
+        "reserve": 7542,
+        "exposure": 212132,
+        "opponent": 119014,
+        "refractory": 743271,
+        "terminalRelease": 7542,
+        "terminalRelativeEffect": 76908,
+        "bounded": true
+      },
+      {
+        "drive": 1000000,
+        "concentration": 386492,
+        "reserve": 7542,
+        "exposure": 206338,
+        "opponent": 118441,
+        "refractory": 747556,
+        "terminalRelease": 7542,
+        "terminalRelativeEffect": 76298,
+        "bounded": true
+      }
+    ],
+    "glutamate-like": [
+      {
+        "drive": -1000000,
+        "concentration": 11457,
+        "reserve": 892660,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -318752,
+        "bounded": true
+      },
+      {
+        "drive": -750000,
+        "concentration": 68595,
+        "reserve": 892660,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -282833,
+        "bounded": true
+      },
+      {
+        "drive": -500000,
+        "concentration": 125732,
+        "reserve": 892660,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -205523,
+        "bounded": true
+      },
+      {
+        "drive": -250000,
+        "concentration": 182871,
+        "reserve": 892660,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -105372,
+        "bounded": true
+      },
+      {
+        "drive": 0,
+        "concentration": 240000,
+        "reserve": 892660,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": 0,
+        "bounded": true
+      },
+      {
+        "drive": 250000,
+        "concentration": 318615,
+        "reserve": 424647,
+        "exposure": 121760,
+        "opponent": 71063,
+        "refractory": 836260,
+        "terminalRelease": 5457,
+        "terminalRelativeEffect": 62277,
+        "bounded": true
+      },
+      {
+        "drive": 500000,
+        "concentration": 370094,
+        "reserve": 86196,
+        "exposure": 195000,
+        "opponent": 115617,
+        "refractory": 721073,
+        "terminalRelease": 8997,
+        "terminalRelativeEffect": 92443,
+        "bounded": true
+      },
+      {
+        "drive": 750000,
+        "concentration": 354545,
+        "reserve": 7936,
+        "exposure": 213386,
+        "opponent": 128321,
+        "refractory": 709934,
+        "terminalRelease": 7936,
+        "terminalRelativeEffect": 58307,
+        "bounded": true
+      },
+      {
+        "drive": 1000000,
+        "concentration": 353691,
+        "reserve": 7936,
+        "exposure": 208136,
+        "opponent": 127588,
+        "refractory": 715538,
+        "terminalRelease": 7936,
+        "terminalRelativeEffect": 57835,
+        "bounded": true
+      }
+    ],
+    "noradrenaline-like": [
+      {
+        "drive": -1000000,
+        "concentration": 10009,
+        "reserve": 829053,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -180438,
+        "bounded": true
+      },
+      {
+        "drive": -750000,
+        "concentration": 47509,
+        "reserve": 829053,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -162152,
+        "bounded": true
+      },
+      {
+        "drive": -500000,
+        "concentration": 85009,
+        "reserve": 829053,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -122468,
+        "bounded": true
+      },
+      {
+        "drive": -250000,
+        "concentration": 122509,
+        "reserve": 829053,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -66392,
+        "bounded": true
+      },
+      {
+        "drive": 0,
+        "concentration": 160000,
+        "reserve": 829053,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": 0,
+        "bounded": true
+      },
+      {
+        "drive": 250000,
+        "concentration": 217510,
+        "reserve": 308952,
+        "exposure": 105583,
+        "opponent": 66295,
+        "refractory": 814399,
+        "terminalRelease": 5723,
+        "terminalRelativeEffect": 42810,
+        "bounded": true
+      },
+      {
+        "drive": 500000,
+        "concentration": 230973,
+        "reserve": 6951,
+        "exposure": 170639,
+        "opponent": 106194,
+        "refractory": 718848,
+        "terminalRelease": 6951,
+        "terminalRelativeEffect": 28270,
+        "bounded": true
+      },
+      {
+        "drive": 750000,
+        "concentration": 229522,
+        "reserve": 6951,
+        "exposure": 180764,
+        "opponent": 105228,
+        "refractory": 732054,
+        "terminalRelease": 6951,
+        "terminalRelativeEffect": 26520,
+        "bounded": true
+      },
+      {
+        "drive": 1000000,
+        "concentration": 229510,
+        "reserve": 6951,
+        "exposure": 178481,
+        "opponent": 104278,
+        "refractory": 735386,
+        "terminalRelease": 6951,
+        "terminalRelativeEffect": 27447,
+        "bounded": true
+      }
+    ],
+    "serotonin-like": [
+      {
+        "drive": -1000000,
+        "concentration": 0,
+        "reserve": 821192,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -207458,
+        "bounded": true
+      },
+      {
+        "drive": -750000,
+        "concentration": 48561,
+        "reserve": 821192,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -194865,
+        "bounded": true
+      },
+      {
+        "drive": -500000,
+        "concentration": 105714,
+        "reserve": 821192,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -150463,
+        "bounded": true
+      },
+      {
+        "drive": -250000,
+        "concentration": 162866,
+        "reserve": 821192,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": -81999,
+        "bounded": true
+      },
+      {
+        "drive": 0,
+        "concentration": 220000,
+        "reserve": 821192,
+        "exposure": 0,
+        "opponent": 0,
+        "refractory": 1000000,
+        "terminalRelease": 0,
+        "terminalRelativeEffect": 0,
+        "bounded": true
+      },
+      {
+        "drive": 250000,
+        "concentration": 321202,
+        "reserve": 490146,
+        "exposure": 96255,
+        "opponent": 40099,
+        "refractory": 902930,
+        "terminalRelease": 3016,
+        "terminalRelativeEffect": 110586,
+        "bounded": true
+      },
+      {
+        "drive": 500000,
+        "concentration": 401382,
+        "reserve": 210023,
+        "exposure": 171398,
+        "opponent": 72021,
+        "refractory": 821918,
+        "terminalRelease": 5286,
+        "terminalRelativeEffect": 186139,
+        "bounded": true
+      },
+      {
+        "drive": 750000,
+        "concentration": 435458,
+        "reserve": 3487,
+        "exposure": 225954,
+        "opponent": 95860,
+        "refractory": 765956,
+        "terminalRelease": 3487,
+        "terminalRelativeEffect": 202988,
+        "bounded": true
+      },
+      {
+        "drive": 1000000,
+        "concentration": 382609,
+        "reserve": 3487,
+        "exposure": 231218,
+        "opponent": 101913,
+        "refractory": 777282,
+        "terminalRelease": 3487,
+        "terminalRelativeEffect": 132507,
+        "bounded": true
+      }
+    ]
+  },
+  "scenarios": {
+    "baseline": {
+      "quietHours": 24,
+      "allActiveConcentrationsAtBaseline": true
+    },
+    "positivePrediction": {
+      "release": 19200,
+      "concentration": 199200
+    },
+    "negativePrediction": {
+      "release": 0,
+      "concentration": 170400
+    },
+    "uncertaintyVigilance": {
+      "release": 24000,
+      "vigilance": 44909
+    },
+    "attention": {
+      "base": 400000,
+      "moderateNoradrenaline": 472000,
+      "highNoradrenaline": 172500
+    },
+    "excitationInhibition": {
+      "excitationTone": 200000,
+      "inhibitionTone": 600000,
+      "balance": -400000,
+      "gabaBrake": 600000
+    },
+    "serotoninDamping": {
+      "dopamineInput": 900000,
+      "boundedMotivationalSalience": 732000
+    },
+    "depletionDesensitizationTolerance": {
+      "acetylcholine-like": {
+        "earlyRelease": 832366,
+        "lateRelease": 70000,
+        "terminalReserve": 1400,
+        "terminalExposure": 149635,
+        "terminalOpponent": 99320,
+        "diminishingResponse": true
+      },
+      "dopamine-like": {
+        "earlyRelease": 758203,
+        "lateRelease": 60000,
+        "terminalReserve": 1200,
+        "terminalExposure": 196754,
+        "terminalOpponent": 134011,
+        "diminishingResponse": true
+      },
+      "gaba-like": {
+        "earlyRelease": 944640,
+        "lateRelease": 85000,
+        "terminalReserve": 1700,
+        "terminalExposure": 179382,
+        "terminalOpponent": 125383,
+        "diminishingResponse": true
+      },
+      "glutamate-like": {
+        "earlyRelease": 874284,
+        "lateRelease": 90000,
+        "terminalReserve": 1800,
+        "terminalExposure": 175697,
+        "terminalOpponent": 127695,
+        "diminishingResponse": true
+      },
+      "noradrenaline-like": {
+        "earlyRelease": 846632,
+        "lateRelease": 80000,
+        "terminalReserve": 1600,
+        "terminalExposure": 142881,
+        "terminalOpponent": 97873,
+        "diminishingResponse": true
+      },
+      "serotonin-like": {
+        "earlyRelease": 502574,
+        "lateRelease": 67791,
+        "terminalReserve": 800,
+        "terminalExposure": 227494,
+        "terminalOpponent": 141040,
+        "diminishingResponse": true
+      }
+    },
+    "reboundRecovery": {
+      "minimumRelativeEffect": -119490,
+      "recoveredConcentration": 180000,
+      "baseline": 180000,
+      "recoveredExposure": 0,
+      "recoveredOpponent": 0,
+      "recoveredRefractory": 1000000,
+      "recoveredReserve": 1000000
+    }
+  },
+  "dormancyProof": {
+    "endogenous-opioid-like": {
+      "malformedDrive": 1000000,
+      "replayQuanta": 4096,
+      "terminalState": {
+        "P": 0,
+        "R": 0,
+        "C": 0,
+        "B": 0,
+        "X": 0,
+        "O": 0,
+        "F": 0
+      },
+      "release": 0,
+      "relativeEffect": 0,
+      "exactlyZero": true
+    },
+    "oxytocin-like": {
+      "malformedDrive": 1000000,
+      "replayQuanta": 4096,
+      "terminalState": {
+        "P": 0,
+        "R": 0,
+        "C": 0,
+        "B": 0,
+        "X": 0,
+        "O": 0,
+        "F": 0
+      },
+      "release": 0,
+      "relativeEffect": 0,
+      "exactlyZero": true
+    }
+  },
+  "evidenceHash": "sha256:3e58b7604f24f0f5e31f59f68248b99f10ef85f07071a702b5f32b4833f0bcd6"
+}

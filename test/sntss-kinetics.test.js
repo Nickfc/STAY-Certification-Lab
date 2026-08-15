@@ -115,7 +115,7 @@ test('R3-05: identical checkpoint, ordered drives and time produce a fixed golde
   const second = run();
   assert.deepEqual(second, first);
   const hash = crypto.createHash('sha256').update(stableStringify(first)).digest('hex');
-  assert.equal(hash, 'e56a1e8ff6f603d64418ffd3bb96ebcb22adcd6a20d2ca5e79736fa34e2683d9');
+  assert.equal(hash, '069227dfbb97151b0022415b9490705d5177cc307f95b43846d55731f86cf65a');
 });
 
 test('R3-06: integration preserves sub-quantum remainder and rejects unbounded active downtime', () => {
