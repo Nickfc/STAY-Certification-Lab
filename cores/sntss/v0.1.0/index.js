@@ -4,6 +4,7 @@ const HASH = /^sha256:[0-9a-f]{64}$/;
 const { speciesProfile } = require('./species-profile');
 const { sourceRegistry } = require('./source-registry');
 const { receptorProfileRegistry } = require('./receptor-profiles');
+const { packagePolicy } = require('./containment');
 
 const manifest = Object.freeze({
   coreId: 'sntss',
@@ -63,6 +64,10 @@ async function createCore({ initialState }) {
         laboratoryReceptorProfiles: Object.keys(receptorProfileRegistry.profiles).length,
         productionReceptorConsumers: 0,
         receptorProfileRegistryHash: receptorProfileRegistry.registryHash,
+        containmentPolicyHash: packagePolicy.policyHash,
+        packageFilesAttested: Object.keys(packagePolicy.files).length,
+        productionContainmentRequired: packagePolicy.resourceContract.requiredOnProductionHost,
+        productionHostContainmentEvidenceComplete: false,
         productionGenesis: false
       };
     },

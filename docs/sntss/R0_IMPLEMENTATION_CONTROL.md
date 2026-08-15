@@ -46,7 +46,7 @@ No production deployment, StateStore mutation, organism genesis, or behavior inf
 | CoreHost execution | `runtime/core-host/host.js` | deterministic per-cause output index |
 | Manifest/resource policy | `runtime/kernel/manifest.js`, `resource-governor.js`, `cgroup-governor.js` | SNTSS-specific declared ceilings; no new authority |
 | Neutral package | `cores/sntss/neutral/` | new R2 package |
-| Laboratory core | `cores/sntss/v0.1.0/` | R3 engine, R4 families, R5 semantic boundary, R6 receptor frames, and R7 acquired-state lineage lab; CoreHost remains inert and pre-genesis |
+| Laboratory core | `cores/sntss/v0.1.0/` | R3 engine, R4 families, R5 semantic boundary, R6 receptor frames, R7 acquired-state lineage, and R8 containment lab; CoreHost remains inert and pre-genesis |
 | Verification | `test/`, `scripts/` | Gate Zero crash matrix, neutral lifecycle, later property/endurance suites |
 | Release controls | `deploy/`, `.github/workflows/` | unchanged until R10; production remains blocked |
 
@@ -58,7 +58,8 @@ No production deployment, StateStore mutation, organism genesis, or behavior inf
 | R1 | durable biological event plane | R0 map frozen | complete crash matrix and exact replay | Candidate implementation |
 | R2 | neutral SNTSS package | R1 accepted | inert lifecycle/restart/rollback proof | Candidate implementation |
 | R3-R7 | chemistry, families, stimuli, receptors, lineage | R2 accepted | laboratory gates only | R3-R7 laboratory candidates complete; independent review and later hardening remain required |
-| R8-R11 | containment, audit, packaging and certification | R3-R7 complete | pinned certification bundle | Blocked |
+| R8 | security, containment and resource enforcement | R3-R7 complete | isolated hostile matrix and evidence-preserving neutralization | Laboratory candidate complete; isolated production-host cgroup pressure drill pending |
+| R9-R11 | audit, packaging and certification | R8 accepted | pinned certification bundle | Blocked |
 | R12 | neutral production | R11 plus operator approval | production neutral acceptance | Blocked |
 | R13+ | genesis, shadow, probe and influence | irreversible approval at each boundary | phase-specific evidence | Blocked |
 

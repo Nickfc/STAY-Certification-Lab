@@ -6,6 +6,7 @@ const { validateManifest } = require('./manifest');
 const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION } = require('./protocol');
 const { HOST_PATH } = require('./core-host-client');
 const { canonicalCoreModulePath, nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
+const { enforcePackagePolicy, verifyManifestAgainstPackagePolicy } = require('./package-policy');
 
 function hasExited(child) { return !child || child.exitCode != null || child.signalCode != null; }
 async function waitForExit(child, timeoutMs) {
@@ -23,6 +24,7 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
   // Node's permission model otherwise rejects a require through /opt/stay/current,
   // and retaining the symlink would permit a retarget between inspection and use.
   const absolute = canonicalCoreModulePath(modulePath);
+  const packagePolicy = enforcePackagePolicy(absolute);
   const child = fork(HOST_PATH, [], {
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     serialization: 'advanced',
@@ -50,7 +52,9 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
         payload: { modulePath: absolute }
       });
     });
-    return { modulePath: absolute, manifest: validateManifest(result.manifest) };
+    const manifest = validateManifest(result.manifest);
+    verifyManifestAgainstPackagePolicy(packagePolicy, manifest);
+    return { modulePath: absolute, manifest, packagePolicy: packagePolicy?.policy || null };
   } finally {
     clearTimeout(timer);
     if (!hasExited(child)) child.kill('SIGTERM');

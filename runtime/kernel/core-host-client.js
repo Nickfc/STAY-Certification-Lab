@@ -9,6 +9,7 @@ const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION, assertPayload } = require('./protoco
 const { ResourceGovernor, normalizePolicy } = require('./resource-governor');
 const { canonicalCoreModulePath, nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
 const { CgroupGovernor } = require('./cgroup-governor');
+const { enforcePackagePolicy, verifyManifestAgainstPackagePolicy } = require('./package-policy');
 
 const HOST_PATH = path.join(__dirname, '..', 'core-host', 'host.js');
 
@@ -35,11 +36,13 @@ class CoreHostClient extends EventEmitter {
   constructor({ modulePath, expectedManifest = null, instanceId = crypto.randomUUID(), mode = 'standby', logger = console, policy = {} }) {
     super();
     this.modulePath = canonicalCoreModulePath(modulePath);
+    this.packagePolicy = enforcePackagePolicy(this.modulePath);
     this.expectedManifest = expectedManifest;
     this.instanceId = instanceId;
     this.mode = mode;
     this.logger = logger;
     this.policy = normalizePolicy(policy.resources || policy, policy.priority || 'normal');
+    if (expectedManifest) verifyManifestAgainstPackagePolicy(this.packagePolicy, expectedManifest);
     this.child = null;
     this.manifest = null;
     this.lifecycle = 'starting';

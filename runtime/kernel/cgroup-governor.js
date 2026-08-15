@@ -18,6 +18,17 @@ let delegatedRootPromise = null;
 
 const REQUIRED_CONTROLLERS = '+cpu +memory +pids';
 
+function cgroupLimitValues(policy) {
+  const period = 100000;
+  const quota = Math.max(1000, Math.floor(policy.hardCpuDuty * period));
+  return Object.freeze({
+    'memory.high': String(policy.softRamBytes),
+    'memory.max': String(policy.hardRamBytes),
+    'pids.max': String(policy.pidsMax || 32),
+    'cpu.max': `${quota} ${period}`
+  });
+}
+
 async function prepareDelegatedHierarchy({ current, kernel, cores, pid, io = fs }) {
   // A controller governs the immediate children of the cgroup where it is
   // enabled. Keep the service cgroup empty, then enable controllers at both
@@ -78,14 +89,8 @@ class CgroupGovernor {
       if (!this.coresRoot && !(await this.prepare())) return false;
       const directory = path.join(this.coresRoot, this.name);
       await fs.mkdir(directory, { recursive: true });
-      const period = 100000;
-      const quota = Math.max(1000, Math.floor(this.policy.hardCpuDuty * period));
-      await Promise.all([
-        fs.writeFile(path.join(directory, 'memory.high'), String(this.policy.softRamBytes)),
-        fs.writeFile(path.join(directory, 'memory.max'), String(this.policy.hardRamBytes)),
-        fs.writeFile(path.join(directory, 'pids.max'), String(this.policy.pidsMax || 32)),
-        fs.writeFile(path.join(directory, 'cpu.max'), `${quota} ${period}`)
-      ]);
+      const limits = cgroupLimitValues(this.policy);
+      await Promise.all(Object.entries(limits).map(([name, value]) => fs.writeFile(path.join(directory, name), value)));
       await fs.writeFile(path.join(directory, 'cgroup.procs'), String(pid));
       this.directory = directory;
       this.available = true;
@@ -113,4 +118,4 @@ class CgroupGovernor {
   }
 }
 
-module.exports = { CgroupGovernor, readUnifiedCgroup, safeName, prepareDelegatedHierarchy, prepareDelegatedRoot };
+module.exports = { CgroupGovernor, readUnifiedCgroup, safeName, cgroupLimitValues, prepareDelegatedHierarchy, prepareDelegatedRoot };
