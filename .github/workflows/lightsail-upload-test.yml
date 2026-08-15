@@ -1,16 +1,49 @@
-name: Verify Lightsail upload
+name: R8 isolated Lightsail host drill
 
 on:
   workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: Steady-state SNTSS observation duration in seconds (minimum 180)
+        required: true
+        default: '600'
 
 permissions:
   contents: read
 
 jobs:
-  upload-test:
+  r8-host-drill:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Verify drill harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ inputs.duration_seconds }}" =~ ^[0-9]+$ ]]
+          (( ${{ inputs.duration_seconds }} >= 180 && ${{ inputs.duration_seconds }} <= 1200 ))
+          node --check scripts/sntss-r8-pressure-worker.js
+          node --check scripts/sntss-r8-host-drill.js
+          node scripts/sntss-r8-containment-lab.js
+          node --test --test-concurrency=1 test/sntss-containment.test.js
+
+      - name: Build isolated drill archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="stay-r8-host-drill-${GITHUB_SHA}.tar.gz"
+          tar --exclude='.git' --exclude='data' --exclude='.stay-data' -czf "$ARCHIVE" package.json runtime cores scripts test docs
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          printf 'ARCHIVE=%s\n' "$ARCHIVE" >> "$GITHUB_ENV"
+
       - name: Prepare SSH
         shell: bash
         env:
@@ -22,14 +55,77 @@ jobs:
           chmod 600 ~/.ssh/stay_deploy
           ssh-keyscan -H 35.157.242.167 >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-      - name: Upload harmless marker to Lightsail
+      - name: Upload isolated drill archive
         shell: bash
         run: |
           set -euo pipefail
-          printf 'ChatGPT -> GitHub Actions -> Lightsail verified\n' > lightsail-upload-test.txt
-          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes lightsail-upload-test.txt staydeploy@35.157.242.167:/opt/stay/incoming/chatgpt-upload-test.txt
-      - name: Verify marker on Lightsail
+          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes "$ARCHIVE" "$ARCHIVE.sha256" staydeploy@35.157.242.167:/opt/stay/incoming/
+
+      - name: Execute transient isolated host drill
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes staydeploy@35.157.242.167 'test -f /opt/stay/incoming/chatgpt-upload-test.txt && cat /opt/stay/incoming/chatgpt-upload-test.txt && sha256sum /opt/stay/incoming/chatgpt-upload-test.txt'
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes staydeploy@35.157.242.167 \
+            "bash -s -- '$GITHUB_RUN_ID' '$GITHUB_SHA' '${{ inputs.duration_seconds }}' '$ARCHIVE'" <<'REMOTE'
+          set -Eeuo pipefail
+          RUN_ID="$1"; COMMIT="$2"; DURATION="$3"; ARCHIVE="$4"
+          [[ "$RUN_ID" =~ ^[0-9]+$ && "$COMMIT" =~ ^[0-9a-f]{40}$ && "$DURATION" =~ ^[0-9]+$ && "$ARCHIVE" =~ ^stay-r8-host-drill-[0-9a-f]{40}\.tar\.gz$ ]]
+          RUN_ROOT="/opt/stay/incoming/r8-host-drill-${RUN_ID}"
+          SOURCE="$RUN_ROOT/source"
+          EVIDENCE="$RUN_ROOT/R8_HOST_EVIDENCE.json"
+          UNIT="stay-r8-host-${RUN_ID}"
+          BEFORE_PID="$(systemctl show stay.service --property=MainPID --value)"
+          [[ "$(systemctl is-active stay.service)" == active && "$BEFORE_PID" =~ ^[1-9][0-9]*$ ]]
+          test ! -e "$RUN_ROOT"
+          install -d -m 0700 "$SOURCE"
+          cd /opt/stay/incoming
+          sha256sum -c "$ARCHIVE.sha256"
+          tar -xzf "$ARCHIVE" -C "$SOURCE"
+
+          MODE=''
+          if systemd-run --user --quiet --wait --pipe --collect --unit="${UNIT}-probe" \
+            --property=Delegate=yes --property=MemoryMax=64M --property=CPUQuota=20% --property=TasksMax=16 /usr/bin/true; then
+            MODE='user'
+          elif sudo -n systemd-run --quiet --wait --pipe --collect --unit="${UNIT}-probe" \
+            --property=User=staydeploy --property=Group=staydeploy --property=Delegate=yes \
+            --property=MemoryMax=64M --property=CPUQuota=20% --property=TasksMax=16 /usr/bin/true; then
+            MODE='root'
+          else
+            echo 'No authorized delegated transient systemd unit is available for the isolated drill.' >&2
+            rm -rf -- "$RUN_ROOT"
+            exit 70
+          fi
+
+          set +e
+          if [[ "$MODE" == user ]]; then
+            systemd-run --user --wait --pipe --collect --unit="$UNIT" \
+              --property=WorkingDirectory="$SOURCE" --property=Delegate=yes --property=MemoryMax=256M \
+              --property=CPUQuota=50% --property=TasksMax=64 \
+              /usr/bin/env STAY_REQUIRE_CGROUPS=1 STAY_R8_RUN_ID="$RUN_ID" STAY_R8_HOST_COMMIT="$COMMIT" \
+              /usr/bin/node scripts/sntss-r8-host-drill.js --duration-seconds "$DURATION" --output "$EVIDENCE"
+            DRILL_STATUS=$?
+          else
+            sudo -n systemd-run --wait --pipe --collect --unit="$UNIT" \
+              --property=User=staydeploy --property=Group=staydeploy --property=WorkingDirectory="$SOURCE" \
+              --property=Delegate=yes --property=MemoryMax=256M --property=CPUQuota=50% --property=TasksMax=64 \
+              --property=NoNewPrivileges=yes --property=PrivateDevices=yes --property=ProtectHome=yes \
+              --property=ProtectSystem=strict --property=ReadWritePaths="$RUN_ROOT" --property=ProtectControlGroups=false \
+              /usr/bin/env STAY_REQUIRE_CGROUPS=1 STAY_R8_RUN_ID="$RUN_ID" STAY_R8_HOST_COMMIT="$COMMIT" \
+              /usr/bin/node scripts/sntss-r8-host-drill.js --duration-seconds "$DURATION" --output "$EVIDENCE"
+            DRILL_STATUS=$?
+          fi
+          set -e
+
+          AFTER_PID="$(systemctl show stay.service --property=MainPID --value)"
+          SERVICE_STATE="$(systemctl is-active stay.service)"
+          if [[ -f "$EVIDENCE" ]]; then
+            echo 'R8_HOST_EVIDENCE_BEGIN'
+            cat "$EVIDENCE"
+            echo 'R8_HOST_EVIDENCE_END'
+            sha256sum "$EVIDENCE"
+          fi
+          rm -rf -- "$RUN_ROOT"
+          rm -f -- "/opt/stay/incoming/$ARCHIVE" "/opt/stay/incoming/$ARCHIVE.sha256"
+          [[ "$SERVICE_STATE" == active && "$AFTER_PID" == "$BEFORE_PID" ]]
+          exit "$DRILL_STATUS"
+          REMOTE
