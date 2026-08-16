@@ -11,6 +11,7 @@ try {
     }
 
     $sha = (git rev-parse HEAD).Trim()
+    $branch = (git rev-parse --abbrev-ref HEAD).Trim()
     $pkg = Get-Content (Join-Path $repo "package.json") -Raw | ConvertFrom-Json
     $version = if ($pkg.stayVersion) { $pkg.stayVersion } else { $pkg.version }
 
@@ -29,14 +30,22 @@ try {
     git archive --format=tar --output="$sourceTar" HEAD
     if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
     tar -xf $sourceTar -C $buildDir
+    if ($LASTEXITCODE -ne 0) { throw "source archive extraction failed." }
     Remove-Item $sourceTar -Force
-    $provenance = [ordered]@{
-        format = "stay-release-provenance-v1"
-        version = $version
-        commit = $sha
-        builder = "tools/build-release.ps1"
-    } | ConvertTo-Json
-    Set-Content -Path (Join-Path $buildDir "RELEASE_PROVENANCE.json") -Value $provenance -Encoding utf8
+
+    foreach ($relative in @("data", ".stay-data", "release-output")) {
+        $candidate = Join-Path $buildDir $relative
+        if (Test-Path $candidate) { Remove-Item $candidate -Recurse -Force }
+    }
+
+    $releaseControl = Join-Path $buildDir "runtime/release/sntss-release-control.js"
+    if (-not (Test-Path $releaseControl)) { throw "R10 release-control module is missing." }
+
+    node $releaseControl emit --root $buildDir --version $version --commit $sha --builder "tools/build-release.ps1" --branch $branch
+    if ($LASTEXITCODE -ne 0) { throw "R10 release provenance generation failed." }
+    node $releaseControl verify --root $buildDir
+    if ($LASTEXITCODE -ne 0) { throw "R10 release verification failed." }
+
     tar -czf $archive -C $buildDir .
     if ($LASTEXITCODE -ne 0) { throw "release tar creation failed." }
     Remove-Item $buildDir -Recurse -Force
@@ -46,16 +55,17 @@ try {
     Set-Content -Path $sidecar -Value ("{0}  {1}" -f $hash, (Split-Path $archive -Leaf)) -Encoding ascii
 
     Write-Host ""
-    Write-Host "STAY release ready"
+    Write-Host "STAY R10 release ready"
     Write-Host "Version : $version"
     Write-Host "Commit  : $sha"
     Write-Host "SHA256  : $hash"
     Write-Host "File    : $archive"
     Write-Host ""
-    Write-Host "Fallback deployment:"
+    Write-Host "The archive contains R10 inventory/provenance and excludes live/laboratory state."
+    Write-Host "Fallback staging/deployment:"
     Write-Host "Sidecar: $sidecar"
     Write-Host "1. Upload the .tar.gz and matching .sha256 with WinSCP."
-    Write-Host "2. Run: sudo stay-deploy /home/ubuntu/<filename>"
+    Write-Host "2. Stage only unless the current production gate explicitly authorizes deployment."
 }
 finally {
     Pop-Location

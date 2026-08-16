@@ -68,6 +68,7 @@ SWITCHED=0
 PREVIOUS_RELEASE=""
 BACKUP_DIR=""
 STATE_STARTED=0
+STATE_ROLLBACK_POLICY=""
 FAILED_STATE_DIR=""
 
 rollback() {
@@ -91,16 +92,21 @@ rollback() {
       fi
     fi
 
-    if [[ "$STATE_STARTED" -eq 1 && -n "$BACKUP_DIR" && -f "$BACKUP_DIR/stay-data.tar.gz" ]]; then
-      FAILED_STATE_DIR="/var/lib/stay/failed-state-$(date -u +%Y%m%dT%H%M%SZ)"
-      if mv "$DATA_ROOT" "$FAILED_STATE_DIR" \
-        && mkdir -p "$DATA_ROOT" \
-        && tar --no-same-owner --no-same-permissions -xzf "$BACKUP_DIR/stay-data.tar.gz" -C /var/lib/stay \
-        && chown -R "$STAY_USER:$STAY_GROUP" "$DATA_ROOT"; then
-        echo "Restored pre-deployment state; failed candidate state retained at: $FAILED_STATE_DIR"
-      else
+    if [[ "$STATE_STARTED" -eq 1 ]]; then
+      if [[ "$STATE_ROLLBACK_POLICY" != "preserve-forward-state" ]]; then
         rollback_failed=1
-        echo "CRITICAL: automatic state restore failed; inspect $BACKUP_DIR and $FAILED_STATE_DIR" >&2
+        echo "CRITICAL: refusing automatic state rollback without preserve-forward-state policy." >&2
+      elif [[ -n "$BACKUP_DIR" ]]; then
+        FAILED_STATE_DIR="$BACKUP_DIR/failed-forward-state-$(date -u +%Y%m%dT%H%M%SZ)"
+        if mkdir -p "$FAILED_STATE_DIR" \
+          && tar -C /var/lib/stay -czf "$FAILED_STATE_DIR/stay-data-forward.tar.gz" data \
+          && sha256sum "$FAILED_STATE_DIR/stay-data-forward.tar.gz" > "$FAILED_STATE_DIR/stay-data-forward.tar.gz.sha256" \
+          && sha256sum -c "$FAILED_STATE_DIR/stay-data-forward.tar.gz.sha256"; then
+          echo "Canonical forward StateStore preserved in place; failed-forward-state evidence retained at: $FAILED_STATE_DIR"
+        else
+          rollback_failed=1
+          echo "CRITICAL: failed to retain forward-state evidence; canonical StateStore was not overwritten." >&2
+        fi
       fi
     fi
 
@@ -118,18 +124,18 @@ rollback() {
     done
     if [[ "$rollback_healthy" -ne 1 ]]; then
       rollback_failed=1
-      echo "CRITICAL: rollback service did not become healthy." >&2
+      echo "CRITICAL: rollback code did not become healthy against the preserved forward state." >&2
     fi
   fi
 
   rm -rf "$WORK" >/dev/null 2>&1 || true
 
   if [[ -n "$BACKUP_DIR" ]]; then
-    echo "Safety backup retained: $BACKUP_DIR"
+    echo "Safety backup retained as emergency recovery evidence: $BACKUP_DIR"
   fi
 
   if [[ "$rollback_failed" -ne 0 ]]; then
-    echo "CRITICAL: automatic rollback was incomplete; manual recovery is required." >&2
+    echo "CRITICAL: automatic rollback was incomplete; preserve all evidence and follow the recovery runbook." >&2
     exit 125
   fi
 
@@ -184,14 +190,21 @@ if [[ "$RELEASE_VERSION" != "$NAME_VERSION" ]]; then
   false
 fi
 
-if [[ ! -f "$WORK/RELEASE_PROVENANCE.json" ]]; then
-  echo "ERROR: release provenance manifest is missing." >&2
+if [[ ! -f "$WORK/RELEASE_PROVENANCE.json" || ! -f "$WORK/RELEASE_INVENTORY.json" ]]; then
+  echo "ERROR: R10 release provenance/inventory is missing." >&2
   false
 fi
 PROVENANCE_COMMIT="$("$NODE" -e "const p=require(process.argv[1]); process.stdout.write(String(p.commit || ''))" "$WORK/RELEASE_PROVENANCE.json")"
 PROVENANCE_VERSION="$("$NODE" -e "const p=require(process.argv[1]); process.stdout.write(String(p.version || ''))" "$WORK/RELEASE_PROVENANCE.json")"
+PROVENANCE_FORMAT="$("$NODE" -e "const p=require(process.argv[1]); process.stdout.write(String(p.format || ''))" "$WORK/RELEASE_PROVENANCE.json")"
+STATE_ROLLBACK_POLICY="$("$NODE" -e "const p=require(process.argv[1]); process.stdout.write(String(p.stateRollbackPolicy || ''))" "$WORK/RELEASE_PROVENANCE.json")"
+RELEASE_MUTABLE="$("$NODE" -e "const p=require(process.argv[1]); process.stdout.write(String(p.releaseMutable))" "$WORK/RELEASE_PROVENANCE.json")"
 if [[ "$PROVENANCE_COMMIT" != "$COMMIT_SHA" || "$PROVENANCE_VERSION" != "$RELEASE_VERSION" ]]; then
   echo "ERROR: release provenance does not match archive filename/package." >&2
+  false
+fi
+if [[ "$PROVENANCE_FORMAT" != "stay-release-provenance-v2" || "$STATE_ROLLBACK_POLICY" != "preserve-forward-state" || "$RELEASE_MUTABLE" != "false" ]]; then
+  echo "ERROR: release does not satisfy the R10 immutable/no-rewind provenance contract." >&2
   false
 fi
 
@@ -203,10 +216,17 @@ fi
 
 FINAL_RELEASE="$RELEASES/${RELEASE_VERSION}-${COMMIT_SHA}"
 
+echo "-- R10 provenance/package/migration preflight"
+if [[ ! -f "$WORK/runtime/release/sntss-release-control.js" ]]; then
+  echo "ERROR: R10 release-control verifier is missing." >&2
+  false
+fi
+"$NODE" "$WORK/runtime/release/sntss-release-control.js" verify --root "$WORK" --provenance "$WORK/RELEASE_PROVENANCE.json"
+
 echo "-- Preflight syntax"
 while IFS= read -r -d '' source_file; do
   "$NODE" --check "$source_file"
-done < <(find "$WORK/runtime" "$WORK/scripts" -type f -name '*.js' -print0)
+done < <(find "$WORK/runtime" "$WORK/scripts" "$WORK/cores/sntss" -type f -name '*.js' -print0)
 "$NODE" --check "$WORK/server.js"
 
 # Make candidate readable to staydeploy before isolated testing.
@@ -260,6 +280,7 @@ sha256sum -c "$BACKUP_DIR/stay-data.tar.gz.sha256"
 cp "$IDENTITY_FILE" "$BACKUP_DIR/identity.json"
 sha256sum "$BRAIN_FILE" > "$BACKUP_DIR/live-brain.sha256"
 readlink -f "$CURRENT" > "$BACKUP_DIR/previous-release.txt"
+printf '%s\n' "$STATE_ROLLBACK_POLICY" > "$BACKUP_DIR/state-rollback-policy.txt"
 
 if [[ -f "$CONTINUITY_DB" ]]; then
   echo "-- Existing StateStore quick check"
@@ -365,5 +386,6 @@ echo "Commit   : $COMMIT_SHA"
 echo "Release  : $FINAL_RELEASE"
 echo "Backup   : $BACKUP_DIR"
 echo "SHA256   : $ARCHIVE_SHA"
+echo "State rollback policy: $STATE_ROLLBACK_POLICY"
 echo
 echo "No manual rollback is required."

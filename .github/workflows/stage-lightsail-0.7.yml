@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -22,19 +24,23 @@ jobs:
       - name: Verify runtime
         run: npm test
 
-      - name: Build immutable staging archive
+      - name: Build immutable R10 staging archive
         shell: bash
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').stayVersion || require('./package.json').version")"
           ARCHIVE="stay-${VERSION}-${GITHUB_SHA}.tar.gz"
-          node -e "require('fs').writeFileSync('RELEASE_PROVENANCE.json', JSON.stringify({format:'stay-release-provenance-v1',version:process.argv[1],commit:process.env.GITHUB_SHA,builder:'github-actions',workflow:process.env.GITHUB_WORKFLOW,runId:process.env.GITHUB_RUN_ID}, null, 2) + '\n')" "$VERSION"
-          tar \
-            --exclude='.git' \
-            --exclude='data' \
-            --exclude='.stay-data' \
-            -czf "$ARCHIVE" \
-            README.md README_DEPLOYMENT.md RELEASE_PROVENANCE.json package.json server.js .github runtime cores deploy docs scripts legacy test
+          BUILD_DIR="$(mktemp -d)"
+          trap 'rm -rf "$BUILD_DIR"' EXIT
+          git archive --format=tar --output="$BUILD_DIR/source.tar" "$GITHUB_SHA"
+          tar -xf "$BUILD_DIR/source.tar" -C "$BUILD_DIR"
+          rm "$BUILD_DIR/source.tar"
+          rm -rf "$BUILD_DIR/data" "$BUILD_DIR/.stay-data" "$BUILD_DIR/release-output"
+          node "$BUILD_DIR/runtime/release/sntss-release-control.js" emit \
+            --root "$BUILD_DIR" --version "$VERSION" --commit "$GITHUB_SHA" \
+            --builder github-actions --branch "$GITHUB_REF_NAME" --workflow "$GITHUB_WORKFLOW" --run-id "$GITHUB_RUN_ID"
+          node "$BUILD_DIR/runtime/release/sntss-release-control.js" verify --root "$BUILD_DIR"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -C "$BUILD_DIR" -cf - . | gzip -n > "$ARCHIVE"
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
           printf 'ARCHIVE=%s\n' "$ARCHIVE" >> "$GITHUB_ENV"
 
