@@ -153,12 +153,14 @@ test('H-11: staging archive includes tests and release provenance', async () => 
   assert.match(source, /"\$ARCHIVE" "\$ARCHIVE\.sha256"/);
 });
 
-test('H-12: production launcher and deployer enforce inspector, digest and provenance guards', async () => {
+test('H-12: production launcher and deployer enforce inspector, operator auth, digest and provenance guards', async () => {
   const root = path.join(__dirname, '..');
   const service = await fs.readFile(path.join(root, 'deploy', 'systemd', 'stay.service'), 'utf8');
   const deployer = await fs.readFile(path.join(root, 'deploy', 'stay-deploy.sh'), 'utf8');
   const gitDeployer = await fs.readFile(path.join(root, 'deploy', 'stay-deploy-git.sh'), 'utf8');
-  assert.match(service, /ExecStart=.*node --disable-sigusr1 .*server\.js/);
+  assert.match(service, /ExecStart=.*node --disable-sigusr1 .*server-secure\.js/);
+  assert.match(service, /LoadCredential=operator-status-token:\/etc\/stay\/operator-status\.token/);
+  assert.match(service, /STAY_OPERATOR_STATUS_TOKEN_FILE=\/run\/credentials\/stay\.service\/operator-status-token/);
   assert.match(deployer, /ARCHIVE\.sha256/);
   assert.match(deployer, /RELEASE_PROVENANCE\.json/);
   assert.match(deployer, /manual recovery is required/);

@@ -65,7 +65,10 @@ async function startServer(t, extraEnv = {}) {
   let stderr = '';
   child.stderr.on('data', chunk => { stderr += String(chunk); });
   t.after(async () => {
-    if (child.exitCode == null && child.signalCode == null) child.kill('SIGTERM');
+    if (child.exitCode == null && child.signalCode == null) {
+      child.kill('SIGTERM');
+      await new Promise(resolve => child.once('exit', resolve));
+    }
     await fs.rm(dataDir, { recursive: true, force: true });
   });
   await waitFor(async () => {
