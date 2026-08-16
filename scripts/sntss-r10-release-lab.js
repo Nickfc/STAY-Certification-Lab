@@ -10,7 +10,7 @@ const release = require('../runtime/release/sntss-release-control');
 
 const root = path.resolve(__dirname, '..');
 function option(name, fallback = null) { const index = process.argv.indexOf(name); return index < 0 ? fallback : process.argv[index + 1]; }
-function fileHash(relative) { return `sha256:${crypto.createHash('sha256').update(fs.readFileSync(path.join(root, relative))).digest('hex')}`; }
+function fileHash(relative) { let bytes = fs.readFileSync(path.join(root, relative)); if (relative.endsWith('.ps1')) bytes = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n')); return `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`; }
 
 async function main() {
   const output = path.resolve(option('--output', path.join(root, 'docs/sntss/evidence/R10_RELEASE_EVIDENCE.generated.json')));

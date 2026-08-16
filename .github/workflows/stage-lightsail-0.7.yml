@@ -40,6 +40,8 @@ jobs:
             --root "$BUILD_DIR" --version "$VERSION" --commit "$GITHUB_SHA" \
             --builder github-actions --branch "$GITHUB_REF_NAME" --workflow "$GITHUB_WORKFLOW" --run-id "$GITHUB_RUN_ID"
           node "$BUILD_DIR/runtime/release/sntss-release-control.js" verify --root "$BUILD_DIR"
+          test -f "$BUILD_DIR/RELEASE_PROVENANCE.json"
+          test -f "$BUILD_DIR/RELEASE_INVENTORY.json"
           tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -C "$BUILD_DIR" -cf - . | gzip -n > "$ARCHIVE"
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
           printf 'ARCHIVE=%s\n' "$ARCHIVE" >> "$GITHUB_ENV"

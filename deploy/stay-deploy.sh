@@ -135,7 +135,7 @@ rollback() {
   fi
 
   if [[ "$rollback_failed" -ne 0 ]]; then
-    echo "CRITICAL: automatic rollback was incomplete; preserve all evidence and follow the recovery runbook." >&2
+    echo "CRITICAL: automatic rollback was incomplete; manual recovery is required. Preserve all evidence and follow the recovery runbook." >&2
     exit 125
   fi
 

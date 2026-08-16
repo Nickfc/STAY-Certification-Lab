@@ -13,16 +13,18 @@ const release = require('../runtime/release/sntss-release-control');
 const root = path.resolve(__dirname, '..');
 const HASH = /^sha256:[0-9a-f]{64}$/;
 function fileHash(relative) {
-  return `sha256:${crypto.createHash('sha256').update(fs.readFileSync(path.join(root, relative))).digest('hex')}`;
+  let bytes = fs.readFileSync(path.join(root, relative));
+  if (relative.endsWith('.ps1')) bytes = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n'));
+  return `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`;
 }
 async function temporary(prefix) { return fsp.mkdtemp(path.join(os.tmpdir(), prefix)); }
 
- test('R10-01 release inventory is deterministic, complete and excludes live/laboratory state', async () => {
+test('R10-01 release inventory is deterministic, complete and excludes live/laboratory state', async () => {
   const first = await release.buildInventory(root);
   const second = await release.buildInventory(root);
   assert.equal(first.inventoryHash, second.inventoryHash);
   assert.match(first.inventoryHash, HASH);
-  assert.deepEqual(first.entries.map(entry => entry.path), [...first.entries.map(entry => entry.path)].sort());
+  assert.deepEqual(first.entries.map(entry => entry.path), [...first.entries.map(entry => entry.path)].sort((a, b) => a.localeCompare(b)));
   for (const required of release.REQUIRED_PATHS) assert.ok(first.entries.some(entry => entry.path === required), required);
   assert.ok(first.entries.some(entry => entry.role === 'sntss-source'));
   assert.ok(first.entries.some(entry => entry.role === 'sntss-schema'));
@@ -124,7 +126,7 @@ test('R10-10 GitHub staging remains manual, pinned and builds v2 provenance befo
   assert.doesNotMatch(source, /^\s*push:/m);
   assert.match(source, /actions\/checkout@[0-9a-f]{40}/);
   assert.match(source, /actions\/setup-node@[0-9a-f]{40}/);
-  assert.match(source, /sntss-release-control\.js emit/);
+  assert.match(source, /sntss-release-control\.js[\"']?\s+emit/);
   assert.match(source, /sha256sum "\$ARCHIVE"/);
   assert.match(source, /Upload to incoming only/);
 });
