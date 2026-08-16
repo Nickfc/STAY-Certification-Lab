@@ -84,7 +84,7 @@ test('R11-03 freeze contract prevents code drift and never grants live chemistry
 test('R11-04 human contract preserves neutral-first and no-live-testing boundaries', () => {
   const doc = fs.readFileSync(contractPath, 'utf8');
   assert.match(doc, /R11 itself performs no live installation/i);
-  assert.match(doc, /no live chemistry/i);
+  assert.match(doc, /(does not authorize|never grants) live chemistry/i);
   assert.match(doc, /no runtime-bearing file may change/i);
   assert.match(doc, /rollback may restore code authority but may never rewind acquired biological state/i);
   assert.match(doc, /repository tests cannot substitute for physical namespace, cgroup, bootstrap, process, network and filesystem evidence/i);
