@@ -43,7 +43,7 @@
     "laboratory.js": "sha256:3badf859ae20d22a4419f44df71d0c0fbb4c6971cfbacc0bfed0860b816b3056",
     "leases.js": "sha256:6213ffc8f527e57a9569727b3fc1ab3bebd458dace15d1d0a179c45a4b056e62",
     "migrations.js": "sha256:964ae2bf3401892b9dbb98eee02b3240159f1ab3356588b3f3182964a4e8bd4b",
-    "modulation-frames.js": "sha256:f550032b3746f7181a0a5c0a8b8b800ce7be453977c074e3cabdf8882a978a9b",
+    "modulation-frames.js": "sha256:4b6511c8f825ca11a0d7bae31df96ba4e62ef3e4110c20952cc79fef4688f49a",
     "receptor-profiles.js": "sha256:8142325ffa0c9a9b4469bd1dd8449c31df1ecf925710e1749f7a3ffcb8a83f6a",
     "receptors.js": "sha256:5702cd34953cf68b633fbed2172fc1d39d0b19318b4c835d69d81c9968103f12",
     "recovery.js": "sha256:8d035610ff2f677321be624ffec4d1a89ac3b0773c07a2d4bf6e0fd81172330e",
@@ -99,5 +99,5 @@
     "pendingRequests": 128,
     "productionOutputs": 0
   },
-  "policyHash": "sha256:9f3035129ed850c69cd6d73dfc02f9796db4bb9244f7c13dff071644b65c6048"
+  "policyHash": "sha256:df5a0f8ddf9593b53faf4eeb4a0b2482bdfd510ef675d9524eee12e77402f134"
 }

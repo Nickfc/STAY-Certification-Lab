@@ -4,7 +4,7 @@
   "productionEligible": false,
   "activeStatePathTouched": false,
   "destructiveLiveFaultInjection": false,
-  "packagePolicyHash": "sha256:9f3035129ed850c69cd6d73dfc02f9796db4bb9244f7c13dff071644b65c6048",
+  "packagePolicyHash": "sha256:df5a0f8ddf9593b53faf4eeb4a0b2482bdfd510ef675d9524eee12e77402f134",
   "attestedFiles": 34,
   "dependencyAllowlistClosed": true,
   "environmentSanitized": true,
@@ -103,9 +103,9 @@
     "runtime/kernel/resource-governor.js": "sha256:12ecde5e80f50b46c5ee4c23df992641a29e20931fa748d06009fdf7a97784cc",
     "runtime/kernel/cgroup-governor.js": "sha256:2909de58bf90a4a6d958ab29c8bce500819eae039ac58e3c3b88731cdb1c52d9",
     "cores/sntss/v0.1.0/containment.js": "sha256:d227063c7e44f0c25edc429630c243e0850b1e8b3b3fe16eff812fd4b9601fe2",
-    "cores/sntss/v0.1.0/package-policy.json": "sha256:ff8e88da1f895f8ae057e3e7fcbe9d0184e59679a5fbe260566c130586c6e949",
+    "cores/sntss/v0.1.0/package-policy.json": "sha256:53dcfa0f5132c702457581138dd2a4afa1a04fb3610a24d09b08886e97cd9102",
     "cores/sntss/schemas/containment-policy.schema.json": "sha256:653922d85332998a29eb792e72dab8a2fb8d73e4eb90175363a9d4daec461377",
     "test/sntss-containment.test.js": "sha256:fc21617055cafec81cb28b14d9f0f8c7bbccc05b935133517a8835e23bfaad8b"
   },
-  "evidenceHash": "sha256:c6d48f101b09a6015f5b639e48b88087acdfc2087b9aa59559883715d57deaa5"
+  "evidenceHash": "sha256:eaf41f432cc6c2efa51a1f222fbfecbdd281b7524452c0167422b6190c77beaf"
 }

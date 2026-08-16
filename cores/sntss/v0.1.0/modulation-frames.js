@@ -9,6 +9,7 @@ const leases = require('./leases');
 const HASH = /^sha256:[0-9a-f]{64}$/;
 const FRAME_KEYS = Object.freeze(['authorityEpoch', 'consumerCoreId', 'degradation', 'evidenceCursor', 'frameId', 'frameSequence', 'frameVersion', 'lineage', 'orderingId', 'profileHash', 'receptors', 'validFromMs', 'validUntilMs']);
 const SIGNAL_KEYS = Object.freeze(['activation', 'available', 'boundedEffect', 'permittedFunction', 'receptorId', 'sensitivity', 'trend']);
+const TRUST_KEYS = Object.freeze(['delivery', 'expectedAuthorityEpoch', 'expectedLineage', 'expectedSourceInstanceId', 'expectedSourceVersion']);
 
 function fail(message, code = 'SNTSS_FRAME_INVALID') { throw Object.assign(new Error(message), { code }); }
 function exactKeys(value, expected, label) {
@@ -75,14 +76,33 @@ function generateAllFrames(inputState, model, context) {
   return { state, outcomes };
 }
 
-function validateFrameForConsumer(frame, consumerCoreId, profileHash, nowMs, authorityEpoch) {
+function validateDeliveryAuthority(frame, trust) {
+  if (!trust || typeof trust !== 'object' || Array.isArray(trust)) fail('Kernel-authenticated frame trust context is required', 'SNTSS_FRAME_SOURCE_UNAUTHENTICATED');
+  exactKeys(trust, TRUST_KEYS, 'frame trust context');
+  if (!HASH.test(trust.expectedLineage) || frame.lineage !== trust.expectedLineage) fail('frame lineage is not bound to the trusted organism', 'SNTSS_FRAME_LINEAGE_UNAUTHENTICATED');
+  integer(trust.expectedAuthorityEpoch, 'trusted frame authority epoch', 1);
+  if (typeof trust.expectedSourceInstanceId !== 'string' || trust.expectedSourceInstanceId.length < 8 || trust.expectedSourceInstanceId.length > 160 || trust.expectedSourceInstanceId.includes('*')) fail('trusted SNTSS instance is invalid', 'SNTSS_FRAME_SOURCE_UNAUTHENTICATED');
+  if (typeof trust.expectedSourceVersion !== 'string' || !trust.expectedSourceVersion || trust.expectedSourceVersion.length > 64) fail('trusted SNTSS version is invalid', 'SNTSS_FRAME_SOURCE_UNAUTHENTICATED');
+  const delivery = trust.delivery;
+  if (!delivery || typeof delivery !== 'object' || Array.isArray(delivery)) fail('Kernel-authenticated delivery metadata is required', 'SNTSS_FRAME_SOURCE_UNAUTHENTICATED');
+  if (delivery.sourceCore !== 'sntss'
+    || delivery.sourceInstanceId !== trust.expectedSourceInstanceId
+    || delivery.sourceVersion !== trust.expectedSourceVersion
+    || delivery.authorityEpoch !== trust.expectedAuthorityEpoch) {
+    fail('frame source does not match current Kernel authority', 'SNTSS_FRAME_SOURCE_UNAUTHENTICATED');
+  }
+  if (frame.authorityEpoch !== trust.expectedAuthorityEpoch) fail('frame authority is stale', 'SNTSS_FRAME_AUTHORITY_STALE');
+  return true;
+}
+
+function validateFrameForConsumer(frame, consumerCoreId, profileHash, nowMs, trust) {
   exactKeys(frame, FRAME_KEYS, 'modulation frame');
   const { frameId, ...body } = frame;
   if (!HASH.test(frameId) || frameId !== hash(body) || !HASH.test(frame.orderingId)) fail('frame hash is invalid', 'SNTSS_FRAME_HASH_MISMATCH');
   if (frame.frameVersion !== 1 || frame.consumerCoreId !== consumerCoreId || consumerCoreId.includes('*')) fail('frame target mismatch', 'SNTSS_FRAME_UNTARGETED');
   if (frame.profileHash !== profileHash || !receptorProfileRegistry.profiles[consumerCoreId] || receptorProfileRegistry.profiles[consumerCoreId].profileHash !== profileHash) fail('frame profile mismatch', 'SNTSS_PROFILE_MISMATCH');
   integer(frame.authorityEpoch, 'frame authority epoch', 1); integer(frame.frameSequence, 'frame sequence', 1); integer(frame.evidenceCursor, 'evidence cursor', 1);
-  if (frame.authorityEpoch !== authorityEpoch) fail('frame authority is stale', 'SNTSS_FRAME_AUTHORITY_STALE');
+  validateDeliveryAuthority(frame, trust);
   if (!Number.isSafeInteger(nowMs) || nowMs < frame.validFromMs) fail('frame is not yet valid', 'SNTSS_FRAME_NOT_YET_VALID');
   if (nowMs > frame.validUntilMs) fail('frame expired', 'SNTSS_FRAME_EXPIRED');
   if (!Array.isArray(frame.receptors) || frame.receptors.length < 1) fail('frame signal inventory is invalid');
@@ -99,4 +119,4 @@ function validateFrameForConsumer(frame, consumerCoreId, profileHash, nowMs, aut
 
 function sameFrame(left, right) { return stableStringify(left) === stableStringify(right); }
 
-module.exports = { FRAME_KEYS, generateFrame, generateAllFrames, validateFrameForConsumer, sameFrame };
+module.exports = { FRAME_KEYS, TRUST_KEYS, generateFrame, generateAllFrames, validateDeliveryAuthority, validateFrameForConsumer, sameFrame };

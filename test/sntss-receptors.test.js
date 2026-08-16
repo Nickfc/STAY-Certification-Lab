@@ -15,6 +15,7 @@ const frames = require('../cores/sntss/v0.1.0/modulation-frames');
 const sntss = require('../cores/sntss/v0.1.0');
 
 const LINEAGE = hash({ fixture: 'r6-lineage' });
+const SNTSS_INSTANCE = 'sntss-r6-authoritative-instance';
 function copy(value) { return JSON.parse(JSON.stringify(value)); }
 function authority(consumerCoreId) {
   return { trustedRuntime: true, authorityEpoch: 9, consumerAuthority: { [consumerCoreId]: { active: true, profileHash: receptorProfileRegistry.profiles[consumerCoreId].profileHash } } };
@@ -31,6 +32,12 @@ function model() {
   }).model;
 }
 function context(cursor, now = 1000, extra = {}) { return { lineage: LINEAGE, authorityEpoch: 9, evidenceCursor: cursor, nowMs: now, availability: 'available', ...extra }; }
+function frameTrust({ expectedAuthorityEpoch = 9, expectedLineage = LINEAGE, expectedSourceInstanceId = SNTSS_INSTANCE, expectedSourceVersion = '0.1.0', delivery = {} } = {}) {
+  return {
+    expectedAuthorityEpoch, expectedLineage, expectedSourceInstanceId, expectedSourceVersion,
+    delivery: { sourceCore: 'sntss', sourceVersion: expectedSourceVersion, sourceInstanceId: expectedSourceInstanceId, authorityEpoch: expectedAuthorityEpoch, ...delivery }
+  };
+}
 
 test('R6-01 static probe profiles are immutable, hashed, bounded and restricted to active families', () => {
   assert.equal(Object.keys(receptorProfileRegistry.profiles).length, 2);
@@ -62,15 +69,20 @@ test('R6-02 receptor binding and local adaptation remain deterministic and bound
   assert.ok(second.signals[0].sensitivity <= first.signals[0].sensitivity);
 });
 
-test('R6-03 frames are targeted, hash-verifiable, expiring and reject stale authority', () => {
+test('R6-03 frames require Kernel-authenticated source authority in addition to hash, target and expiry', () => {
   let state = addConsumer(receptors.createReceptorState(LINEAGE), 'receptor-probe-alpha');
   const generated = frames.generateFrame(state, 'receptor-probe-alpha', model(), context(10));
   const profile = receptorProfileRegistry.profiles['receptor-probe-alpha'];
+  const trusted = frameTrust();
   assert.equal(generated.status, 'generated');
-  assert.equal(frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 1000, 9), true);
-  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-beta', profile.profileHash, 1000, 9), { code: 'SNTSS_FRAME_UNTARGETED' });
-  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 3000, 9), { code: 'SNTSS_FRAME_EXPIRED' });
-  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 1000, 10), { code: 'SNTSS_FRAME_AUTHORITY_STALE' });
+  assert.equal(frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 1000, trusted), true);
+  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-beta', profile.profileHash, 1000, trusted), { code: 'SNTSS_FRAME_UNTARGETED' });
+  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 3000, trusted), { code: 'SNTSS_FRAME_EXPIRED' });
+  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 1000, frameTrust({ expectedAuthorityEpoch: 10 })), { code: 'SNTSS_FRAME_AUTHORITY_STALE' });
+  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 1000), { code: 'SNTSS_FRAME_SOURCE_UNAUTHENTICATED' });
+  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 1000, frameTrust({ delivery: { sourceCore: 'malicious-core' } })), { code: 'SNTSS_FRAME_SOURCE_UNAUTHENTICATED' });
+  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 1000, frameTrust({ delivery: { sourceInstanceId: 'forged-sntss-instance' } })), { code: 'SNTSS_FRAME_SOURCE_UNAUTHENTICATED' });
+  assert.throws(() => frames.validateFrameForConsumer(generated.frame, 'receptor-probe-alpha', profile.profileHash, 1000, frameTrust({ expectedLineage: hash({ fixture: 'other-organism' }) })), { code: 'SNTSS_FRAME_LINEAGE_UNAUTHENTICATED' });
 });
 
 test('R6-04 replay is idempotent and fresh replay from identical state reproduces frame IDs and effects', () => {
