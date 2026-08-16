@@ -62,12 +62,13 @@ async function rawRequest(socketPath, payload) {
 
 test('R11-M03-01 external anchor service independently retains a valid segment and returns a matching receipt', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r11-m03-'));
-  const socketPath = path.join(root, 'run', 'anchor.sock');
+  const trustedSocketRoot = path.join(root, 'run');
+  const socketPath = path.join(trustedSocketRoot, 'anchor.sock');
   const logPath = path.join(root, 'state', 'anchors.jsonl');
   const initial = hash({ initial: 'r11-m03' });
   const server = await createTrustedAnchorServer({ socketPath, logPath, initialAnchorHash: initial, now: () => '2026-08-16T10:30:00.000Z' });
   t.after(async () => { await server.close().catch(() => {}); await fs.rm(root, { recursive: true, force: true }); });
-  const sink = createUnixForensicAnchorSink({ socketPath, dataDir: path.join(root, 'organism-state') });
+  const sink = createUnixForensicAnchorSink({ socketPath, trustedSocketRoot, dataDir: path.join(root, 'organism-state') });
   const manifest = segment({ anchorHash: initial, headHash: hash({ head: 1 }) });
   const ack = await sink(manifest);
   assert.equal(ack.manifestHash, manifest.manifestHash);
@@ -84,7 +85,8 @@ test('R11-M03-01 external anchor service independently retains a valid segment a
 
 test('R11-M03-02 trusted anchor daemon rejects tampered or non-contiguous manifests independently of the client', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r11-m03-reject-'));
-  const socketPath = path.join(root, 'run', 'anchor.sock');
+  const trustedSocketRoot = path.join(root, 'run');
+  const socketPath = path.join(trustedSocketRoot, 'anchor.sock');
   const logPath = path.join(root, 'state', 'anchors.jsonl');
   const initial = hash({ initial: 'reject' });
   const server = await createTrustedAnchorServer({ socketPath, logPath, initialAnchorHash: initial });
@@ -97,7 +99,7 @@ test('R11-M03-02 trusted anchor daemon rejects tampered or non-contiguous manife
   assert.match(rejected.code, /TAMPER/);
   await assert.rejects(() => fs.stat(logPath), error => error.code === 'ENOENT');
 
-  const sink = createUnixForensicAnchorSink({ socketPath, dataDir: path.join(root, 'data') });
+  const sink = createUnixForensicAnchorSink({ socketPath, trustedSocketRoot, dataDir: path.join(root, 'data') });
   await sink(good);
   const wrongContinuation = segment({ index: 2, first: 9, count: 8, anchorHash: hash({ wrong: 'anchor' }), headHash: hash({ head: 2 }) });
   await assert.rejects(() => sink(wrongContinuation), error => error.code === 'SNTSS_EXTERNAL_ANCHOR_ACK');
@@ -106,11 +108,12 @@ test('R11-M03-02 trusted anchor daemon rejects tampered or non-contiguous manife
 
 test('R11-M03-03 altered external receipt history makes trusted anchor restart fail closed', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r11-m03-tamper-'));
-  const socketPath = path.join(root, 'run', 'anchor.sock');
+  const trustedSocketRoot = path.join(root, 'run');
+  const socketPath = path.join(trustedSocketRoot, 'anchor.sock');
   const logPath = path.join(root, 'state', 'anchors.jsonl');
   const initial = hash({ initial: 'tamper-log' });
   const server = await createTrustedAnchorServer({ socketPath, logPath, initialAnchorHash: initial });
-  const sink = createUnixForensicAnchorSink({ socketPath, dataDir: path.join(root, 'data') });
+  const sink = createUnixForensicAnchorSink({ socketPath, trustedSocketRoot, dataDir: path.join(root, 'data') });
   await sink(segment({ anchorHash: initial, headHash: hash({ head: 1 }) }));
   await server.close();
 
@@ -127,8 +130,9 @@ test('R11-M03-03 altered external receipt history makes trusted anchor restart f
 test('R11-M03-04 external anchor outage degrades observability only and never rejects chemistry-side capture', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r11-m03-down-'));
   try {
-    const missingSocket = path.join(root, 'missing', 'anchor.sock');
-    const sink = createUnixForensicAnchorSink({ socketPath: missingSocket, timeoutMs: 150, dataDir: path.join(root, 'data') });
+    const trustedSocketRoot = path.join(root, 'missing');
+    const missingSocket = path.join(trustedSocketRoot, 'anchor.sock');
+    const sink = createUnixForensicAnchorSink({ socketPath: missingSocket, trustedSocketRoot, timeoutMs: 150, dataDir: path.join(root, 'data') });
     const plane = new SntssObservabilityPlane({ anchorHash: hash({ initial: 'observer' }), anchorSink: sink, forensicCapacity: 8 });
     let result;
     for (let index = 0; index < 9; index++) result = plane.capture(transition(index));
@@ -144,16 +148,25 @@ test('R11-M03-04 external anchor outage degrades observability only and never re
   }
 });
 
-test('R11-M03-05 anchor socket is forced outside StateStore/release paths and service runs under a separate hardened identity', async () => {
+test('R11-M03-05 anchor socket is pinned to a separately owned trusted runtime root and service is hardened', async () => {
   assert.throws(() => assertExternalAnchorSocketPath('/var/lib/stay/data/anchor.sock'), error => error.code === 'SNTSS_EXTERNAL_ANCHOR_INVALID');
+  assert.throws(() => assertExternalAnchorSocketPath('/var/lib/stay/anchor.sock'), error => error.code === 'SNTSS_EXTERNAL_ANCHOR_INVALID');
+  assert.throws(() => assertExternalAnchorSocketPath('/run/stay/anchor.sock'), error => error.code === 'SNTSS_EXTERNAL_ANCHOR_INVALID');
   assert.throws(() => assertExternalAnchorSocketPath('/opt/stay/current/anchor.sock'), error => error.code === 'SNTSS_EXTERNAL_ANCHOR_INVALID');
+  assert.throws(() => assertExternalAnchorSocketPath('/tmp/fake-anchor.sock'), error => error.code === 'SNTSS_EXTERNAL_ANCHOR_INVALID');
   assert.equal(assertExternalAnchorSocketPath('/run/stay-forensic-anchor/anchor.sock'), '/run/stay-forensic-anchor/anchor.sock');
+  assert.equal(
+    assertExternalAnchorSocketPath('/tmp/r11-anchor/anchor.sock', '/var/lib/stay/data', '/tmp/r11-anchor'),
+    '/tmp/r11-anchor/anchor.sock',
+    'laboratories may explicitly inject a different trusted socket root'
+  );
 
   const unit = await fs.readFile(path.join(__dirname, '..', 'deploy', 'systemd', 'stay-forensic-anchor.service'), 'utf8');
   assert.match(unit, /^User=stayanchor$/m);
   assert.match(unit, /^Group=staydeploy$/m);
   assert.match(unit, /^StateDirectory=stay-forensic-anchor$/m);
   assert.match(unit, /^StateDirectoryMode=0700$/m);
+  assert.match(unit, /^RuntimeDirectory=stay-forensic-anchor$/m);
   assert.match(unit, /^RuntimeDirectoryMode=0750$/m);
   assert.match(unit, /^PrivateNetwork=true$/m);
   assert.match(unit, /^RestrictAddressFamilies=AF_UNIX$/m);
@@ -165,13 +178,14 @@ test('R11-M03-05 anchor socket is forced outside StateStore/release paths and se
 test('R11-M03-06 external witness rate is bounded so forged-but-contiguous manifests cannot grow disk without limit', async t => {
   assert.equal(MAX_RECEIPTS_PER_MINUTE, 60);
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r11-m03-rate-'));
-  const socketPath = path.join(root, 'run', 'anchor.sock');
+  const trustedSocketRoot = path.join(root, 'run');
+  const socketPath = path.join(trustedSocketRoot, 'anchor.sock');
   const logPath = path.join(root, 'state', 'anchors.jsonl');
   const initial = hash({ initial: 'rate' });
   const now = () => '2026-08-16T10:31:00.000Z';
   const server = await createTrustedAnchorServer({ socketPath, logPath, initialAnchorHash: initial, now, maxReceiptsPerMinute: 2 });
   t.after(async () => { await server.close().catch(() => {}); await fs.rm(root, { recursive: true, force: true }); });
-  const sink = createUnixForensicAnchorSink({ socketPath, dataDir: path.join(root, 'data') });
+  const sink = createUnixForensicAnchorSink({ socketPath, trustedSocketRoot, dataDir: path.join(root, 'data') });
 
   const first = segment({ index: 1, first: 1, anchorHash: initial, headHash: hash({ rateHead: 1 }) });
   const second = segment({ index: 2, first: 9, anchorHash: first.headHash, headHash: hash({ rateHead: 2 }) });

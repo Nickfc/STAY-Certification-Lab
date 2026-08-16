@@ -4,24 +4,34 @@ const net = require('node:net');
 const path = require('node:path');
 const { verifySegmentManifest } = require('./sntss-observability');
 
-const DEFAULT_SOCKET_PATH = '/run/stay-forensic-anchor/anchor.sock';
+const DEFAULT_SOCKET_ROOT = '/run/stay-forensic-anchor';
+const DEFAULT_SOCKET_PATH = `${DEFAULT_SOCKET_ROOT}/anchor.sock`;
 const MAX_MESSAGE_BYTES = 4096;
 
 function fail(message, code = 'SNTSS_EXTERNAL_ANCHOR_INVALID') {
   throw Object.assign(new Error(message), { code });
 }
 
-function assertExternalAnchorSocketPath(socketPath, dataDir = '/var/lib/stay/data') {
+function isInside(root, target) {
+  return target.startsWith(root + path.sep);
+}
+
+function assertExternalAnchorSocketPath(socketPath, dataDir = '/var/lib/stay/data', trustedSocketRoot = DEFAULT_SOCKET_ROOT) {
   if (typeof socketPath !== 'string' || !path.isAbsolute(socketPath)) fail('forensic anchor socket path must be absolute');
+  if (typeof trustedSocketRoot !== 'string' || !path.isAbsolute(trustedSocketRoot)) fail('trusted forensic anchor socket root must be absolute');
   const resolved = path.resolve(socketPath);
+  const trustedRoot = path.resolve(trustedSocketRoot);
   const state = path.resolve(dataDir);
   if (resolved === state || resolved.startsWith(state + path.sep)) fail('forensic anchor socket cannot live inside the StateStore');
+  if (resolved === '/var/lib/stay' || resolved.startsWith('/var/lib/stay/')) fail('forensic anchor socket cannot live inside the organism service StateDirectory');
+  if (resolved === '/run/stay' || resolved.startsWith('/run/stay/')) fail('forensic anchor socket cannot live inside the organism service RuntimeDirectory');
   if (resolved === '/opt/stay' || resolved.startsWith('/opt/stay/')) fail('forensic anchor socket cannot live inside mutable release paths');
+  if (!isInside(trustedRoot, resolved)) fail('forensic anchor socket is outside the trusted witness runtime directory');
   return resolved;
 }
 
-function createUnixForensicAnchorSink({ socketPath = DEFAULT_SOCKET_PATH, timeoutMs = 1000, dataDir = '/var/lib/stay/data' } = {}) {
-  const target = assertExternalAnchorSocketPath(socketPath, dataDir);
+function createUnixForensicAnchorSink({ socketPath = DEFAULT_SOCKET_PATH, timeoutMs = 1000, dataDir = '/var/lib/stay/data', trustedSocketRoot = DEFAULT_SOCKET_ROOT } = {}) {
+  const target = assertExternalAnchorSocketPath(socketPath, dataDir, trustedSocketRoot);
   const timeout = Math.max(100, Math.min(10000, Number(timeoutMs) || 1000));
 
   return function externalAnchorSink(manifest) {
@@ -60,6 +70,7 @@ function createUnixForensicAnchorSink({ socketPath = DEFAULT_SOCKET_PATH, timeou
 }
 
 module.exports = {
+  DEFAULT_SOCKET_ROOT,
   DEFAULT_SOCKET_PATH,
   MAX_MESSAGE_BYTES,
   assertExternalAnchorSocketPath,

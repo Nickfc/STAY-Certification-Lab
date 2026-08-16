@@ -26,6 +26,18 @@ trusted stayanchor service
 
 The live organism StateStore is not mounted or referenced by the anchor service.
 
+## Trusted socket root
+
+Production anchoring is pinned to the separately owned runtime root:
+
+```text
+/run/stay-forensic-anchor/
+```
+
+The client rejects arbitrary absolute socket paths, including paths under the organism StateDirectory (`/var/lib/stay`), organism RuntimeDirectory (`/run/stay`), mutable release tree (`/opt/stay`) and unrelated locations such as `/tmp`. Laboratory tests may inject a different trusted socket root explicitly.
+
+This is important because `staydeploy` must not be able to create a fake Unix server and acknowledge its own forensic manifests. The production runtime directory is owned by `stayanchor`, mode `0750`; `staydeploy` may traverse/connect through the group but cannot create, replace or unlink the witness socket.
+
 ## External witness rules
 
 `deploy/trusted-forensic-anchor.js` is intended to be installed as a root-verified immutable trusted-boundary component at `/usr/local/lib/stay/trusted-forensic-anchor.js` before R11 host certification. Candidate release code must not become the trust root merely by copying itself there.
@@ -100,7 +112,7 @@ The source file is provisioned out-of-band by the R11 trust ceremony. Its exact 
 M-03 is not final-certified until the frozen candidate proves on the non-live certification host that:
 
 1. the trusted daemon was installed only after out-of-band hash/signature verification;
-2. `staydeploy` can connect to the anchor socket but cannot read, truncate, replace or delete the receipt ledger;
+2. `staydeploy` can connect to the anchor socket but cannot create/replace the socket or read, truncate, replace or delete the receipt ledger;
 3. `stayanchor` cannot access `/var/lib/stay/data` or release-write paths;
 4. a valid forensic segment produces one durable receipt and survives daemon/kernel restart;
 5. altered, omitted, reordered and non-contiguous segments are rejected;
