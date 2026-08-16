@@ -97,7 +97,7 @@ test('R11-C-01 Core output cannot forge Kernel provenance or downgrade durable d
   assert.equal(observed.meta.causeSequence, input.sequence);
   assert.equal(observed.meta.causalParent, input.id);
   assert.equal(observed.meta.outputIndex, 1);
-  assert.match(observed.meta.deduplicationKey, /^core-output:sha256:[0-9a-f]{64}$/);
+  assert.match(observed.meta.deduplicationKey, /^core-output:[0-9a-f]{64}$/);
   assert.notEqual(observed.meta.deduplicationKey, 'forged-deduplication-key');
   assert.equal(observed.meta.deadlineAt, undefined);
   assert.equal(observed.meta.evidenceHash, undefined);
