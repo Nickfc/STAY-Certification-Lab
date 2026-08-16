@@ -31,8 +31,8 @@
     {
       "id": "M-03",
       "title": "forensic anchor hook is not yet independently retained",
-      "status": "OPEN",
-      "requiredClosure": "external anchor sink outside mutable StateStore trust domain configured and proven"
+      "status": "CLOSED_IN_CANDIDATE_PENDING_HOST_PROOF",
+      "requiredClosure": "separate stayanchor Unix-socket witness and hash-chained external receipt ledger are implemented; frozen-host proof must establish OS separation and retained append-only evidence"
     }
   ],
   "domains": [
@@ -47,7 +47,7 @@
     {"id":"R11-I","title":"StateStore corruption","state":"PLANNED","hostEvidence":false,"requiredEvidence":["corruption-regression","recovery-integrity-evidence"]},
     {"id":"R11-J","title":"Migration corruption","state":"PLANNED","hostEvidence":false,"requiredEvidence":["migration-regression","forward-backward-invariant-evidence"]},
     {"id":"R11-K","title":"Privacy leakage","state":"PLANNED_HOST_PROOF","hostEvidence":true,"requiredEvidence":["surface-regression","operator-authentication-evidence","host-operator-auth-probe"]},
-    {"id":"R11-L","title":"Forensic tampering","state":"BLOCKED_ON_M03","hostEvidence":true,"requiredEvidence":["forensic-tamper-regression","external-anchor-evidence"]},
+    {"id":"R11-L","title":"Forensic tampering","state":"PLANNED_HOST_PROOF","hostEvidence":true,"requiredEvidence":["forensic-tamper-regression","external-anchor-evidence","host-anchor-isolation-proof"]},
     {"id":"R11-M","title":"Observer failure","state":"PLANNED","hostEvidence":false,"requiredEvidence":["observer-failure-regression","fail-visible-bounded-evidence"]},
     {"id":"R11-N","title":"Resource exhaustion","state":"BLOCKED_ON_R8","hostEvidence":true,"requiredEvidence":["resource-regression","r8-24h-acceptance","host-pressure-evidence"]},
     {"id":"R11-O","title":"Restart crash and replay","state":"PLANNED","hostEvidence":true,"requiredEvidence":["restart-replay-regression","host-lifecycle-fault-transcript"]},
