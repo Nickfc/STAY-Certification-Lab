@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { LivingKernel } = require('../runtime');
 const { CoreRevocationRegistry } = require('../runtime/kernel/revocation-registry');
+const { inspectCoreModule } = require('../runtime/kernel/core-loader');
 const { makeKernel, fs, path } = require('./helpers');
 
 const v1 = path.join(__dirname, 'fixtures', 'cores', 'counter-v1.js');
@@ -17,7 +18,7 @@ async function cleanupKernel(kernel, dataDir) {
 test('R11-M02-01 exact module revocation blocks initial activation before a CoreHost is built', async t => {
   const { kernel, dataDir } = await makeKernel();
   t.after(() => cleanupKernel(kernel, dataDir));
-  const definition = await kernel.upgrades.inspect(v1);
+  const definition = await inspectCoreModule(v1);
   assert.match(definition.moduleDigest, /^sha256:[0-9a-f]{64}$/);
   kernel.registry.revokeCore({
     coreId: definition.manifest.coreId,
@@ -94,7 +95,7 @@ test('R11-M02-04 revocation ledger is append-only, idempotent, hash-chained and 
     if (kernel.stateStore.db) await kernel.stop().catch(() => {});
     await fs.rm(dataDir, { recursive: true, force: true });
   });
-  const definition = await kernel.upgrades.inspect(v1);
+  const definition = await inspectCoreModule(v1);
   const first = kernel.registry.revokeCore({
     coreId: 'test-counter',
     moduleDigest: definition.moduleDigest,
@@ -125,8 +126,8 @@ test('R11-M02-04 revocation ledger is append-only, idempotent, hash-chained and 
 test('R11-M02-05 unrelated revocations do not block another exact implementation and there is no un-revoke API', async t => {
   const { kernel, dataDir } = await makeKernel();
   t.after(() => cleanupKernel(kernel, dataDir));
-  const d1 = await kernel.upgrades.inspect(v1);
-  const d2 = await kernel.upgrades.inspect(v2);
+  const d1 = await inspectCoreModule(v1);
+  const d2 = await inspectCoreModule(v2);
   kernel.registry.revokeCore({
     coreId: 'test-counter',
     moduleDigest: d2.moduleDigest,
