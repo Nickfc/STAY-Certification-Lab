@@ -7,7 +7,7 @@
   "description": "STAY Permanent Living Foundation pre-certification runtime: isolated CoreHosts, transactional continuity and governed browser compute.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server-secure.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "test:continuity": "node scripts/continuity-check.js",
     "test:faults": "node scripts/failure-injection-lab.js",

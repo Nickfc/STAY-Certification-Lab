@@ -10,7 +10,7 @@ Type=simple
 User=staydeploy
 Group=staydeploy
 WorkingDirectory=/opt/stay/current
-ExecStart=/usr/bin/env node --disable-sigusr1 /opt/stay/current/server.js
+ExecStart=/usr/bin/env node --disable-sigusr1 /opt/stay/current/server-secure.js
 Restart=on-failure
 RestartSec=3
 KillSignal=SIGTERM
@@ -44,7 +44,9 @@ Environment=STAY_REQUIRE_CORE_PACKAGE_POLICY=1
 Environment=STAY_REQUIRE_CORE_PROMOTION_CERT=1
 Environment=STAY_CORE_PROMOTION_PUBLIC_KEY=/etc/stay/release-authority.pub
 Environment=STAY_CORE_PROMOTION_CERT_DIR=/etc/stay/core-promotions
+Environment=STAY_OPERATOR_STATUS_TOKEN_FILE=/run/credentials/stay.service/operator-status-token
 Environment=STAY_EXPECTED_HIBERNATION_SHA256=b45d6addd70b13bfa684f53c075edb3ca6a76bae7d7384849f84a1df2d7d073d
+LoadCredential=operator-status-token:/etc/stay/operator-status.token
 
 NoNewPrivileges=true
 PrivateTmp=true

@@ -19,16 +19,19 @@
     {
       "id": "M-01",
       "title": "privileged runtime status lacks application-layer operator authentication",
-      "requiredClosure": "authenticated operator-only status path or local operator channel"
+      "status": "CLOSED_IN_CANDIDATE_PENDING_HOST_PROOF",
+      "requiredClosure": "secure Node operator-status guard plus systemd credential is implemented; frozen-host proof must verify authentication and secret non-leakage"
     },
     {
       "id": "M-02",
       "title": "standby rollback lacks explicit durable revocation registry",
+      "status": "OPEN",
       "requiredClosure": "revocation table keyed by package/module digest and implementation identity checked before reactivation"
     },
     {
       "id": "M-03",
       "title": "forensic anchor hook is not yet independently retained",
+      "status": "OPEN",
       "requiredClosure": "external anchor sink outside mutable StateStore trust domain configured and proven"
     }
   ],
@@ -43,7 +46,7 @@
     {"id":"R11-H","title":"Rollback and revocation","state":"BLOCKED_ON_M02","hostEvidence":true,"requiredEvidence":["rollback-regression","revocation-registry-evidence","host-rollback-rehearsal"]},
     {"id":"R11-I","title":"StateStore corruption","state":"PLANNED","hostEvidence":false,"requiredEvidence":["corruption-regression","recovery-integrity-evidence"]},
     {"id":"R11-J","title":"Migration corruption","state":"PLANNED","hostEvidence":false,"requiredEvidence":["migration-regression","forward-backward-invariant-evidence"]},
-    {"id":"R11-K","title":"Privacy leakage","state":"BLOCKED_ON_M01","hostEvidence":false,"requiredEvidence":["surface-regression","operator-authentication-evidence"]},
+    {"id":"R11-K","title":"Privacy leakage","state":"PLANNED_HOST_PROOF","hostEvidence":true,"requiredEvidence":["surface-regression","operator-authentication-evidence","host-operator-auth-probe"]},
     {"id":"R11-L","title":"Forensic tampering","state":"BLOCKED_ON_M03","hostEvidence":true,"requiredEvidence":["forensic-tamper-regression","external-anchor-evidence"]},
     {"id":"R11-M","title":"Observer failure","state":"PLANNED","hostEvidence":false,"requiredEvidence":["observer-failure-regression","fail-visible-bounded-evidence"]},
     {"id":"R11-N","title":"Resource exhaustion","state":"BLOCKED_ON_R8","hostEvidence":true,"requiredEvidence":["resource-regression","r8-24h-acceptance","host-pressure-evidence"]},

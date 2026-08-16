@@ -47,7 +47,7 @@ test('R11-00 certification matrix is complete and remains blocked before host ev
 
 test('R11-01 host-dependent attack domains cannot be satisfied by repository tests alone', () => {
   const matrix = loadMatrix();
-  const requiredHostDomains = ['R11-B','R11-F','R11-G','R11-H','R11-L','R11-N','R11-O','R11-Q'];
+  const requiredHostDomains = ['R11-B','R11-F','R11-G','R11-H','R11-K','R11-L','R11-N','R11-O','R11-Q'];
   for (const id of requiredHostDomains) {
     const domain = matrix.domains.find(item => item.id === id);
     assert.ok(domain, id);
@@ -55,10 +55,16 @@ test('R11-01 host-dependent attack domains cannot be satisfied by repository tes
   }
 });
 
-test('R11-02 all R10.5 residual medium findings are explicit certification gates', () => {
+test('R11-02 R10.5 residual medium findings stay explicit as they move through closure', () => {
   const matrix = loadMatrix();
   assert.deepEqual(matrix.residualMediums.map(item => item.id), ['M-01','M-02','M-03']);
-  assert.ok(matrix.domains.find(item => item.id === 'R11-K').state.includes('M01'));
+  const m01 = matrix.residualMediums.find(item => item.id === 'M-01');
+  const m02 = matrix.residualMediums.find(item => item.id === 'M-02');
+  const m03 = matrix.residualMediums.find(item => item.id === 'M-03');
+  assert.equal(m01.status, 'CLOSED_IN_CANDIDATE_PENDING_HOST_PROOF');
+  assert.equal(m02.status, 'OPEN');
+  assert.equal(m03.status, 'OPEN');
+  assert.equal(matrix.domains.find(item => item.id === 'R11-K').state, 'PLANNED_HOST_PROOF');
   assert.ok(matrix.domains.find(item => item.id === 'R11-H').state.includes('M02'));
   assert.ok(matrix.domains.find(item => item.id === 'R11-L').state.includes('M03'));
   for (const medium of matrix.residualMediums) assert.ok(medium.requiredClosure && medium.requiredClosure.length > 20);
