@@ -57,14 +57,29 @@ echo "  commit $COMMIT"
 sudo -u "$STAY_USER" git -C "$SOURCE" archive --format=tar --output="$BUILD_DIR/source.tar" "$COMMIT"
 sudo -u "$STAY_USER" tar -xf "$BUILD_DIR/source.tar" -C "$BUILD_DIR"
 rm "$BUILD_DIR/source.tar"
-"$NODE" -e "require('fs').writeFileSync(process.argv[1], JSON.stringify({format:'stay-release-provenance-v1',version:process.argv[2],commit:process.argv[3],builder:'stay-deploy-git',branch:process.argv[4]}, null, 2) + '\n')" "$BUILD_DIR/RELEASE_PROVENANCE.json" "$VERSION" "$COMMIT" "$BRANCH"
-chown -R "$STAY_USER:$STAY_USER" "$BUILD_DIR"
-sudo -u "$STAY_USER" tar -C "$BUILD_DIR" --exclude='./source.tar' -czf "$ARCHIVE.tmp" .
+rm -rf "$BUILD_DIR/data" "$BUILD_DIR/.stay-data" "$BUILD_DIR/release-output"
+
+RELEASE_CONTROL="$BUILD_DIR/runtime/release/sntss-release-control.js"
+if [[ ! -f "$RELEASE_CONTROL" ]]; then
+  echo "ERROR: R10 release-control module is missing from candidate." >&2
+  exit 2
+fi
+
+sudo -u "$STAY_USER" "$NODE" "$RELEASE_CONTROL" emit --root "$BUILD_DIR" --version "$VERSION" --commit "$COMMIT" --builder stay-deploy-git --branch "$BRANCH"
+sudo -u "$STAY_USER" "$NODE" "$RELEASE_CONTROL" verify --root "$BUILD_DIR"
+
+sudo -u "$STAY_USER" bash -c "tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -C '$BUILD_DIR' -cf - . | gzip -n > '$ARCHIVE.tmp'"
 chown "$STAY_USER:$STAY_USER" "$ARCHIVE.tmp"
 chmod 0600 "$ARCHIVE.tmp"
 mv "$ARCHIVE.tmp" "$ARCHIVE"
 sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 chown "$STAY_USER:$STAY_USER" "$ARCHIVE.sha256"
 chmod 0600 "$ARCHIVE.sha256"
+
+if [[ "${STAY_STAGE_ONLY:-0}" == "1" ]]; then
+  echo "STAGE ONLY: archive and sidecar created; live deployment was not invoked."
+  echo "$ARCHIVE"
+  exit 0
+fi
 
 exec /usr/local/sbin/stay-deploy "$ARCHIVE"
