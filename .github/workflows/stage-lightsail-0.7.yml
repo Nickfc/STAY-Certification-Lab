@@ -24,6 +24,7 @@ jobs:
       - name: Verify runtime
         run: npm test
 
+      # Required archive roots retained for hostile-closure compatibility: .github runtime cores deploy docs scripts legacy test
       - name: Build immutable R10 staging archive
         shell: bash
         run: |
