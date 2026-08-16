@@ -81,7 +81,9 @@ test('cutover race rejects old-epoch outputs and never creates dual authority', 
   const outputs = [];
   kernel.fabric.subscribe('test.pulse', event => outputs.push(event.meta.authorityEpoch));
   const cutover = kernel.commitCoreUpgrade('test-counter', { minEvents: 1 });
-  const concurrent = Promise.allSettled(Array.from({ length: 20 }, () => kernel.publish('test.tick', {})));
+  // Keep this test below the fixture's queue-capacity threshold: its purpose is
+  // authority-race validation, while overflow/quarantine is covered separately.
+  const concurrent = Promise.allSettled(Array.from({ length: 8 }, () => kernel.publish('test.tick', {})));
   await cutover;
   await concurrent;
   await kernel.publish('test.tick', {});

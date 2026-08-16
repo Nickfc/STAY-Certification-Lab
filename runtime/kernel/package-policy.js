@@ -20,9 +20,7 @@ const FORBIDDEN_SOURCE = Object.freeze([
   /\bprocess\s*(?:\.|\[)/, /\bsetInterval\s*\(/, /\bsetTimeout\s*\(/, /\bsetImmediate\s*\(/,
   /\beval\s*\(/, /\bnew\s+Function\b/, /\bimport\s*\(/, /\bfetch\s*\(/, /\bWebSocket\b/
 ]);
-const SHARED_ABI_FILES = new Set([
-  fs.realpathSync.native(path.join(__dirname, 'canonical-json.js'))
-]);
+const SHARED_ABI_RELATIVE = '../../../runtime/kernel/canonical-json.js';
 
 function fail(message, code = 'CORE_PACKAGE_POLICY_INVALID') {
   throw Object.assign(new Error(message), { code });
@@ -47,7 +45,8 @@ function auditSourceText(source, allowedBuiltins = [], allowedRelativeDependenci
   for (const pattern of FORBIDDEN_SOURCE) if (pattern.test(source)) fail(`package source contains forbidden capability syntax: ${pattern}`, 'CORE_PACKAGE_CAPABILITY_DENIED');
   const literalRequires = [...source.matchAll(/\brequire\s*\(\s*(['"])([^'"]+)\1\s*\)/g)].map(match => match[2]);
   const requireCalls = [...source.matchAll(/\brequire\s*\(/g)].length;
-  if (requireCalls !== literalRequires.length || /\b(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*require\b/.test(source)) {
+  const aliasedRequire = /\b(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*require\b(?!\s*\()/.test(source);
+  if (requireCalls !== literalRequires.length || aliasedRequire) {
     fail('aliased or dynamic require is forbidden', 'CORE_PACKAGE_DEPENDENCY_DENIED');
   }
   for (const request of literalRequires) {
@@ -82,12 +81,19 @@ function enforcePackagePolicy(modulePath) {
   const { policy, policyPath, root, entrypoint } = record;
   exactKeys(policy.files, Object.keys(policy.files), 'package file inventory');
   const allowedFiles = new Map();
+  const releaseRoot = path.resolve(root, '../../..');
+  const sharedAbiPath = path.resolve(root, SHARED_ABI_RELATIVE);
+  const sharedAbiCanonical = fs.existsSync(sharedAbiPath) ? fs.realpathSync.native(sharedAbiPath) : null;
   for (const [relative, expectedHash] of Object.entries(policy.files)) {
     if (!HASH.test(expectedHash)) fail(`package file hash is invalid: ${relative}`);
     const candidate = path.resolve(root, relative);
     if (!fs.existsSync(candidate)) fail(`package file is missing: ${relative}`, 'CORE_PACKAGE_FILE_MISSING');
     const canonical = fs.realpathSync.native(candidate);
-    if (!inside(root, canonical) && !SHARED_ABI_FILES.has(canonical)) {
+    const trustedSharedAbi = relative === SHARED_ABI_RELATIVE
+      && sharedAbiCanonical !== null
+      && canonical === sharedAbiCanonical
+      && inside(releaseRoot, canonical);
+    if (!inside(root, canonical) && !trustedSharedAbi) {
       fail(`package file escapes its package and trusted ABI: ${relative}`, 'CORE_PACKAGE_PATH_DENIED');
     }
     if (canonical === policyPath) fail('package policy cannot self-attest');
@@ -122,6 +128,6 @@ function verifyManifestAgainstPackagePolicy(record, manifest) {
 }
 
 module.exports = {
-  POLICY_FILE, EXPECTED_ENVIRONMENT, SHARED_ABI_FILES, auditSourceText, readPackagePolicy, enforcePackagePolicy,
+  POLICY_FILE, EXPECTED_ENVIRONMENT, SHARED_ABI_RELATIVE, auditSourceText, readPackagePolicy, enforcePackagePolicy,
   verifyManifestAgainstPackagePolicy, digest
 };

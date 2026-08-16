@@ -94,7 +94,11 @@ test('R2-05: a conflicting later binding fails closed without replacing acquired
   const before = await kernel.stateStore.readAuthoritativeCheckpoint('sntss');
   const fakeHash = 'sha256:' + crypto.createHash('sha256').update('not-this-organism').digest('hex');
   const accepted = before.state.organismBinding;
-  await assert.rejects(() => kernel.publish('runtime.organism.binding', {
+  // Bypass the hardened public Kernel publisher deliberately: this test models a
+  // forged durable envelope already inside EventFabric and proves SNTSS itself
+  // still rejects the conflicting organism binding. R10.5-11 separately proves
+  // callers cannot forge these provenance fields through kernel.publish().
+  await assert.rejects(() => kernel.fabric.publish('runtime.organism.binding', {
     bindingVersion: accepted.bindingVersion,
     identitySha256: fakeHash,
     organismLineage: accepted.organismLineage,

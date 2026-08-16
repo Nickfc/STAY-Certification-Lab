@@ -185,7 +185,7 @@ echo "-- Host-owned signature, provenance and byte-inventory verification"
 
 PROVENANCE_FORMAT="$("$NODE" -e "const p=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); process.stdout.write(String(p.format||''))" "$WORK/RELEASE_PROVENANCE.json")"
 STATE_ROLLBACK_POLICY="$("$NODE" -e "const p=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); process.stdout.write(String(p.stateRollbackPolicy||''))" "$WORK/RELEASE_PROVENANCE.json")"
-if [[ "$PROVENANCE_FORMAT" != "stay-release-provenance-v2" || "$STATE_ROLLBACK_POLICY" != "preserve-forward-state ]]; then echo "ERROR: R10 provenance contract missing" >&2; false; fi
+if [[ "$PROVENANCE_FORMAT" != "stay-release-provenance-v2" || "$STATE_ROLLBACK_POLICY" != "preserve-forward-state" ]]; then echo "ERROR: R10 provenance contract missing" >&2; false; fi
 
 # Parsing candidate JS is non-executing. Executable preflight happens only inside
 # a disposable bubblewrap namespace with no /var/lib/stay, no network and a
