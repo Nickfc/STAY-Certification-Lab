@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://sntss/operator-health.schema.json",
+  "title": "STAY SNTSS operator observability surface",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "ok", "transitionCount", "retainedForensicRecords", "rotatedSegments", "telemetryDrops", "sinkFailures", "chainHeadHash", "lastStatus", "lastReasonCode", "profileHash", "candidateVersion", "alerts"],
+  "properties": {
+    "format": { "const": "stay-sntss-operator-health-v1" },
+    "ok": { "type": "boolean" },
+    "transitionCount": { "type": "integer", "minimum": 0 },
+    "retainedForensicRecords": { "type": "integer", "minimum": 0, "maximum": 65536 },
+    "rotatedSegments": { "type": "integer", "minimum": 0, "maximum": 1024 },
+    "telemetryDrops": { "type": "integer", "minimum": 0 },
+    "sinkFailures": { "type": "integer", "minimum": 0 },
+    "chainHeadHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "lastStatus": { "type": ["string", "null"], "maxLength": 32 },
+    "lastReasonCode": { "type": ["string", "null"], "maxLength": 128 },
+    "profileHash": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
+    "candidateVersion": { "type": ["string", "null"], "maxLength": 64 },
+    "alerts": { "type": "array", "maxItems": 8, "items": { "type": "string", "maxLength": 128 } }
+  }
+}

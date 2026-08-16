@@ -21,6 +21,8 @@
     "evidence:sntss-r7": "node scripts/sntss-r7-lineage-lab.js",
     "test:sntss-r8": "node --test --test-concurrency=1 test/sntss-containment.test.js test/corehost.test.js test/audit-regressions.test.js test/hostile-closure.test.js",
     "evidence:sntss-r8": "node scripts/sntss-r8-containment-lab.js",
+    "test:sntss-r9": "node --test --test-concurrency=1 test/sntss-observability.test.js",
+    "evidence:sntss-r9": "node scripts/sntss-r9-observability-lab.js",
     "test:smoke": "node scripts/endurance-runner.js --seconds 15",
     "endurance:24h": "node scripts/endurance-runner.js --hours 24",
     "endurance:72h": "node scripts/endurance-runner.js --hours 72"
