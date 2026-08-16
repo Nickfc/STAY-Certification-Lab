@@ -151,13 +151,15 @@ class RuntimeSlot {
       }
       unit.authoritativeOutputs += 1;
       if (this.candidate?.evidence) this.candidate.evidence.recordActive({ eventSequence, topic, payload });
+      // outputIndex is authored by the trusted sandbox supervisor after candidate metadata.
+      // All other delivery/provenance metadata is reconstructed here from Kernel authority.
       const outputIndex = Number(message.meta?.outputIndex) || 0;
       const deduplicationKey = 'core-output:' + crypto.createHash('sha256').update(stableStringify({
         protocol: 'stay-core-output-v1', coreId: this.coreId, authorityEpoch: this.authorityEpoch,
         causeSequence: eventSequence, outputIndex, topic, payload
       })).digest('hex');
       await this.fabric.publish(topic, payload, {
-        ...message.meta,
+        outputIndex,
         sourceCore: this.coreId,
         sourceVersion: unit.manifest.version,
         sourceInstanceId: unit.instanceId,
@@ -165,7 +167,7 @@ class RuntimeSlot {
         causeSequence: eventSequence,
         causalParent: message.context?.eventId || null,
         deduplicationKey,
-        eventClass: message.meta?.eventClass || 'durable'
+        eventClass: 'durable'
       });
       return;
     }
