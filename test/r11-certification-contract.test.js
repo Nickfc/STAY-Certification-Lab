@@ -7,23 +7,13 @@ const path = require('node:path');
 
 const matrixPath = path.resolve(__dirname, '../docs/sntss/R11_CERTIFICATION_MATRIX.json');
 const contractPath = path.resolve(__dirname, '../docs/sntss/R11_COMPLETE_LABORATORY_CERTIFICATION.md');
+const attackMapPath = path.resolve(__dirname, '../docs/sntss/R11_REPOSITORY_ATTACK_MAP.json');
 
-function loadMatrix() {
-  return JSON.parse(fs.readFileSync(matrixPath, 'utf8'));
-}
+function loadMatrix() { return JSON.parse(fs.readFileSync(matrixPath, 'utf8')); }
+function loadAttackMap() { return JSON.parse(fs.readFileSync(attackMapPath, 'utf8')); }
 
-const REQUIRED_DOMAINS = [
-  'R11-A','R11-B','R11-C','R11-D','R11-E','R11-F','R11-G','R11-H','R11-I',
-  'R11-J','R11-K','R11-L','R11-M','R11-N','R11-O','R11-P','R11-Q'
-];
-
-const REQUIRED_BLOCKERS = [
-  'R8_24H_HOST_ENDURANCE_ACCEPTED',
-  'TRUST_BOOTSTRAP_CEREMONY_EXECUTED',
-  'BUBBLEWRAP_HOST_ESCAPE_PROBES_PASSED',
-  'R10_SIGNED_RELEASE_REHEARSAL_PASSED',
-  'R10_5_MEDIUM_FINDINGS_CLOSED_OR_EXPLICITLY_BLOCKED'
-];
+const REQUIRED_DOMAINS = ['R11-A','R11-B','R11-C','R11-D','R11-E','R11-F','R11-G','R11-H','R11-I','R11-J','R11-K','R11-L','R11-M','R11-N','R11-O','R11-P','R11-Q'];
+const REQUIRED_BLOCKERS = ['R8_24H_HOST_ENDURANCE_ACCEPTED','TRUST_BOOTSTRAP_CEREMONY_EXECUTED','BUBBLEWRAP_HOST_ESCAPE_PROBES_PASSED','R10_SIGNED_RELEASE_REHEARSAL_PASSED','R10_5_MEDIUM_FINDINGS_CLOSED_OR_EXPLICITLY_BLOCKED'];
 
 test('R11-00 certification matrix is complete and remains blocked before host evidence', () => {
   const matrix = loadMatrix();
@@ -41,6 +31,8 @@ test('R11-00 certification matrix is complete and remains blocked before host ev
   assert.equal(matrix.domains.length, 17);
   for (const domain of matrix.domains) {
     assert.notEqual(domain.state, 'PASS', `${domain.id} must not be pre-certified`);
+    assert.equal(domain.repositoryState, 'PASS', `${domain.id} repository precertification`);
+    assert.equal(domain.hostState, domain.hostEvidence ? 'PENDING' : 'NOT_REQUIRED');
     assert.ok(Array.isArray(domain.requiredEvidence) && domain.requiredEvidence.length >= 2, `${domain.id} evidence contract`);
   }
 });
@@ -52,6 +44,8 @@ test('R11-01 host-dependent attack domains cannot be satisfied by repository tes
     const domain = matrix.domains.find(item => item.id === id);
     assert.ok(domain, id);
     assert.equal(domain.hostEvidence, true, `${id} must require host evidence`);
+    assert.equal(domain.hostState, 'PENDING');
+    assert.notEqual(domain.state, 'PASS');
   }
 });
 
@@ -69,10 +63,7 @@ test('R11-02 all R10.5 residual medium findings are closed in candidate only and
 
 test('R11-03 freeze contract prevents code drift and never grants live chemistry', () => {
   const matrix = loadMatrix();
-  const required = [
-    'ALL_17_DOMAINS_PASS','ALL_HOST_EVIDENCE_PRESENT','M01_CLOSED','M02_CLOSED','M03_CLOSED',
-    'ZERO_OPEN_CRITICAL','ZERO_OPEN_HIGH','ZERO_UNEXPLAINED_MEDIUM','FULL_SUITE_GREEN_ON_EXACT_SHA','INDEPENDENT_REVIEW_ACCEPTED'
-  ];
+  const required = ['ALL_17_DOMAINS_PASS','ALL_HOST_EVIDENCE_PRESENT','M01_CLOSED','M02_CLOSED','M03_CLOSED','ZERO_OPEN_CRITICAL','ZERO_OPEN_HIGH','ZERO_UNEXPLAINED_MEDIUM','FULL_SUITE_GREEN_ON_EXACT_SHA','INDEPENDENT_REVIEW_ACCEPTED'];
   for (const gate of required) assert.ok(matrix.freezeRequirements.includes(gate), gate);
   assert.ok(matrix.freezeInventory.includes('gitCommitSha'));
   assert.ok(matrix.freezeInventory.includes('sntssPackageDigest'));
@@ -91,4 +82,17 @@ test('R11-04 human contract preserves neutral-first and no-live-testing boundari
   assert.match(doc, /no runtime-bearing file may change/i);
   assert.match(doc, /rollback may restore code authority but may never rewind acquired biological state/i);
   assert.match(doc, /repository tests cannot substitute for physical namespace, cgroup, bootstrap, process, network and filesystem evidence/i);
+});
+
+test('R11-06 repository precertification is complete without weakening the formal entrance gate', () => {
+  const matrix = loadMatrix();
+  const attackMap = loadAttackMap();
+  assert.equal(matrix.repositoryPrecertification.status, 'PASS');
+  assert.equal(matrix.repositoryPrecertification.scope, 'repository-and-ci-only');
+  assert.equal(matrix.repositoryPrecertification.hostEvidenceMayNotBeSynthesized, true);
+  assert.equal(matrix.repositoryPrecertification.attackMapHash, attackMap.attackMapHash);
+  assert.equal(matrix.repositoryPrecertification.fullSuiteCommand, 'npm test');
+  assert.equal(matrix.repositoryPrecertification.zeroSkippedRequired, true);
+  assert.equal(matrix.status, 'DESIGNED_BLOCKED');
+  assert.ok(matrix.entranceBlockers.length > 0);
 });

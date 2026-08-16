@@ -25,6 +25,8 @@
     "evidence:sntss-r9": "node scripts/sntss-r9-observability-lab.js",
     "test:sntss-r10": "node --test --test-concurrency=1 test/sntss-release.test.js",
     "evidence:sntss-r10": "node scripts/sntss-r10-release-lab.js",
+    "test:sntss-r11-repo": "node scripts/sntss-r11-repository-suite.js",
+    "status:sntss-r11": "node scripts/sntss-r11-certification-status.js",
     "test:smoke": "node scripts/endurance-runner.js --seconds 15",
     "endurance:24h": "node scripts/endurance-runner.js --hours 24",
     "endurance:72h": "node scripts/endurance-runner.js --hours 72"
