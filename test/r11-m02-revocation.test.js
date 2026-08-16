@@ -26,7 +26,11 @@ test('R11-M02-01 exact module revocation blocks initial activation before a Core
     reasonCode: 'R11_TEST_MODULE'
   });
   await assert.rejects(() => kernel.installCore(v1), error => error.code === 'CORE_REVOKED');
-  assert.equal(kernel.registry.get('test-counter'), null);
+  const blockedSlot = kernel.registry.get('test-counter');
+  assert.ok(blockedSlot, 'registry may allocate an inert slot before activation checks');
+  assert.equal(blockedSlot.active, null);
+  assert.equal(blockedSlot.candidate, null);
+  assert.equal(blockedSlot.standby, null);
   assert.equal(kernel.stateStore.getAuthority('test-counter'), null);
 });
 
