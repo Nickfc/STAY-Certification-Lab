@@ -62,10 +62,10 @@ test('R11-02 R10.5 residual medium findings stay explicit as they move through c
   const m02 = matrix.residualMediums.find(item => item.id === 'M-02');
   const m03 = matrix.residualMediums.find(item => item.id === 'M-03');
   assert.equal(m01.status, 'CLOSED_IN_CANDIDATE_PENDING_HOST_PROOF');
-  assert.equal(m02.status, 'OPEN');
+  assert.equal(m02.status, 'CLOSED_IN_CANDIDATE_PENDING_HOST_PROOF');
   assert.equal(m03.status, 'OPEN');
   assert.equal(matrix.domains.find(item => item.id === 'R11-K').state, 'PLANNED_HOST_PROOF');
-  assert.ok(matrix.domains.find(item => item.id === 'R11-H').state.includes('M02'));
+  assert.equal(matrix.domains.find(item => item.id === 'R11-H').state, 'PLANNED_HOST_PROOF');
   assert.ok(matrix.domains.find(item => item.id === 'R11-L').state.includes('M03'));
   for (const medium of matrix.residualMediums) assert.ok(medium.requiredClosure && medium.requiredClosure.length > 20);
 });

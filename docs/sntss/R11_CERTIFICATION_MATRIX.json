@@ -25,8 +25,8 @@
     {
       "id": "M-02",
       "title": "standby rollback lacks explicit durable revocation registry",
-      "status": "OPEN",
-      "requiredClosure": "revocation table keyed by package/module digest and implementation identity checked before reactivation"
+      "status": "CLOSED_IN_CANDIDATE_PENDING_HOST_PROOF",
+      "requiredClosure": "append-only hash-chained Kernel revocation registry is implemented and enforced before activation; frozen-host rollback rehearsal must prove persistence and fail-closed reactivation"
     },
     {
       "id": "M-03",
@@ -43,7 +43,7 @@
     {"id":"R11-E","title":"Package substitution","state":"PLANNED","hostEvidence":false,"requiredEvidence":["executable-regression","package-policy-digest"]},
     {"id":"R11-F","title":"Release substitution","state":"BLOCKED_ON_HOST","hostEvidence":true,"requiredEvidence":["executable-regression","signed-release-rehearsal"]},
     {"id":"R11-G","title":"Trust-root substitution","state":"BLOCKED_ON_HOST","hostEvidence":true,"requiredEvidence":["bootstrap-regression","out-of-band-bootstrap-transcript"]},
-    {"id":"R11-H","title":"Rollback and revocation","state":"BLOCKED_ON_M02","hostEvidence":true,"requiredEvidence":["rollback-regression","revocation-registry-evidence","host-rollback-rehearsal"]},
+    {"id":"R11-H","title":"Rollback and revocation","state":"PLANNED_HOST_PROOF","hostEvidence":true,"requiredEvidence":["rollback-regression","revocation-registry-evidence","host-rollback-rehearsal"]},
     {"id":"R11-I","title":"StateStore corruption","state":"PLANNED","hostEvidence":false,"requiredEvidence":["corruption-regression","recovery-integrity-evidence"]},
     {"id":"R11-J","title":"Migration corruption","state":"PLANNED","hostEvidence":false,"requiredEvidence":["migration-regression","forward-backward-invariant-evidence"]},
     {"id":"R11-K","title":"Privacy leakage","state":"PLANNED_HOST_PROOF","hostEvidence":true,"requiredEvidence":["surface-regression","operator-authentication-evidence","host-operator-auth-probe"]},

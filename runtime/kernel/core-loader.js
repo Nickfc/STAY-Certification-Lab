@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const crypto = require('node:crypto');
 const { fork } = require('node:child_process');
 const { validateManifest } = require('./manifest');
@@ -18,12 +19,14 @@ async function waitForExit(child, timeoutMs) {
   ]).finally(() => clearTimeout(timer));
   return hasExited(child);
 }
+function sha256(bytes) { return 'sha256:' + crypto.createHash('sha256').update(bytes).digest('hex'); }
 
 async function inspectCoreModule(modulePath, timeoutMs = 5000) {
   // Static package attestation happens in the trusted Kernel process. Executable
   // manifest inspection happens in the CoreHost worker, which is OS-sandboxed
   // whenever production requires hostile-code containment.
   const absolute = canonicalCoreModulePath(modulePath);
+  const moduleDigest = sha256(fs.readFileSync(absolute));
   const packagePolicy = enforcePackagePolicy(absolute);
   const compatibility = isLegacyCompatibilityCore(absolute);
   const child = fork(HOST_PATH, [], {
@@ -55,7 +58,13 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
     });
     const manifest = validateManifest(result.manifest);
     verifyManifestAgainstPackagePolicy(packagePolicy, manifest);
-    return { modulePath: absolute, manifest, packagePolicy: packagePolicy?.policy || null };
+    return Object.freeze({
+      modulePath: absolute,
+      moduleDigest,
+      packagePolicyHash: packagePolicy?.policy?.policyHash || null,
+      manifest,
+      packagePolicy: packagePolicy?.policy || null
+    });
   } finally {
     clearTimeout(timer);
     if (!hasExited(child)) child.kill('SIGTERM');
