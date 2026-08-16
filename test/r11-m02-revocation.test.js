@@ -144,3 +144,25 @@ test('R11-M02-05 unrelated revocations do not block another exact implementation
   const methods = Object.getOwnPropertyNames(CoreRevocationRegistry.prototype);
   assert.equal(methods.some(name => /unrevoke|delete|remove|clear/i.test(name)), false);
 });
+
+test('R11-M02-06 damaged revocation history blocks unrelated activation and further revocation writes', async t => {
+  const { kernel, dataDir } = await makeKernel();
+  t.after(() => cleanupKernel(kernel, dataDir));
+  const d1 = await inspectCoreModule(v1);
+  const d2 = await inspectCoreModule(v2);
+  kernel.registry.revokeCore({
+    coreId: 'test-counter',
+    moduleDigest: d2.moduleDigest,
+    reasonCode: 'R11_TEST_CHAIN'
+  });
+
+  kernel.stateStore.db.prepare('UPDATE core_revocations SET reason_code = ? WHERE sequence = 1').run('R11_TAMPERED');
+
+  await assert.rejects(() => kernel.installCore(v1), error => error.code === 'CORE_REVOCATION_CHAIN_INVALID');
+  assert.equal(kernel.stateStore.getAuthority('test-counter'), null);
+  assert.throws(() => kernel.registry.revokeCore({
+    coreId: 'test-counter',
+    moduleDigest: d1.moduleDigest,
+    reasonCode: 'R11_TEST_SECOND'
+  }), error => error.code === 'CORE_REVOCATION_CHAIN_INVALID');
+});

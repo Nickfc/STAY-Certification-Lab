@@ -139,6 +139,7 @@ class CoreRevocationRegistry {
 
   record(input = {}) {
     this.ensureSchema();
+    this.verifyChain();
     const subject = normalizeSubject(input);
     const reasonCode = typeof input.reasonCode === 'string' ? input.reasonCode.trim() : '';
     if (!REASON.test(reasonCode)) fail('reasonCode must be 3-64 uppercase policy characters');
@@ -197,6 +198,7 @@ class CoreRevocationRegistry {
 
   assertNotRevoked(targetInput = {}) {
     const target = normalizeSubject(targetInput);
+    this.verifyChain();
     const record = this.find(target);
     if (!record) return true;
     throw Object.assign(new Error(`core ${target.coreId} is revoked by ${record.reasonCode}`), {
