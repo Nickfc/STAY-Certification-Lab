@@ -27,6 +27,8 @@
     "evidence:sntss-r10": "node scripts/sntss-r10-release-lab.js",
     "test:sntss-r11-repo": "node scripts/sntss-r11-repository-suite.js",
     "status:sntss-r11": "node scripts/sntss-r11-certification-status.js",
+    "plan:sntss-r11-host": "node scripts/sntss-r11-host-certification.js --plan",
+    "certify:sntss-r11-host": "node scripts/sntss-r11-host-certification.js --execute",
     "test:smoke": "node scripts/endurance-runner.js --seconds 15",
     "endurance:24h": "node scripts/endurance-runner.js --hours 24",
     "endurance:72h": "node scripts/endurance-runner.js --hours 72"
