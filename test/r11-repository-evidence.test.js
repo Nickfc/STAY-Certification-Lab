@@ -16,8 +16,21 @@ const REQUIRED = ['R11-A','R11-B','R11-C','R11-D','R11-E','R11-F','R11-G','R11-H
 function sha256(value) {
   return 'sha256:' + crypto.createHash('sha256').update(value).digest('hex');
 }
-function escaped(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function testDeclarationTokens(name, prefix = 'test') {
+  return [
+    `${prefix}('${name}'`,
+    `${prefix}("${name}"`,
+    prefix + '(`' + name + '`'
+  ];
+}
+
+function sourceHasTest(source, name) {
+  return testDeclarationTokens(name).some(token => source.includes(token));
+}
+
+function sourceHasDisabledTest(source, name) {
+  return ['test.skip', 'test.todo'].some(prefix => testDeclarationTokens(name, prefix).some(token => source.includes(token)));
 }
 
 test('R11-REPO-01 attack map is hash-bound, complete and explicitly repository-only', () => {
@@ -58,9 +71,8 @@ test('R11-REPO-02 every A-Q repository claim is backed by executable non-skipped
       assert.match(regression.file, /^test\/[^/]+\.test\.js$/, `${domain.id} regression must be in full CI test glob`);
       const absolute = path.join(root, regression.file);
       const source = fs.readFileSync(absolute, 'utf8');
-      const name = escaped(regression.name);
-      assert.match(source, new RegExp(`test\\s*\\(\\s*['\"\\`]${name}['\"\\`]`), `${domain.id} missing ${regression.name}`);
-      assert.doesNotMatch(source, new RegExp(`test\\.(?:skip|todo)\\s*\\(\\s*['\"\\`]${name}['\"\\`]`), `${domain.id} regression is skipped`);
+      assert.equal(sourceHasTest(source, regression.name), true, `${domain.id} missing ${regression.name}`);
+      assert.equal(sourceHasDisabledTest(source, regression.name), false, `${domain.id} regression is skipped or todo: ${regression.name}`);
     }
   }
 });
