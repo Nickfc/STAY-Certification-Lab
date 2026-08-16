@@ -41,7 +41,7 @@
     "promotionSigner": "sha256:b2c2a326a803be8983d5eae19a03bd0afe0d363b4f3c2295a70f084f399ef269",
     "promotionAuthority": "sha256:bd5b63fd3eeb81a4bda58655bf949f69542d27b0d659710e7eb4a658d8abbff8",
     "packagePolicy": "sha256:d7ea60b0ddd0195410cec767fd6226dd207dd4d952dacd3c5b6564e5ff8eb050",
-    "coreSandbox": "sha256:48307b11e135a6c564e4f01db2f0a9e2e016d58077819093c885b23237e9af76",
+    "coreSandbox": "sha256:d08e9e7e1f0649722701f89907e03f213ede14fcde0d5f491938fb110b16ba21",
     "coreLoader": "sha256:f752675024e58805ed9a8b9e92b1da2997075598d261384d74c69f10fc039d95",
     "coreHostClient": "sha256:5de4b1fec0dcad0c828ccd34b78d7732f91c2aa6326fd8e2ce7992cb012d0aec",
     "coreHostDispatcher": "sha256:9fececb6f3cee0a3e45752f4c8372abe5ab686007a1ed01a7d49ca007299aa2e",
@@ -53,7 +53,8 @@
     "observability": "sha256:e0949ee81080418f8df83d86caa958cbb0b7a1f9e053f36c5c4dea9a16732623",
     "systemdUnit": "sha256:75582aa08f2a7806d0fa80f846d99f0a086da61d11908b622abbe11827bdd5a6",
     "neutralPolicy": "sha256:4bec6f5be4c692cb080e325be7b20ac7e9f8976b7e5602449055b804835041a0",
-    "hostileRegressionSuite": "sha256:cd4a51c2a0c687d488759a4b7a6f30db50fdd8696cd79a6f6cf7f0dc311879a5"
+    "hostileRegressionSuite": "sha256:cd4a51c2a0c687d488759a4b7a6f30db50fdd8696cd79a6f6cf7f0dc311879a5",
+    "workerSpawnRegressionSuite": "sha256:730b27df6417801e60bf05bc6c5e1a7de704e0d3b621a3e4c06906013a2df2d3"
   },
   "formalClosureBlockedBy": [
     "R8 24-hour host endurance and independent acceptance",
@@ -63,5 +64,5 @@
     "external forensic anchor sink configured and retained independently"
   ],
   "status": "CANDIDATE_PASS_PENDING_CI_AND_HOST_REHEARSAL",
-  "evidenceHash": "sha256:5c73384bedf42664a4b68d4f58ec8d5c7a4a00150855e6a94ef7b7b8f491fcdf"
+  "evidenceHash": "sha256:57769ecfc12248533b83c3ce6ff06d7d032a4cd972db47f6853980689fb6b202"
 }

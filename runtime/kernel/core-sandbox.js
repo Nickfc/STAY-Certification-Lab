@@ -35,10 +35,10 @@ function nativeCoreExecArgv(modulePath) {
     realPathOrSelf(runtimeRoot),
     path.dirname(absoluteModule)
   ]);
-  const productionSupervisor = process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1';
+  // The trusted CoreHost supervisor may spawn bubblewrap, but the untrusted
+  // candidate worker itself never needs process-spawn authority.
   return [
     '--permission',
-    ...(productionSupervisor ? ['--allow-child-process'] : []),
     ...Array.from(readRoots, root => `--allow-fs-read=${root}`)
   ];
 }
