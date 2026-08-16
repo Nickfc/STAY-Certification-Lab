@@ -1,0 +1,79 @@
+{
+  "format": "stay-sntss-r11-certification-matrix-v1",
+  "stage": "R11-complete-laboratory-certification",
+  "status": "DESIGNED_BLOCKED",
+  "candidateFrozen": false,
+  "frozenCommitSha": null,
+  "productionEligible": false,
+  "liveMutationAllowed": false,
+  "liveChemistryAllowed": false,
+  "r12NeutralOnly": true,
+  "entranceBlockers": [
+    "R8_24H_HOST_ENDURANCE_ACCEPTED",
+    "TRUST_BOOTSTRAP_CEREMONY_EXECUTED",
+    "BUBBLEWRAP_HOST_ESCAPE_PROBES_PASSED",
+    "R10_SIGNED_RELEASE_REHEARSAL_PASSED",
+    "R10_5_MEDIUM_FINDINGS_CLOSED_OR_EXPLICITLY_BLOCKED"
+  ],
+  "residualMediums": [
+    {
+      "id": "M-01",
+      "title": "privileged runtime status lacks application-layer operator authentication",
+      "requiredClosure": "authenticated operator-only status path or local operator channel"
+    },
+    {
+      "id": "M-02",
+      "title": "standby rollback lacks explicit durable revocation registry",
+      "requiredClosure": "revocation table keyed by package/module digest and implementation identity checked before reactivation"
+    },
+    {
+      "id": "M-03",
+      "title": "forensic anchor hook is not yet independently retained",
+      "requiredClosure": "external anchor sink outside mutable StateStore trust domain configured and proven"
+    }
+  ],
+  "domains": [
+    {"id":"R11-A","title":"Authority attacks","state":"PLANNED","hostEvidence":false,"requiredEvidence":["executable-regression","authority-epoch-trace"]},
+    {"id":"R11-B","title":"Malicious Core attacks","state":"BLOCKED_ON_HOST","hostEvidence":true,"requiredEvidence":["executable-regression","namespace-process-network-filesystem-probe"]},
+    {"id":"R11-C","title":"Provenance attacks","state":"PLANNED","hostEvidence":false,"requiredEvidence":["executable-regression","kernel-stamped-provenance-evidence"]},
+    {"id":"R11-D","title":"Modulation-frame forgery","state":"PLANNED","hostEvidence":false,"requiredEvidence":["executable-regression","trusted-delivery-authority-evidence"]},
+    {"id":"R11-E","title":"Package substitution","state":"PLANNED","hostEvidence":false,"requiredEvidence":["executable-regression","package-policy-digest"]},
+    {"id":"R11-F","title":"Release substitution","state":"BLOCKED_ON_HOST","hostEvidence":true,"requiredEvidence":["executable-regression","signed-release-rehearsal"]},
+    {"id":"R11-G","title":"Trust-root substitution","state":"BLOCKED_ON_HOST","hostEvidence":true,"requiredEvidence":["bootstrap-regression","out-of-band-bootstrap-transcript"]},
+    {"id":"R11-H","title":"Rollback and revocation","state":"BLOCKED_ON_M02","hostEvidence":true,"requiredEvidence":["rollback-regression","revocation-registry-evidence","host-rollback-rehearsal"]},
+    {"id":"R11-I","title":"StateStore corruption","state":"PLANNED","hostEvidence":false,"requiredEvidence":["corruption-regression","recovery-integrity-evidence"]},
+    {"id":"R11-J","title":"Migration corruption","state":"PLANNED","hostEvidence":false,"requiredEvidence":["migration-regression","forward-backward-invariant-evidence"]},
+    {"id":"R11-K","title":"Privacy leakage","state":"BLOCKED_ON_M01","hostEvidence":false,"requiredEvidence":["surface-regression","operator-authentication-evidence"]},
+    {"id":"R11-L","title":"Forensic tampering","state":"BLOCKED_ON_M03","hostEvidence":true,"requiredEvidence":["forensic-tamper-regression","external-anchor-evidence"]},
+    {"id":"R11-M","title":"Observer failure","state":"PLANNED","hostEvidence":false,"requiredEvidence":["observer-failure-regression","fail-visible-bounded-evidence"]},
+    {"id":"R11-N","title":"Resource exhaustion","state":"BLOCKED_ON_R8","hostEvidence":true,"requiredEvidence":["resource-regression","r8-24h-acceptance","host-pressure-evidence"]},
+    {"id":"R11-O","title":"Restart crash and replay","state":"PLANNED","hostEvidence":true,"requiredEvidence":["restart-replay-regression","host-lifecycle-fault-transcript"]},
+    {"id":"R11-P","title":"Deterministic reproduction","state":"PLANNED","hostEvidence":false,"requiredEvidence":["golden-reproduction-suite","exact-evidence-hashes"]},
+    {"id":"R11-Q","title":"Long-duration stability","state":"BLOCKED_ON_R8","hostEvidence":true,"requiredEvidence":["long-duration-regression","resource-trace","independent-review"]}
+  ],
+  "freezeRequirements": [
+    "ALL_17_DOMAINS_PASS",
+    "ALL_HOST_EVIDENCE_PRESENT",
+    "M01_CLOSED",
+    "M02_CLOSED",
+    "M03_CLOSED",
+    "ZERO_OPEN_CRITICAL",
+    "ZERO_OPEN_HIGH",
+    "ZERO_UNEXPLAINED_MEDIUM",
+    "FULL_SUITE_GREEN_ON_EXACT_SHA",
+    "INDEPENDENT_REVIEW_ACCEPTED"
+  ],
+  "freezeInventory": [
+    "gitCommitSha",
+    "sntssPackagePolicyDigest",
+    "sntssPackageDigest",
+    "trustedVerifierDigest",
+    "releaseAuthorityPublicKeyFingerprint",
+    "promotionCertificateSchemaVersion",
+    "evidenceInventory",
+    "revocationTableHead",
+    "externalForensicAnchorIdentity",
+    "hostCertificationFingerprint"
+  ],
+  "acceptanceOutput": "CERTIFIED_NEUTRAL_CAPABLE_CANDIDATE_ONLY"
+}

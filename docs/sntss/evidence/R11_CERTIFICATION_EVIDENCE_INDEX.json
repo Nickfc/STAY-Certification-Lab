@@ -1,0 +1,11 @@
+{
+  "format": "stay-sntss-r11-evidence-index-v1",
+  "status": "EMPTY_BLOCKED",
+  "frozenCommitSha": null,
+  "records": {},
+  "notes": [
+    "This file is intentionally empty until R11 entrance blockers are closed.",
+    "Do not fabricate host evidence or pre-mark certification domains PASS.",
+    "All future records must bind to the exact frozen candidate SHA."
+  ]
+}
