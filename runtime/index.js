@@ -1,5 +1,5 @@
 'use strict';
 
-const { LivingKernel } = require('./kernel/living-kernel');
+const { LivingKernel } = require('./kernel/hardened-living-kernel');
 
 module.exports = { LivingKernel };

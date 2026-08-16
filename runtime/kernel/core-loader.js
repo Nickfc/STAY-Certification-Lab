@@ -5,7 +5,7 @@ const { fork } = require('node:child_process');
 const { validateManifest } = require('./manifest');
 const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION } = require('./protocol');
 const { HOST_PATH } = require('./core-host-client');
-const { canonicalCoreModulePath, nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
+const { canonicalCoreModulePath, isLegacyCompatibilityCore, trustedCoreHostExecArgv, coreSupervisorEnvironment } = require('./core-sandbox');
 const { enforcePackagePolicy, verifyManifestAgainstPackagePolicy } = require('./package-policy');
 
 function hasExited(child) { return !child || child.exitCode != null || child.signalCode != null; }
@@ -20,16 +20,17 @@ async function waitForExit(child, timeoutMs) {
 }
 
 async function inspectCoreModule(modulePath, timeoutMs = 5000) {
-  // Pin the inspected and subsequently launched Core to the immutable target.
-  // Node's permission model otherwise rejects a require through /opt/stay/current,
-  // and retaining the symlink would permit a retarget between inspection and use.
+  // Static package attestation happens in the trusted Kernel process. Executable
+  // manifest inspection happens in the CoreHost worker, which is OS-sandboxed
+  // whenever production requires hostile-code containment.
   const absolute = canonicalCoreModulePath(modulePath);
   const packagePolicy = enforcePackagePolicy(absolute);
+  const compatibility = isLegacyCompatibilityCore(absolute);
   const child = fork(HOST_PATH, [], {
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     serialization: 'advanced',
-    execArgv: ['--disable-sigusr1', '--max-old-space-size=64', ...nativeCoreExecArgv(absolute)],
-    env: coreHostEnvironment()
+    execArgv: ['--disable-sigusr1', '--max-old-space-size=64', ...(compatibility ? [] : trustedCoreHostExecArgv(absolute))],
+    env: coreSupervisorEnvironment({ compatibility })
   });
   let timer;
   try {

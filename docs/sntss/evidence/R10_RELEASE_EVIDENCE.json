@@ -21,23 +21,29 @@
     "failedForwardStateRetention": true,
     "automaticStateRewindForbidden": true,
     "forwardBackwardMigrationRehearsal": true,
-    "manualRemoteStagingOnly": true
+    "manualRemoteStagingOnly": true,
+    "externalReleaseAuthorization": true,
+    "hostOwnedVerifier": true,
+    "isolatedExecutablePreflight": true,
+    "externalReleaseAuthorizationRequired": true,
+    "candidateExecutablePreflightIsolated": true
   },
   "sourceHashes": {
     "releaseControl": "sha256:332cce80fb05bbba5d14fe30aa6d55bd79cde622109a898e6853829c9aca553f",
     "test": "sha256:f9c225d1498bfa0375b269d49739da208bcbf5c5f69e447057c3f464261a5f79",
-    "deployer": "sha256:d7cd8b8d7f24087529da1a871997a4b74274fd26bb320b5fe0a3e0cbf4b1e798",
-    "gitBuilder": "sha256:4dc47ff399e7859488b793440804f80049688407f56b2177efb26485534d6001",
-    "workflow": "sha256:c8c9a85dcd92fbf1011c3e86519ceb2d4fe481c04e2f6fb88bbe307f9142fd97",
+    "deployer": "sha256:b5bfcec3368203730ed84f532963d06c639dc215ab7fc205b5a091af5e1e7324",
+    "gitBuilder": "sha256:c2fb0b7e86953c8a3bb0a94fefafe05270d37b7db002d24e79cf2148e21caa42",
+    "workflow": "sha256:035f7a026a3adcd1cca6b01026f3ed9a36efab8d4d13144cc0d9f679fa826946",
     "windowsBuilder": "sha256:cd2ed98aedcfe28ced6bb3752d35a4f1c2d52be5113f5188cc15496c9ec37b78"
   },
   "formalClosureBlockedBy": [
-    "R8 non-positive long-window RSS slope and independent review",
+    "R8 24-hour host endurance and independent acceptance",
     "R9 formal dependency closure",
-    "R10 isolated production-host release rehearsal",
+    "R10 signed release rehearsal on isolated production host",
+    "R10.5 native-Core namespace rehearsal on non-live production-host replica",
     "R11 final laboratory certification"
   ],
   "ciStatusAtCreation": "pending",
-  "status": "CANDIDATE_IMPLEMENTED",
-  "evidenceHash": "sha256:e1731cdabd63c871713850080fd8329b8ca081afc52bb2e13da5ffea14f949ae"
+  "status": "CANDIDATE_IMPLEMENTED_R10_5_HARDENED",
+  "evidenceHash": "sha256:75707983c10875527738cde08615d2b3f24654832c1af724fe7e22ab50de25b1"
 }

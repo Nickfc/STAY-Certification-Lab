@@ -38,6 +38,12 @@ Environment=STAY_LEGACY_PORT=8788
 Environment=STAY_BOOT_CORE=/opt/stay/current/cores/fetus-legacy-0.6/index.js
 Environment=STAY_REQUIRE_HIBERNATION_STATE=1
 Environment=STAY_REQUIRE_CGROUPS=1
+Environment=STAY_REQUIRE_OS_CORE_SANDBOX=1
+Environment=STAY_BWRAP=/usr/bin/bwrap
+Environment=STAY_REQUIRE_CORE_PACKAGE_POLICY=1
+Environment=STAY_REQUIRE_CORE_PROMOTION_CERT=1
+Environment=STAY_CORE_PROMOTION_PUBLIC_KEY=/etc/stay/release-authority.pub
+Environment=STAY_CORE_PROMOTION_CERT_DIR=/etc/stay/core-promotions
 Environment=STAY_EXPECTED_HIBERNATION_SHA256=b45d6addd70b13bfa684f53c075edb3ca6a76bae7d7384849f84a1df2d7d073d
 
 NoNewPrivileges=true
@@ -50,14 +56,19 @@ ProtectKernelModules=true
 ProtectKernelTunables=true
 ProtectProc=invisible
 ProcSubset=pid
-RestrictNamespaces=true
+# The trusted CoreHost supervisor must be allowed to create a bubblewrap user,
+# mount, PID and network namespace for untrusted native-core workers. The
+# service itself remains unprivileged and has an empty capability set.
+RestrictNamespaces=false
+CapabilityBoundingSet=
+AmbientCapabilities=
 RestrictRealtime=true
 RestrictSUIDSGID=true
 LockPersonality=true
 SystemCallArchitectures=native
 ProtectHome=true
 ProtectSystem=strict
-ReadOnlyPaths=/opt/stay
+ReadOnlyPaths=/opt/stay /etc/stay
 ReadWritePaths=/var/lib/stay/data
 
 [Install]

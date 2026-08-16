@@ -13,9 +13,15 @@ const POLICY_KEYS = Object.freeze([
 ]);
 const EXPECTED_ENVIRONMENT = Object.freeze(['LANG', 'LC_ALL', 'NODE_ENV', 'PATH', 'STAY_COREHOST', 'TZ']);
 const CAPABILITY_KEYS = Object.freeze(['filesystemWrite', 'network', 'processSpawn']);
+// This source audit is deliberately defense-in-depth only. The production security
+// boundary is the OS sandbox in core-sandbox.js; JavaScript syntax filtering is not
+// treated as a hostile-code sandbox.
 const FORBIDDEN_SOURCE = Object.freeze([
-  /\bprocess\s*\./, /\bsetInterval\s*\(/, /\bsetTimeout\s*\(/, /\bsetImmediate\s*\(/,
+  /\bprocess\s*(?:\.|\[)/, /\bsetInterval\s*\(/, /\bsetTimeout\s*\(/, /\bsetImmediate\s*\(/,
   /\beval\s*\(/, /\bnew\s+Function\b/, /\bimport\s*\(/, /\bfetch\s*\(/, /\bWebSocket\b/
+]);
+const SHARED_ABI_FILES = new Set([
+  fs.realpathSync.native(path.join(__dirname, 'canonical-json.js'))
 ]);
 
 function fail(message, code = 'CORE_PACKAGE_POLICY_INVALID') {
@@ -41,7 +47,9 @@ function auditSourceText(source, allowedBuiltins = [], allowedRelativeDependenci
   for (const pattern of FORBIDDEN_SOURCE) if (pattern.test(source)) fail(`package source contains forbidden capability syntax: ${pattern}`, 'CORE_PACKAGE_CAPABILITY_DENIED');
   const literalRequires = [...source.matchAll(/\brequire\s*\(\s*(['"])([^'"]+)\1\s*\)/g)].map(match => match[2]);
   const requireCalls = [...source.matchAll(/\brequire\s*\(/g)].length;
-  if (requireCalls !== literalRequires.length) fail('dynamic require is forbidden', 'CORE_PACKAGE_DEPENDENCY_DENIED');
+  if (requireCalls !== literalRequires.length || /\b(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*require\b/.test(source)) {
+    fail('aliased or dynamic require is forbidden', 'CORE_PACKAGE_DEPENDENCY_DENIED');
+  }
   for (const request of literalRequires) {
     if (!request.startsWith('.') && !allowedBuiltins.includes(request)) fail(`builtin or external dependency is not allowlisted: ${request}`, 'CORE_PACKAGE_DEPENDENCY_DENIED');
     if (request.startsWith('.') && allowedRelativeDependencies && !allowedRelativeDependencies.has(request)) fail(`relative dependency is not allowlisted: ${request}`, 'CORE_PACKAGE_DEPENDENCY_DENIED');
@@ -79,6 +87,9 @@ function enforcePackagePolicy(modulePath) {
     const candidate = path.resolve(root, relative);
     if (!fs.existsSync(candidate)) fail(`package file is missing: ${relative}`, 'CORE_PACKAGE_FILE_MISSING');
     const canonical = fs.realpathSync.native(candidate);
+    if (!inside(root, canonical) && !SHARED_ABI_FILES.has(canonical)) {
+      fail(`package file escapes its package and trusted ABI: ${relative}`, 'CORE_PACKAGE_PATH_DENIED');
+    }
     if (canonical === policyPath) fail('package policy cannot self-attest');
     const bytes = fs.readFileSync(canonical);
     if (digest(bytes) !== expectedHash) fail(`package file hash mismatch: ${relative}`, 'CORE_PACKAGE_FILE_HASH_MISMATCH');
@@ -99,13 +110,18 @@ function enforcePackagePolicy(modulePath) {
 }
 
 function verifyManifestAgainstPackagePolicy(record, manifest) {
-  if (!record) return true;
+  const policyRequired = manifest?.coreId === 'sntss'
+    || (process.env.STAY_REQUIRE_CORE_PACKAGE_POLICY === '1' && manifest?.coreId !== 'fetus-legacy');
+  if (!record) {
+    if (policyRequired) fail(`package policy is required for core ${manifest?.coreId || 'unknown'}`, 'CORE_PACKAGE_POLICY_REQUIRED');
+    return true;
+  }
   if (manifest.coreId !== record.policy.coreId) fail('manifest core identity differs from package policy');
   if (stableStringify(manifest.resources) !== stableStringify(record.policy.resourceContract.manifestResources)) fail('manifest resources differ from the package resource contract', 'CORE_PACKAGE_RESOURCE_MISMATCH');
   return true;
 }
 
 module.exports = {
-  POLICY_FILE, EXPECTED_ENVIRONMENT, auditSourceText, readPackagePolicy, enforcePackagePolicy,
+  POLICY_FILE, EXPECTED_ENVIRONMENT, SHARED_ABI_FILES, auditSourceText, readPackagePolicy, enforcePackagePolicy,
   verifyManifestAgainstPackagePolicy, digest
 };

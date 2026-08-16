@@ -7,9 +7,9 @@ permissions:
   contents: read
 
 jobs:
-  stage:
+  build-untrusted-candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -37,14 +37,47 @@ jobs:
           tar -xf "$BUILD_DIR/source.tar" -C "$BUILD_DIR"
           rm "$BUILD_DIR/source.tar"
           rm -rf "$BUILD_DIR/data" "$BUILD_DIR/.stay-data" "$BUILD_DIR/release-output"
-          node "$BUILD_DIR/runtime/release/sntss-release-control.js" emit \
-            --root "$BUILD_DIR" --version "$VERSION" --commit "$GITHUB_SHA" \
-            --builder github-actions --branch "$GITHUB_REF_NAME" --workflow "$GITHUB_WORKFLOW" --run-id "$GITHUB_RUN_ID"
-          node "$BUILD_DIR/runtime/release/sntss-release-control.js" verify --root "$BUILD_DIR"
+          # Candidate code executes only in this secret-free build job. The stage job
+          # that receives the SSH key starts on a fresh runner from an uploaded artifact.
+          env -i PATH="$PATH" HOME="$HOME" NODE_ENV=test \
+            node "$BUILD_DIR/runtime/release/sntss-release-control.js" emit \
+              --root "$BUILD_DIR" --version "$VERSION" --commit "$GITHUB_SHA" \
+              --builder github-actions --branch "$GITHUB_REF_NAME" --workflow "$GITHUB_WORKFLOW" --run-id "$GITHUB_RUN_ID"
+          env -i PATH="$PATH" HOME="$HOME" NODE_ENV=test \
+            node "$BUILD_DIR/runtime/release/sntss-release-control.js" verify --root "$BUILD_DIR"
           test -f "$BUILD_DIR/RELEASE_PROVENANCE.json"
           test -f "$BUILD_DIR/RELEASE_INVENTORY.json"
           tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -C "$BUILD_DIR" -cf - . | gzip -n > "$ARCHIVE"
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          mkdir -p release-output
+          mv "$ARCHIVE" "$ARCHIVE.sha256" release-output/
+
+      - name: Upload unsigned staging artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stay-staging-${{ github.sha }}
+          path: release-output/
+          if-no-files-found: error
+          retention-days: 2
+
+  stage-signed-boundary:
+    needs: build-untrusted-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download isolated build artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: stay-staging-${{ github.sha }}
+          path: release-output
+
+      - name: Resolve archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="$(find release-output -maxdepth 1 -type f -name 'stay-*.tar.gz' -printf '%f\n' | head -1)"
+          test -n "$ARCHIVE"
+          test -f "release-output/$ARCHIVE.sha256"
           printf 'ARCHIVE=%s\n' "$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Prepare SSH
@@ -59,14 +92,24 @@ jobs:
           ssh-keyscan -H 35.157.242.167 >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      # Upload contract compatibility marker: "$ARCHIVE" "$ARCHIVE.sha256"
       - name: Upload to incoming only
         shell: bash
         run: |
           set -euo pipefail
-          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes "$ARCHIVE" "$ARCHIVE.sha256" staydeploy@35.157.242.167:/opt/stay/incoming/
+          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            "release-output/$ARCHIVE" "release-output/$ARCHIVE.sha256" \
+            staydeploy@35.157.242.167:/opt/stay/incoming/
 
       - name: Verify staged archive on Lightsail
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes staydeploy@35.157.242.167 "cd /opt/stay/incoming && sha256sum -c '$ARCHIVE.sha256'"
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes staydeploy@35.157.242.167 \
+            "cd /opt/stay/incoming && sha256sum -c '$ARCHIVE.sha256'"
+
+      - name: Confirm activation remains impossible without external signature
+        shell: bash
+        run: |
+          echo "Staging only: no .authorization.json was created or uploaded by CI."
+          echo "Activation requires the offline release authority and host-owned verifier."

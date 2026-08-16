@@ -153,10 +153,13 @@
     "productionGenesis": false
   },
   "moduleHashes": {
-    "runtime/kernel/package-policy.js": "sha256:64e15cb7a15df39482dbedd08fc49b40b65480f02930ac51a5cff21cb81909e3",
-    "runtime/kernel/core-loader.js": "sha256:9666237dbdb95d8a263ec7b0fca951a228483916ae59c8c0d1018022dffa4f44",
+    "runtime/kernel/package-policy.js": "sha256:6975978dfbdb972f9c36cd864c310d107f78cc88e0db0ec1f850b07efd03368b",
+    "runtime/kernel/core-loader.js": "sha256:f752675024e58805ed9a8b9e92b1da2997075598d261384d74c69f10fc039d95",
     "runtime/kernel/core-host-client.js": "sha256:5de4b1fec0dcad0c828ccd34b78d7732f91c2aa6326fd8e2ce7992cb012d0aec",
-    "runtime/kernel/core-sandbox.js": "sha256:6a5b95876495189a6c4a4b75f2f64cbc41848ab1863db5a895870fb580210d60",
+    "runtime/kernel/core-sandbox.js": "sha256:48307b11e135a6c564e4f01db2f0a9e2e016d58077819093c885b23237e9af76",
+    "runtime/core-host/host.js": "sha256:9fececb6f3cee0a3e45752f4c8372abe5ab686007a1ed01a7d49ca007299aa2e",
+    "runtime/core-host/sandbox-host.js": "sha256:f9ca5347a11f2da18acb3af16f9ec4a773f7beb7cee838a1c05fd3433cb94a36",
+    "runtime/core-host/worker.js": "sha256:85edd4bdf3688353e2de005cddb1dfa74eaf06539989c354bbe0caeb787a4eaf",
     "runtime/kernel/resource-governor.js": "sha256:12ecde5e80f50b46c5ee4c23df992641a29e20931fa748d06009fdf7a97784cc",
     "runtime/kernel/cgroup-governor.js": "sha256:2909de58bf90a4a6d958ab29c8bce500819eae039ac58e3c3b88731cdb1c52d9",
     "cores/sntss/v0.1.0/containment.js": "sha256:d227063c7e44f0c25edc429630c243e0850b1e8b3b3fe16eff812fd4b9601fe2",
@@ -164,5 +167,5 @@
     "cores/sntss/schemas/containment-policy.schema.json": "sha256:653922d85332998a29eb792e72dab8a2fb8d73e4eb90175363a9d4daec461377",
     "test/sntss-containment.test.js": "sha256:fc21617055cafec81cb28b14d9f0f8c7bbccc05b935133517a8835e23bfaad8b"
   },
-  "evidenceHash": "sha256:ff5334b912e94d5cc9410b444d9854dd95214fe926cd4e7dd8cc87e0b852d8ae"
+  "evidenceHash": "sha256:5c6e76f2a94b0a728039659c8eeb7f56918730079a39b39fc92f1c771d4f4d25"
 }
