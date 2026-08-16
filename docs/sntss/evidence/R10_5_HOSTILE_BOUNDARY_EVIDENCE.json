@@ -26,7 +26,9 @@
     "forensicRotationMonotonic": true,
     "externalForensicAnchorHookPresent": true,
     "requiredConsumerRetentionDebtBounded": true,
-    "demotedConsumerRequiresExplicitResynchronization": true
+    "demotedConsumerRequiresExplicitResynchronization": true,
+    "kernelAuthenticatedFrameDelivery": true,
+    "frameSelfHashInsufficientForAuthority": true
   },
   "auditClosure": {
     "criticalFindingsClosedInCandidateDesign": true,
@@ -34,7 +36,10 @@
     "hostSandboxExecutionProven": false,
     "trustBootstrapCeremonySpecified": true,
     "trustBootstrapCeremonyExecuted": false,
-    "formalReauditComplete": false
+    "formalReauditComplete": false,
+    "repositoryReauditComplete": true,
+    "openCriticalFindings": 0,
+    "openHighFindings": 0
   },
   "sourceHashes": {
     "trustedReleaseVerifier": "sha256:d8676696405c7a516d316a592315171ca91d92fbee703b5b3f5fec73c26e7482",
@@ -61,7 +66,9 @@
     "neutralPolicy": "sha256:4bec6f5be4c692cb080e325be7b20ac7e9f8976b7e5602449055b804835041a0",
     "hostileRegressionSuite": "sha256:cd4a51c2a0c687d488759a4b7a6f30db50fdd8696cd79a6f6cf7f0dc311879a5",
     "workerSpawnRegressionSuite": "sha256:730b27df6417801e60bf05bc6c5e1a7de704e0d3b621a3e4c06906013a2df2d3",
-    "bootstrapRegressionSuite": "sha256:69227b41f41df183b3a111a4c678f0ec4258d931e5fc5fffe643fac3ef5986e8"
+    "bootstrapRegressionSuite": "sha256:69227b41f41df183b3a111a4c678f0ec4258d931e5fc5fffe643fac3ef5986e8",
+    "modulationFrames": "sha256:4b6511c8f825ca11a0d7bae31df96ba4e62ef3e4110c20952cc79fef4688f49a",
+    "sntssPackagePolicy": "sha256:53dcfa0f5132c702457581138dd2a4afa1a04fb3610a24d09b08886e97cd9102"
   },
   "formalClosureBlockedBy": [
     "R8 24-hour host endurance and independent acceptance",
@@ -71,6 +78,11 @@
     "R11 frozen-candidate certification and hostile re-audit",
     "external forensic anchor sink configured and retained independently"
   ],
-  "status": "CANDIDATE_PASS_PENDING_CI_HOST_AND_BOOTSTRAP_REHEARSAL",
-  "evidenceHash": "sha256:1af3db9cb1a3398cd8bb019ab233f9d5e18b781ef11f7bf5e53d22144dcfc353"
+  "residualMediumFindings": [
+    "privileged runtime status still relies on loopback plus reverse-proxy denial rather than application-layer operator authentication",
+    "rollback lacks an explicit post-authorization revocation registry for a standby later declared known-bad",
+    "external forensic anchor sink exists but is not yet configured and independently retained"
+  ],
+  "status": "REPOSITORY_REAUDIT_PASS_PENDING_HOST_CERTIFICATION",
+  "evidenceHash": "sha256:869f7544cef4cfa8201efeee64cfda996a95ab7af371c2f894317b2e60a1ffc8"
 }
