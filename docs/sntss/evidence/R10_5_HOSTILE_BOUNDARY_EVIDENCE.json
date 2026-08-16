@@ -11,6 +11,9 @@
     "hostOwnedReleaseVerifier": true,
     "externalEd25519ReleaseAuthority": true,
     "privateReleaseKeyOfflineOnly": true,
+    "trustBootstrapRequiresOutOfBandFingerprint": true,
+    "trustBootstrapRequiresDetachedManifestSignature": true,
+    "trustedBoundaryInstallerSecondStageOnly": true,
     "nativeCoreSupervisorDoesNotImportCandidate": true,
     "nativeCoreOsSandboxRequiredInProduction": true,
     "nativeCoreStateStoreMountForbidden": true,
@@ -29,11 +32,14 @@
     "criticalFindingsClosedInCandidateDesign": true,
     "highFindingsClosedOrFailClosedPreR11": true,
     "hostSandboxExecutionProven": false,
+    "trustBootstrapCeremonySpecified": true,
+    "trustBootstrapCeremonyExecuted": false,
     "formalReauditComplete": false
   },
   "sourceHashes": {
     "trustedReleaseVerifier": "sha256:d8676696405c7a516d316a592315171ca91d92fbee703b5b3f5fec73c26e7482",
-    "trustedBoundaryInstaller": "sha256:2c4cf7c0c82f4c91f6e55a472bd85b0ab26b0236f6ff4b3efce2a3cbf1dc4276",
+    "trustedBoundaryInstaller": "sha256:d3df2be038aeb8f60e0d09eec30f4f4d5ffaa37e2baf582f0f82e111fac148a7",
+    "trustBootstrapCeremony": "sha256:4a3c35ebdc2f185984c843eb3cf8f0b6eaf795614e17bd83f73996dcbc60b11f",
     "deployer": "sha256:3648088c699c2a7b5faf4d9dcd63f719848cab2deb5443cce9db596e7c18256d",
     "gitBuilder": "sha256:c2fb0b7e86953c8a3bb0a94fefafe05270d37b7db002d24e79cf2148e21caa42",
     "stagingWorkflow": "sha256:035f7a026a3adcd1cca6b01026f3ed9a36efab8d4d13144cc0d9f679fa826946",
@@ -54,15 +60,17 @@
     "systemdUnit": "sha256:75582aa08f2a7806d0fa80f846d99f0a086da61d11908b622abbe11827bdd5a6",
     "neutralPolicy": "sha256:4bec6f5be4c692cb080e325be7b20ac7e9f8976b7e5602449055b804835041a0",
     "hostileRegressionSuite": "sha256:cd4a51c2a0c687d488759a4b7a6f30db50fdd8696cd79a6f6cf7f0dc311879a5",
-    "workerSpawnRegressionSuite": "sha256:730b27df6417801e60bf05bc6c5e1a7de704e0d3b621a3e4c06906013a2df2d3"
+    "workerSpawnRegressionSuite": "sha256:730b27df6417801e60bf05bc6c5e1a7de704e0d3b621a3e4c06906013a2df2d3",
+    "bootstrapRegressionSuite": "sha256:69227b41f41df183b3a111a4c678f0ec4258d931e5fc5fffe643fac3ef5986e8"
   },
   "formalClosureBlockedBy": [
     "R8 24-hour host endurance and independent acceptance",
+    "out-of-band trusted-boundary bootstrap ceremony on non-live certification host",
     "bubblewrap namespace behavior proven on non-live production-host replica",
     "R10 signed release rehearsal on isolated production host",
     "R11 frozen-candidate certification and hostile re-audit",
     "external forensic anchor sink configured and retained independently"
   ],
-  "status": "CANDIDATE_PASS_PENDING_CI_AND_HOST_REHEARSAL",
-  "evidenceHash": "sha256:57769ecfc12248533b83c3ce6ff06d7d032a4cd972db47f6853980689fb6b202"
+  "status": "CANDIDATE_PASS_PENDING_CI_HOST_AND_BOOTSTRAP_REHEARSAL",
+  "evidenceHash": "sha256:1af3db9cb1a3398cd8bb019ab233f9d5e18b781ef11f7bf5e53d22144dcfc353"
 }
