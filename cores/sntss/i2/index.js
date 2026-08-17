@@ -20,7 +20,7 @@ const CLOCK_STATUSES =
 
 const manifest = Object.freeze({
   coreId: 'sntss',
-  version: '0.2.0-i2b',
+  version: '0.2.1-i2e',
   protocol: 'stay-sntss-v1',
   stateSchema: 2,
   hotSwap: true,
@@ -839,6 +839,50 @@ async function createCore({
         return;
       }
 
+      /*
+       * pulseSequence is scoped to runtimeRevision.
+       *
+       * A new Living Kernel runtime increments its
+       * runtime revision while its local pulse counter
+       * begins again. The first pulse of that newer
+       * revision establishes a new trusted-time anchor.
+       *
+       * We deliberately do not integrate the wall-clock
+       * gap across a Kernel restart: no downtime catch-up
+       * burst is permitted.
+       */
+      if (
+        pulse.runtimeRevision <
+        time.lastRuntimeRevision
+      ) {
+        fail(
+          'runtime revision rewound',
+          'SNTSS_TIME_REVISION_REWIND'
+        );
+      }
+
+      if (
+        pulse.runtimeRevision >
+        time.lastRuntimeRevision
+      ) {
+        if (
+          pulse.wallClockMs <
+          time.lastWallClockMs
+        ) {
+          fail(
+            'trusted wall clock rewound across runtime revision',
+            'SNTSS_TIME_REWIND'
+          );
+        }
+
+        acceptPulse(
+          time,
+          pulse
+        );
+
+        return;
+      }
+
       if (
         pulse.pulseSequence ===
         time.lastPulseSequence
@@ -875,16 +919,6 @@ async function createCore({
         fail(
           'trusted-time sequence gap detected',
           'SNTSS_TIME_SEQUENCE_GAP'
-        );
-      }
-
-      if (
-        pulse.runtimeRevision <
-        time.lastRuntimeRevision
-      ) {
-        fail(
-          'runtime revision rewound',
-          'SNTSS_TIME_REVISION_REWIND'
         );
       }
 
