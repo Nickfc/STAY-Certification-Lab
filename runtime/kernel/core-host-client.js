@@ -7,7 +7,7 @@ const { EventEmitter } = require('node:events');
 const { validateManifest } = require('./manifest');
 const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION, assertPayload } = require('./protocol');
 const { ResourceGovernor, normalizePolicy } = require('./resource-governor');
-const { canonicalCoreModulePath, nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
+const { canonicalCoreModulePath, trustedCoreHostExecArgv, nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
 const { CgroupGovernor } = require('./cgroup-governor');
 const { enforcePackagePolicy, verifyManifestAgainstPackagePolicy } = require('./package-policy');
 
@@ -97,7 +97,11 @@ class CoreHostClient extends EventEmitter {
       execArgv: [
         '--disable-sigusr1',
         `--max-old-space-size=${Math.max(16, Math.floor(this.policy.hardRamBytes / (1024 * 1024) * 0.8))}`,
-        ...(this.expectedManifest?.coreId === 'fetus-legacy' ? [] : nativeCoreExecArgv(this.modulePath))
+        ...(this.expectedManifest?.coreId === 'fetus-legacy'
+          ? []
+          : process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1'
+            ? trustedCoreHostExecArgv(this.modulePath)
+            : nativeCoreExecArgv(this.modulePath))
       ],
       env: coreHostEnvironment({ compatibility: this.expectedManifest?.coreId === 'fetus-legacy' })
     });
