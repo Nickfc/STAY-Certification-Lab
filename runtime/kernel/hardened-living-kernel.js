@@ -7,8 +7,90 @@ const { stableStringify } = require('./canonical-json');
 const RESERVED_PROVENANCE_FIELDS = new Set([
   'sourceCore', 'sourceVersion', 'sourceInstanceId', 'authorityEpoch', 'causeSequence', 'causalParent'
 ]);
+const TRUSTED_TIME_PULSE_MIN_INTERVAL_MS = 25;
+const TRUSTED_TIME_PULSE_MAX_INTERVAL_MS = 60000;
+
+function configurationError(message, code) {
+  return Object.assign(new Error(message), { code });
+}
+
+function normalizeTrustedTimePulseIntervalMs(value) {
+  if (value == null || value === '') return 0;
+  const numeric = Number(value);
+  if (!Number.isSafeInteger(numeric) || numeric < 0) {
+    throw configurationError('trusted time pulse interval must be a non-negative safe integer', 'TRUSTED_TIME_PULSE_INTERVAL_INVALID');
+  }
+  if (numeric === 0) return 0;
+  if (numeric < TRUSTED_TIME_PULSE_MIN_INTERVAL_MS || numeric > TRUSTED_TIME_PULSE_MAX_INTERVAL_MS) {
+    throw configurationError(
+      `trusted time pulse interval must be 0 or ${TRUSTED_TIME_PULSE_MIN_INTERVAL_MS}-${TRUSTED_TIME_PULSE_MAX_INTERVAL_MS} ms`,
+      'TRUSTED_TIME_PULSE_INTERVAL_INVALID'
+    );
+  }
+  return numeric;
+}
 
 class HardenedLivingKernel extends BaseLivingKernel {
+  constructor(options = {}) {
+    const {
+      trustedTimePulseIntervalMs = process.env.STAY_TRUSTED_TIME_PULSE_INTERVAL_MS || 0,
+      ...kernelOptions
+    } = options;
+    super(kernelOptions);
+    this.trustedTimePulseIntervalMs = normalizeTrustedTimePulseIntervalMs(trustedTimePulseIntervalMs);
+    this.trustedTimePulseTimer = null;
+    this.trustedTimePulseInFlight = false;
+  }
+
+  trustedTimePulseStatus() {
+    return {
+      enabled: this.trustedTimePulseIntervalMs > 0,
+      running: Boolean(this.trustedTimePulseTimer),
+      inFlight: this.trustedTimePulseInFlight,
+      intervalMs: this.trustedTimePulseIntervalMs,
+      sequence: this.trustedTimePulseSequence
+    };
+  }
+
+  startTrustedTimePulseScheduler() {
+    if (this.trustedTimePulseIntervalMs === 0 || this.trustedTimePulseTimer) return false;
+    this.trustedTimePulseTimer = setInterval(() => {
+      this.runTrustedTimePulse().catch(error => this.recordMaintenanceError('trusted-time-pulse', error));
+    }, this.trustedTimePulseIntervalMs);
+    this.trustedTimePulseTimer.unref?.();
+    return true;
+  }
+
+  stopTrustedTimePulseScheduler() {
+    if (!this.trustedTimePulseTimer) return false;
+    clearInterval(this.trustedTimePulseTimer);
+    this.trustedTimePulseTimer = null;
+    return true;
+  }
+
+  async runTrustedTimePulse(clockStatus = 'trusted') {
+    if (this.trustedTimePulseInFlight) return false;
+    this.trustedTimePulseInFlight = true;
+    try {
+      await this.publishTimePulse(clockStatus);
+      this.clearMaintenanceError('trusted-time-pulse');
+      return true;
+    } catch (error) {
+      this.recordMaintenanceError('trusted-time-pulse', error);
+      return false;
+    } finally {
+      this.trustedTimePulseInFlight = false;
+    }
+  }
+
+  async installCore(modulePath) {
+    const unit = await super.installCore(modulePath);
+    if (unit?.manifest?.inputs?.includes('runtime.time.pulse')) {
+      this.startTrustedTimePulseScheduler();
+    }
+    return unit;
+  }
+
   governBiologicalRetentionDebt(maxPending = Number(process.env.STAY_MAX_REQUIRED_EVENT_DEBT || 16384)) {
     const limit = Math.max(8, Math.min(1000000, Number(maxPending) || 16384));
     const rows = this.stateStore.db.prepare(`SELECT c.consumer_id, c.core_id, c.cursor, COUNT(d.sequence) AS pending
@@ -66,6 +148,11 @@ class HardenedLivingKernel extends BaseLivingKernel {
     this.clearMaintenanceError('heartbeat');
   }
 
+  async health(knownCores = null) {
+    const base = await super.health(knownCores);
+    return { ...base, trustedTimePulse: this.trustedTimePulseStatus() };
+  }
+
   async publishKernelEvent(topic, payload, meta = {}) {
     return this.fabric.publish(topic, payload, { ...meta, sourceCore: 'living-kernel', sourceVersion: KERNEL_VERSION });
   }
@@ -116,6 +203,19 @@ class HardenedLivingKernel extends BaseLivingKernel {
       deduplicationKey: `runtime.time.pulse:${this.runtimeRevision}:${pulseSequence}`
     });
   }
+
+  async stop() {
+    this.stopTrustedTimePulseScheduler();
+    await super.stop();
+  }
 }
 
-module.exports = { LivingKernel: HardenedLivingKernel, HardenedLivingKernel, KERNEL_VERSION, RESERVED_PROVENANCE_FIELDS };
+module.exports = {
+  LivingKernel: HardenedLivingKernel,
+  HardenedLivingKernel,
+  KERNEL_VERSION,
+  RESERVED_PROVENANCE_FIELDS,
+  TRUSTED_TIME_PULSE_MIN_INTERVAL_MS,
+  TRUSTED_TIME_PULSE_MAX_INTERVAL_MS,
+  normalizeTrustedTimePulseIntervalMs
+};
