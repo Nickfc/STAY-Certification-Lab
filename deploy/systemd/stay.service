@@ -53,11 +53,19 @@ PrivateTmp=true
 PrivateDevices=true
 ProtectClock=true
 ProtectControlGroups=false
-ProtectKernelLogs=true
+# Native Core containment is performed by a nested bubblewrap worker. The
+# trusted, unprivileged CoreHost therefore needs the non-process procfs
+# controls that bubblewrap reads while creating its user namespace and must be
+# able to mount a fresh procfs inside that namespace. On the certified host,
+# ProtectKernelTunables/ProtectKernelLogs remount procfs in a way that makes
+# that nested proc mount fail with "Mount too revealing". Keep the service
+# capability-free and ProtectProc=invisible, but leave these two mount policies
+# disabled so the stronger per-Core namespace sandbox can actually exist.
+ProtectKernelLogs=false
 ProtectKernelModules=true
-ProtectKernelTunables=true
+ProtectKernelTunables=false
 ProtectProc=invisible
-ProcSubset=pid
+ProcSubset=all
 # The trusted CoreHost supervisor must be allowed to create a bubblewrap user,
 # mount, PID and network namespace for untrusted native-core workers. The
 # service itself remains unprivileged and has an empty capability set.
