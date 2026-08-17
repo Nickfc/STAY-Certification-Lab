@@ -107,6 +107,12 @@ class LivingKernel extends HardenedLivingKernel {
 
   async installCore(modulePath) {
     const primaryPath = path.resolve(modulePath);
+    if (!this.auxiliaryBootComplete && this.auxiliaryCorePaths.length > 0 && this.primaryBootCorePath && primaryPath !== this.primaryBootCorePath) {
+      throw configurationError(
+        `boot core differs from STAY_BOOT_CORE while auxiliary cores are pending: ${primaryPath}`,
+        'AUXILIARY_CORE_PRIMARY_MISMATCH'
+      );
+    }
     if (this.auxiliaryBootComplete || this.auxiliaryCorePaths.length === 0) {
       return super.installCore(primaryPath);
     }
