@@ -122,6 +122,29 @@ test('R8-12 committed containment evidence matches its body and controlling sour
   const evidencePath = path.join(root, 'docs/sntss/evidence/R8_CONTAINMENT_EVIDENCE.json');
   const evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8')); const { evidenceHash, ...body } = evidence;
   assert.equal(evidenceHash, hash(body)); assert.equal(evidence.activeStatePathTouched, false);
+
+  const requiredModuleHashes = [
+    'runtime/kernel/package-policy.js',
+    'runtime/kernel/core-loader.js',
+    'runtime/kernel/core-host-client.js',
+    'runtime/kernel/core-sandbox.js',
+    'runtime/core-host/host.js',
+    'runtime/core-host/sandbox-host.js',
+    'runtime/core-host/worker.js',
+    'runtime/kernel/resource-governor.js',
+    'runtime/kernel/cgroup-governor.js',
+    'cores/sntss/v0.1.0/containment.js',
+    'cores/sntss/v0.1.0/package-policy.json',
+    'cores/sntss/schemas/containment-policy.schema.json',
+    'test/sntss-containment.test.js'
+  ];
+
+  assert.deepEqual(
+    Object.keys(evidence.moduleHashes),
+    requiredModuleHashes,
+    'containment evidence source inventory changed'
+  );
+
   for (const [file, expected] of Object.entries(evidence.moduleHashes)) {
     const actual = `sha256:${crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')}`;
     assert.equal(actual, expected, file);

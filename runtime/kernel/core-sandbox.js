@@ -11,6 +11,38 @@ function realPathOrSelf(targetPath) {
   catch { return targetPath; }
 }
 
+function sandboxNodeBinding(execPath = process.execPath) {
+  const hostNodePath = realPathOrSelf(execPath);
+
+  // /usr is already exposed read-only inside every native Core sandbox.
+  if (hostNodePath.startsWith('/usr/')) {
+    return Object.freeze({
+      hostNodePath,
+      nodePath: hostNodePath,
+      args: Object.freeze([])
+    });
+  }
+
+  // Node may legitimately live outside /usr. Expose only its executable
+  // directory through a stable, read-only sandbox mount.
+  const hostNodeBin = path.dirname(hostNodePath);
+  const sandboxNodeRoot = '/stay-node';
+  const sandboxNodeBin = path.posix.join(sandboxNodeRoot, 'bin');
+  const nodePath = path.posix.join(
+    sandboxNodeBin,
+    path.basename(hostNodePath)
+  );
+
+  return Object.freeze({
+    hostNodePath,
+    nodePath,
+    args: Object.freeze([
+      '--dir', sandboxNodeRoot,
+      '--ro-bind', hostNodeBin, sandboxNodeBin
+    ])
+  });
+}
+
 function canonicalCoreModulePath(modulePath) {
   return fs.realpathSync.native(path.resolve(modulePath));
 }
@@ -80,7 +112,7 @@ function sandboxWorkerPlan(modulePath, { maxOldSpaceMiB = 64 } = {}) {
   const sandboxRoot = '/stay-release';
   const sandboxModulePath = path.posix.join(sandboxRoot, relativeModule.split(path.sep).join('/'));
   const sandboxWorkerPath = path.posix.join(sandboxRoot, workerRelative.split(path.sep).join('/'));
-  const nodePath = process.execPath.startsWith('/usr/') ? process.execPath : '/usr/bin/node';
+  const nodeBinding = sandboxNodeBinding();
   const execArgv = [
     '--disable-sigusr1',
     `--max-old-space-size=${Math.max(16, Math.floor(maxOldSpaceMiB))}`,
@@ -89,9 +121,10 @@ function sandboxWorkerPlan(modulePath, { maxOldSpaceMiB = 64 } = {}) {
       .replaceAll(path.resolve(__dirname, '..'), path.posix.join(sandboxRoot, 'runtime')))
   ];
   const args = [
-    '--die-with-parent', '--new-session', '--unshare-all', '--disable-userns', '--cap-drop', 'ALL',
+    '--die-with-parent', '--new-session', '--unshare-all', '--unshare-user', '--disable-userns', '--cap-drop', 'ALL',
     '--proc', '/proc', '--dev', '/dev', '--dir', '/tmp', '--dir', '/var', '--dir', '/run',
     '--ro-bind', '/usr', '/usr',
+    ...nodeBinding.args,
     '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/sbin', '/sbin',
     '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
     '--ro-bind', releaseRoot, sandboxRoot,
@@ -101,7 +134,7 @@ function sandboxWorkerPlan(modulePath, { maxOldSpaceMiB = 64 } = {}) {
   for (const key of ['NODE_ENV', 'TZ', 'LANG', 'LC_ALL']) {
     if (process.env[key] != null) args.push('--setenv', key, String(process.env[key]));
   }
-  args.push(nodePath, ...execArgv, sandboxWorkerPath);
+  args.push(nodeBinding.nodePath, ...execArgv, sandboxWorkerPath);
   return Object.freeze({
     executable: process.env.STAY_BWRAP || '/usr/bin/bwrap',
     args: Object.freeze(args),
@@ -153,6 +186,6 @@ function spawnCoreWorker(modulePath, { compatibility = false, maxOldSpaceMiB = 6
 }
 
 module.exports = {
-  WORKER_PATH, canonicalCoreModulePath, isLegacyCompatibilityCore, trustedCoreHostExecArgv, nativeCoreExecArgv, coreHostEnvironment, coreSupervisorEnvironment,
+  WORKER_PATH, sandboxNodeBinding, canonicalCoreModulePath, isLegacyCompatibilityCore, trustedCoreHostExecArgv, nativeCoreExecArgv, coreHostEnvironment, coreSupervisorEnvironment,
   releaseRootFor, sandboxWorkerPlan, spawnCoreWorker
 };

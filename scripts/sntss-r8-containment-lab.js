@@ -36,7 +36,8 @@ const killed = containment.forceTerminationDirective(escaped, { trustedRuntime: 
 const normalized = normalizePolicy(sntss.manifest.resources, sntss.manifest.priority);
 const moduleFiles = [
   'runtime/kernel/package-policy.js', 'runtime/kernel/core-loader.js', 'runtime/kernel/core-host-client.js',
-  'runtime/kernel/core-sandbox.js', 'runtime/kernel/resource-governor.js', 'runtime/kernel/cgroup-governor.js',
+  'runtime/kernel/core-sandbox.js', 'runtime/core-host/host.js', 'runtime/core-host/sandbox-host.js', 'runtime/core-host/worker.js',
+  'runtime/kernel/resource-governor.js', 'runtime/kernel/cgroup-governor.js',
   'cores/sntss/v0.1.0/containment.js', 'cores/sntss/v0.1.0/package-policy.json',
   'cores/sntss/schemas/containment-policy.schema.json', 'test/sntss-containment.test.js'
 ];

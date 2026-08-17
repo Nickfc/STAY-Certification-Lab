@@ -59,18 +59,78 @@
     "productionOutputs": 0
   },
   "modeledFailures": {
-    "hang": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "event-flood": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "oom": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "pids-exhaustion": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "cpu-pressure": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "sigkill": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "invalid-checkpoint": { "contained": true, "mode": "quarantined", "forceTermination": true, "evidenceRetained": true },
-    "output-abuse": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "process-escape": { "contained": true, "mode": "quarantined", "forceTermination": true, "evidenceRetained": true },
-    "audit-flood": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "migration-overrun": { "contained": true, "mode": "degraded", "forceTermination": false, "evidenceRetained": true },
-    "unsafe-shutdown": { "contained": true, "mode": "quarantined", "forceTermination": true, "evidenceRetained": true }
+    "hang": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "event-flood": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "oom": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "pids-exhaustion": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "cpu-pressure": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "sigkill": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "invalid-checkpoint": {
+      "contained": true,
+      "mode": "quarantined",
+      "forceTermination": true,
+      "evidenceRetained": true
+    },
+    "output-abuse": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "process-escape": {
+      "contained": true,
+      "mode": "quarantined",
+      "forceTermination": true,
+      "evidenceRetained": true
+    },
+    "audit-flood": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "migration-overrun": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "unsafe-shutdown": {
+      "contained": true,
+      "mode": "quarantined",
+      "forceTermination": true,
+      "evidenceRetained": true
+    }
   },
   "neutralization": {
     "failedStatePreserved": true,
@@ -96,7 +156,7 @@
     "runtime/kernel/package-policy.js": "sha256:d7ea60b0ddd0195410cec767fd6226dd207dd4d952dacd3c5b6564e5ff8eb050",
     "runtime/kernel/core-loader.js": "sha256:705dcfaa3429eb9bd68cd810b41c6ff3a7e13d204fb750d9195a29dc7380db42",
     "runtime/kernel/core-host-client.js": "sha256:5de4b1fec0dcad0c828ccd34b78d7732f91c2aa6326fd8e2ce7992cb012d0aec",
-    "runtime/kernel/core-sandbox.js": "sha256:d08e9e7e1f0649722701f89907e03f213ede14fcde0d5f491938fb110b16ba21",
+    "runtime/kernel/core-sandbox.js": "sha256:c88dc489e7e96fe73eb38b483a15b38b33e39350675a29fa3cb675a7e451a309",
     "runtime/core-host/host.js": "sha256:9fececb6f3cee0a3e45752f4c8372abe5ab686007a1ed01a7d49ca007299aa2e",
     "runtime/core-host/sandbox-host.js": "sha256:f9ca5347a11f2da18acb3af16f9ec4a773f7beb7cee838a1c05fd3433cb94a36",
     "runtime/core-host/worker.js": "sha256:85edd4bdf3688353e2de005cddb1dfa74eaf06539989c354bbe0caeb787a4eaf",
@@ -105,7 +165,7 @@
     "cores/sntss/v0.1.0/containment.js": "sha256:d227063c7e44f0c25edc429630c243e0850b1e8b3b3fe16eff812fd4b9601fe2",
     "cores/sntss/v0.1.0/package-policy.json": "sha256:53dcfa0f5132c702457581138dd2a4afa1a04fb3610a24d09b08886e97cd9102",
     "cores/sntss/schemas/containment-policy.schema.json": "sha256:653922d85332998a29eb792e72dab8a2fb8d73e4eb90175363a9d4daec461377",
-    "test/sntss-containment.test.js": "sha256:fc21617055cafec81cb28b14d9f0f8c7bbccc05b935133517a8835e23bfaad8b"
+    "test/sntss-containment.test.js": "sha256:aeaa45854ed4b11f6a09653ba8c1127bc30f7d1b443b7995df19e4a7a980d775"
   },
-  "evidenceHash": "sha256:dc13a1bc928f71b810338b27a8c2276cb9e76b85da934d2863ae95eda7fd9636"
+  "evidenceHash": "sha256:aa6fad932785b3b2ed7c658f3054835b3c096226927b214476e0b59ee069126b"
 }
