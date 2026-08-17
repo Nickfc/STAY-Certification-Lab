@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const {
+  LivingKernel,
   MAX_AUXILIARY_CORES,
   parseAuxiliaryCorePaths,
   installAuxiliaryCores,
@@ -106,4 +107,21 @@ test('auxiliary-only boot installs every configured Core exactly once in order',
 
   assert.deepEqual(calls, auxiliaryCorePaths);
   assert.deepEqual(units.map(unit => unit.modulePath), auxiliaryCorePaths);
+});
+
+test('runtime refuses a different primary Core while configured auxiliaries are pending', async () => {
+  const cwd = process.cwd();
+  const kernel = new LivingKernel({
+    dataDir: path.join(cwd, '.tmp-auxiliary-core-mismatch-not-started'),
+    primaryBootCorePath: 'cores/fetus-legacy-0.6/index.js',
+    auxiliaryCorePaths: ['cores/sntss/neutral/index.js'],
+    auxiliaryCoreCwd: cwd,
+    heartbeatIntervalMs: 0,
+    snapshotIntervalMs: 0
+  });
+
+  await assert.rejects(
+    kernel.installCore(path.resolve(cwd, 'cores/kernel-probe/v1/index.js')),
+    error => error?.code === 'AUXILIARY_CORE_PRIMARY_MISMATCH'
+  );
 });
