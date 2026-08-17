@@ -40,6 +40,11 @@ function appendDiagnostic(current, value) {
   return (current + prefix + normalized).slice(0, CORE_INSPECT_DIAGNOSTIC_LIMIT);
 }
 
+function inspectionError(message, code, diagnostics) {
+  const suffix = diagnostics ? `: ${diagnostics}` : '';
+  return Object.assign(new Error(String(message || 'core manifest inspection failed') + suffix), { code: code || null });
+}
+
 async function inspectCoreModule(modulePath, timeoutMs = 5000) {
   // Static package attestation happens in the trusted Kernel process. Executable
   // manifest inspection happens in the CoreHost worker, which is OS-sandboxed
@@ -74,12 +79,11 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
         }
         if (message?.requestId !== requestId || message.type !== 'response') return;
         if (message.ok) resolve(message.result);
-        else reject(Object.assign(new Error(message.error?.message || 'core manifest inspection failed'), { code: message.error?.code || null }));
+        else reject(inspectionError(message.error?.message, message.error?.code, diagnostics));
       });
       child.once('exit', code => {
         if (code && code !== 0) {
-          const suffix = diagnostics ? `: ${diagnostics}` : '';
-          reject(Object.assign(new Error(`core manifest inspector exited ${code}${suffix}`), { code: 'CORE_INSPECT_EXIT' }));
+          reject(inspectionError(`core manifest inspector exited ${code}`, 'CORE_INSPECT_EXIT', diagnostics));
         }
       });
       child.send({
