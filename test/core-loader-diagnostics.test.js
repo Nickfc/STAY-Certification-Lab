@@ -54,6 +54,10 @@ test('manifest inspection preserves a bounded Bubblewrap failure diagnostic', as
     fakeBwrap,
     [
       '#!/bin/sh',
+      // Consume the CoreHost request before failing. This keeps the synthetic
+      // worker alive long enough for the request write to succeed, so the test
+      // exercises diagnostic propagation instead of racing into EPIPE.
+      'IFS= read -r _request || true',
       'echo "synthetic-bwrap-diagnostic: proc mount denied" >&2',
       'i=0',
       'while [ "$i" -lt 100 ]; do',
@@ -61,6 +65,9 @@ test('manifest inspection preserves a bounded Bubblewrap failure diagnostic', as
       '  i=$((i + 1))',
       'done',
       'echo >&2',
+      // Give the CoreHost stderr relay a deterministic opportunity to forward
+      // the worker diagnostic before the synthetic process exits.
+      'sleep 0.1',
       'exit 17',
       ''
     ].join('\n'),
