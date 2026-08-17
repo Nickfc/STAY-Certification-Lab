@@ -7,6 +7,7 @@ const os = require('node:os');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { LivingKernel } = require('../runtime');
+const { SOURCE_FILES: SEALED_LEGACY_FILES } = require('../cores/fetus-legacy-0.6');
 const { waitFor } = require('./helpers');
 
 const repoRoot = path.join(__dirname, '..');
@@ -20,6 +21,46 @@ function resolveLegacySourceDir() {
     process.env.STAY_LEGACY_SOURCE_DIR ||
     defaultLegacySourceDir
   );
+}
+
+async function prepareReadOnlyLegacyFixture(sourceDir) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-sntss-legacy-fixture-'));
+  const fixture = path.join(root, 'legacy-0.6.0');
+  try {
+    await fs.mkdir(path.join(fixture, 'public'), { recursive: true, mode: 0o700 });
+    await fs.mkdir(path.join(fixture, 'data'), { recursive: true, mode: 0o700 });
+
+    for (const relative of Object.keys(SEALED_LEGACY_FILES)) {
+      const source = path.join(sourceDir, relative);
+      const target = path.join(fixture, relative);
+      await fs.copyFile(source, target);
+      await fs.chmod(target, 0o444);
+    }
+
+    // The sealed 0.6 server calls mkdirSync(__dirname/data) even when its
+    // authoritative state path is redirected outside the source tree. Match
+    // the hardened host with an existing, empty, non-writable compatibility
+    // directory rather than making immutable program source writable.
+    await fs.chmod(path.join(fixture, 'data'), 0o555);
+    await fs.chmod(path.join(fixture, 'public'), 0o555);
+    await fs.chmod(fixture, 0o555);
+
+    return { root, sourceDir: fixture };
+  } catch (error) {
+    await fs.chmod(fixture, 0o755).catch(() => {});
+    await fs.chmod(path.join(fixture, 'public'), 0o755).catch(() => {});
+    await fs.chmod(path.join(fixture, 'data'), 0o755).catch(() => {});
+    await fs.rm(root, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+async function removeReadOnlyLegacyFixture(fixture) {
+  if (!fixture) return;
+  await fs.chmod(fixture.sourceDir, 0o755).catch(() => {});
+  await fs.chmod(path.join(fixture.sourceDir, 'public'), 0o755).catch(() => {});
+  await fs.chmod(path.join(fixture.sourceDir, 'data'), 0o755).catch(() => {});
+  await fs.rm(fixture.root, { recursive: true, force: true });
 }
 
 async function reserveLoopbackPort() {
@@ -106,14 +147,18 @@ async function assertAttached(kernel, observed) {
 }
 
 test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and remain chemically inert across restart', async t => {
-  const legacySourceDir = resolveLegacySourceDir();
+  const sealedLegacySourceDir = resolveLegacySourceDir();
   try {
-    await fs.access(path.join(legacySourceDir, 'server.js'));
+    for (const relative of Object.keys(SEALED_LEGACY_FILES)) {
+      await fs.access(path.join(sealedLegacySourceDir, relative));
+    }
   } catch {
-    t.skip(`sealed legacy 0.6 source is unavailable at ${legacySourceDir}`);
+    t.skip(`sealed legacy 0.6 source is unavailable at ${sealedLegacySourceDir}`);
     return;
   }
 
+  const legacyFixture = await prepareReadOnlyLegacyFixture(sealedLegacySourceDir);
+  const legacySourceDir = legacyFixture.sourceDir;
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-sntss-live-attachment-'));
   const port = await reserveLoopbackPort();
   const env = captureEnvironment([
@@ -125,11 +170,18 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
     'STAY_REQUIRE_CORE_PROMOTION_CERT'
   ]);
 
+  const fixtureStat = await fs.stat(legacySourceDir);
+  const fixtureDataStat = await fs.stat(path.join(legacySourceDir, 'data'));
+  assert.equal(fixtureStat.mode & 0o222, 0, 'legacy source fixture must be non-writable');
+  assert.equal(fixtureDataStat.mode & 0o222, 0, 'legacy compatibility data directory must be non-writable');
+  assert.deepEqual(await fs.readdir(path.join(legacySourceDir, 'data')), []);
+
   let activeKernel = null;
   t.after(async () => {
     await activeKernel?.stop().catch(() => {});
     restoreEnvironment(env);
     await fs.rm(dataDir, { recursive: true, force: true });
+    await removeReadOnlyLegacyFixture(legacyFixture);
   });
 
   const firstObserved = { timePulses: [], sntssOutputs: [] };
