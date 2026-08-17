@@ -12,7 +12,15 @@ const { waitFor } = require('./helpers');
 const repoRoot = path.join(__dirname, '..');
 const fetusPath = path.join(repoRoot, 'cores', 'fetus-legacy-0.6', 'index.js');
 const neutralPath = path.join(repoRoot, 'cores', 'sntss', 'neutral', 'index.js');
-const legacySourceDir = path.join(repoRoot, 'legacy', '0.6.0');
+const defaultLegacySourceDir = '/opt/stay/legacy/0.6.0';
+
+function resolveLegacySourceDir() {
+  return path.resolve(
+    process.env.STAY_I1C_LEGACY_SOURCE_DIR ||
+    process.env.STAY_LEGACY_SOURCE_DIR ||
+    defaultLegacySourceDir
+  );
+}
 
 async function reserveLoopbackPort() {
   const server = net.createServer();
@@ -38,7 +46,7 @@ function restoreEnvironment(snapshot) {
   }
 }
 
-function makeAttachmentKernel({ dataDir, port, allowIdentityBootstrap }) {
+function makeAttachmentKernel({ dataDir, port, allowIdentityBootstrap, legacySourceDir }) {
   process.env.STAY_DATA_DIR = dataDir;
   process.env.STAY_LEGACY_SOURCE_DIR = legacySourceDir;
   process.env.STAY_LEGACY_PORT = String(port);
@@ -98,6 +106,14 @@ async function assertAttached(kernel, observed) {
 }
 
 test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and remain chemically inert across restart', async t => {
+  const legacySourceDir = resolveLegacySourceDir();
+  try {
+    await fs.access(path.join(legacySourceDir, 'server.js'));
+  } catch {
+    t.skip(`sealed legacy 0.6 source is unavailable at ${legacySourceDir}`);
+    return;
+  }
+
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-sntss-live-attachment-'));
   const port = await reserveLoopbackPort();
   const env = captureEnvironment([
@@ -117,7 +133,12 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
   });
 
   const firstObserved = { timePulses: [], sntssOutputs: [] };
-  const first = makeAttachmentKernel({ dataDir, port, allowIdentityBootstrap: true });
+  const first = makeAttachmentKernel({
+    dataDir,
+    port,
+    allowIdentityBootstrap: true,
+    legacySourceDir
+  });
   activeKernel = first;
   first.fabric.subscribeAll(event => {
     if (event.topic === 'runtime.time.pulse') firstObserved.timePulses.push(event);
@@ -139,7 +160,12 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
   activeKernel = null;
 
   const secondObserved = { timePulses: [], sntssOutputs: [] };
-  const restarted = makeAttachmentKernel({ dataDir, port, allowIdentityBootstrap: false });
+  const restarted = makeAttachmentKernel({
+    dataDir,
+    port,
+    allowIdentityBootstrap: false,
+    legacySourceDir
+  });
   activeKernel = restarted;
   restarted.fabric.subscribeAll(event => {
     if (event.topic === 'runtime.time.pulse') secondObserved.timePulses.push(event);
