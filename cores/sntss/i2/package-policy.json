@@ -1,0 +1,84 @@
+{
+  "formatVersion": 1,
+  "coreId": "sntss",
+  "entrypoint": "index.js",
+  "allowedBuiltins": [
+    "node:crypto"
+  ],
+  "ambientCapabilities": {
+    "filesystemWrite": false,
+    "network": false,
+    "processSpawn": false
+  },
+  "diagnostics": false,
+  "environmentAllowlist": [
+    "LANG",
+    "LC_ALL",
+    "NODE_ENV",
+    "PATH",
+    "STAY_COREHOST",
+    "TZ"
+  ],
+  "files": {
+    "../../../runtime/kernel/canonical-json.js": "sha256:aafdc03899a23b00ff6a0ec2930399a0d88ffc767e0cf903d9a69f5cbf93fe9e",
+    "chemical-state.js": "sha256:24f20f5a472ca1cbf6e625a536e34fd75568155721b8b69195b4fc2fafa9d70e",
+    "families/acetylcholine-like.js": "sha256:da68b683fdda2033ee5f3941049fe4c387e2784c7b4e29335be1bae7ec3f14fd",
+    "families/dopamine-like.js": "sha256:a670d5353b560188623839317b3a9eb5039f3463337d7d1f6fa72e00780c514b",
+    "families/endogenous-opioid-like.js": "sha256:c2dde9fd2165c97ea4154d1535a2795199a2dd711567bbfb1e7b5dc7fcce8afd",
+    "families/gaba-like.js": "sha256:4c220cdbae8d5cbc20f0e7e368e9dc11f9e85a23888eb6a615c198abd6fe72f0",
+    "families/glutamate-like.js": "sha256:95236a67322321112ca120bf3854ce0d3ab26138d5bcdbb683b67eb9ed17a2df",
+    "families/index.js": "sha256:aa2a951cbab14871929e4a2239cf6fe8b5b09a92f210965993e68152d5d81931",
+    "families/noradrenaline-like.js": "sha256:b7cde9578ba572561bc4c179347046b08524d99487cea2bd6b6f54ccfb876237",
+    "families/oxytocin-like.js": "sha256:0a538d6e16520902130c7af091e26b03bebec23513a9286d6df894ec354dd2db",
+    "families/serotonin-like.js": "sha256:bd41a764dc5720a5aa3dfd778050b29134b7558ad90b8629444dcdb009425e16",
+    "fixed-point.js": "sha256:2735868a843abaa31d1b2ff5ea40840f94c148076d1b6c497ddf8093c794f368",
+    "index.js": "sha256:f976b5f5a1e15d2ce94f32f2e932877064eefe52ba278b98b16673ca7efc93d9",
+    "kinetics.js": "sha256:cea3ca6b7bb5b8130dce5513f67406d765a3b6e9d6c9b16acd1cc27585e0bfb3",
+    "species-profile.js": "sha256:fff2600be16213032d9ab97c82f7674dc9e403011ee85f7450e830db5bbda0e3"
+  },
+  "resourceContract": {
+    "cgroupV2": {
+      "distribution": "stay-cores",
+      "leaf": "sntss-i2-<instance>",
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "kernelGovernorOwned": true,
+      "memoryHighBytes": 67108864,
+      "memoryMaxBytes": 100663296,
+      "pidsMax": 16,
+      "cpuMax": "20000 100000"
+    },
+    "manifestResources": {
+      "softRamMiB": 64,
+      "hardRamMiB": 96,
+      "softCpuPercent": 5,
+      "hardCpuPercent": 20,
+      "pidsMax": 16,
+      "queueCapacity": 256,
+      "handlerTimeoutMs": 250,
+      "healthTimeoutMs": 1000,
+      "outputCapacity": 128,
+      "outputLimitPerEvent": 16,
+      "outputBytesPerEvent": 65536,
+      "storageMiB": 4,
+      "maxRestarts": 4,
+      "restartWindowMs": 60000,
+      "restartBackoffMs": 250
+    },
+    "requiredOnProductionHost": true
+  },
+  "bounds": {
+    "checkpointBytes": 1048576,
+    "auditRecords": 64,
+    "auditRecordBytes": 4096,
+    "migrationRecords": 64,
+    "migrationWorkItems": 1,
+    "shutdownMs": 2000,
+    "pendingRequests": 128,
+    "productionOutputs": 0
+  },
+  "policyHash": "sha256:38bbbc5e544f9f53273c1df9d09a4e8a08854fb8c6d397b6564c07f94f8a1e6b"
+}

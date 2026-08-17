@@ -15,8 +15,8 @@
  * Runtime attachment comes later.
  */
 
-const fp = require('../v0.1.0/fixed-point');
-const kinetics = require('../v0.1.0/kinetics');
+const fp = require('./fixed-point');
+const kinetics = require('./kinetics');
 
 const {
   ACTIVE_FAMILIES,
@@ -25,7 +25,7 @@ const {
   speciesProfile,
   createInitialModel,
   kineticProfiles
-} = require('../v0.1.0/species-profile');
+} = require('./species-profile');
 
 const QUANTUM_MS =
   speciesProfile.integrationQuantumMs;
