@@ -32,6 +32,43 @@ async function exists(filePath) {
 function sha256(data) { return crypto.createHash('sha256').update(data).digest('hex'); }
 async function sha256File(filePath) { return sha256(await fs.readFile(filePath)); }
 
+const RESIDENT_HASH =
+  /^sha256:[0-9a-f]{64}$/;
+
+const RESIDENT_STATUSES =
+  new Set([
+    'ATTACHED',
+    'RUNNING',
+    'RECOVERING',
+    'QUARANTINED',
+    'RESYNC_REQUIRED',
+    'DETACHED'
+  ]);
+
+function residentRecord(row) {
+  if (!row) return null;
+
+  return {
+    residencyId: row.residency_id,
+    coreId: row.core_id,
+    role: row.role,
+    instanceId: row.instance_id,
+    version: row.version,
+    stateSchema: Number(row.state_schema),
+    moduleRelativePath: row.module_relative_path,
+    moduleHash: row.module_hash,
+    manifestHash: row.manifest_hash,
+    packagePolicyHash: row.package_policy_hash,
+    organismIdentityHash: row.organism_identity_hash,
+    checkpointHash: row.checkpoint_hash || null,
+    checkpointGeneration:
+      Number(row.checkpoint_generation) || 0,
+    status: row.status,
+    attachedAt: row.attached_at,
+    updatedAt: row.updated_at
+  };
+}
+
 async function collectFiles(rootDir) {
   const result = [];
   if (!(await exists(rootDir))) return result;
@@ -120,6 +157,78 @@ class StateStore {
         UNIQUE(core_id, generation)
       );
       CREATE INDEX IF NOT EXISTS checkpoint_latest ON checkpoints(core_id, generation DESC);
+
+      CREATE TABLE IF NOT EXISTS resident_instances (
+        residency_id TEXT PRIMARY KEY,
+        core_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        instance_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        state_schema INTEGER NOT NULL CHECK(state_schema >= 1),
+        module_relative_path TEXT NOT NULL,
+        module_hash TEXT NOT NULL,
+        manifest_hash TEXT NOT NULL,
+        package_policy_hash TEXT NOT NULL,
+        organism_identity_hash TEXT NOT NULL,
+        checkpoint_hash TEXT,
+        checkpoint_generation INTEGER NOT NULL DEFAULT 0
+          CHECK(checkpoint_generation >= 0),
+        status TEXT NOT NULL CHECK(
+          status IN (
+            'ATTACHED',
+            'RUNNING',
+            'RECOVERING',
+            'QUARANTINED',
+            'RESYNC_REQUIRED',
+            'DETACHED'
+          )
+        ),
+        attached_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS resident_checkpoints (
+        checkpoint_id TEXT PRIMARY KEY,
+        residency_id TEXT NOT NULL,
+        instance_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        state_schema INTEGER NOT NULL CHECK(state_schema >= 1),
+        generation INTEGER NOT NULL CHECK(generation >= 1),
+        blob_hash TEXT NOT NULL,
+        byte_length INTEGER NOT NULL CHECK(byte_length >= 0),
+        input_cursor INTEGER NOT NULL DEFAULT 0 CHECK(input_cursor >= 0),
+        created_at TEXT NOT NULL,
+        UNIQUE(residency_id, generation),
+        FOREIGN KEY(residency_id)
+          REFERENCES resident_instances(residency_id)
+          ON DELETE RESTRICT
+      );
+
+      CREATE INDEX IF NOT EXISTS resident_checkpoint_latest
+        ON resident_checkpoints(residency_id, generation DESC);
+
+      CREATE TABLE IF NOT EXISTS resident_resynchronizations (
+        resync_id TEXT PRIMARY KEY,
+        residency_id TEXT NOT NULL,
+        from_cursor INTEGER NOT NULL CHECK(from_cursor >= 0),
+        to_cursor INTEGER NOT NULL CHECK(to_cursor >= 0),
+        abandoned_count INTEGER NOT NULL CHECK(abandoned_count >= 0),
+        first_abandoned_sequence INTEGER,
+        last_abandoned_sequence INTEGER,
+        checkpoint_hash TEXT NOT NULL,
+        runtime_revision INTEGER NOT NULL CHECK(runtime_revision >= 1),
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(residency_id)
+          REFERENCES resident_instances(residency_id)
+          ON DELETE RESTRICT
+      );
+
+      CREATE INDEX IF NOT EXISTS resident_resync_history
+        ON resident_resynchronizations(
+          residency_id,
+          created_at
+        );
+
       CREATE TABLE IF NOT EXISTS biological_events (
         sequence INTEGER PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
@@ -179,11 +288,47 @@ class StateStore {
     const checkpointColumns = new Set(this.db.prepare('PRAGMA table_info(checkpoints)').all().map(row => row.name));
     if (!checkpointColumns.has('input_cursor')) this.db.exec('ALTER TABLE checkpoints ADD COLUMN input_cursor INTEGER NOT NULL DEFAULT 0');
     const schemaRow = this.db.prepare("SELECT version FROM schema_versions WHERE name='continuity'").get();
-    if (Number(schemaRow?.version || 0) > 3) {
-      throw Object.assign(new Error('continuity schema is newer than this runtime supports'), { code: 'STATE_SCHEMA_UNSUPPORTED' });
+    if (Number(schemaRow?.version || 0) > 4) {
+      throw Object.assign(
+        new Error(
+          'continuity schema is newer than this runtime supports'
+        ),
+        {
+          code:
+            'STATE_SCHEMA_UNSUPPORTED'
+        }
+      );
     }
-    this.db.prepare(`INSERT INTO schema_versions(name, version, updated_at) VALUES('continuity', 3, ?)
-      ON CONFLICT(name) DO UPDATE SET version=excluded.version, updated_at=excluded.updated_at`).run(new Date().toISOString());
+
+    /*
+     * Continuity schema 4 introduces durable
+     * residency:
+     *
+     *   resident_instances
+     *   resident_checkpoints
+     *
+     * An older schema-3 runtime MUST therefore
+     * refuse a schema-4 database instead of opening
+     * it while silently ignoring resident history.
+     */
+    this.db.prepare(`
+      INSERT INTO schema_versions(
+        name,
+        version,
+        updated_at
+      )
+      VALUES(
+        'continuity',
+        4,
+        ?
+      )
+      ON CONFLICT(name)
+      DO UPDATE SET
+        version=excluded.version,
+        updated_at=excluded.updated_at
+    `).run(
+      new Date().toISOString()
+    );
     await this.importLegacyMetadata();
     await this.reconcileMetadataMirrors();
     await this.assertCanonicalLifeMirror('identity');
@@ -387,6 +532,369 @@ class StateStore {
     } : null;
   }
 
+  deactivateBiologicalConsumer(
+    consumerId
+  ) {
+    const consumer =
+      this.getBiologicalConsumer(
+        consumerId
+      );
+
+    if (!consumer) {
+      throw Object.assign(
+        new Error(
+          'biological consumer is not registered'
+        ),
+        {
+          code:
+            'BIOLOGICAL_CONSUMER_UNKNOWN'
+        }
+      );
+    }
+
+    const at =
+      new Date().toISOString();
+
+    const highWater =
+      Number(
+        this.db.prepare(`
+          SELECT COALESCE(
+            MAX(sequence),
+            0
+          ) AS value
+          FROM biological_events
+        `).get()?.value || 0
+      );
+
+    this.withTransaction(() => {
+      this.db.prepare(`
+        UPDATE biological_consumers
+        SET
+          active=0,
+          required=0,
+          updated_at=?
+        WHERE consumer_id=?
+      `).run(
+        at,
+        consumerId
+      );
+    });
+
+    this.markWriteSuccess();
+
+    return {
+      consumerId,
+      highWater,
+      consumer:
+        this.getBiologicalConsumer(
+          consumerId
+        )
+    };
+  }
+
+
+  resynchronizeResidentBiologicalConsumer({
+    residencyId,
+    checkpointHash,
+    runtimeRevision
+  }) {
+    const resident =
+      this.getResident(
+        residencyId
+      );
+
+    if (!resident) {
+      throw Object.assign(
+        new Error(
+          `unknown resident: ${residencyId}`
+        ),
+        {
+          code:
+            'RESIDENT_UNKNOWN'
+        }
+      );
+    }
+
+    if (
+      resident.checkpointHash !==
+        checkpointHash
+    ) {
+      throw Object.assign(
+        new Error(
+          'resident resynchronization checkpoint changed'
+        ),
+        {
+          code:
+            'RESIDENT_CHECKPOINT_MISMATCH'
+        }
+      );
+    }
+
+    if (
+      !Number.isSafeInteger(
+        runtimeRevision
+      ) ||
+      runtimeRevision < 1
+    ) {
+      throw Object.assign(
+        new Error(
+          'resident resynchronization runtime revision is invalid'
+        ),
+        {
+          code:
+            'RESIDENT_RESYNC_REVISION'
+        }
+      );
+    }
+
+    const consumer =
+      this.getBiologicalConsumer(
+        residencyId
+      );
+
+    if (!consumer) {
+      throw Object.assign(
+        new Error(
+          'resident biological consumer is unavailable'
+        ),
+        {
+          code:
+            'BIOLOGICAL_CONSUMER_UNKNOWN'
+        }
+      );
+    }
+
+    const at =
+      new Date().toISOString();
+
+    const resyncId =
+      crypto.randomUUID();
+
+    const highWater =
+      Number(
+        this.db.prepare(`
+          SELECT COALESCE(
+            MAX(sequence),
+            0
+          ) AS value
+          FROM biological_events
+        `).get()?.value || 0
+      );
+
+    const pending =
+      this.db.prepare(`
+        SELECT
+          COUNT(*) AS count,
+          MIN(sequence) AS minimum,
+          MAX(sequence) AS maximum
+        FROM biological_deliveries
+        WHERE
+          consumer_id=? AND
+          status='PENDING'
+      `).get(
+        residencyId
+      );
+
+    const abandonedCount =
+      Number(
+        pending?.count || 0
+      );
+
+    const firstAbandonedSequence =
+      pending?.minimum == null
+        ? null
+        : Number(
+            pending.minimum
+          );
+
+    const lastAbandonedSequence =
+      pending?.maximum == null
+        ? null
+        : Number(
+            pending.maximum
+          );
+
+    this.withTransaction(() => {
+      /*
+       * Biological delivery v1 only has PENDING and
+       * ACKED states.
+       *
+       * A controlled L0 resynchronization therefore
+       * records abandoned deliveries as ACKED with a
+       * cryptographically unambiguous administrative
+       * transition marker, while the dedicated
+       * resident_resynchronizations table preserves
+       * the fact that these events were NOT applied
+       * to physiology.
+       */
+      this.db.prepare(`
+        UPDATE biological_deliveries
+        SET
+          status='ACKED',
+          transition_id=?,
+          checkpoint_hash=?,
+          acknowledged_at=?
+        WHERE
+          consumer_id=? AND
+          status='PENDING'
+      `).run(
+        `resident-resync-abandon:${resyncId}`,
+        checkpointHash,
+        at,
+        residencyId
+      );
+
+      this.db.prepare(`
+        UPDATE biological_consumers
+        SET
+          cursor=?,
+          required=0,
+          active=0,
+          authority_epoch=0,
+          checkpoint_hash=?,
+          updated_at=?
+        WHERE consumer_id=?
+      `).run(
+        highWater,
+        checkpointHash,
+        at,
+        residencyId
+      );
+
+      this.db.prepare(`
+        INSERT INTO resident_resynchronizations(
+          resync_id,
+          residency_id,
+          from_cursor,
+          to_cursor,
+          abandoned_count,
+          first_abandoned_sequence,
+          last_abandoned_sequence,
+          checkpoint_hash,
+          runtime_revision,
+          created_at
+        )
+        VALUES(
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+      `).run(
+        resyncId,
+        residencyId,
+        consumer.cursor,
+        highWater,
+        abandonedCount,
+        firstAbandonedSequence,
+        lastAbandonedSequence,
+        checkpointHash,
+        runtimeRevision,
+        at
+      );
+
+      this.db.prepare(`
+        INSERT INTO recovery_records(
+          type,
+          core_id,
+          detail_json,
+          created_at
+        )
+        VALUES(
+          'resident.biological-resync',
+          ?,
+          ?,
+          ?
+        )
+      `).run(
+        resident.coreId,
+        JSON.stringify({
+          resyncId,
+          residencyId,
+          fromCursor:
+            consumer.cursor,
+          toCursor:
+            highWater,
+          abandonedCount,
+          firstAbandonedSequence,
+          lastAbandonedSequence,
+          checkpointHash,
+          runtimeRevision,
+          inventedBiologicalTime:
+            false
+        }),
+        at
+      );
+    });
+
+    this.markWriteSuccess();
+
+    return {
+      resyncId,
+      residencyId,
+      fromCursor:
+        consumer.cursor,
+      toCursor:
+        highWater,
+      abandonedCount,
+      firstAbandonedSequence,
+      lastAbandonedSequence,
+      checkpointHash,
+      runtimeRevision
+    };
+  }
+
+
+  listResidentResynchronizations(
+    residencyId
+  ) {
+    return this.db.prepare(`
+      SELECT *
+      FROM resident_resynchronizations
+      WHERE residency_id=?
+      ORDER BY created_at, resync_id
+    `).all(
+      residencyId
+    ).map(
+      row => ({
+        resyncId:
+          row.resync_id,
+        residencyId:
+          row.residency_id,
+        fromCursor:
+          Number(
+            row.from_cursor
+          ),
+        toCursor:
+          Number(
+            row.to_cursor
+          ),
+        abandonedCount:
+          Number(
+            row.abandoned_count
+          ),
+        firstAbandonedSequence:
+          row.first_abandoned_sequence == null
+            ? null
+            : Number(
+                row.first_abandoned_sequence
+              ),
+        lastAbandonedSequence:
+          row.last_abandoned_sequence == null
+            ? null
+            : Number(
+                row.last_abandoned_sequence
+              ),
+        checkpointHash:
+          row.checkpoint_hash,
+        runtimeRevision:
+          Number(
+            row.runtime_revision
+          ),
+        createdAt:
+          row.created_at
+      })
+    );
+  }
+
+
   getBiologicalDelivery(consumerId, sequence) {
     const row = this.db.prepare('SELECT * FROM biological_deliveries WHERE consumer_id=? AND sequence=?').get(consumerId, sequence);
     return row ? {
@@ -556,6 +1064,629 @@ class StateStore {
     const bytes = await fs.readFile(this.blobPath(hash));
     if (sha256(bytes) !== hash) throw Object.assign(new Error('checkpoint blob hash mismatch'), { code: 'CHECKPOINT_CORRUPT' });
     return bytes;
+  }
+
+  registerResident({
+    residencyId,
+    coreId,
+    role,
+    instanceId,
+    version,
+    stateSchema,
+    moduleRelativePath,
+    moduleHash,
+    manifestHash,
+    packagePolicyHash,
+    organismIdentityHash
+  }) {
+    const stringFields = {
+      residencyId,
+      coreId,
+      role,
+      instanceId,
+      version,
+      moduleRelativePath
+    };
+
+    for (const [name, value] of Object.entries(stringFields)) {
+      if (typeof value !== 'string' || !value.trim()) {
+        throw Object.assign(
+          new Error(`invalid resident ${name}`),
+          { code: 'RESIDENT_IDENTITY_INVALID' }
+        );
+      }
+    }
+
+    if (
+      residencyId.length > 200 ||
+      coreId.length > 120 ||
+      role.length > 120 ||
+      instanceId.length > 200 ||
+      version.length > 120
+    ) {
+      throw Object.assign(
+        new Error('resident identity exceeds bounded length'),
+        { code: 'RESIDENT_IDENTITY_INVALID' }
+      );
+    }
+
+    if (!Number.isSafeInteger(stateSchema) || stateSchema < 1) {
+      throw Object.assign(
+        new Error('invalid resident state schema'),
+        { code: 'RESIDENT_IDENTITY_INVALID' }
+      );
+    }
+
+    for (
+      const [name, value]
+      of Object.entries({
+        moduleHash,
+        manifestHash,
+        packagePolicyHash,
+        organismIdentityHash
+      })
+    ) {
+      if (!RESIDENT_HASH.test(String(value || ''))) {
+        throw Object.assign(
+          new Error(`invalid resident ${name}`),
+          { code: 'RESIDENT_IDENTITY_INVALID' }
+        );
+      }
+    }
+
+    const normalizedModule =
+      String(moduleRelativePath)
+        .replaceAll('\\', '/');
+
+    if (
+      path.posix.isAbsolute(normalizedModule) ||
+      normalizedModule.split('/').includes('..')
+    ) {
+      throw Object.assign(
+        new Error('resident module path must remain release-relative'),
+        { code: 'RESIDENT_MODULE_PATH' }
+      );
+    }
+
+    const existing =
+      this.getResident(residencyId);
+
+    const expected = {
+      coreId,
+      role,
+      instanceId,
+      version,
+      stateSchema,
+      moduleRelativePath: normalizedModule,
+      moduleHash,
+      manifestHash,
+      packagePolicyHash,
+      organismIdentityHash
+    };
+
+    if (existing) {
+      for (const [name, value] of Object.entries(expected)) {
+        if (existing[name] !== value) {
+          throw Object.assign(
+            new Error(
+              `resident immutable identity changed: ${name}`
+            ),
+            { code: 'RESIDENT_IDENTITY_CONFLICT' }
+          );
+        }
+      }
+
+      return existing;
+    }
+
+    const at =
+      new Date().toISOString();
+
+    this.withTransaction(() => {
+      this.db.prepare(`
+        INSERT INTO resident_instances(
+          residency_id,
+          core_id,
+          role,
+          instance_id,
+          version,
+          state_schema,
+          module_relative_path,
+          module_hash,
+          manifest_hash,
+          package_policy_hash,
+          organism_identity_hash,
+          checkpoint_hash,
+          checkpoint_generation,
+          status,
+          attached_at,
+          updated_at
+        )
+        VALUES(
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          NULL, 0, 'ATTACHED', ?, ?
+        )
+      `).run(
+        residencyId,
+        coreId,
+        role,
+        instanceId,
+        version,
+        stateSchema,
+        normalizedModule,
+        moduleHash,
+        manifestHash,
+        packagePolicyHash,
+        organismIdentityHash,
+        at,
+        at
+      );
+    });
+
+    this.markWriteSuccess();
+
+    return this.getResident(residencyId);
+  }
+
+  getResident(residencyId) {
+    const row =
+      this.db.prepare(
+        'SELECT * FROM resident_instances WHERE residency_id=?'
+      ).get(residencyId);
+
+    return residentRecord(row);
+  }
+
+  listResidents() {
+    return this.db.prepare(
+      'SELECT * FROM resident_instances ORDER BY residency_id'
+    ).all().map(residentRecord);
+  }
+
+  setResidentStatus(residencyId, status) {
+    if (!RESIDENT_STATUSES.has(status)) {
+      throw Object.assign(
+        new Error(`invalid resident status: ${status}`),
+        { code: 'RESIDENT_STATUS_INVALID' }
+      );
+    }
+
+    const current =
+      this.getResident(residencyId);
+
+    if (!current) {
+      throw Object.assign(
+        new Error(`unknown resident: ${residencyId}`),
+        { code: 'RESIDENT_UNKNOWN' }
+      );
+    }
+
+    if (current.status === status) {
+      return current;
+    }
+
+    const at =
+      new Date().toISOString();
+
+    this.withTransaction(() => {
+      const updated =
+        this.db.prepare(`
+          UPDATE resident_instances
+          SET status=?, updated_at=?
+          WHERE residency_id=?
+        `).run(
+          status,
+          at,
+          residencyId
+        );
+
+      if (updated.changes !== 1) {
+        throw Object.assign(
+          new Error('resident status update lost identity'),
+          { code: 'RESIDENT_IDENTITY_CONFLICT' }
+        );
+      }
+    });
+
+    this.markWriteSuccess();
+
+    return this.getResident(residencyId);
+  }
+
+  async commitResidentCheckpoint({
+    residencyId,
+    instanceId,
+    version,
+    stateSchema,
+    state,
+    consumerAck = null
+  }) {
+    const resident =
+      this.getResident(residencyId);
+
+    if (!resident) {
+      throw Object.assign(
+        new Error(`unknown resident: ${residencyId}`),
+        { code: 'RESIDENT_UNKNOWN' }
+      );
+    }
+
+    if (
+      resident.instanceId !== instanceId ||
+      resident.version !== version ||
+      resident.stateSchema !== stateSchema
+    ) {
+      throw Object.assign(
+        new Error('resident checkpoint identity mismatch'),
+        { code: 'RESIDENT_CHECKPOINT_IDENTITY' }
+      );
+    }
+
+    if (
+      ![
+        'ATTACHED',
+        'RUNNING',
+        'RECOVERING'
+      ].includes(resident.status)
+    ) {
+      throw Object.assign(
+        new Error(
+          `resident ${residencyId} cannot checkpoint while ${resident.status}`
+        ),
+        { code: 'RESIDENT_CHECKPOINT_STATE' }
+      );
+    }
+
+    if (
+      consumerAck &&
+      consumerAck.consumerId !== residencyId
+    ) {
+      throw Object.assign(
+        new Error('resident acknowledgement identity mismatch'),
+        { code: 'RESIDENT_CONSUMER_MISMATCH' }
+      );
+    }
+
+    const json =
+      JSON.stringify(state ?? {});
+
+    const blob =
+      await this.putBlob(json);
+
+    const createdAt =
+      new Date().toISOString();
+
+    const checkpointId =
+      crypto.randomUUID();
+
+    const result =
+      this.withTransaction(() => {
+        const row =
+          this.db.prepare(`
+            SELECT
+              COALESCE(MAX(generation), 0)
+              AS generation
+            FROM resident_checkpoints
+            WHERE residency_id=?
+          `).get(residencyId);
+
+        const generation =
+          Number(row?.generation || 0) + 1;
+
+        const inputCursor =
+          consumerAck
+            ? Number(consumerAck.sequence) || 0
+            : 0;
+
+        this.db.prepare(`
+          INSERT INTO resident_checkpoints(
+            checkpoint_id,
+            residency_id,
+            instance_id,
+            version,
+            state_schema,
+            generation,
+            blob_hash,
+            byte_length,
+            input_cursor,
+            created_at
+          )
+          VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          checkpointId,
+          residencyId,
+          instanceId,
+          version,
+          stateSchema,
+          generation,
+          blob.hash,
+          blob.byteLength,
+          inputCursor,
+          createdAt
+        );
+
+        const pointer =
+          this.db.prepare(`
+            UPDATE resident_instances
+            SET
+              checkpoint_hash=?,
+              checkpoint_generation=?,
+              updated_at=?
+            WHERE
+              residency_id=? AND
+              instance_id=? AND
+              version=? AND
+              state_schema=?
+          `).run(
+            blob.hash,
+            generation,
+            createdAt,
+            residencyId,
+            instanceId,
+            version,
+            stateSchema
+          );
+
+        if (pointer.changes !== 1) {
+          throw Object.assign(
+            new Error(
+              'resident checkpoint pointer lost identity'
+            ),
+            { code: 'RESIDENT_CHECKPOINT_IDENTITY' }
+          );
+        }
+
+        if (consumerAck) {
+          const delivery =
+            this.db.prepare(`
+              SELECT status
+              FROM biological_deliveries
+              WHERE consumer_id=? AND sequence=?
+            `).get(
+              consumerAck.consumerId,
+              consumerAck.sequence
+            );
+
+          if (!delivery) {
+            throw Object.assign(
+              new Error(
+                'resident acknowledgement has no durable delivery'
+              ),
+              { code: 'BIOLOGICAL_DELIVERY_MISSING' }
+            );
+          }
+
+          if (delivery.status !== 'ACKED') {
+            this.db.prepare(`
+              UPDATE biological_deliveries
+              SET
+                status='ACKED',
+                transition_id=?,
+                checkpoint_hash=?,
+                acknowledged_at=?
+              WHERE
+                consumer_id=? AND
+                sequence=? AND
+                status='PENDING'
+            `).run(
+              consumerAck.transitionId || null,
+              blob.hash,
+              createdAt,
+              consumerAck.consumerId,
+              consumerAck.sequence
+            );
+          }
+
+          const cursor =
+            this.advanceBiologicalCursor(
+              consumerAck.consumerId,
+              createdAt
+            );
+
+          this.db.prepare(`
+            UPDATE biological_consumers
+            SET checkpoint_hash=?, updated_at=?
+            WHERE consumer_id=?
+          `).run(
+            blob.hash,
+            createdAt,
+            consumerAck.consumerId
+          );
+
+          if (cursor < consumerAck.sequence) {
+            // Earlier pending deliveries legitimately
+            // prevent the cursor from crossing this event.
+          }
+        }
+
+        return {
+          checkpointId,
+          generation
+        };
+      });
+
+    this.markWriteSuccess();
+
+    await this.pruneResidentCheckpoints(
+      residencyId,
+      32
+    );
+
+    return {
+      ...result,
+      residencyId,
+      instanceId,
+      version,
+      stateSchema,
+      blobHash: blob.hash,
+      byteLength: blob.byteLength,
+      createdAt
+    };
+  }
+
+  async pruneResidentCheckpoints(
+    residencyId,
+    retention = 32
+  ) {
+    const bounded =
+      Math.max(
+        1,
+        Math.min(
+          1024,
+          Number(retention) || 32
+        )
+      );
+
+    const rows =
+      this.db.prepare(`
+        SELECT checkpoint_id, blob_hash
+        FROM resident_checkpoints
+        WHERE residency_id=?
+        ORDER BY generation DESC
+      `).all(residencyId);
+
+    const remove =
+      rows.slice(bounded);
+
+    if (!remove.length) return;
+
+    this.withTransaction(() => {
+      const statement =
+        this.db.prepare(`
+          DELETE FROM resident_checkpoints
+          WHERE checkpoint_id=?
+        `);
+
+      for (const row of remove) {
+        statement.run(
+          row.checkpoint_id
+        );
+      }
+    });
+
+    for (const row of remove) {
+      const authoritativeCheckpointRefs =
+        Number(
+          this.db.prepare(`
+            SELECT COUNT(*) AS count
+            FROM checkpoints
+            WHERE blob_hash=?
+          `).get(row.blob_hash)?.count || 0
+        );
+
+      const authorityRefs =
+        Number(
+          this.db.prepare(`
+            SELECT COUNT(*) AS count
+            FROM authority
+            WHERE checkpoint_hash=?
+          `).get(row.blob_hash)?.count || 0
+        );
+
+      const residentCheckpointRefs =
+        Number(
+          this.db.prepare(`
+            SELECT COUNT(*) AS count
+            FROM resident_checkpoints
+            WHERE blob_hash=?
+          `).get(row.blob_hash)?.count || 0
+        );
+
+      const residentPointerRefs =
+        Number(
+          this.db.prepare(`
+            SELECT COUNT(*) AS count
+            FROM resident_instances
+            WHERE checkpoint_hash=?
+          `).get(row.blob_hash)?.count || 0
+        );
+
+      if (
+        authoritativeCheckpointRefs === 0 &&
+        authorityRefs === 0 &&
+        residentCheckpointRefs === 0 &&
+        residentPointerRefs === 0
+      ) {
+        await fs.unlink(
+          this.blobPath(row.blob_hash)
+        ).catch(error => {
+          if (error.code !== 'ENOENT') {
+            throw error;
+          }
+        });
+      }
+    }
+  }
+
+  async readResidentCheckpoint(
+    residencyId
+  ) {
+    const resident =
+      this.getResident(residencyId);
+
+    if (!resident) {
+      return null;
+    }
+
+    if (
+      !resident.checkpointHash ||
+      !resident.checkpointGeneration
+    ) {
+      return null;
+    }
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM resident_checkpoints
+        WHERE
+          residency_id=? AND
+          instance_id=? AND
+          version=? AND
+          state_schema=? AND
+          generation=? AND
+          blob_hash=?
+        LIMIT 1
+      `).get(
+        resident.residencyId,
+        resident.instanceId,
+        resident.version,
+        resident.stateSchema,
+        resident.checkpointGeneration,
+        resident.checkpointHash
+      );
+
+    if (!row) {
+      throw Object.assign(
+        new Error(
+          `resident checkpoint tuple is missing for ${residencyId}`
+        ),
+        { code: 'RESIDENT_CHECKPOINT_MISMATCH' }
+      );
+    }
+
+    const bytes =
+      await this.readBlob(
+        row.blob_hash
+      );
+
+    return {
+      checkpointId: row.checkpoint_id,
+      residencyId: row.residency_id,
+      instanceId: row.instance_id,
+      version: row.version,
+      stateSchema: Number(row.state_schema),
+      generation: Number(row.generation),
+      blobHash: row.blob_hash,
+      byteLength: Number(row.byte_length),
+      inputCursor:
+        Number(row.input_cursor) || 0,
+      createdAt: row.created_at,
+      state:
+        JSON.parse(
+          bytes.toString('utf8')
+        )
+    };
   }
 
   async commitCheckpoint({ coreId, instanceId, version, authorityEpoch, stateSchema, state, updateAuthority = true, consumerAck = null }) {
@@ -819,13 +1950,43 @@ class StateStore {
     const checkpointRows = this.db.prepare('SELECT DISTINCT blob_hash FROM checkpoints').all();
     for (const row of checkpointRows) {
       const source = this.blobPath(row.blob_hash);
-      if (await exists(source)) selected.push(source);
+      if (
+        await exists(source) &&
+        !selected.includes(source)
+      ) {
+        selected.push(source);
+      }
+    }
+
+    const residentCheckpointRows =
+      this.db.prepare(
+        'SELECT DISTINCT blob_hash FROM resident_checkpoints'
+      ).all();
+
+    for (const row of residentCheckpointRows) {
+      const source =
+        this.blobPath(row.blob_hash);
+
+      if (
+        await exists(source) &&
+        !selected.includes(source)
+      ) {
+        selected.push(source);
+      }
     }
 
     const manifest = {
-      format: 'stay-runtime-snapshot-v2', createdAt, reason, files: {
-        'continuity.sqlite3': await sha256File(snapshotDatabasePath)
-      }, authority: this.listAuthority()
+      format: 'stay-runtime-snapshot-v2',
+      createdAt,
+      reason,
+      files: {
+        'continuity.sqlite3':
+          await sha256File(snapshotDatabasePath)
+      },
+      authority:
+        this.listAuthority(),
+      residents:
+        this.listResidents()
     };
     for (const source of selected) {
       const relative = path.relative(this.rootDir, source);

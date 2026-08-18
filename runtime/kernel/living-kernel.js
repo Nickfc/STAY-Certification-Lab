@@ -8,6 +8,8 @@ const { RuntimeRegistry } = require('./registry');
 const { UpgradeManager } = require('./upgrades');
 const { ComputeFabric } = require('../compute/compute-fabric');
 const { stableStringify } = require('./canonical-json');
+const { ResidentManager } = require('./resident-manager');
+const { loadAndVerifyResidentPromotion } = require('./resident-promotion-authority');
 
 const KERNEL_VERSION = '0.8.11.3';
 
@@ -19,7 +21,18 @@ class LivingKernel {
     allowIdentityBootstrap = false,
     heartbeatIntervalMs = Number(process.env.STAY_HEARTBEAT_INTERVAL_MS || 30000),
     snapshotIntervalMs = Number(process.env.STAY_SNAPSHOT_INTERVAL_MS || 21600000),
-    snapshotRetention = Number(process.env.STAY_SNAPSHOT_RETENTION || 24)
+    snapshotRetention = Number(process.env.STAY_SNAPSHOT_RETENTION || 24),
+    releaseRoot = path.resolve(__dirname, '..', '..'),
+    allowLaboratoryResidentAttachment =
+      process.env.STAY_REQUIRE_CORE_PROMOTION_CERT !== '1',
+
+    residentPromotionPublicKeyPath =
+      process.env.STAY_CORE_PROMOTION_PUBLIC_KEY ||
+      '/etc/stay/release-authority.pub',
+
+    residentPromotionCertificateDir =
+      process.env.STAY_RESIDENT_PROMOTION_CERT_DIR ||
+      '/etc/stay/resident-promotions'
   }) {
     this.dataDir = dataDir;
     this.clock = clock;
@@ -48,6 +61,79 @@ class LivingKernel {
     this.statusCacheTtlMs = 1000;
     this.trustedTimePulseSequence = 0;
     this.lastBiologicalRetention = null;
+
+    this.releaseRoot =
+      path.resolve(releaseRoot);
+
+    /*
+     * Initial L0 production attachment remains
+     * impossible until signed residency promotion
+     * authorization is implemented.
+     *
+     * Crash recovery of an already durable resident
+     * is a separate liveness operation.
+     */
+    this.allowLaboratoryResidentAttachment =
+      Boolean(
+        allowLaboratoryResidentAttachment
+      );
+
+    this.residentPromotionPublicKeyPath =
+      String(
+        residentPromotionPublicKeyPath
+      );
+
+    this.residentPromotionCertificateDir =
+      String(
+        residentPromotionCertificateDir
+      );
+
+    this.residentManager =
+      null;
+
+    this.lastResidentRecovery =
+      Object.freeze([]);
+  }
+
+  ensureResidentManager() {
+    if (this.residentManager) {
+      return this.residentManager;
+    }
+
+    if (!this.identity) {
+      throw Object.assign(
+        new Error(
+          'organism identity is unavailable for residency'
+        ),
+        {
+          code:
+            'RESIDENT_IDENTITY_MISSING'
+        }
+      );
+    }
+
+    this.residentManager =
+      new ResidentManager({
+        releaseRoot:
+          this.releaseRoot,
+
+        stateStore:
+          this.stateStore,
+
+        fabric:
+          this.fabric,
+
+        identity:
+          this.identity,
+
+        logger:
+          this.logger,
+
+        clock:
+          this.clock
+      });
+
+    return this.residentManager;
   }
 
   async start() {
@@ -77,6 +163,30 @@ class LivingKernel {
 
     this.startedAt = new Date().toISOString();
     await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
+
+    /*
+     * Durable residents are reconstructed only after:
+     *
+     *   - StateStore is open;
+     *   - organism identity is verified;
+     *   - a new Kernel runtime revision exists.
+     *
+     * Resident-specific recovery failures are
+     * contained and MUST NOT fail Kernel start.
+     */
+    if (
+      this.stateStore
+        .listResidents()
+        .length > 0
+    ) {
+      this.ensureResidentManager();
+
+      this.lastResidentRecovery =
+        Object.freeze(
+          await this.recoverDurableResidents()
+        );
+    }
+
     await this.stateStore.appendJournal({
       type: 'kernel.start',
       at: this.startedAt,
@@ -184,32 +294,851 @@ class LivingKernel {
     return unit;
   }
 
-  async publishOrganismBinding() {
-    const identityHash = 'sha256:' + crypto.createHash('sha256').update(stableStringify(this.identity)).digest('hex');
-    let binding = await this.stateStore.readLife('organism-binding', null);
+  async ensureOrganismBinding({
+    allowCreate = false
+  } = {}) {
+    if (!this.identity) {
+      throw Object.assign(
+        new Error(
+          'organism identity is unavailable'
+        ),
+        {
+          code:
+            'IDENTITY_MISSING'
+        }
+      );
+    }
+
+    const identityHash =
+      'sha256:' +
+      crypto
+        .createHash('sha256')
+        .update(
+          stableStringify(
+            this.identity
+          )
+        )
+        .digest('hex');
+
+    let binding =
+      await this.stateStore
+        .readLife(
+          'organism-binding',
+          null
+        );
+
     if (!binding) {
+      if (!allowCreate) {
+        throw Object.assign(
+          new Error(
+            'persisted organism binding is missing'
+          ),
+          {
+            code:
+              'ORGANISM_BINDING_MISSING'
+          }
+        );
+      }
+
       binding = {
-        bindingVersion: 1,
-        identitySha256: identityHash,
-        organismLineage: this.identity.lineage,
-        issuedAt: Number(this.clock()),
-        runtimeRevision: this.runtimeRevision,
-        authorityEpoch: this.runtimeRevision,
-        kernelVersion: KERNEL_VERSION
+        bindingVersion:
+          1,
+
+        identitySha256:
+          identityHash,
+
+        organismLineage:
+          this.identity.lineage,
+
+        issuedAt:
+          Number(
+            this.clock()
+          ),
+
+        runtimeRevision:
+          this.runtimeRevision,
+
+        authorityEpoch:
+          this.runtimeRevision,
+
+        kernelVersion:
+          KERNEL_VERSION
       };
-      await this.stateStore.writeLife('organism-binding', binding);
+
+      await this.stateStore
+        .writeLife(
+          'organism-binding',
+          binding
+        );
     }
-    if (binding.identitySha256 !== identityHash || binding.organismLineage !== this.identity.lineage) {
-      throw Object.assign(new Error('persisted organism binding does not match living identity'), { code: 'ORGANISM_BINDING_MISMATCH' });
+
+    if (
+      binding.bindingVersion !== 1 ||
+      binding.identitySha256 !==
+        identityHash ||
+      binding.organismLineage !==
+        this.identity.lineage
+    ) {
+      throw Object.assign(
+        new Error(
+          'persisted organism binding does not match living identity'
+        ),
+        {
+          code:
+            'ORGANISM_BINDING_MISMATCH'
+        }
+      );
     }
-    return this.publish('runtime.organism.binding', binding, {
-      eventClass: 'critical',
-      sourceCore: 'living-kernel',
-      sourceVersion: binding.kernelVersion,
-      authorityEpoch: binding.authorityEpoch,
-      evidenceHash: identityHash,
-      deduplicationKey: `runtime.organism.binding:v${binding.bindingVersion}:${identityHash}`
-    });
+
+    return binding;
+  }
+
+  async publishOrganismBinding() {
+    const binding =
+      await this.ensureOrganismBinding({
+        allowCreate:
+          true
+      });
+
+    return this.publish(
+      'runtime.organism.binding',
+      binding,
+      {
+        eventClass:
+          'critical',
+
+        sourceCore:
+          'living-kernel',
+
+        sourceVersion:
+          binding.kernelVersion,
+
+        authorityEpoch:
+          binding.authorityEpoch,
+
+        evidenceHash:
+          binding.identitySha256,
+
+        deduplicationKey:
+          `runtime.organism.binding:v${binding.bindingVersion}:${binding.identitySha256}`
+      }
+    );
+  }
+
+  async attachResident(
+    moduleRelativePath =
+      'cores/sntss/i3d/index.js'
+  ) {
+    const manager =
+      this.ensureResidentManager();
+
+    /*
+     * Inspect before authorization so the signed
+     * certificate binds the exact executable,
+     * manifest and package policy that will later
+     * be loaded.
+     */
+    const inspected =
+      await manager.inspect(
+        moduleRelativePath
+      );
+
+    const authorization =
+      loadAndVerifyResidentPromotion({
+        inspected,
+
+        action:
+          'attach-resident',
+
+        identity:
+          this.identity,
+
+        contract:
+          manager.contract,
+
+        required:
+          !this
+            .allowLaboratoryResidentAttachment,
+
+        publicKeyPath:
+          this
+            .residentPromotionPublicKeyPath,
+
+        certificateDir:
+          this
+            .residentPromotionCertificateDir
+      });
+
+    await this.stateStore
+      .appendJournal({
+        type:
+          'resident.promotion-authorized',
+
+        at:
+          new Date().toISOString(),
+
+        residencyId:
+          manager.contract
+            .residencyId,
+
+        coreId:
+          inspected.definition
+            .manifest.coreId,
+
+        version:
+          inspected.definition
+            .manifest.version,
+
+        action:
+          'attach-resident',
+
+        certificateId:
+          authorization
+            .certificateId || null,
+
+        authorizationClass:
+          authorization
+            .authorizationClass || null,
+
+        laboratoryBypass:
+          authorization
+            .laboratoryBypass === true
+      });
+
+    const binding =
+      await this.ensureOrganismBinding({
+        allowCreate:
+          true
+      });
+
+    const unit =
+      await manager.attach({
+        moduleRelativePath,
+        binding
+      });
+
+    /*
+     * Attaching a new durable subsystem changes the
+     * runtime generation.
+     *
+     * The next trusted time pulse therefore anchors
+     * rather than integrating attachment latency.
+     */
+    await this.bumpRuntimeRevision(
+      'resident.attach',
+      {
+        residencyId:
+          unit.residencyId,
+
+        coreId:
+          unit.manifest.coreId,
+
+        coreVersion:
+          unit.manifest.version
+      }
+    );
+
+    this.statusCache =
+      null;
+
+    await this.stateStore
+      .appendJournal({
+        type:
+          'resident.attach',
+
+        at:
+          new Date().toISOString(),
+
+        residencyId:
+          unit.residencyId,
+
+        coreId:
+          unit.manifest.coreId,
+
+        version:
+          unit.manifest.version,
+
+        organismId:
+          this.identity.organismId,
+
+        runtimeRevision:
+          this.runtimeRevision
+      });
+
+    return unit;
+  }
+
+  async detachResident(
+    residencyId =
+      'resident:sntss'
+  ) {
+    if (!this.residentManager) {
+      throw Object.assign(
+        new Error(
+          'resident runtime manager is unavailable'
+        ),
+        {
+          code:
+            'RESIDENT_NOT_RUNNING'
+        }
+      );
+    }
+
+    const result =
+      await this.residentManager
+        .detach(
+          residencyId
+        );
+
+    this.statusCache =
+      null;
+
+    await this.stateStore
+      .appendJournal({
+        type:
+          'resident.detach',
+
+        at:
+          new Date().toISOString(),
+
+        residencyId,
+
+        organismId:
+          this.identity.organismId,
+
+        checkpointHash:
+          result.checkpointHash,
+
+        statePreserved:
+          true
+      });
+
+    return result;
+  }
+
+
+  async reattachResident(
+    residencyId =
+      'resident:sntss'
+  ) {
+    const manager =
+      this.ensureResidentManager();
+
+    const resident =
+      this.stateStore
+        .getResident(
+          residencyId
+        );
+
+    if (!resident) {
+      throw Object.assign(
+        new Error(
+          'resident does not exist'
+        ),
+        {
+          code:
+            'RESIDENT_UNKNOWN'
+        }
+      );
+    }
+
+    if (
+      resident.status !==
+        'DETACHED'
+    ) {
+      throw Object.assign(
+        new Error(
+          'resident is not detached'
+        ),
+        {
+          code:
+            'RESIDENT_REATTACH_STATE'
+        }
+      );
+    }
+
+    const inspected =
+      await manager.inspect(
+        resident.moduleRelativePath
+      );
+
+    manager.verifyExistingIdentity(
+      resident,
+      inspected
+    );
+
+    const authorization =
+      loadAndVerifyResidentPromotion({
+        inspected,
+
+        action:
+          'reattach-resident',
+
+        identity:
+          this.identity,
+
+        contract:
+          manager.contract,
+
+        required:
+          !this
+            .allowLaboratoryResidentAttachment,
+
+        publicKeyPath:
+          this
+            .residentPromotionPublicKeyPath,
+
+        certificateDir:
+          this
+            .residentPromotionCertificateDir
+      });
+
+    await this.stateStore
+      .appendJournal({
+        type:
+          'resident.promotion-authorized',
+
+        at:
+          new Date().toISOString(),
+
+        residencyId,
+
+        coreId:
+          resident.coreId,
+
+        version:
+          resident.version,
+
+        action:
+          'reattach-resident',
+
+        certificateId:
+          authorization
+            .certificateId || null,
+
+        authorizationClass:
+          authorization
+            .authorizationClass || null,
+
+        laboratoryBypass:
+          authorization
+            .laboratoryBypass === true
+      });
+
+    const binding =
+      await this.ensureOrganismBinding({
+        allowCreate:
+          false
+      });
+
+    /*
+     * A detached resident necessarily missed trusted
+     * pulses. Advance the Kernel runtime generation
+     * before reconnecting it so the next pulse is a
+     * new-revision anchor instead of a sequence gap.
+     */
+    await this.bumpRuntimeRevision(
+      'resident.reattach',
+      {
+        residencyId,
+        coreId:
+          resident.coreId,
+        coreVersion:
+          resident.version
+      }
+    );
+
+    const unit =
+      await manager.reattach(
+        residencyId,
+        binding
+      );
+
+    this.statusCache =
+      null;
+
+    await this.stateStore
+      .appendJournal({
+        type:
+          'resident.reattach',
+
+        at:
+          new Date().toISOString(),
+
+        residencyId,
+
+        organismId:
+          this.identity.organismId,
+
+        runtimeRevision:
+          this.runtimeRevision
+      });
+
+    return unit;
+  }
+
+
+  async resynchronizeResident(
+    residencyId =
+      'resident:sntss'
+  ) {
+    const manager =
+      this.ensureResidentManager();
+
+    const resident =
+      this.stateStore
+        .getResident(
+          residencyId
+        );
+
+    if (!resident) {
+      throw Object.assign(
+        new Error(
+          'resident does not exist'
+        ),
+        {
+          code:
+            'RESIDENT_UNKNOWN'
+        }
+      );
+    }
+
+    if (
+      resident.status !==
+        'RESYNC_REQUIRED'
+    ) {
+      throw Object.assign(
+        new Error(
+          'resident is not awaiting resynchronization'
+        ),
+        {
+          code:
+            'RESIDENT_RESYNC_STATE'
+        }
+      );
+    }
+
+    const inspected =
+      await manager.inspect(
+        resident.moduleRelativePath
+      );
+
+    manager.verifyExistingIdentity(
+      resident,
+      inspected
+    );
+
+    const binding =
+      await this.ensureOrganismBinding({
+        allowCreate:
+          false
+      });
+
+    /*
+     * Resynchronization is a recovery operation,
+     * not a promotion. It grants no new right and
+     * therefore does not require a fresh release
+     * certificate.
+     *
+     * The new runtime revision creates the trusted
+     * no-catch-up boundary.
+     */
+    await this.bumpRuntimeRevision(
+      'resident.resynchronize',
+      {
+        residencyId,
+        coreId:
+          resident.coreId,
+        coreVersion:
+          resident.version
+      }
+    );
+
+    const result =
+      await manager.resynchronize(
+        residencyId,
+        binding,
+        this.runtimeRevision
+      );
+
+    this.statusCache =
+      null;
+
+    await this.stateStore
+      .appendJournal({
+        type:
+          'resident.resynchronize',
+
+        at:
+          new Date().toISOString(),
+
+        residencyId,
+
+        organismId:
+          this.identity.organismId,
+
+        runtimeRevision:
+          this.runtimeRevision,
+
+        resyncId:
+          result.record.resyncId,
+
+        abandonedCount:
+          result.record
+            .abandonedCount,
+
+        inventedBiologicalTime:
+          false
+      });
+
+    return result;
+  }
+
+
+  async residentStatuses() {
+    const residents =
+      this.stateStore
+        .listResidents();
+
+    if (!residents.length) {
+      return [];
+    }
+
+    const manager =
+      this.ensureResidentManager();
+
+    return Promise.all(
+      residents.map(
+        resident =>
+          manager.status(
+            resident.residencyId
+          )
+      )
+    );
+  }
+
+  async recoverDurableResidents() {
+    const residents =
+      this.stateStore
+        .listResidents();
+
+    if (!residents.length) {
+      return [];
+    }
+
+    const manager =
+      this.ensureResidentManager();
+
+    const eligible =
+      residents.filter(
+        resident =>
+          [
+            'ATTACHED',
+            'RUNNING',
+            'RECOVERING'
+          ].includes(
+            resident.status
+          )
+      );
+
+    if (!eligible.length) {
+      return residents.map(
+        resident => ({
+          residencyId:
+            resident.residencyId,
+
+          recovered:
+            false,
+
+          skipped:
+            true,
+
+          status:
+            resident.status
+        })
+      );
+    }
+
+    let binding;
+
+    try {
+      /*
+       * Recovery MUST NOT manufacture a missing
+       * organism binding.
+       */
+      binding =
+        await this.ensureOrganismBinding({
+          allowCreate:
+            false
+        });
+    } catch (error) {
+      const results =
+        [];
+
+      for (
+        const resident
+        of eligible
+      ) {
+        try {
+          this.stateStore
+            .setResidentStatus(
+              resident.residencyId,
+              'QUARANTINED'
+            );
+        } catch {}
+
+        try {
+          this.stateStore
+            .recordRecovery(
+              'resident.kernel-recovery-failed',
+              resident.coreId,
+              {
+                residencyId:
+                  resident.residencyId,
+
+                code:
+                  error.code || null,
+
+                message:
+                  error.message
+              }
+            );
+        } catch {}
+
+        results.push({
+          residencyId:
+            resident.residencyId,
+
+          recovered:
+            false,
+
+          code:
+            error.code || null
+        });
+      }
+
+      return results;
+    }
+
+    const results =
+      [];
+
+    for (
+      const resident
+      of residents
+    ) {
+      if (
+        ![
+          'ATTACHED',
+          'RUNNING',
+          'RECOVERING'
+        ].includes(
+          resident.status
+        )
+      ) {
+        results.push({
+          residencyId:
+            resident.residencyId,
+
+          recovered:
+            false,
+
+          skipped:
+            true,
+
+          status:
+            resident.status
+        });
+
+        continue;
+      }
+
+      try {
+        await manager.recover(
+          resident.residencyId,
+          binding
+        );
+
+        results.push({
+          residencyId:
+            resident.residencyId,
+
+          recovered:
+            true,
+
+          status:
+            'RUNNING'
+        });
+      } catch (error) {
+        const current =
+          this.stateStore
+            .getResident(
+              resident.residencyId
+            );
+
+        if (
+          current &&
+          ![
+            'QUARANTINED',
+            'RESYNC_REQUIRED',
+            'DETACHED'
+          ].includes(
+            current.status
+          )
+        ) {
+          try {
+            this.stateStore
+              .setResidentStatus(
+                resident.residencyId,
+                'QUARANTINED'
+              );
+          } catch {}
+        }
+
+        try {
+          this.stateStore
+            .recordRecovery(
+              'resident.kernel-recovery-failed',
+              resident.coreId,
+              {
+                residencyId:
+                  resident.residencyId,
+
+                code:
+                  error.code || null,
+
+                message:
+                  error.message
+              }
+            );
+        } catch {}
+
+        /*
+         * Resident-specific reconstruction is
+         * deliberately non-fatal to organism
+         * liveness.
+         */
+        this.logger.warn?.(
+          `[STAY] resident ${resident.residencyId} recovery contained: ${error.message}`
+        );
+
+        results.push({
+          residencyId:
+            resident.residencyId,
+
+          recovered:
+            false,
+
+          code:
+            error.code || null
+        });
+      }
+    }
+
+    this.statusCache =
+      null;
+
+    return results;
   }
 
   async publishTimePulse(clockStatus = 'trusted') {
@@ -274,7 +1203,42 @@ class LivingKernel {
       .map(slot => slot.coreId);
     const maintenanceErrors = Object.values(this.maintenanceErrors);
 
+    const residencies =
+      await this.residentStatuses();
+
+    const unhealthyResidents =
+      residencies
+        .filter(
+          resident =>
+            resident &&
+            (
+              [
+                'ATTACHED',
+                'RECOVERING',
+                'QUARANTINED',
+                'RESYNC_REQUIRED'
+              ].includes(
+                resident.status
+              ) ||
+              (
+                resident.status ===
+                  'RUNNING' &&
+                resident.health &&
+                resident.health.ok ===
+                  false
+              )
+            )
+        )
+        .map(
+          resident =>
+            resident.residencyId
+        );
+
     return {
+      /*
+       * Residents are deliberately visible but
+       * non-blocking.
+       */
       ok: persistence.ok && blockingCores.length === 0 && maintenanceErrors.length === 0,
       kernelVersion: KERNEL_VERSION,
       runtimeRevision: this.runtimeRevision,
@@ -282,6 +1246,8 @@ class LivingKernel {
       maintenanceErrors,
       unhealthyCores,
       blockingCores,
+      unhealthyResidents,
+      residencies,
       eventFabric: this.fabric.status(),
       biologicalLedger: this.stateStore.biologicalLedgerStatus(),
       biologicalRetention: this.lastBiologicalRetention,
@@ -334,6 +1300,15 @@ class LivingKernel {
       eventFabric: this.fabric.status(),
       biologicalLedger: this.stateStore.biologicalLedgerStatus(),
       computeFabric: this.computeFabric.status(),
+
+      /*
+       * Residents are intentionally not inserted
+       * into cores[] because cores[] represents the
+       * RuntimeRegistry authority topology.
+       */
+      residencies:
+        health.residencies,
+
       cores: [persistenceContract, ...realCores]
     };
   }
@@ -359,6 +1334,19 @@ class LivingKernel {
     this.snapshotTimer = null;
 
     for (const slot of this.registry.slots.values()) await slot.persistActive();
+
+    /*
+     * Resident shutdown checkpoints physiology
+     * before the final runtime snapshot is created.
+     *
+     * Status remains RUNNING in persistent metadata,
+     * allowing automatic reconstruction on the next
+     * Kernel generation.
+     */
+    if (this.residentManager) {
+      await this.residentManager
+        .shutdown();
+    }
 
     await this.writeHeartbeat();
     await this.createSnapshot('kernel-stop');

@@ -83,6 +83,63 @@ class HardenedLivingKernel extends BaseLivingKernel {
     }
   }
 
+  residentHasTrustedTimeInput() {
+    if (!this.residentManager) {
+      return false;
+    }
+
+    return [
+      ...this.residentManager
+        .units
+        .values()
+    ].some(
+      unit =>
+        unit.manifest
+          .inputs
+          .includes(
+            'runtime.time.pulse'
+          )
+    );
+  }
+
+  async start() {
+    await super.start();
+
+    /*
+     * Automatically recovered residents that consume
+     * trusted time need the same scheduler as an
+     * authoritative Core that consumes trusted time.
+     */
+    if (
+      this.residentHasTrustedTimeInput()
+    ) {
+      this.startTrustedTimePulseScheduler();
+    }
+
+    return this;
+  }
+
+  async attachResident(
+    moduleRelativePath
+  ) {
+    const unit =
+      await super.attachResident(
+        moduleRelativePath
+      );
+
+    if (
+      unit?.manifest
+        ?.inputs
+        ?.includes(
+          'runtime.time.pulse'
+        )
+    ) {
+      this.startTrustedTimePulseScheduler();
+    }
+
+    return unit;
+  }
+
   async installCore(modulePath) {
     const unit = await super.installCore(modulePath);
     if (unit?.manifest?.inputs?.includes('runtime.time.pulse')) {
