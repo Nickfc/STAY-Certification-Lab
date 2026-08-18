@@ -1,7 +1,7 @@
 {
   "format": "stay-sntss-r10-release-evidence-v1",
   "candidateVersion": "0.1.0",
-  "candidateCommit": "7946c6c79cd8f0fd39e327c1656fa241ee8b080a",
+  "candidateCommit": "d3c7fd4cccf387db5ff36205e05378de78940c7d",
   "candidateCommitPinned": true,
   "candidateClosureOnly": true,
   "productionEligible": false,
@@ -11,15 +11,15 @@
   "stateRollbackPolicy": "preserve-forward-state",
   "package": {
     "deterministicInventory": true,
-    "inventoryHash": "sha256:587f0b45c31b289604951fa05ad54869b38e8e1925ed486c52a0c2578b8aad09",
-    "provenanceHash": "sha256:f003850bb5e3ef37fce29ccdecf31d649415fcbe9c165dfeaf8f0890053fa576",
+    "inventoryHash": "sha256:f481dffbd845cd954f1fa9098f92ecddfad97342f2ffac706322988bab096b9d",
+    "provenanceHash": "sha256:fab8842520e121a29f8ecda50c053b93109f5a02b7c0311bc950a8fafb07db1b",
     "dependencyInventoryHash": "sha256:af0bd5010f71b7b6f10fd0dbab36864acc5f2ac3601acfe2d1c2b3a29b097829",
     "packagePolicyHash": "sha256:df5a0f8ddf9593b53faf4eeb4a0b2482bdfd510ef675d9524eee12e77402f134",
     "speciesProfileHash": "sha256:0b80dcefd6a7862ac357aadee583fb90bf5aea2048c33a92b30ee318798f7001",
     "sourceRegistryHash": "sha256:b3302a68d46b40cb9f20ef597d20bc51ed8b38fccd80d0a4279cbe85a2e9397f",
     "receptorProfileRegistryHash": "sha256:839f9400d81bfdcfb479b664ecab7098157ace0daed924c48c61962416c18291",
     "schemaInventoryHash": "sha256:2378eda29bc28cbeb84ce844ad459d5505c6039e2152f215567d0ee6391c744e",
-    "evidenceInventoryHash": "sha256:25de05dfaf776d7ba5fb0ce36071eae06cd27deb2d3b490b1a803c3ee5c202ce",
+    "evidenceInventoryHash": "sha256:03b99f9534fc6268475a3fd36b6994ab135c5adc4254fbf1b46397ffb990d9d7",
     "neutralFallback": {
       "version": "0.0.0-neutral",
       "stateSchema": 1,
@@ -59,8 +59,8 @@
   "sourceHashes": {
     "releaseControl": "sha256:12e9ad39dee0fea5ba3648d7439553cdc67cfe4ddce7510857fe2d811ef089ce",
     "test": "sha256:0727077d975fc18ddf0da50690b09d3584456cb872c5023bf69474921b1150c2",
-    "deployer": "sha256:42e0f93123944e271d5843307a36fc48df994333e0364726cc229ebcb6925a17",
-    "gitBuilder": "sha256:f87bdb4305935fa5b9703f97c9a9209a1b87702bdfb84a8f9936fe9a14564ed7",
+    "deployer": "sha256:8981e5cdc7599e25459d281cf8e909a61293e7b752286220e422b12ca476bca3",
+    "gitBuilder": "sha256:6083f349dc2c948806be8f8d25d49da8b0589370067887f23389187e43843a2a",
     "workflow": "sha256:035f7a026a3adcd1cca6b01026f3ed9a36efab8d4d13144cc0d9f679fa826946",
     "windowsBuilder": "sha256:cd2ed98aedcfe28ced6bb3752d35a4f1c2d52be5113f5188cc15496c9ec37b78"
   },
@@ -70,5 +70,5 @@
     "R10 isolated production-host release rehearsal"
   ],
   "status": "CANDIDATE_PASS",
-  "evidenceHash": "sha256:b27a048521cc8f027f6ff8428626cffee037ed5896f84eddcf1e6f6fae046ded"
+  "evidenceHash": "sha256:d65710f254ab25c156ba78e651d8857d6943fe4354563a4562d461276ecb3f48"
 }
