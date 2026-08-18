@@ -53,3 +53,215 @@ test('snapshot v2 contains a verified SQLite continuity image and immutable blob
   assert.ok(manifest.files['continuity.sqlite3']);
   store.close();
 });
+
+
+test('G0-C222-01: authoritative lifecycle checkpoints preserve biological input provenance', async t => {
+  const dir = await makeDataDir();
+
+  t.after(() =>
+    fs.rm(
+      dir,
+      {
+        recursive: true,
+        force: true
+      }
+    )
+  );
+
+  const store =
+    new StateStore(dir);
+
+  await store.init();
+
+  store.setInitialAuthority({
+    coreId: 'alpha',
+    instanceId: 'a1',
+    version: '1.0.0',
+    epoch: 1
+  });
+
+  store.registerBiologicalConsumer({
+    consumerId: 'core:alpha',
+    coreId: 'alpha',
+    topics: ['bio.tick'],
+    required: true,
+    authorityEpoch: 1
+  });
+
+  const first =
+    store.appendBiologicalEvent({
+      topic: 'bio.tick',
+      payload: {
+        value: 1
+      },
+      meta: {
+        deduplicationKey:
+          'g0-c222-first'
+      },
+      eventClass: 'durable',
+      at: 1001
+    }).event;
+
+  await store.commitCheckpoint({
+    coreId: 'alpha',
+    instanceId: 'a1',
+    version: '1.0.0',
+    authorityEpoch: 1,
+    stateSchema: 1,
+    state: {
+      applied: [first.sequence]
+    },
+    consumerAck: {
+      consumerId: 'core:alpha',
+      sequence: first.sequence,
+      transitionId:
+        'sha256:g0-c222-first'
+    }
+  });
+
+  const biological =
+    await store.readAuthoritativeCheckpoint(
+      'alpha'
+    );
+
+  assert.equal(
+    biological.inputCursor,
+    first.sequence,
+    'durable transition must record incorporated sequence'
+  );
+
+  /*
+   * Lifecycle persistence of the same authoritative
+   * instance/epoch incorporates no new biological input.
+   *
+   * It must therefore preserve the provenance of the
+   * state being checkpointed.
+   */
+  await store.commitCheckpoint({
+    coreId: 'alpha',
+    instanceId: 'a1',
+    version: '1.0.0',
+    authorityEpoch: 1,
+    stateSchema: 1,
+    state: {
+      applied: [first.sequence]
+    }
+  });
+
+  const lifecycleOne =
+    await store.readAuthoritativeCheckpoint(
+      'alpha'
+    );
+
+  assert.equal(
+    lifecycleOne.inputCursor,
+    first.sequence,
+    'authoritative lifecycle checkpoint must inherit biological provenance'
+  );
+
+  /*
+   * Prove that administrative consumer progress is not
+   * equivalent to physiological provenance.
+   */
+  const second =
+    store.appendBiologicalEvent({
+      topic: 'bio.tick',
+      payload: {
+        value: 2
+      },
+      meta: {
+        deduplicationKey:
+          'g0-c222-second'
+      },
+      eventClass: 'durable',
+      at: 1002
+    }).event;
+
+  store.acknowledgeBiologicalEvent({
+    consumerId: 'core:alpha',
+    sequence: second.sequence,
+    transitionId:
+      'sha256:g0-c222-administrative'
+  });
+
+  assert.equal(
+    store.getBiologicalConsumer(
+      'core:alpha'
+    ).cursor,
+    second.sequence,
+    'administrative cursor should advance for the control case'
+  );
+
+  await store.commitCheckpoint({
+    coreId: 'alpha',
+    instanceId: 'a1',
+    version: '1.0.0',
+    authorityEpoch: 1,
+    stateSchema: 1,
+    state: {
+      applied: [first.sequence]
+    }
+  });
+
+  const lifecycleTwo =
+    await store.readAuthoritativeCheckpoint(
+      'alpha'
+    );
+
+  assert.equal(
+    lifecycleTwo.inputCursor,
+    first.sequence,
+    'lifecycle checkpoint must not copy administrative consumer progress'
+  );
+
+  const rows =
+    store.db.prepare(`
+      SELECT
+        generation,
+        instance_id,
+        authority_epoch,
+        input_cursor
+      FROM checkpoints
+      WHERE core_id='alpha'
+      ORDER BY generation
+    `).all();
+
+  assert.deepEqual(
+    rows.map(row => ({
+      generation:
+        Number(row.generation),
+
+      instanceId:
+        row.instance_id,
+
+      authorityEpoch:
+        Number(row.authority_epoch),
+
+      inputCursor:
+        Number(row.input_cursor)
+    })),
+
+    [
+      {
+        generation: 1,
+        instanceId: 'a1',
+        authorityEpoch: 1,
+        inputCursor: first.sequence
+      },
+      {
+        generation: 2,
+        instanceId: 'a1',
+        authorityEpoch: 1,
+        inputCursor: first.sequence
+      },
+      {
+        generation: 3,
+        instanceId: 'a1',
+        authorityEpoch: 1,
+        inputCursor: first.sequence
+      }
+    ]
+  );
+
+  store.close();
+});

@@ -1711,9 +1711,50 @@ class StateStore {
     const createdAt = new Date().toISOString();
     const checkpointId = crypto.randomUUID();
     const result = this.withTransaction(() => {
-      const row = this.db.prepare('SELECT COALESCE(MAX(generation), 0) AS generation FROM checkpoints WHERE core_id = ?').get(coreId);
-      const generation = Number(row?.generation || 0) + 1;
-      const inputCursor = consumerAck ? Number(consumerAck.sequence) || 0 : 0;
+      const generationRow =
+        this.db.prepare(
+          'SELECT COALESCE(MAX(generation), 0) AS generation FROM checkpoints WHERE core_id = ?'
+        ).get(coreId);
+
+      const generation =
+        Number(generationRow?.generation || 0) + 1;
+
+      /*
+       * input_cursor is physiological provenance.
+       *
+       * A durable biological transition records the
+       * sequence actually incorporated into this state.
+       *
+       * A non-biological checkpoint of the same authority
+       * identity incorporates no new biological input, so
+       * it inherits that identity's preceding provenance.
+       *
+       * Authority identity is deliberately constrained to
+       * core + instance + version + epoch. Provenance is
+       * never inferred across an upgrade or epoch boundary.
+       */
+      const provenanceRow =
+        this.db.prepare(`
+          SELECT input_cursor
+          FROM checkpoints
+          WHERE
+            core_id=? AND
+            instance_id=? AND
+            version=? AND
+            authority_epoch=?
+          ORDER BY generation DESC
+          LIMIT 1
+        `).get(
+          coreId,
+          instanceId,
+          version,
+          authorityEpoch
+        );
+
+      const inputCursor =
+        consumerAck
+          ? Number(consumerAck.sequence) || 0
+          : Number(provenanceRow?.input_cursor) || 0;
       this.db.prepare(`INSERT INTO checkpoints(checkpoint_id, core_id, instance_id, version, authority_epoch, state_schema, generation, blob_hash, byte_length, input_cursor, created_at)
         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         checkpointId, coreId, instanceId, version, authorityEpoch, stateSchema, generation, blob.hash, blob.byteLength, inputCursor, createdAt
