@@ -86,6 +86,7 @@ function verifyProvenance(provenance, inventoryHash, expectedVersion, expectedCo
   if (provenance.version !== expectedVersion || provenance.commit !== expectedCommit || !COMMIT.test(provenance.commit)) fail('release provenance version/commit mismatch');
   if (provenance.inventoryHash !== inventoryHash) fail('release provenance inventory mismatch');
   if (provenance.stateRollbackPolicy !== 'preserve-forward-state' || provenance.releaseMutable !== false) fail('release violates immutable/no-rewind contract');
+  if (typeof provenance.productionEligible !== 'boolean') fail('release provenance productionEligible must be boolean');
   const body = { ...provenance };
   const dependencies = body.dependencies || {};
   delete body.dependencies;
@@ -140,6 +141,12 @@ async function verifyCli(argv) {
   ]);
   const inventoryHash = await verifyInventory(root, inventory);
   const provenanceHash = verifyProvenance(provenance, inventoryHash, expectedVersion, expectedCommit);
+  if (action === 'activate' && provenance.productionEligible !== true) {
+    fail(
+      'release is not production eligible for activation',
+      'STAY_RELEASE_NOT_PRODUCTION_ELIGIBLE'
+    );
+  }
   const body = verifyAuthorization(authorization, publicKey, {
     action, archiveSha256, inventoryHash, provenanceHash, version: expectedVersion, commit: expectedCommit
   });

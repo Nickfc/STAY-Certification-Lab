@@ -26,11 +26,15 @@ async function main() {
   // applying authority. This intentionally imports no candidate JavaScript.
   const inventoryHash = await trusted.verifyInventory(root, inventory);
   const provenanceHash = trusted.verifyProvenance(provenance, inventoryHash, version, commit);
+  const allowedActions = String(option('--actions') || 'activate').split(',').map(value => value.trim()).filter(Boolean).sort();
+  if (allowedActions.includes('activate') && provenance.productionEligible !== true) {
+    throw new Error('refusing activation authorization for non-production release');
+  }
   const archiveSha256 = trusted.sha256(fs.readFileSync(archive));
   const issuedAtMs = Date.now();
   const validityMs = Math.max(60000, Math.min(7 * 86400000, Number(option('--validity-ms') || 24 * 3600000)));
   const body = {
-    allowedActions: String(option('--actions') || 'activate').split(',').map(value => value.trim()).filter(Boolean).sort(),
+    allowedActions,
     archiveSha256,
     authorizationClass: String(option('--class') || 'release-activation'),
     commit,
