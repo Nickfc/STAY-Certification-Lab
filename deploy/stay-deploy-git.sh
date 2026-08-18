@@ -35,7 +35,7 @@ rm "$BUILD_DIR/source.tar"; rm -rf "$BUILD_DIR/data" "$BUILD_DIR/.stay-data" "$B
 # Candidate release tooling is never executed in the host namespace. It gets a
 # writable copy of its own build tree, no network, and no /var/lib/stay mount.
 sudo -u "$STAY_USER" "$BWRAP" \
-  --die-with-parent --new-session --unshare-all --disable-userns --cap-drop ALL \
+  --die-with-parent --new-session --unshare-all --unshare-user --disable-userns --cap-drop ALL \
   --proc /proc --dev /dev --dir /tmp --dir /var --dir /run \
   --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
   --bind "$BUILD_DIR" /build --chdir /build --clearenv --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv NODE_ENV test \
@@ -43,7 +43,7 @@ sudo -u "$STAY_USER" "$BWRAP" \
     --root /build --version "$VERSION" --commit "$COMMIT" --builder stay-deploy-git-isolated --branch "$BRANCH"
 
 sudo -u "$STAY_USER" "$BWRAP" \
-  --die-with-parent --new-session --unshare-all --disable-userns --cap-drop ALL \
+  --die-with-parent --new-session --unshare-all --unshare-user --disable-userns --cap-drop ALL \
   --proc /proc --dev /dev --dir /tmp --dir /var --dir /run \
   --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
   --bind "$BUILD_DIR" /build --chdir /build --clearenv --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv NODE_ENV test \

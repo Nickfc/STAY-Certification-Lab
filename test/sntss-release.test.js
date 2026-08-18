@@ -161,3 +161,49 @@ test('R10-12 committed candidate evidence is source-hash consistent and explicit
   const body = { ...evidence }; delete body.evidenceHash;
   assert.equal(evidence.evidenceHash, release.sha256(stableStringify(body)));
 });
+
+
+test('P0A production eligibility is explicit and opt-in', async () => {
+  const release = require('../runtime/release/sntss-release-control');
+
+  const commit = '1'.repeat(40);
+
+  const laboratory = await release.createReleaseDocuments(
+    path.resolve(__dirname, '..'),
+    {
+      commit,
+      builder: 'p0a-regression'
+    }
+  );
+
+  assert.equal(
+    laboratory.provenance.productionEligible,
+    false,
+    'release must remain non-production-eligible unless explicitly promoted'
+  );
+
+  const production = await release.createReleaseDocuments(
+    path.resolve(__dirname, '..'),
+    {
+      commit,
+      builder: 'p0a-regression',
+      productionEligible: true
+    }
+  );
+
+  assert.equal(
+    production.provenance.productionEligible,
+    true,
+    'explicit production release declaration must be represented in provenance'
+  );
+
+  assert.equal(
+    production.provenance.stateRollbackPolicy,
+    'preserve-forward-state'
+  );
+
+  assert.equal(
+    production.provenance.releaseMutable,
+    false
+  );
+});

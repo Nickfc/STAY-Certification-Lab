@@ -159,7 +159,7 @@ async function createReleaseDocuments(rootDir, metadata = {}) {
     runId: metadata.runId == null ? null : String(metadata.runId),
     stateRollbackPolicy: 'preserve-forward-state',
     releaseMutable: false,
-    productionEligible: false,
+    productionEligible: metadata.productionEligible === true,
     inventoryHash: inventory.inventoryHash,
     dependencyInventoryHash: sha256(stableStringify(dependencies)),
     sntss
@@ -293,7 +293,8 @@ async function cli(argv = process.argv.slice(2)) {
     const root = option('--root') || process.cwd();
     const result = await writeReleaseDocuments(root, {
       version: option('--version'), commit: option('--commit'), builder: option('--builder'),
-      branch: option('--branch'), workflow: option('--workflow'), runId: option('--run-id')
+      branch: option('--branch'), workflow: option('--workflow'), runId: option('--run-id'),
+      productionEligible: argv.includes('--production-eligible')
     });
     process.stdout.write(`${JSON.stringify({ status: 'PASS', inventoryHash: result.inventory.inventoryHash, provenanceHash: result.provenance.provenanceHash })}\n`);
     return;
@@ -305,7 +306,7 @@ async function cli(argv = process.argv.slice(2)) {
     process.stdout.write(`${JSON.stringify({ status: 'PASS', inventoryHash: result.inventory.inventoryHash, provenanceHash: result.provenance.provenanceHash, migration })}\n`);
     return;
   }
-  fail('usage: sntss-r10 release-control emit|verify --root <dir> --version <v> --commit <sha> --builder <name>', 'SNTSS_RELEASE_USAGE');
+  fail('usage: sntss-r10 release-control emit|verify --root <dir> --version <v> --commit <sha> --builder <name> [--production-eligible]', 'SNTSS_RELEASE_USAGE');
 }
 
 if (require.main === module) cli().catch(error => { console.error(`${error.code || 'ERROR'}: ${error.message}`); process.exitCode = 1; });

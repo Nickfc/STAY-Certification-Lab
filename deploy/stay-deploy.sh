@@ -196,7 +196,7 @@ while IFS= read -r -d '' source_file; do "$NODE" --check "$source_file"; done < 
 
 echo "-- Isolated continuity test (candidate has no live-StateStore view)"
 sudo -u "$STAY_USER" "$BWRAP" \
-  --die-with-parent --new-session --unshare-all --disable-userns --cap-drop ALL \
+  --die-with-parent --new-session --unshare-all --unshare-user --disable-userns --cap-drop ALL \
   --proc /proc --dev /dev --dir /tmp --dir /var --dir /run \
   --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
   --ro-bind "$WORK" /stay-release --chdir /stay-release --clearenv \
