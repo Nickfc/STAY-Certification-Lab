@@ -1,7 +1,7 @@
 {
   "format": "stay-sntss-r10-release-evidence-v1",
   "candidateVersion": "0.1.0",
-  "candidateCommit": "d3c7fd4cccf387db5ff36205e05378de78940c7d",
+  "candidateCommit": "c6e685363aae2ba95b399086b50ead3040b15c84",
   "candidateCommitPinned": true,
   "candidateClosureOnly": true,
   "productionEligible": false,
@@ -11,15 +11,15 @@
   "stateRollbackPolicy": "preserve-forward-state",
   "package": {
     "deterministicInventory": true,
-    "inventoryHash": "sha256:f481dffbd845cd954f1fa9098f92ecddfad97342f2ffac706322988bab096b9d",
-    "provenanceHash": "sha256:fab8842520e121a29f8ecda50c053b93109f5a02b7c0311bc950a8fafb07db1b",
+    "inventoryHash": "sha256:528c393424f9d313dc7ffa68ab28105d1f9c6e5da643b38946890c279f972331",
+    "provenanceHash": "sha256:3ef3870cf3c50a56b05bcb611d3b8f1a9d9236b7dd24f0c4fe85b5b426e65f9f",
     "dependencyInventoryHash": "sha256:af0bd5010f71b7b6f10fd0dbab36864acc5f2ac3601acfe2d1c2b3a29b097829",
     "packagePolicyHash": "sha256:df5a0f8ddf9593b53faf4eeb4a0b2482bdfd510ef675d9524eee12e77402f134",
     "speciesProfileHash": "sha256:0b80dcefd6a7862ac357aadee583fb90bf5aea2048c33a92b30ee318798f7001",
     "sourceRegistryHash": "sha256:b3302a68d46b40cb9f20ef597d20bc51ed8b38fccd80d0a4279cbe85a2e9397f",
     "receptorProfileRegistryHash": "sha256:839f9400d81bfdcfb479b664ecab7098157ace0daed924c48c61962416c18291",
     "schemaInventoryHash": "sha256:2378eda29bc28cbeb84ce844ad459d5505c6039e2152f215567d0ee6391c744e",
-    "evidenceInventoryHash": "sha256:03b99f9534fc6268475a3fd36b6994ab135c5adc4254fbf1b46397ffb990d9d7",
+    "evidenceInventoryHash": "sha256:2b04718f269037836662a9a29496076d6ffbb85c4a3ce8cae73bf0eb7509d389",
     "neutralFallback": {
       "version": "0.0.0-neutral",
       "stateSchema": 1,
@@ -70,5 +70,5 @@
     "R10 isolated production-host release rehearsal"
   ],
   "status": "CANDIDATE_PASS",
-  "evidenceHash": "sha256:d65710f254ab25c156ba78e651d8857d6943fe4354563a4562d461276ecb3f48"
+  "evidenceHash": "sha256:c6b6ad32ba48cb39c3150ffd69c9e06180efff9ceeab6ea4bc85b501b36bfb76"
 }
