@@ -1,6 +1,11 @@
 'use strict';
 
 const { assertPayload, normalizeEventClass } = require('./protocol');
+const {
+  DURABILITY,
+  normalizeSignal,
+  toEventFabricInput
+} = require('./biological-fabric');
 
 class EventFabric {
   constructor({ clock = () => Date.now(), maxPayloadBytes = 1024 * 1024, sequenceAllocator = null, durableAppender = null } = {}) {
@@ -94,6 +99,49 @@ class EventFabric {
       }
     }
     return event;
+  }
+
+  /*
+   * Publish one canonical biological signal through the existing Kernel
+   * EventFabric.
+   *
+   * Durable signals therefore inherit the already-certified biological
+   * ledger, delivery fan-out, replay and checkpoint/ACK semantics.
+   *
+   * The EventFabric, not the biological producer, remains authoritative for
+   * ledger sequence and event identity.
+   */
+  async publishBiologicalSignal(signal) {
+    const normalized = normalizeSignal(signal);
+    const bridged = toEventFabricInput(normalized);
+
+    const meta = {
+      biological: bridged.biological
+    };
+
+    if (normalized.durability === DURABILITY.DURABLE) {
+      meta.eventClass = 'durable';
+
+      /*
+       * A stable signal identity becomes the durable ledger deduplication
+       * identity. Re-publication of the same biological cause cannot invent
+       * a second durable cause.
+       */
+      meta.deduplicationKey =
+        `biological-signal:${normalized.signalId}`;
+    } else {
+      /*
+       * Biological "ephemeral" describes transport durability, not semantic
+       * telemetry. EventFabric's generic non-durable class is best-effort.
+       */
+      meta.eventClass = 'best-effort';
+    }
+
+    return this.publish(
+      bridged.topic,
+      bridged.payload,
+      meta
+    );
   }
 
   recordFailure(error, event, bestEffort) {
