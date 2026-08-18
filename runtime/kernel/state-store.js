@@ -1361,22 +1361,38 @@ class StateStore {
 
     const result =
       this.withTransaction(() => {
-        const row =
-          this.db.prepare(`
-            SELECT
-              COALESCE(MAX(generation), 0)
-              AS generation
-            FROM resident_checkpoints
-            WHERE residency_id=?
-          `).get(residencyId);
+          const row =
+            this.db.prepare(`
+              SELECT
+                generation,
+                input_cursor
+              FROM resident_checkpoints
+              WHERE residency_id=?
+              ORDER BY generation DESC
+              LIMIT 1
+            `).get(residencyId);
 
         const generation =
           Number(row?.generation || 0) + 1;
 
-        const inputCursor =
-          consumerAck
-            ? Number(consumerAck.sequence) || 0
-            : 0;
+          /*
+           * input_cursor is physiological provenance.
+           *
+           * Durable biological transitions record the
+           * sequence actually incorporated into state.
+           *
+           * Lifecycle persistence incorporates no new
+           * biological input, so it inherits provenance
+           * from the preceding resident checkpoint.
+           *
+           * Do not copy biological_consumers.cursor:
+           * administrative resynchronization may advance
+           * that cursor without applying physiology.
+           */
+          const inputCursor =
+            consumerAck
+              ? Number(consumerAck.sequence) || 0
+              : Number(row?.input_cursor) || 0;
 
         this.db.prepare(`
           INSERT INTO resident_checkpoints(

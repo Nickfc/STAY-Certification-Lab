@@ -1087,3 +1087,408 @@ test(
     );
   }
 );
+
+
+test(
+  'L0-C221-01: resident lifecycle checkpoints preserve biological input provenance without copying administrative consumer cursor',
+  async t => {
+    const {
+      store
+    } = await makeStore(t);
+
+    const residencyId =
+      'resident:sntss';
+
+    const readCheckpoint =
+      () =>
+        store.readResidentCheckpoint(
+          residencyId
+        );
+
+    store.registerResident(
+      identity()
+    );
+
+    store.setResidentStatus(
+      residencyId,
+      'RUNNING'
+    );
+
+    store.registerBiologicalConsumer({
+      consumerId:
+        residencyId,
+
+      coreId:
+        'sntss',
+
+      topics: [
+        'runtime.time.pulse'
+      ],
+
+      required:
+        false,
+
+      authorityEpoch:
+        0
+    });
+
+    /*
+     * Genuine physiological transition #1.
+     */
+    const firstEvent =
+      store.appendBiologicalEvent({
+        topic:
+          'runtime.time.pulse',
+
+        payload: {
+          wallClockMs:
+            1250
+        },
+
+        meta: {
+          deduplicationKey:
+            'l0-c221-provenance-1'
+        },
+
+        eventClass:
+          'durable',
+
+        at:
+          1250
+      }).event;
+
+    await store.commitResidentCheckpoint({
+      residencyId,
+
+      instanceId:
+        'resident-instance-1',
+
+      version:
+        '0.4.0-i3d3',
+
+      stateSchema:
+        4,
+
+      state: {
+        modelClock:
+          250,
+
+        biologicalTransitions:
+          1
+      },
+
+      consumerAck: {
+        consumerId:
+          residencyId,
+
+        sequence:
+          firstEvent.sequence,
+
+        transitionId:
+          'sha256:' +
+          'e'.repeat(64)
+      }
+    });
+
+    const biologicalOne =
+      await readCheckpoint();
+
+    assert.equal(
+      biologicalOne.inputCursor,
+      firstEvent.sequence
+    );
+
+    /*
+     * No new biology. A lifecycle checkpoint must
+     * retain the prior physiological provenance.
+     */
+    await store.commitResidentCheckpoint({
+      residencyId,
+
+      instanceId:
+        'resident-instance-1',
+
+      version:
+        '0.4.0-i3d3',
+
+      stateSchema:
+        4,
+
+      state: {
+        modelClock:
+          250,
+
+        biologicalTransitions:
+          1,
+
+        lifecycle:
+          'snapshot-one'
+      }
+    });
+
+    const lifecycleOne =
+      await readCheckpoint();
+
+    assert.equal(
+      lifecycleOne.inputCursor,
+      firstEvent.sequence,
+      'lifecycle checkpoint must inherit biological input provenance'
+    );
+
+    /*
+     * Durable event #2 exists, but physiology will NOT
+     * consume it. Instead we administratively resync.
+     */
+    const administrativeEvent =
+      store.appendBiologicalEvent({
+        topic:
+          'runtime.time.pulse',
+
+        payload: {
+          wallClockMs:
+            1500
+        },
+
+        meta: {
+          deduplicationKey:
+            'l0-c221-provenance-admin'
+        },
+
+        eventClass:
+          'durable',
+
+        at:
+          1500
+      }).event;
+
+    const resync =
+      store.resynchronizeResidentBiologicalConsumer({
+        residencyId,
+
+        checkpointHash:
+          lifecycleOne.blobHash,
+
+        runtimeRevision:
+          1
+      });
+
+    assert.equal(
+      resync.toCursor,
+      administrativeEvent.sequence
+    );
+
+    assert.equal(
+      store.getBiologicalConsumer(
+        residencyId
+      ).cursor,
+      administrativeEvent.sequence
+    );
+
+    /*
+     * Consumer cursor is now 2 administratively.
+     * Physiology still only incorporates sequence 1.
+     */
+    await store.commitResidentCheckpoint({
+      residencyId,
+
+      instanceId:
+        'resident-instance-1',
+
+      version:
+        '0.4.0-i3d3',
+
+      stateSchema:
+        4,
+
+      state: {
+        modelClock:
+          250,
+
+        biologicalTransitions:
+          1,
+
+        lifecycle:
+          'after-administrative-resync'
+      }
+    });
+
+    const afterResync =
+      await readCheckpoint();
+
+    assert.equal(
+      afterResync.inputCursor,
+      firstEvent.sequence,
+      'administrative consumer progress must not invent physiological provenance'
+    );
+
+    /*
+     * Reactivate and apply genuine physiological
+     * transition #3.
+     */
+    store.registerBiologicalConsumer({
+      consumerId:
+        residencyId,
+
+      coreId:
+        'sntss',
+
+      topics: [
+        'runtime.time.pulse'
+      ],
+
+      required:
+        false,
+
+      authorityEpoch:
+        0
+    });
+
+    const nextBiologicalEvent =
+      store.appendBiologicalEvent({
+        topic:
+          'runtime.time.pulse',
+
+        payload: {
+          wallClockMs:
+            1750
+        },
+
+        meta: {
+          deduplicationKey:
+            'l0-c221-provenance-2'
+        },
+
+        eventClass:
+          'durable',
+
+        at:
+          1750
+      }).event;
+
+    await store.commitResidentCheckpoint({
+      residencyId,
+
+      instanceId:
+        'resident-instance-1',
+
+      version:
+        '0.4.0-i3d3',
+
+      stateSchema:
+        4,
+
+      state: {
+        modelClock:
+          500,
+
+        biologicalTransitions:
+          2
+      },
+
+      consumerAck: {
+        consumerId:
+          residencyId,
+
+        sequence:
+          nextBiologicalEvent.sequence,
+
+        transitionId:
+          'sha256:' +
+          'f'.repeat(64)
+      }
+    });
+
+    const biologicalTwo =
+      await readCheckpoint();
+
+    assert.equal(
+      biologicalTwo.inputCursor,
+      nextBiologicalEvent.sequence
+    );
+
+    /*
+     * Another lifecycle snapshot must retain #3.
+     */
+    await store.commitResidentCheckpoint({
+      residencyId,
+
+      instanceId:
+        'resident-instance-1',
+
+      version:
+        '0.4.0-i3d3',
+
+      stateSchema:
+        4,
+
+      state: {
+        modelClock:
+          500,
+
+        biologicalTransitions:
+          2,
+
+        lifecycle:
+          'final'
+      }
+    });
+
+    const lifecycleFinal =
+      await readCheckpoint();
+
+    assert.equal(
+      lifecycleFinal.inputCursor,
+      nextBiologicalEvent.sequence
+    );
+
+    const lineage =
+      store.db.prepare(`
+        SELECT
+          generation,
+          input_cursor
+        FROM resident_checkpoints
+        WHERE residency_id=?
+        ORDER BY generation
+      `).all(
+        residencyId
+      );
+
+    assert.deepEqual(
+      lineage.map(row => ({
+        generation:
+          Number(row.generation),
+
+        inputCursor:
+          Number(row.input_cursor)
+      })),
+
+      [
+        {
+          generation: 1,
+          inputCursor:
+            firstEvent.sequence
+        },
+        {
+          generation: 2,
+          inputCursor:
+            firstEvent.sequence
+        },
+        {
+          generation: 3,
+          inputCursor:
+            firstEvent.sequence
+        },
+        {
+          generation: 4,
+          inputCursor:
+            nextBiologicalEvent.sequence
+        },
+        {
+          generation: 5,
+          inputCursor:
+            nextBiologicalEvent.sequence
+        }
+      ]
+    );
+  }
+);
