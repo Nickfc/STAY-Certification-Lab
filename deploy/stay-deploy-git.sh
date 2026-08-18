@@ -4,7 +4,13 @@ set -Eeuo pipefail
 SOURCE="/opt/stay/source"
 BRANCH="${STAY_DEPLOY_BRANCH:-agent/living-runtime-0.7.0}"
 INCOMING="/opt/stay/incoming"
-NODE="/usr/local/bin/node"
+NODE_LINK="/usr/local/bin/node"
+NODE="$(readlink -f "$NODE_LINK")"
+NODE_DIR="$(dirname "$NODE")"
+if [[ ! -x "$NODE" ]]; then
+  echo "ERROR: resolved Node runtime is unavailable: $NODE" >&2
+  exit 2
+fi
 BWRAP="/usr/bin/bwrap"
 STAY_USER="staydeploy"
 
@@ -37,17 +43,17 @@ rm "$BUILD_DIR/source.tar"; rm -rf "$BUILD_DIR/data" "$BUILD_DIR/.stay-data" "$B
 sudo -u "$STAY_USER" "$BWRAP" \
   --die-with-parent --new-session --unshare-all --unshare-user --disable-userns --cap-drop ALL \
   --proc /proc --dev /dev --dir /tmp --dir /var --dir /run \
-  --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
+  --ro-bind /usr /usr --ro-bind "$NODE_DIR" "$NODE_DIR" --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
   --bind "$BUILD_DIR" /build --chdir /build --clearenv --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv NODE_ENV test \
-  /usr/local/bin/node /build/runtime/release/sntss-release-control.js emit \
+  "$NODE" /build/runtime/release/sntss-release-control.js emit \
     --root /build --version "$VERSION" --commit "$COMMIT" --builder stay-deploy-git-isolated --branch "$BRANCH"
 
 sudo -u "$STAY_USER" "$BWRAP" \
   --die-with-parent --new-session --unshare-all --unshare-user --disable-userns --cap-drop ALL \
   --proc /proc --dev /dev --dir /tmp --dir /var --dir /run \
-  --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
+  --ro-bind /usr /usr --ro-bind "$NODE_DIR" "$NODE_DIR" --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
   --bind "$BUILD_DIR" /build --chdir /build --clearenv --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv NODE_ENV test \
-  /usr/local/bin/node /build/runtime/release/sntss-release-control.js verify --root /build
+  "$NODE" /build/runtime/release/sntss-release-control.js verify --root /build
 
 sudo -u "$STAY_USER" bash -c "tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -C '$BUILD_DIR' -cf - . | gzip -n > '$ARCHIVE.tmp'"
 chown "$STAY_USER:$STAY_USER" "$ARCHIVE.tmp"; chmod 0600 "$ARCHIVE.tmp"; mv "$ARCHIVE.tmp" "$ARCHIVE"

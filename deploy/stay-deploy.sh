@@ -10,7 +10,13 @@ INCOMING="$BASE/incoming"
 CURRENT="$BASE/current"
 DATA_ROOT="/var/lib/stay/data"
 BACKUP_ROOT="/var/backups/stay"
-NODE="/usr/local/bin/node"
+NODE_LINK="/usr/local/bin/node"
+NODE="$(readlink -f "$NODE_LINK")"
+NODE_DIR="$(dirname "$NODE")"
+if [[ ! -x "$NODE" ]]; then
+  echo "ERROR: resolved Node runtime is unavailable: $NODE" >&2
+  exit 2
+fi
 STAY_USER="staydeploy"
 STAY_GROUP="staydeploy"
 TRUSTED_VERIFIER="/usr/local/lib/stay/trusted-release-verifier.js"
@@ -198,7 +204,7 @@ echo "-- Isolated continuity test (candidate has no live-StateStore view)"
 sudo -u "$STAY_USER" "$BWRAP" \
   --die-with-parent --new-session --unshare-all --unshare-user --disable-userns --cap-drop ALL \
   --proc /proc --dev /dev --dir /tmp --dir /var --dir /run \
-  --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
+  --ro-bind /usr /usr --ro-bind "$NODE_DIR" "$NODE_DIR" --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
   --ro-bind "$WORK" /stay-release --chdir /stay-release --clearenv \
   --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv NODE_ENV test \
   /usr/local/bin/node --disable-sigusr1 /stay-release/scripts/continuity-check.js
