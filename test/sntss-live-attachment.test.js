@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const net = require('node:net');
+const crypto = require('node:crypto');
 const os = require('node:os');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -87,12 +88,23 @@ function restoreEnvironment(snapshot) {
   }
 }
 
-function makeAttachmentKernel({ dataDir, port, allowIdentityBootstrap, legacySourceDir }) {
+function makeAttachmentKernel({
+  dataDir,
+  port,
+  allowIdentityBootstrap,
+  legacySourceDir,
+  expectedHibernationSha256 = null
+}) {
   process.env.STAY_DATA_DIR = dataDir;
   process.env.STAY_LEGACY_SOURCE_DIR = legacySourceDir;
   process.env.STAY_LEGACY_PORT = String(port);
   delete process.env.STAY_REQUIRE_HIBERNATION_STATE;
-  delete process.env.STAY_EXPECTED_HIBERNATION_SHA256;
+  if (expectedHibernationSha256) {
+    process.env.STAY_EXPECTED_HIBERNATION_SHA256 =
+      expectedHibernationSha256;
+  } else {
+    delete process.env.STAY_EXPECTED_HIBERNATION_SHA256;
+  }
   delete process.env.STAY_REQUIRE_CORE_PROMOTION_CERT;
 
   return new LivingKernel({
@@ -211,12 +223,40 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
   await first.stop();
   activeKernel = null;
 
+  /*
+   * This is a synthetic fresh-bootstrap fixture, not the historical
+   * production hibernation image.
+   *
+   * The frozen fetus adapter already supports an explicit expected import
+   * hash. Bind the restart to the exact state produced by the first fixture
+   * run rather than modifying or weakening the immutable adapter.
+   */
+  const restartStatePath =
+    path.join(
+      dataDir,
+      'legacy-0.6.0',
+      'genesis-state.json'
+    );
+
+  const restartStateBytes =
+    await fs.readFile(
+      restartStatePath
+    );
+
+  const restartStateSha256 =
+    crypto
+      .createHash('sha256')
+      .update(restartStateBytes)
+      .digest('hex');
+
   const secondObserved = { timePulses: [], sntssOutputs: [] };
   const restarted = makeAttachmentKernel({
     dataDir,
     port,
     allowIdentityBootstrap: false,
-    legacySourceDir
+    legacySourceDir,
+    expectedHibernationSha256:
+      restartStateSha256
   });
   activeKernel = restarted;
   restarted.fabric.subscribeAll(event => {
@@ -226,6 +266,28 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
 
   await restarted.start();
   await restarted.installCore(fetusPath);
+
+  /*
+   * The fetus adapter performs hibernation verification during Core start,
+   * so its import marker can only exist after installCore(fetusPath).
+   */
+  const restartImportMarker =
+    JSON.parse(
+      await fs.readFile(
+        path.join(
+          dataDir,
+          'legacy-0.6.0',
+          'hibernation-import.json'
+        ),
+        'utf8'
+      )
+    );
+
+  assert.equal(
+    restartImportMarker.sourceStateSha256,
+    restartStateSha256,
+    'synthetic restart must be bound to the exact persisted fixture state'
+  );
   const after = await assertAttached(restarted, secondObserved);
 
   assert.equal(restarted.identity.organismId, organismId);
