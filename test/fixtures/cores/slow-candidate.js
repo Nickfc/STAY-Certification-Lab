@@ -3,7 +3,7 @@
 const manifest = {
   coreId: 'test-counter', version: '3.0.0', protocol: 'stay-test-counter-v1', stateSchema: 2,
   hotSwap: true, priority: 'normal', inputs: ['test.tick'], outputs: ['test.pulse'],
-  resources: { queueCapacity: 8, handlerTimeoutMs: 2000 }
+  resources: { queueCapacity: 4, handlerTimeoutMs: 2000 }
 };
 
 async function migrateState({ state }) { return { ticks: Number(state?.ticks) || 0 }; }
@@ -14,7 +14,8 @@ async function createCore({ initialState, emit }) {
     async start() {},
     async handle(event) {
       if (event.topic !== 'test.tick') return;
-      await new Promise(resolve => setTimeout(resolve, 35));
+      // Intentionally slower than active authority on certification hosts.
+      await new Promise(resolve => setTimeout(resolve, 500));
       ticks += 1;
       await emit('test.pulse', { ticks, generation: 'slow-v3' });
     },

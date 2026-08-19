@@ -104,7 +104,51 @@ class RuntimeSlot {
       },
       onFault: (error, event) => {
         unit.lifecycle = 'degraded';
-        if (error.code === 'ACTOR_HANDLER_TIMEOUT') client.recycle('actor-handler-timeout', { eventSequence: event?.sequence }).catch(() => {});
+
+        const executionTimeout =
+          error.code === 'ACTOR_HANDLER_TIMEOUT' ||
+          error.code === 'COREHOST_TIMEOUT';
+
+        if (!executionTimeout) return;
+
+        if (unit.mode === 'shadow') {
+          /*
+           * A shadow has zero authority. Once execution times out its shadow
+           * history is incomplete and this exact candidate can never become
+           * authoritative.
+           *
+           * Fail it closed. Do not recycle it and do not let a replacement
+           * shadow consume later events with a hole in its history.
+           */
+          if (['critical', 'durable'].includes(event?.class)) {
+            this.recordRequiredShadowFailure(unit, event, error);
+          }
+
+          unit.lifecycle = 'failed';
+
+          const closureError = Object.assign(
+            new Error('shadow candidate failed closed after execution timeout'),
+            {
+              code: 'SHADOW_CANDIDATE_FAILED',
+              cause: error
+            }
+          );
+
+          unit.queue.close(closureError);
+
+          client.stop().catch(stopError => {
+            this.logger.warn?.(
+              `[STAY] failed shadow cleanup ${this.coreId}: ${stopError.message}`
+            );
+          });
+
+          return;
+        }
+
+        client.recycle(
+          'actor-handler-timeout',
+          { eventSequence: event?.sequence }
+        ).catch(() => {});
       }
     });
     unit.queue = queue;
@@ -291,28 +335,72 @@ class RuntimeSlot {
       }
     }).catch(error => {
       if (['critical', 'durable'].includes(event.class)) this.recordRequiredShadowFailure(unit, event, error);
-      if (!['ACTOR_QUEUE_CLOSED', 'COREHOST_EXIT'].includes(error.code)) {
+      if (![
+        'ACTOR_QUEUE_CLOSED',
+        'COREHOST_EXIT',
+        'SHADOW_CANDIDATE_FAILED'
+      ].includes(error.code)) {
         this.logger.warn?.(`[STAY] shadow queue ${this.coreId}: ${error.message}`);
       }
     });
   }
 
   recordRequiredShadowFailure(unit, event, error) {
+    const sequence = Number(event?.sequence) || 0;
+
+    /*
+     * The actor fault path and enqueue rejection path can observe the same
+     * failed required event. It is one missing biological transition, not
+     * two.
+     */
+    if (
+      unit.lastShadowFailure &&
+      Number(unit.lastShadowFailure.sequence) === sequence
+    ) {
+      return;
+    }
+
     unit.shadowRequiredFailures += 1;
     unit.lastShadowFailure = {
-      at: new Date().toISOString(), sequence: event.sequence, topic: event.topic,
-      code: error.code || null, message: error.message
+      at: new Date().toISOString(),
+      sequence,
+      topic: event?.topic || null,
+      code: error.code || null,
+      message: error.message
     };
     unit.lifecycle = 'degraded';
   }
 
   async candidateHealth(minEvents = 1) {
     if (!this.candidate) throw new Error('no candidate prepared');
-    await this.candidate.queue.drainThrough(this.fabric.sequence);
+
     if (this.candidate.shadowRequiredFailures > 0) {
-      throw Object.assign(new Error(`candidate missed ${this.candidate.shadowRequiredFailures} required shadow events`), {
-        code: 'SHADOW_INCOMPLETE', detail: this.candidate.lastShadowFailure
-      });
+      throw Object.assign(
+        new Error(
+          `candidate missed ${this.candidate.shadowRequiredFailures} required shadow events`
+        ),
+        {
+          code: 'SHADOW_INCOMPLETE',
+          detail: this.candidate.lastShadowFailure
+        }
+      );
+    }
+
+    await this.candidate.queue.drainThrough(this.fabric.sequence);
+
+    /*
+     * A required failure can appear while drainThrough is in flight.
+     */
+    if (this.candidate.shadowRequiredFailures > 0) {
+      throw Object.assign(
+        new Error(
+          `candidate missed ${this.candidate.shadowRequiredFailures} required shadow events`
+        ),
+        {
+          code: 'SHADOW_INCOMPLETE',
+          detail: this.candidate.lastShadowFailure
+        }
+      );
     }
     const health = await this.candidate.health();
     if (health?.ok === false) throw new Error('candidate health check failed');

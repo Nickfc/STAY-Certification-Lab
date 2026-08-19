@@ -53,17 +53,143 @@ test('hung CoreHost handler times out, recycles, and does not block Kernel heart
 
 test('frozen shadow queue stays bounded and never delays active authority', async t => {
   const { kernel, dataDir } = await makeKernel();
-  t.after(async () => { if (kernel.stateStore.db) await kernel.stop().catch(() => {}); await fs.rm(dataDir, { recursive: true, force: true }); });
+  t.after(async () => {
+    if (kernel.stateStore.db) await kernel.stop().catch(() => {});
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
   await kernel.installCore(counter);
   await kernel.stageCoreUpgrade(shadowHang);
+
   const slot = kernel.registry.get('test-counter');
-  const started = Date.now();
-  await Promise.all(Array.from({ length: 100 }, () => kernel.publish('test.tick', {}, { eventClass: 'best-effort' })));
-  assert.ok(Date.now() - started < 1000);
-  const status = await slot.status();
-  assert.ok(status.candidate.queue.depth <= status.candidate.queue.capacity);
-  assert.ok(status.candidate.queue.dropped > 0 || status.candidate.queue.failed > 0);
-  assert.equal((await kernel.health()).ok, true);
+
+  /*
+   * The shadow handler never resolves. If authority dispatch awaited shadow
+   * execution, this publish could not complete while the candidate actor is
+   * still actively handling the same event.
+   */
+  const seed = await kernel.publish(
+    'test.tick',
+    {},
+    { eventClass: 'durable' }
+  );
+
+  assert.equal(
+    slot.candidate.queue.running,
+    true,
+    'active authority returned only after shadow execution stopped'
+  );
+
+  assert.equal(
+    slot.candidate.queue.closed,
+    false,
+    'shadow timed out before active authority completed'
+  );
+
+  assert.equal(
+    (await slot.active.snapshot()).ticks,
+    1
+  );
+
+  /*
+   * Saturate the shadow queue directly. The property being tested is shadow
+   * boundedness, not certification-host throughput for 100 active events.
+   */
+  for (let index = 0; index < 32; index++) {
+    slot.enqueueCandidate({
+      ...seed,
+      id: `${seed.id}:shadow-load:${index}`,
+      sequence: seed.sequence + 1000 + index,
+      class: 'best-effort',
+      meta: {
+        ...seed.meta,
+        eventClass: 'best-effort'
+      }
+    });
+  }
+
+  const queue = slot.candidate.queue.snapshotMetrics();
+
+  assert.ok(queue.depth <= queue.capacity);
+  assert.ok(queue.dropped > 0);
+
+  /*
+   * Abort before the deliberately hung shadow reaches its execution timeout.
+   * Active authority remains the only state-bearing implementation.
+   */
   await kernel.upgrades.abort('test-counter');
+
+  assert.equal((await kernel.health()).ok, true);
+
+  await kernel.stop();
+});
+
+test('timed-out shadow fails closed without recycling into active authority', async t => {
+  const { kernel, dataDir } = await makeKernel();
+
+  t.after(async () => {
+    if (kernel.stateStore.db) await kernel.stop().catch(() => {});
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  await kernel.installCore(counter);
+  await kernel.stageCoreUpgrade(shadowHang);
+
+  const slot = kernel.registry.get('test-counter');
+  const activeGeneration = slot.active.client.generation;
+  const shadowGeneration = slot.candidate.client.generation;
+
+  await kernel.publish(
+    'test.tick',
+    {},
+    { eventClass: 'durable' }
+  );
+
+  await waitFor(
+    () => slot.candidate.queue.closed === true,
+    4000,
+    25
+  );
+
+  assert.equal(
+    slot.candidate.client.generation,
+    shadowGeneration,
+    'failed shadow was recycled into a replacement with incomplete history'
+  );
+
+  assert.equal(
+    slot.active.client.generation,
+    activeGeneration,
+    'shadow failure disturbed active authority'
+  );
+
+  await kernel.publish(
+    'test.tick',
+    {},
+    { eventClass: 'durable' }
+  );
+
+  assert.equal(
+    (await slot.active.snapshot()).ticks,
+    2
+  );
+
+  await assert.rejects(
+    () => kernel.commitCoreUpgrade(
+      'test-counter',
+      { minEvents: 1 }
+    ),
+    error => error.code === 'SHADOW_INCOMPLETE'
+  );
+
+  assert.equal(
+    kernel.stateStore.getAuthority('test-counter').epoch,
+    1
+  );
+
+  await kernel.upgrades.abort('test-counter');
+
+  assert.equal((await kernel.health()).ok, true);
+
   await kernel.stop();
 });

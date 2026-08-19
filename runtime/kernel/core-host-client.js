@@ -223,7 +223,20 @@ class CoreHostClient extends EventEmitter {
         this.pending.delete(requestId);
         const error = Object.assign(new Error(`CoreHost ${operation} exceeded ${timeoutMs} ms`), { code: 'COREHOST_TIMEOUT' });
         reject(error);
-        if (operation === 'event' || operation === 'health') this.recycle(`timeout:${operation}`).catch(() => {});
+        /*
+         * Authority-bearing hosts recover locally.
+         *
+         * Shadow hosts are different: once a shadow request times out its
+         * evidence stream is incomplete. RuntimeSlot fails that candidate
+         * closed instead of allowing an asynchronous recycle to race with
+         * subsequent shadow delivery.
+         */
+        if (
+          this.mode !== 'shadow' &&
+          (operation === 'event' || operation === 'health')
+        ) {
+          this.recycle(`timeout:${operation}`).catch(() => {});
+        }
       }, timeoutMs);
       timer.unref?.();
       this.pending.set(requestId, { resolve, reject, timer, operation });
