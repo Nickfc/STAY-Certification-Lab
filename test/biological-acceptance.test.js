@@ -1415,3 +1415,410 @@ test(
     );
   }
 );
+
+
+test(
+  'EF1-B2B1 prepare validates without allocating a Fabric sequence',
+  async () => {
+    let allocations =
+      0;
+
+    const boundary =
+      new BiologicalAcceptanceBoundary({
+        organismId:
+          'stay-b2-test',
+
+        trustedTime: {
+          async sample() {
+            return {
+              status:
+                'TRUSTED',
+
+              trustedTimeUs:
+                2_000_100
+            };
+          }
+        },
+
+        async resolveProducer() {
+          return {
+            coreId:
+              'autonomic',
+
+            instanceId:
+              'autonomic-instance-1',
+
+            version:
+              '0.2.0',
+
+            authorityEpoch:
+              8,
+
+            authorityMode:
+              AUTHORITY_MODE.AUTHORITATIVE
+          };
+        },
+
+        async resolveSignal() {
+          return null;
+        },
+
+        async resolveStreamRange() {
+          return [];
+        },
+
+        async allocateFabricSequence() {
+          allocations += 1;
+          return allocations;
+        }
+      });
+
+    const prepared =
+      await boundary.prepare({
+        producerHandle:
+          'trusted',
+
+        proposal:
+          proposal()
+      });
+
+    assert.equal(
+      allocations,
+      0
+    );
+
+    assert.equal(
+      Object.isFrozen(prepared),
+      true
+    );
+
+    assert.equal(
+      Object.isFrozen(
+        prepared.proposal
+      ),
+      true
+    );
+
+    assert.equal(
+      Object.isFrozen(
+        prepared.kernel
+      ),
+      true
+    );
+
+    assert.equal(
+      prepared.kernel.accepted_time_us,
+      2_000_100
+    );
+
+    assert.equal(
+      Object.hasOwn(
+        prepared.kernel,
+        'fabric_sequence'
+      ),
+      false
+    );
+  }
+);
+
+
+test(
+  'EF1-B2B1 malformed proposal fails during prepare before sequence allocation',
+  async () => {
+    let allocations =
+      0;
+
+    const boundary =
+      new BiologicalAcceptanceBoundary({
+        organismId:
+          'stay-b2-test',
+
+        trustedTime: {
+          async sample() {
+            return {
+              status:
+                'TRUSTED',
+
+              trustedTimeUs:
+                2_000_100
+            };
+          }
+        },
+
+        async resolveProducer() {
+          return {
+            coreId:
+              'autonomic',
+
+            instanceId:
+              'a1',
+
+            version:
+              '0.1.0',
+
+            authorityEpoch:
+              1,
+
+            authorityMode:
+              AUTHORITY_MODE.AUTHORITATIVE
+          };
+        },
+
+        async resolveSignal() {
+          return null;
+        },
+
+        async resolveStreamRange() {
+          return [];
+        },
+
+        async allocateFabricSequence() {
+          allocations += 1;
+          return allocations;
+        }
+      });
+
+    await assert.rejects(
+      () =>
+        boundary.prepare({
+          producerHandle:
+            'trusted',
+
+          proposal:
+            proposal({
+              stream_sequence:
+                0
+            })
+        }),
+
+      error =>
+        error &&
+        error.code ===
+          'BIOLOGICAL_ENVELOPE_STREAM'
+    );
+
+    assert.equal(
+      allocations,
+      0
+    );
+  }
+);
+
+
+test(
+  'EF1-B2B1 caller mutation after prepare cannot rewrite the prepared biological fact',
+  async () => {
+    const mutable =
+      proposal({
+        payload: {
+          chronotropy:
+            0.25,
+
+          nested: {
+            value:
+              7
+          }
+        }
+      });
+
+    const boundary =
+      harness();
+
+    const prepared =
+      await boundary.prepare({
+        producerHandle:
+          'trusted-autonomic-handle',
+
+        proposal:
+          mutable
+      });
+
+    mutable.payload.chronotropy =
+      99;
+
+    mutable.payload.nested.value =
+      999;
+
+    mutable.topic =
+      'forged.topic';
+
+    const envelope =
+      boundary.finalizePrepared(
+        prepared,
+        900
+      );
+
+    assert.equal(
+      envelope.fabric_sequence,
+      900
+    );
+
+    assert.equal(
+      envelope.topic,
+      'autonomic.cardiac.modulation'
+    );
+
+    assert.equal(
+      envelope.payload.chronotropy,
+      0.25
+    );
+
+    assert.equal(
+      envelope.payload.nested.value,
+      7
+    );
+  }
+);
+
+
+test(
+  'EF1-B2B1 prepared acceptance cannot be forged outside its Kernel boundary',
+  async () => {
+    const boundary =
+      harness();
+
+    assert.throws(
+      () =>
+        boundary.finalizePrepared(
+          {
+            proposal:
+              proposal(),
+
+            kernel: {
+              organism_id:
+                'stay-b2-test'
+            }
+          },
+
+          123
+        ),
+
+      error =>
+        error &&
+        error.code ===
+          'BIOLOGICAL_ACCEPTANCE_PREPARED'
+    );
+  }
+);
+
+
+test(
+  'EF1-B2B1 finalization with one assigned sequence is deterministic and accept remains compatible',
+  async () => {
+    let allocations =
+      0;
+
+    const boundary =
+      new BiologicalAcceptanceBoundary({
+        organismId:
+          'stay-b2-test',
+
+        trustedTime: {
+          async sample() {
+            return {
+              status:
+                'TRUSTED',
+
+              trustedTimeUs:
+                2_000_100
+            };
+          }
+        },
+
+        async resolveProducer() {
+          return {
+            coreId:
+              'autonomic',
+
+            instanceId:
+              'autonomic-instance-1',
+
+            version:
+              '0.2.0',
+
+            authorityEpoch:
+              8,
+
+            authorityMode:
+              AUTHORITY_MODE.AUTHORITATIVE
+          };
+        },
+
+        async resolveSignal() {
+          return null;
+        },
+
+        async resolveStreamRange() {
+          return [];
+        },
+
+        async allocateFabricSequence() {
+          allocations += 1;
+
+          return 700 +
+            allocations;
+        }
+      });
+
+    const prepared =
+      await boundary.prepare({
+        producerHandle:
+          'trusted',
+
+        proposal:
+          proposal()
+      });
+
+    const first =
+      boundary.finalizePrepared(
+        prepared,
+        444
+      );
+
+    const second =
+      boundary.finalizePrepared(
+        prepared,
+        444
+      );
+
+    assert.equal(
+      first.signal_id,
+      second.signal_id
+    );
+
+    assert.equal(
+      first.fabric_sequence,
+      444
+    );
+
+    assert.equal(
+      allocations,
+      0
+    );
+
+    const compatibility =
+      await boundary.accept({
+        producerHandle:
+          'trusted',
+
+        proposal:
+          proposal({
+            producer_event_id:
+              HASH_C,
+
+            stream_sequence:
+              2
+          })
+      });
+
+    assert.equal(
+      compatibility.fabric_sequence,
+      701
+    );
+
+    assert.equal(
+      allocations,
+      1
+    );
+  }
+);

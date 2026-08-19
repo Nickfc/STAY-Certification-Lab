@@ -360,6 +360,14 @@ class BiologicalAcceptanceBoundary {
         allocateFabricSequence,
         'allocateFabricSequence'
       );
+
+    /*
+     * Prepared acceptances are capabilities minted only by
+     * this exact trusted boundary instance. A caller cannot
+     * fabricate one merely by recreating its object shape.
+     */
+    this.preparedAcceptances =
+      new WeakSet();
   }
 
 
@@ -590,7 +598,7 @@ class BiologicalAcceptanceBoundary {
   }
 
 
-  async accept({
+  async prepare({
     producerHandle,
     proposal
   }) {
@@ -607,9 +615,8 @@ class BiologicalAcceptanceBoundary {
       );
 
     /*
-     * First validate causal facts. Sequence allocation is
-     * intentionally deferred until failure-prone evidence
-     * resolution has completed.
+     * Resolve and validate every causal input before
+     * biological sequence identity exists.
      */
     const directEvidence =
       await this.resolveParents(
@@ -693,20 +700,195 @@ class BiologicalAcceptanceBoundary {
           )
         : 0;
 
-    /*
-     * Accepted time comes from the organism clock only after
-     * the evidence boundary has succeeded.
-     */
     const acceptedTimeUs =
       assertTrustedTime(
         await this.trustedTime.sample()
       );
 
+    const kernelBase = {
+      organism_id:
+        this.organismId,
+
+      producer_core_id:
+        producer.coreId,
+
+      producer_instance_id:
+        producer.instanceId,
+
+      producer_version:
+        producer.version,
+
+      authority_epoch:
+        producer.authorityEpoch,
+
+      authority_mode:
+        producer.authorityMode,
+
+      accepted_time_us:
+        acceptedTimeUs,
+
+      causal_roots:
+        causalRoots,
+
+      causal_generation:
+        causalGeneration,
+
+      roots_overflow_digest:
+        rootsOverflowDigest,
+
+      lineage_digest:
+        lineageDigest(
+          evidence
+        ),
+
+      ancestor_core_set:
+        ancestorCoreSet,
+
+      causality_validated:
+        evidence.length > 0,
+
+      max_causal_order_time_us:
+        maxCausalOrderTimeUs
+    };
+
     /*
-     * Fabric sequence is Kernel-owned and allocated last.
+     * Validate and canonicalize the full proposal NOW,
+     * before any durable fabric sequence is allocated.
+     *
+     * Sequence 1 is a disposable structural-validation
+     * value only. The resulting signal identity is never
+     * exposed or persisted.
      */
-    const fabricSequence =
-      await this.allocateFabricSequence();
+    const validated =
+      acceptEnvelope(
+        proposal,
+        {
+          ...kernelBase,
+          fabric_sequence:
+            1
+        }
+      );
+
+    const canonicalProposal =
+      Object.freeze({
+        producer_event_id:
+          validated.producer_event_id,
+
+        producer_stream_id:
+          validated.producer_stream_id,
+
+        stream_sequence:
+          validated.stream_sequence,
+
+        topic:
+          validated.topic,
+
+        signal_class:
+          validated.signal_class,
+
+        schema_version:
+          validated.schema_version,
+
+        temporal:
+          validated.temporal,
+
+        valid_from_us:
+          validated.valid_from_us,
+
+        expires_at_us:
+          validated.expires_at_us,
+
+        durability_class:
+          validated.durability_class,
+
+        payload:
+          validated.payload,
+
+        direct_parents:
+          validated.direct_parents,
+
+        causal_source_spans:
+          validated.causal_source_spans
+      });
+
+    const canonicalKernel =
+      Object.freeze({
+        organism_id:
+          validated.organism_id,
+
+        producer_core_id:
+          validated.producer_core_id,
+
+        producer_instance_id:
+          validated.producer_instance_id,
+
+        producer_version:
+          validated.producer_version,
+
+        authority_epoch:
+          validated.authority_epoch,
+
+        authority_mode:
+          validated.authority_mode,
+
+        accepted_time_us:
+          validated.accepted_time_us,
+
+        causal_roots:
+          validated.causal_roots,
+
+        causal_generation:
+          validated.causal_generation,
+
+        roots_overflow_digest:
+          validated.roots_overflow_digest,
+
+        lineage_digest:
+          validated.lineage_digest,
+
+        ancestor_core_set:
+          validated.ancestor_core_set,
+
+        causality_validated:
+          evidence.length > 0,
+
+        max_causal_order_time_us:
+          maxCausalOrderTimeUs
+      });
+
+    const prepared =
+      Object.freeze({
+        proposal:
+          canonicalProposal,
+
+        kernel:
+          canonicalKernel
+      });
+
+    this.preparedAcceptances.add(
+      prepared
+    );
+
+    return prepared;
+  }
+
+
+  finalizePrepared(
+    prepared,
+    fabricSequence
+  ) {
+    if (
+      !prepared ||
+      typeof prepared !== 'object' ||
+      !this.preparedAcceptances.has(
+        prepared
+      )
+    ) {
+      fail(
+        'prepared biological acceptance was not minted by this Kernel boundary',
+        'BIOLOGICAL_ACCEPTANCE_PREPARED'
+      );
+    }
 
     if (
       !Number.isSafeInteger(
@@ -715,64 +897,48 @@ class BiologicalAcceptanceBoundary {
       fabricSequence < 1
     ) {
       fail(
-        'Kernel fabric sequence allocator returned invalid identity',
+        'Kernel fabric sequence is invalid',
         'BIOLOGICAL_ACCEPTANCE_SEQUENCE'
       );
     }
 
     return acceptEnvelope(
-      proposal,
-
+      prepared.proposal,
       {
-        organism_id:
-          this.organismId,
-
-        producer_core_id:
-          producer.coreId,
-
-        producer_instance_id:
-          producer.instanceId,
-
-        producer_version:
-          producer.version,
-
-        authority_epoch:
-          producer.authorityEpoch,
-
-        authority_mode:
-          producer.authorityMode,
-
-        accepted_time_us:
-          acceptedTimeUs,
+        ...prepared.kernel,
 
         fabric_sequence:
-          fabricSequence,
-
-        causal_roots:
-          causalRoots,
-
-        causal_generation:
-          causalGeneration,
-
-        roots_overflow_digest:
-          rootsOverflowDigest,
-
-        lineage_digest:
-          lineageDigest(
-            evidence
-          ),
-
-        ancestor_core_set:
-          ancestorCoreSet,
-
-        causality_validated:
-          evidence.length > 0,
-
-        max_causal_order_time_us:
-          maxCausalOrderTimeUs
+          fabricSequence
       }
     );
   }
+
+
+  async accept({
+    producerHandle,
+    proposal
+  }) {
+    const prepared =
+      await this.prepare({
+        producerHandle,
+        proposal
+      });
+
+    /*
+     * The compatibility convenience path remains for
+     * isolated tests. B2B2 will instead hand PREPARED
+     * acceptance to StateStore so sequence assignment
+     * and durable append become one transaction.
+     */
+    const fabricSequence =
+      await this.allocateFabricSequence();
+
+    return this.finalizePrepared(
+      prepared,
+      fabricSequence
+    );
+  }
+
 }
 
 
