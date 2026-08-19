@@ -74,12 +74,264 @@ test('A-02: committed candidate authority always restarts from its exact checkpo
   assert.equal(outputs.at(-1).migrations, 1);
 });
 
-test('A-03: durable downstream output failure rejects the causal publish', async t => {
+test('A-03: downstream output failure preserves committed transition and retries one durable outbox event exactly', async t => {
   const { kernel, dataDir } = await makeKernel();
-  t.after(async () => { if (kernel.stateStore.db) await kernel.stop().catch(() => {}); await fs.rm(dataDir, { recursive: true, force: true }); });
+
+  t.after(async () => {
+    if (kernel.stateStore.db) {
+      await kernel.stop().catch(() => {});
+    }
+
+    await fs.rm(
+      dataDir,
+      {
+        recursive: true,
+        force: true
+      }
+    );
+  });
+
   await kernel.installCore(v1);
-  kernel.fabric.subscribe('test.pulse', () => { throw Object.assign(new Error('downstream failure'), { code: 'AUDIT_DOWNSTREAM_FAILURE' }); });
-  await assert.rejects(() => kernel.publish('test.tick', {}), error => error.code === 'EVENT_DELIVERY_FAILED');
+
+  let failDelivery = true;
+  let deliveryAttempts = 0;
+  let successfulDeliveries = 0;
+
+  kernel.fabric.subscribe(
+    'test.pulse',
+    event => {
+      deliveryAttempts += 1;
+
+      if (failDelivery) {
+        throw Object.assign(
+          new Error('downstream failure'),
+          {
+            code:
+              'AUDIT_DOWNSTREAM_FAILURE'
+          }
+        );
+      }
+
+      successfulDeliveries += 1;
+
+      assert.equal(
+        event.topic,
+        'test.pulse'
+      );
+    }
+  );
+
+  /*
+   * EF1-D / P0.34:
+   *
+   * The producer's state + input ACK + output obligation
+   * commit before transport. A downstream transport failure
+   * therefore may not retroactively reject that transition.
+   */
+  const input =
+    await kernel.publish(
+      'test.tick',
+      {}
+    );
+
+  const checkpoint =
+    await kernel.stateStore
+      .readAuthoritativeCheckpoint(
+        'test-counter'
+      );
+
+  const inputDelivery =
+    kernel.stateStore
+      .getBiologicalDelivery(
+        'core:test-counter',
+        input.sequence
+      );
+
+  const pending =
+    kernel.stateStore
+      .listPendingBiologicalOutboxIntents({
+        producerCoreId:
+          'test-counter'
+      });
+
+  assert.equal(
+    checkpoint.state.ticks,
+    1
+  );
+
+  assert.equal(
+    checkpoint.inputCursor,
+    input.sequence
+  );
+
+  assert.equal(
+    inputDelivery.status,
+    'ACKED'
+  );
+
+  assert.equal(
+    pending.length,
+    1
+  );
+
+  assert.equal(
+    pending[0].status,
+    'PENDING'
+  );
+
+  assert.equal(
+    pending[0].topic,
+    'test.pulse'
+  );
+
+  assert.equal(
+    pending[0].causeSequence,
+    input.sequence
+  );
+
+  assert.equal(
+    deliveryAttempts,
+    1
+  );
+
+  assert.equal(
+    successfulDeliveries,
+    0
+  );
+
+  /*
+   * EventFabric appends durable identity before delivery.
+   * The failed first delivery therefore already owns the one
+   * canonical durable event; retry must not create another.
+   */
+  const pulseBeforeRetry =
+    kernel.stateStore.db.prepare(`
+      SELECT
+        sequence,
+        event_id,
+        deduplication_key
+      FROM biological_events
+      WHERE topic='test.pulse'
+    `).all();
+
+  assert.equal(
+    pulseBeforeRetry.length,
+    1
+  );
+
+  assert.equal(
+    pulseBeforeRetry[0].deduplication_key,
+    pending[0].publishMeta.deduplicationKey
+  );
+
+  const producerEventId =
+    pending[0].producerEventId;
+
+  failDelivery = false;
+
+  const slot =
+    kernel.registry.get(
+      'test-counter'
+    );
+
+  assert.ok(
+    slot
+  );
+
+  const drained =
+    await slot.drainProducerOutbox();
+
+  assert.equal(
+    drained,
+    1
+  );
+
+  assert.equal(
+    deliveryAttempts,
+    2
+  );
+
+  assert.equal(
+    successfulDeliveries,
+    1
+  );
+
+  const remaining =
+    kernel.stateStore
+      .listPendingBiologicalOutboxIntents({
+        producerCoreId:
+          'test-counter'
+      });
+
+  assert.equal(
+    remaining.length,
+    0
+  );
+
+  const published =
+    kernel.stateStore
+      .getBiologicalOutboxIntent(
+        producerEventId
+      );
+
+  assert.equal(
+    published.status,
+    'PUBLISHED'
+  );
+
+  assert.equal(
+    published.fabricSequence,
+    pulseBeforeRetry[0].sequence
+  );
+
+  assert.equal(
+    published.fabricEventId,
+    pulseBeforeRetry[0].event_id
+  );
+
+  const pulseAfterRetry =
+    kernel.stateStore.db.prepare(`
+      SELECT
+        sequence,
+        event_id
+      FROM biological_events
+      WHERE topic='test.pulse'
+    `).all();
+
+  assert.equal(
+    pulseAfterRetry.length,
+    1
+  );
+
+  assert.equal(
+    pulseAfterRetry[0].sequence,
+    pulseBeforeRetry[0].sequence
+  );
+
+  assert.equal(
+    pulseAfterRetry[0].event_id,
+    pulseBeforeRetry[0].event_id
+  );
+
+  /*
+   * Retrying the durable EventFabric identity must not
+   * re-apply the already ACKed producer input transition.
+   */
+  const checkpointAfterRetry =
+    await kernel.stateStore
+      .readAuthoritativeCheckpoint(
+        'test-counter'
+      );
+
+  assert.equal(
+    checkpointAfterRetry.state.ticks,
+    1
+  );
+
+  assert.equal(
+    checkpointAfterRetry.inputCursor,
+    input.sequence
+  );
 });
 
 test('A-04: concurrent status reads are coalesced and never exhaust CoreHost requests', async t => {

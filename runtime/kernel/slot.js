@@ -72,35 +72,194 @@ class RuntimeSlot {
       policy: { resources: definition.manifest.resources, priority: definition.manifest.priority }
     });
     const unit = new HostedUnit({ definition, client, mode, instanceId, assignedEpoch, queue: null, evidence });
+    unit.pendingOutputIntents = new Map();
     const queue = new BoundedActorQueue({
       name: `${this.coreId}:${instanceId}`,
       capacity: client.policy.queueCapacity,
       handlerTimeoutMs: client.policy.handlerTimeoutMs,
       handler: async event => {
-        const dispatched = await client.dispatch(event, {
-          coreId: this.coreId,
-          implementationInstanceId: instanceId,
-          authorityEpoch: unit.assignedEpoch,
-          eventSequence: event.sequence,
-          eventId: event.id
-        });
-        if (unit === this.active && unit.mode === 'active' && event.ledger?.durable) {
-          try {
-            await this.persistUnit(unit, unit.assignedEpoch, true, {
+        const eventSequence =
+          Number(
+            event?.sequence
+          ) || 0;
+
+        let dispatched;
+
+        try {
+          dispatched =
+            await client.dispatch(
               event,
-              state: dispatched.checkpoint,
-              transitionId: transitionId(this.consumerId, event)
-            });
-          } catch (error) {
-            await client.recycle('uncommitted-transition', { eventSequence: event.sequence, code: error.code || null });
-            throw Object.assign(new Error(`durable transition ${event.sequence} was not committed: ${error.message}`), {
-              code: 'BIOLOGICAL_COMMIT_FAILED', cause: error, eventSequence: event.sequence
-            });
-          }
-        } else if (dispatched.checkpoint != null) {
-          client.setRecoveryState(dispatched.checkpoint, unit.manifest.stateSchema);
+              {
+                coreId:
+                  this.coreId,
+
+                implementationInstanceId:
+                  instanceId,
+
+                authorityEpoch:
+                  unit.assignedEpoch,
+
+                eventSequence,
+
+                eventId:
+                  event.id
+              }
+            );
+        } catch (error) {
+          unit.pendingOutputIntents.delete(
+            eventSequence
+          );
+
+          throw error;
         }
-        unit.handledEvents += 1;
+
+        const outboxIntents = [
+          ...(
+            unit.pendingOutputIntents.get(
+              eventSequence
+            ) ||
+            []
+          )
+        ].sort(
+          (a, b) =>
+            a.outputIndex -
+            b.outputIndex
+        );
+
+        unit.pendingOutputIntents.delete(
+          eventSequence
+        );
+
+        if (
+          unit ===
+            this.active &&
+          unit.mode ===
+            'active' &&
+          event.ledger?.durable
+        ) {
+          try {
+            await this.persistUnit(
+              unit,
+              unit.assignedEpoch,
+              true,
+              {
+                event,
+
+                state:
+                  dispatched.checkpoint,
+
+                transitionId:
+                  transitionId(
+                    this.consumerId,
+                    event
+                  ),
+
+                outboxIntents
+              }
+            );
+          } catch (error) {
+            await client.recycle(
+              'uncommitted-transition',
+              {
+                eventSequence:
+                  event.sequence,
+
+                code:
+                  error.code ||
+                  null
+              }
+            );
+
+            throw Object.assign(
+              new Error(
+                `durable transition ${event.sequence} was not committed: ${error.message}`
+              ),
+              {
+                code:
+                  'BIOLOGICAL_COMMIT_FAILED',
+
+                cause:
+                  error,
+
+                eventSequence:
+                  event.sequence
+              }
+            );
+          }
+
+          unit.authoritativeOutputs +=
+            outboxIntents.length;
+
+          if (
+            this.candidate?.evidence
+          ) {
+            for (
+              const intent
+              of outboxIntents
+            ) {
+              this.candidate.evidence.recordActive({
+                eventSequence,
+
+                topic:
+                  intent.topic,
+
+                payload:
+                  intent.payload
+              });
+            }
+          }
+
+          /*
+           * Transport happens only after the originating
+           * state transaction committed.
+           */
+          await this.tryDrainProducerOutbox();
+
+        } else {
+          if (
+            unit ===
+              this.active &&
+            unit.mode ===
+              'active' &&
+            outboxIntents.length >
+              0
+          ) {
+            await client.recycle(
+              'uncommitted-transition',
+              {
+                eventSequence,
+
+                code:
+                  'BIOLOGICAL_OUTBOX_REQUIRES_DURABLE_TRANSITION'
+              }
+            );
+
+            throw Object.assign(
+              new Error(
+                'authoritative output requires a durable originating transition'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_OUTBOX_REQUIRES_DURABLE_TRANSITION',
+
+                eventSequence
+              }
+            );
+          }
+
+          if (
+            dispatched.checkpoint !=
+            null
+          ) {
+            client.setRecoveryState(
+              dispatched.checkpoint,
+              unit.manifest.stateSchema
+            );
+          }
+        }
+
+        unit.handledEvents +=
+          1;
       },
       onFault: (error, event) => {
         unit.lifecycle = 'degraded';
@@ -169,55 +328,176 @@ class RuntimeSlot {
   }
 
   async handleOutput(unit, message) {
-    const context = message.context;
-    const topic = message.topic;
-    if (!unit.manifest.outputs.includes(topic)) throw new Error('CoreHost emitted undeclared output: ' + topic);
-    const eventSequence = Number(context?.eventSequence) || 0;
-    const payload = message.payload;
-    if (unit === this.active && unit.mode === 'active') {
-      const valid = context
-        && context.coreId === this.coreId
-        && context.implementationInstanceId === unit.instanceId
-        && Number(context.authorityEpoch) === this.authorityEpoch
-        && Number(context.authorityEpoch) === unit.assignedEpoch
-        && eventSequence > this.cutoverBarrier;
+    const context =
+      message.context;
+
+    const topic =
+      message.topic;
+
+    if (
+      !unit.manifest.outputs.includes(
+        topic
+      )
+    ) {
+      throw new Error(
+        'CoreHost emitted undeclared output: ' +
+        topic
+      );
+    }
+
+    const eventSequence =
+      Number(
+        context?.eventSequence
+      ) || 0;
+
+    const payload =
+      message.payload;
+
+    if (
+      unit ===
+        this.active &&
+      unit.mode ===
+        'active'
+    ) {
+      const valid =
+        context &&
+        context.coreId ===
+          this.coreId &&
+        context.implementationInstanceId ===
+          unit.instanceId &&
+        Number(
+          context.authorityEpoch
+        ) ===
+          this.authorityEpoch &&
+        Number(
+          context.authorityEpoch
+        ) ===
+          unit.assignedEpoch &&
+        eventSequence >
+          this.cutoverBarrier;
+
       if (!valid) {
-        unit.staleOutputs += 1;
+        unit.staleOutputs +=
+          1;
+
         this.lastAuthorityError = {
-          at: new Date().toISOString(),
-          code: 'STALE_AUTHORITY_OUTPUT',
-          instanceId: unit.instanceId,
+          at:
+            new Date().toISOString(),
+
+          code:
+            'STALE_AUTHORITY_OUTPUT',
+
+          instanceId:
+            unit.instanceId,
+
           eventSequence,
-          outputEpoch: context?.authorityEpoch ?? null,
-          authorityEpoch: this.authorityEpoch
+
+          outputEpoch:
+            context?.authorityEpoch ??
+            null,
+
+          authorityEpoch:
+            this.authorityEpoch
         };
+
         return;
       }
-      unit.authoritativeOutputs += 1;
-      if (this.candidate?.evidence) this.candidate.evidence.recordActive({ eventSequence, topic, payload });
-      // outputIndex is authored by the trusted sandbox supervisor after candidate metadata.
-      // All other delivery/provenance metadata is reconstructed here from Kernel authority.
-      const outputIndex = Number(message.meta?.outputIndex) || 0;
-      const deduplicationKey = 'core-output:' + crypto.createHash('sha256').update(stableStringify({
-        protocol: 'stay-core-output-v1', coreId: this.coreId, authorityEpoch: this.authorityEpoch,
-        causeSequence: eventSequence, outputIndex, topic, payload
-      })).digest('hex');
-      await this.fabric.publish(topic, payload, {
+
+      const outputIndex =
+        Number(
+          message.meta?.outputIndex
+        );
+
+      if (
+        !Number.isSafeInteger(
+          outputIndex
+        ) ||
+        outputIndex < 1
+      ) {
+        throw Object.assign(
+          new Error(
+            'authoritative output is missing trusted output ordering'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_ORDER'
+          }
+        );
+      }
+
+      const existing =
+        unit.pendingOutputIntents.get(
+          eventSequence
+        ) ||
+        [];
+
+      if (
+        existing.some(
+          intent =>
+            intent.outputIndex ===
+            outputIndex
+        )
+      ) {
+        throw Object.assign(
+          new Error(
+            'duplicate output index inside one authoritative transition'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_ORDER'
+          }
+        );
+      }
+
+      existing.push({
         outputIndex,
-        sourceCore: this.coreId,
-        sourceVersion: unit.manifest.version,
-        sourceInstanceId: unit.instanceId,
-        authorityEpoch: this.authorityEpoch,
-        causeSequence: eventSequence,
-        causalParent: message.context?.eventId || null,
-        deduplicationKey,
-        eventClass: 'durable'
+
+        topic,
+
+        payload:
+          structuredClone(
+            payload
+          ),
+
+        causeSequence:
+          eventSequence,
+
+        causalParent:
+          context?.eventId ||
+          null
       });
+
+      unit.pendingOutputIntents.set(
+        eventSequence,
+        existing
+      );
+
+      /*
+       * NO EventFabric publication here.
+       *
+       * The output is not authoritative until its
+       * originating transition and durable intent commit.
+       */
       return;
     }
-    unit.suppressedOutputs += 1;
-    if (unit === this.candidate && unit.evidence) {
-      unit.evidence.recordShadow({ eventSequence, topic, payload, invariantOk: Boolean(context) });
+
+    unit.suppressedOutputs +=
+      1;
+
+    if (
+      unit ===
+        this.candidate &&
+      unit.evidence
+    ) {
+      unit.evidence.recordShadow({
+        eventSequence,
+        topic,
+        payload,
+        invariantOk:
+          Boolean(
+            context
+          )
+      });
     }
   }
 
@@ -563,40 +843,215 @@ class RuntimeSlot {
     return this.persistUnit(this.active, this.authorityEpoch, true);
   }
 
-  async replayPendingBiologicalEvents() {
-    let replayed = 0;
+  async drainProducerOutbox(
+    limit = 256
+  ) {
+    let drained =
+      0;
+
     for (;;) {
-      const events = this.stateStore.listPendingBiologicalEvents(this.consumerId, 256);
-      if (!events.length) return replayed;
-      for (const event of events) {
-        const result = await this.dispatch(event);
-        if (result?.deferredRecursive) await this.active?.queue.drainThrough(event.sequence);
-        replayed += 1;
+      const intents =
+        this.stateStore
+          .listPendingBiologicalOutboxIntents({
+            producerCoreId:
+              this.coreId,
+
+            limit
+          });
+
+      if (
+        intents.length ===
+        0
+      ) {
+        return drained;
+      }
+
+      for (
+        const intent
+        of intents
+      ) {
+        const event =
+          await this.fabric.publish(
+            intent.topic,
+            intent.payload,
+            intent.publishMeta
+          );
+
+        this.stateStore
+          .markBiologicalOutboxPublished({
+            producerEventId:
+              intent.producerEventId,
+
+            event
+          });
+
+        drained +=
+          1;
+      }
+
+      if (
+        intents.length <
+        limit
+      ) {
+        return drained;
       }
     }
   }
 
-  async persistUnit(unit, authorityEpoch, updateAuthority, transition = null) {
-    const state = transition && transition.state != null ? transition.state : await unit.snapshot();
-    const bytes = serializedSize(state);
-    if (bytes > unit.client.policy.storageBytes) {
-      throw Object.assign(new Error(`core checkpoint exceeds ${unit.client.policy.storageBytes} byte budget`), { code: 'CORE_STORAGE_BUDGET' });
+  async tryDrainProducerOutbox() {
+    try {
+      return await this
+        .drainProducerOutbox();
+
+    } catch (error) {
+      this.stateStore.recordRecovery(
+        'biological.outbox-drain-failed',
+        this.coreId,
+        {
+          code:
+            error.code ||
+            null,
+
+          message:
+            error.message
+        }
+      );
+
+      this.logger.warn?.(
+        `[STAY] durable producer outbox for ${this.coreId} remains pending: ${error.message}`
+      );
+
+      /*
+       * Originating state already committed.
+       *
+       * Transport failure delays the obligation;
+       * it may never roll the transition back.
+       */
+      return 0;
     }
-    const checkpoint = await this.stateStore.commitCheckpoint({
-      coreId: this.coreId,
-      instanceId: unit.instanceId,
-      version: unit.manifest.version,
-      authorityEpoch,
-      stateSchema: unit.manifest.stateSchema,
+  }
+
+  async replayPendingBiologicalEvents() {
+    let replayed =
+      0;
+
+    for (;;) {
+      const events =
+        this.stateStore
+          .listPendingBiologicalEvents(
+            this.consumerId,
+            256
+          );
+
+      if (!events.length) {
+        return replayed;
+      }
+
+      for (
+        const event
+        of events
+      ) {
+        const result =
+          await this.dispatch(
+            event
+          );
+
+        if (
+          result?.deferredRecursive
+        ) {
+          await this.active?.queue
+            .drainThrough(
+              event.sequence
+            );
+        }
+
+        replayed +=
+          1;
+      }
+    }
+  }
+
+  async persistUnit(
+    unit,
+    authorityEpoch,
+    updateAuthority,
+    transition = null
+  ) {
+    const state =
+      transition &&
+      transition.state != null
+        ? transition.state
+        : await unit.snapshot();
+
+    const bytes =
+      serializedSize(
+        state
+      );
+
+    if (
+      bytes >
+      unit.client.policy.storageBytes
+    ) {
+      throw Object.assign(
+        new Error(
+          `core checkpoint exceeds ${unit.client.policy.storageBytes} byte budget`
+        ),
+        {
+          code:
+            'CORE_STORAGE_BUDGET'
+        }
+      );
+    }
+
+    const checkpoint =
+      await this.stateStore
+        .commitCheckpoint({
+          coreId:
+            this.coreId,
+
+          instanceId:
+            unit.instanceId,
+
+          version:
+            unit.manifest.version,
+
+          authorityEpoch,
+
+          stateSchema:
+            unit.manifest.stateSchema,
+
+          state,
+
+          updateAuthority,
+
+          consumerAck:
+            transition?.event?.ledger?.durable
+              ? {
+                  consumerId:
+                    this.consumerId,
+
+                  sequence:
+                    transition.event.sequence,
+
+                  transitionId:
+                    transition.transitionId
+                }
+              : null,
+
+          producerTransitionId:
+            transition?.transitionId ||
+            null,
+
+          outboxIntents:
+            transition?.outboxIntents ||
+            []
+        });
+
+    unit.client.setRecoveryState(
       state,
-      updateAuthority,
-      consumerAck: transition?.event?.ledger?.durable ? {
-        consumerId: this.consumerId,
-        sequence: transition.event.sequence,
-        transitionId: transition.transitionId
-      } : null
-    });
-    unit.client.setRecoveryState(state, unit.manifest.stateSchema);
+      unit.manifest.stateSchema
+    );
+
     return checkpoint;
   }
 

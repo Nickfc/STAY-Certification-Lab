@@ -303,6 +303,62 @@ class StateStore {
           authority_epoch
         )
       );
+      CREATE TABLE IF NOT EXISTS biological_outbox_intents (
+        producer_event_id TEXT PRIMARY KEY,
+        producer_core_id TEXT NOT NULL,
+        producer_instance_id TEXT NOT NULL,
+        producer_version TEXT NOT NULL,
+        authority_epoch INTEGER NOT NULL CHECK(authority_epoch >= 1),
+
+        producer_stream_id TEXT NOT NULL,
+        stream_sequence INTEGER NOT NULL CHECK(stream_sequence >= 1),
+
+        transition_id TEXT NOT NULL,
+        cause_sequence INTEGER NOT NULL CHECK(cause_sequence >= 1),
+        output_index INTEGER NOT NULL CHECK(output_index >= 1),
+
+        topic TEXT NOT NULL,
+
+        proposal_sha256 TEXT NOT NULL,
+        intent_json TEXT NOT NULL,
+        intent_sha256 TEXT NOT NULL,
+
+        checkpoint_id TEXT NOT NULL,
+        checkpoint_hash TEXT NOT NULL,
+        checkpoint_generation INTEGER NOT NULL CHECK(checkpoint_generation >= 1),
+
+        status TEXT NOT NULL DEFAULT 'PENDING'
+          CHECK(status IN ('PENDING', 'PUBLISHED')),
+
+        fabric_sequence INTEGER,
+        fabric_event_id TEXT,
+
+        created_at TEXT NOT NULL,
+        published_at TEXT,
+
+        UNIQUE(
+          producer_core_id,
+          authority_epoch,
+          producer_stream_id,
+          stream_sequence
+        ),
+
+        UNIQUE(
+          producer_core_id,
+          authority_epoch,
+          transition_id,
+          output_index
+        )
+      );
+
+      CREATE INDEX IF NOT EXISTS biological_outbox_pending
+        ON biological_outbox_intents(
+          producer_core_id,
+          status,
+          authority_epoch,
+          stream_sequence
+        );
+
       CREATE TABLE IF NOT EXISTS biological_consumers (
         consumer_id TEXT PRIMARY KEY,
         core_id TEXT NOT NULL,
@@ -635,6 +691,51 @@ class StateStore {
       } else {
         createBiologicalStreamSequenceIndex();
       }
+
+    const biologicalOutboxSchemaRow =
+      this.db.prepare(
+        "SELECT version FROM schema_versions WHERE name='biological-outbox'"
+      ).get();
+
+    const biologicalOutboxSchemaVersion =
+      Number(
+        biologicalOutboxSchemaRow?.version ||
+        0
+      );
+
+    if (
+      biologicalOutboxSchemaVersion >
+      1
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological outbox schema is newer than this runtime supports'
+        ),
+        {
+          code:
+            'STATE_BIOLOGICAL_OUTBOX_SCHEMA_UNSUPPORTED'
+        }
+      );
+    }
+
+    this.db.prepare(`
+      INSERT INTO schema_versions(
+        name,
+        version,
+        updated_at
+      )
+      VALUES(
+        'biological-outbox',
+        1,
+        ?
+      )
+      ON CONFLICT(name)
+      DO UPDATE SET
+        version=excluded.version,
+        updated_at=excluded.updated_at
+    `).run(
+      new Date().toISOString()
+    );
 
     await this.importLegacyMetadata();
     await this.reconcileMetadataMirrors();
@@ -3361,95 +3462,1278 @@ class StateStore {
     };
   }
 
-  async commitCheckpoint({ coreId, instanceId, version, authorityEpoch, stateSchema, state, updateAuthority = true, consumerAck = null }) {
-    const json = JSON.stringify(state ?? {});
-    const blob = await this.putBlob(json);
-    const createdAt = new Date().toISOString();
-    const checkpointId = crypto.randomUUID();
-    const result = this.withTransaction(() => {
-      const generationRow =
-        this.db.prepare(
-          'SELECT COALESCE(MAX(generation), 0) AS generation FROM checkpoints WHERE core_id = ?'
-        ).get(coreId);
+  biologicalOutboxIntentFromRow(row) {
+    if (!row) return null;
 
-      const generation =
-        Number(generationRow?.generation || 0) + 1;
+    if (
+      typeof row.intent_json !==
+        'string' ||
+      sha256(row.intent_json) !==
+        row.intent_sha256
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological outbox intent integrity mismatch'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_CORRUPT'
+        }
+      );
+    }
 
-      /*
-       * input_cursor is physiological provenance.
-       *
-       * A durable biological transition records the
-       * sequence actually incorporated into this state.
-       *
-       * A non-biological checkpoint of the same authority
-       * identity incorporates no new biological input, so
-       * it inherits that identity's preceding provenance.
-       *
-       * Authority identity is deliberately constrained to
-       * core + instance + version + epoch. Provenance is
-       * never inferred across an upgrade or epoch boundary.
-       */
-      const provenanceRow =
-        this.db.prepare(`
-          SELECT input_cursor
-          FROM checkpoints
-          WHERE
-            core_id=? AND
-            instance_id=? AND
-            version=? AND
-            authority_epoch=?
-          ORDER BY generation DESC
-          LIMIT 1
-        `).get(
-          coreId,
-          instanceId,
-          version,
-          authorityEpoch
+    let intent;
+
+    try {
+      intent =
+        JSON.parse(
+          row.intent_json
+        );
+    } catch {
+      throw Object.assign(
+        new Error(
+          'biological outbox intent is invalid JSON'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_CORRUPT'
+        }
+      );
+    }
+
+    const identityMatches =
+      intent &&
+      intent.format ===
+        'stay-biological-outbox-intent-v1' &&
+      intent.producer_event_id ===
+        row.producer_event_id &&
+      intent.producer_core_id ===
+        row.producer_core_id &&
+      intent.producer_instance_id ===
+        row.producer_instance_id &&
+      intent.producer_version ===
+        row.producer_version &&
+      Number(
+        intent.authority_epoch
+      ) ===
+        Number(
+          row.authority_epoch
+        ) &&
+      intent.producer_stream_id ===
+        row.producer_stream_id &&
+      Number(
+        intent.stream_sequence
+      ) ===
+        Number(
+          row.stream_sequence
+        ) &&
+      intent.transition_id ===
+        row.transition_id &&
+      Number(
+        intent.cause_sequence
+      ) ===
+        Number(
+          row.cause_sequence
+        ) &&
+      Number(
+        intent.output_index
+      ) ===
+        Number(
+          row.output_index
+        ) &&
+      intent.topic ===
+        row.topic &&
+      intent.checkpoint?.id ===
+        row.checkpoint_id &&
+      intent.checkpoint?.hash ===
+        row.checkpoint_hash &&
+      Number(
+        intent.checkpoint?.generation
+      ) ===
+        Number(
+          row.checkpoint_generation
         );
 
-      const inputCursor =
-        consumerAck
-          ? Number(consumerAck.sequence) || 0
-          : Number(provenanceRow?.input_cursor) || 0;
-      this.db.prepare(`INSERT INTO checkpoints(checkpoint_id, core_id, instance_id, version, authority_epoch, state_schema, generation, blob_hash, byte_length, input_cursor, created_at)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-        checkpointId, coreId, instanceId, version, authorityEpoch, stateSchema, generation, blob.hash, blob.byteLength, inputCursor, createdAt
-      );
-      if (updateAuthority) {
-        const updated = this.db.prepare(`UPDATE authority SET checkpoint_hash = ?, updated_at = ?
-          WHERE core_id = ? AND instance_id = ? AND version = ? AND epoch = ?`)
-          .run(blob.hash, createdAt, coreId, instanceId, version, authorityEpoch);
-        if (updated.changes !== 1) {
-          throw Object.assign(new Error('checkpoint does not belong to current authority'), { code: 'CHECKPOINT_AUTHORITY_CONFLICT' });
+    if (!identityMatches) {
+      throw Object.assign(
+        new Error(
+          'biological outbox row disagrees with immutable intent'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_CORRUPT'
         }
+      );
+    }
+
+    return Object.freeze({
+      producerEventId:
+        row.producer_event_id,
+
+      producerCoreId:
+        row.producer_core_id,
+
+      producerInstanceId:
+        row.producer_instance_id,
+
+      producerVersion:
+        row.producer_version,
+
+      authorityEpoch:
+        Number(
+          row.authority_epoch
+        ),
+
+      producerStreamId:
+        row.producer_stream_id,
+
+      streamSequence:
+        Number(
+          row.stream_sequence
+        ),
+
+      transitionId:
+        row.transition_id,
+
+      causeSequence:
+        Number(
+          row.cause_sequence
+        ),
+
+      outputIndex:
+        Number(
+          row.output_index
+        ),
+
+      topic:
+        row.topic,
+
+      payload:
+        structuredClone(
+          intent.payload
+        ),
+
+      causalParent:
+        intent.causal_parent ??
+        null,
+
+      publishMeta:
+        Object.freeze({
+          ...intent.publish_meta
+        }),
+
+      proposalHash:
+        row.proposal_sha256,
+
+      intentHash:
+        row.intent_sha256,
+
+      checkpointId:
+        row.checkpoint_id,
+
+      checkpointHash:
+        row.checkpoint_hash,
+
+      checkpointGeneration:
+        Number(
+          row.checkpoint_generation
+        ),
+
+      status:
+        row.status,
+
+      fabricSequence:
+        row.fabric_sequence == null
+          ? null
+          : Number(
+              row.fabric_sequence
+            ),
+
+      fabricEventId:
+        row.fabric_event_id ||
+        null,
+
+      createdAt:
+        row.created_at,
+
+      publishedAt:
+        row.published_at ||
+        null
+    });
+  }
+
+  getBiologicalOutboxIntent(
+    producerEventId
+  ) {
+    this.assertOpen();
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_outbox_intents
+        WHERE producer_event_id=?
+      `).get(
+        producerEventId
+      );
+
+    return this.biologicalOutboxIntentFromRow(
+      row
+    );
+  }
+
+  listPendingBiologicalOutboxIntents({
+    producerCoreId = null,
+    limit = 256
+  } = {}) {
+    this.assertOpen();
+
+    const boundedLimit =
+      Math.max(
+        1,
+        Math.min(
+          1024,
+          Number(limit) ||
+          256
+        )
+      );
+
+    const rows =
+      producerCoreId == null
+        ? this.db.prepare(`
+            SELECT *
+            FROM biological_outbox_intents
+            WHERE status='PENDING'
+            ORDER BY
+              authority_epoch,
+              producer_stream_id,
+              stream_sequence
+            LIMIT ?
+          `).all(
+            boundedLimit
+          )
+        : this.db.prepare(`
+            SELECT *
+            FROM biological_outbox_intents
+            WHERE
+              producer_core_id=? AND
+              status='PENDING'
+            ORDER BY
+              authority_epoch,
+              producer_stream_id,
+              stream_sequence
+            LIMIT ?
+          `).all(
+            producerCoreId,
+            boundedLimit
+          );
+
+    return rows.map(
+      row =>
+        this.biologicalOutboxIntentFromRow(
+          row
+        )
+    );
+  }
+
+  _commitBiologicalOutboxIntents({
+    coreId,
+    instanceId,
+    version,
+    authorityEpoch,
+    checkpointId,
+    checkpointHash,
+    checkpointGeneration,
+    producerTransitionId,
+    consumerAck,
+    outboxIntents
+  }) {
+    if (
+      !Array.isArray(
+        outboxIntents
+      ) ||
+      outboxIntents.length >
+        64
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological outbox batch is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_BATCH'
+        }
+      );
+    }
+
+    if (
+      outboxIntents.length ===
+      0
+    ) {
+      return [];
+    }
+
+    if (
+      typeof producerTransitionId !==
+        'string' ||
+      !producerTransitionId ||
+      producerTransitionId.length >
+        256
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological outbox requires stable transition identity'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_TRANSITION'
+        }
+      );
+    }
+
+    if (
+      !consumerAck ||
+      consumerAck.transitionId !==
+        producerTransitionId
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological outbox must belong to the committed biological transition'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_TRANSITION'
+        }
+      );
+    }
+
+    const producerStreamId =
+      `core:${coreId}:outputs`;
+
+    let streamSequence =
+      Number(
+        this.db.prepare(`
+          SELECT COALESCE(
+            MAX(stream_sequence),
+            0
+          ) AS value
+          FROM biological_outbox_intents
+          WHERE
+            producer_core_id=? AND
+            authority_epoch=? AND
+            producer_stream_id=?
+        `).get(
+          coreId,
+          authorityEpoch,
+          producerStreamId
+        )?.value ||
+        0
+      );
+
+    const committed =
+      [];
+
+    let totalBytes =
+      0;
+
+    for (
+      let i = 0;
+      i < outboxIntents.length;
+      i += 1
+    ) {
+      const candidate =
+        outboxIntents[i];
+
+      if (
+        !candidate ||
+        typeof candidate !==
+          'object' ||
+        Array.isArray(
+          candidate
+        )
+      ) {
+        throw Object.assign(
+          new Error(
+            'biological outbox intent is invalid'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_INTENT'
+          }
+        );
       }
-      if (consumerAck) {
-        const delivery = this.db.prepare('SELECT status FROM biological_deliveries WHERE consumer_id=? AND sequence=?')
-          .get(consumerAck.consumerId, consumerAck.sequence);
-        if (!delivery) throw Object.assign(new Error('checkpoint acknowledgement has no durable delivery'), { code: 'BIOLOGICAL_DELIVERY_MISSING' });
-        if (delivery.status !== 'ACKED') {
-          this.db.prepare(`UPDATE biological_deliveries SET status='ACKED', transition_id=?, checkpoint_hash=?, acknowledged_at=?
-            WHERE consumer_id=? AND sequence=? AND status='PENDING'`).run(
-            consumerAck.transitionId || null, blob.hash, createdAt, consumerAck.consumerId, consumerAck.sequence
+
+      const outputIndex =
+        Number(
+          candidate.outputIndex
+        );
+
+      if (
+        !Number.isSafeInteger(
+          outputIndex
+        ) ||
+        outputIndex !==
+          i + 1
+      ) {
+        throw Object.assign(
+          new Error(
+            'biological outbox output ordering is invalid'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_ORDER'
+          }
+        );
+      }
+
+      const causeSequence =
+        Number(
+          candidate.causeSequence
+        );
+
+      if (
+        !Number.isSafeInteger(
+          causeSequence
+        ) ||
+        causeSequence < 1 ||
+        causeSequence !==
+          Number(
+            consumerAck.sequence
+          )
+      ) {
+        throw Object.assign(
+          new Error(
+            'biological outbox cause does not match originating transition'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_CAUSE'
+          }
+        );
+      }
+
+      const topic =
+        candidate.topic;
+
+      if (
+        typeof topic !==
+          'string' ||
+        !topic ||
+        topic.length >
+          200
+      ) {
+        throw Object.assign(
+          new Error(
+            'biological outbox topic is invalid'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_TOPIC'
+          }
+        );
+      }
+
+      const payload =
+        structuredClone(
+          candidate.payload
+        );
+
+      const causalParent =
+        candidate.causalParent == null
+          ? null
+          : String(
+              candidate.causalParent
+            );
+
+      const payloadBytes =
+        Buffer.byteLength(
+          stableStringify({
+            topic,
+            payload
+          })
+        );
+
+      totalBytes +=
+        payloadBytes;
+
+      if (
+        payloadBytes >
+          1024 * 1024 ||
+        totalBytes >
+          1024 * 1024
+      ) {
+        throw Object.assign(
+          new Error(
+            'biological outbox payload bound exceeded'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_BOUND'
+          }
+        );
+      }
+
+      /*
+       * Stable producer identity is independent of
+       * output content.
+       *
+       * A retry that changes content therefore reuses
+       * the same identity and becomes a conflict instead
+       * of silently becoming another biological cause.
+       */
+      const producerEventId =
+        crypto
+          .createHash('sha256')
+          .update(
+            stableStringify({
+              protocol:
+                'stay-biological-producer-event-v1',
+
+              coreId,
+
+              authorityEpoch,
+
+              transitionId:
+                producerTransitionId,
+
+              outputIndex
+            })
+          )
+          .digest('hex');
+
+      const proposal = {
+        protocol:
+          'stay-biological-outbox-proposal-v1',
+
+        producer_event_id:
+          producerEventId,
+
+        producer_core_id:
+          coreId,
+
+        producer_instance_id:
+          instanceId,
+
+        producer_version:
+          version,
+
+        authority_epoch:
+          authorityEpoch,
+
+        transition_id:
+          producerTransitionId,
+
+        cause_sequence:
+          causeSequence,
+
+        output_index:
+          outputIndex,
+
+        topic,
+
+        payload,
+
+        causal_parent:
+          causalParent
+      };
+
+      const proposalHash =
+        sha256(
+          stableStringify(
+            proposal
+          )
+        );
+
+      const existing =
+        this.db.prepare(`
+          SELECT *
+          FROM biological_outbox_intents
+          WHERE producer_event_id=?
+        `).get(
+          producerEventId
+        );
+
+      if (existing) {
+        if (
+          existing.proposal_sha256 !==
+          proposalHash
+        ) {
+          throw Object.assign(
+            new Error(
+              'stable producer event identity was reused with different content'
+            ),
+            {
+              code:
+                'BIOLOGICAL_OUTBOX_CONFLICT'
+            }
           );
         }
-        const cursor = this.advanceBiologicalCursor(consumerAck.consumerId, createdAt);
-        this.db.prepare('UPDATE biological_consumers SET checkpoint_hash=?, authority_epoch=?, updated_at=? WHERE consumer_id=?')
-          .run(blob.hash, authorityEpoch, createdAt, consumerAck.consumerId);
-        if (cursor < consumerAck.sequence) {
-          // Out-of-order completion is legal; the cursor advances only after earlier pending deliveries cross.
-        }
+
+        throw Object.assign(
+          new Error(
+            'authoritative biological transition was already committed'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_DUPLICATE_TRANSITION'
+          }
+        );
       }
-      return { checkpointId, generation };
-    });
+
+      streamSequence +=
+        1;
+
+      const publishMeta = {
+        outputIndex,
+
+        sourceCore:
+          coreId,
+
+        sourceVersion:
+          version,
+
+        sourceInstanceId:
+          instanceId,
+
+        authorityEpoch,
+
+        causeSequence,
+
+        causalParent,
+
+        deduplicationKey:
+          `core-output:${producerEventId}`,
+
+        eventClass:
+          'durable'
+      };
+
+      const intent = {
+        format:
+          'stay-biological-outbox-intent-v1',
+
+        producer_event_id:
+          producerEventId,
+
+        producer_core_id:
+          coreId,
+
+        producer_instance_id:
+          instanceId,
+
+        producer_version:
+          version,
+
+        authority_epoch:
+          authorityEpoch,
+
+        producer_stream_id:
+          producerStreamId,
+
+        stream_sequence:
+          streamSequence,
+
+        transition_id:
+          producerTransitionId,
+
+        cause_sequence:
+          causeSequence,
+
+        output_index:
+          outputIndex,
+
+        topic,
+
+        payload,
+
+        causal_parent:
+          causalParent,
+
+        publish_meta:
+          publishMeta,
+
+        checkpoint: {
+          id:
+            checkpointId,
+
+          hash:
+            checkpointHash,
+
+          generation:
+            checkpointGeneration
+        }
+      };
+
+      const intentJson =
+        stableStringify(
+          intent
+        );
+
+      const intentHash =
+        sha256(
+          intentJson
+        );
+
+      const createdAt =
+        new Date().toISOString();
+
+      this.db.prepare(`
+        INSERT INTO biological_outbox_intents(
+          producer_event_id,
+          producer_core_id,
+          producer_instance_id,
+          producer_version,
+          authority_epoch,
+          producer_stream_id,
+          stream_sequence,
+          transition_id,
+          cause_sequence,
+          output_index,
+          topic,
+          proposal_sha256,
+          intent_json,
+          intent_sha256,
+          checkpoint_id,
+          checkpoint_hash,
+          checkpoint_generation,
+          status,
+          created_at
+        )
+        VALUES(
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?
+        )
+      `).run(
+        producerEventId,
+        coreId,
+        instanceId,
+        version,
+        authorityEpoch,
+        producerStreamId,
+        streamSequence,
+        producerTransitionId,
+        causeSequence,
+        outputIndex,
+        topic,
+        proposalHash,
+        intentJson,
+        intentHash,
+        checkpointId,
+        checkpointHash,
+        checkpointGeneration,
+        createdAt
+      );
+
+      committed.push(
+        this.getBiologicalOutboxIntent(
+          producerEventId
+        )
+      );
+    }
+
+    return committed;
+  }
+
+  markBiologicalOutboxPublished({
+    producerEventId,
+    event
+  }) {
+    this.assertOpen();
+
+    return this.withTransaction(
+      () => {
+        const row =
+          this.db.prepare(`
+            SELECT *
+            FROM biological_outbox_intents
+            WHERE producer_event_id=?
+          `).get(
+            producerEventId
+          );
+
+        if (!row) {
+          throw Object.assign(
+            new Error(
+              'unknown biological outbox intent'
+            ),
+            {
+              code:
+                'BIOLOGICAL_OUTBOX_UNKNOWN'
+            }
+          );
+        }
+
+        const intent =
+          this.biologicalOutboxIntentFromRow(
+            row
+          );
+
+        const sequence =
+          Number(
+            event?.sequence
+          );
+
+        const eventId =
+          event?.id;
+
+        if (
+          !Number.isSafeInteger(
+            sequence
+          ) ||
+          sequence < 1 ||
+          typeof eventId !==
+            'string' ||
+          !eventId
+        ) {
+          throw Object.assign(
+            new Error(
+              'published outbox event identity is invalid'
+            ),
+            {
+              code:
+                'BIOLOGICAL_OUTBOX_PUBLISH'
+            }
+          );
+        }
+
+        const durable =
+          this.db.prepare(`
+            SELECT
+              event_id,
+              topic,
+              deduplication_key
+            FROM biological_events
+            WHERE sequence=?
+          `).get(
+            sequence
+          );
+
+        if (
+          !durable ||
+          durable.event_id !==
+            eventId ||
+          durable.topic !==
+            intent.topic ||
+          durable.deduplication_key !==
+            intent.publishMeta.deduplicationKey
+        ) {
+          throw Object.assign(
+            new Error(
+              'outbox publication does not match durable Fabric identity'
+            ),
+            {
+              code:
+                'BIOLOGICAL_OUTBOX_PUBLISH'
+            }
+          );
+        }
+
+        if (
+          row.status ===
+          'PUBLISHED'
+        ) {
+          if (
+            Number(
+              row.fabric_sequence
+            ) !==
+              sequence ||
+            row.fabric_event_id !==
+              eventId
+          ) {
+            throw Object.assign(
+              new Error(
+                'published outbox intent was rebound to another Fabric event'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_OUTBOX_CONFLICT'
+              }
+            );
+          }
+
+          return intent;
+        }
+
+        const publishedAt =
+          new Date().toISOString();
+
+        const updated =
+          this.db.prepare(`
+            UPDATE biological_outbox_intents
+            SET
+              status='PUBLISHED',
+              fabric_sequence=?,
+              fabric_event_id=?,
+              published_at=?
+            WHERE
+              producer_event_id=? AND
+              status='PENDING'
+          `).run(
+            sequence,
+            eventId,
+            publishedAt,
+            producerEventId
+          );
+
+        if (
+          updated.changes !==
+          1
+        ) {
+          throw Object.assign(
+            new Error(
+              'biological outbox publication lost pending identity'
+            ),
+            {
+              code:
+                'BIOLOGICAL_OUTBOX_CONFLICT'
+            }
+          );
+        }
+
+        return this.getBiologicalOutboxIntent(
+          producerEventId
+        );
+      }
+    );
+  }
+
+  async commitCheckpoint({
+    coreId,
+    instanceId,
+    version,
+    authorityEpoch,
+    stateSchema,
+    state,
+    updateAuthority = true,
+    consumerAck = null,
+    producerTransitionId = null,
+    outboxIntents = []
+  }) {
+    if (
+      !Array.isArray(
+        outboxIntents
+      ) ||
+      outboxIntents.length >
+        64
+    ) {
+      throw Object.assign(
+        new Error(
+          'checkpoint outbox batch is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_BATCH'
+        }
+      );
+    }
+
+    if (
+      outboxIntents.length >
+        0 &&
+      !updateAuthority
+    ) {
+      throw Object.assign(
+        new Error(
+          'non-authoritative checkpoint may not create biological outbox intents'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_AUTHORITY'
+        }
+      );
+    }
+
+    const json =
+      JSON.stringify(
+        state ?? {}
+      );
+
+    const blob =
+      await this.putBlob(
+        json
+      );
+
+    const createdAt =
+      new Date().toISOString();
+
+    const checkpointId =
+      crypto.randomUUID();
+
+    const result =
+      this.withTransaction(
+        () => {
+          const generationRow =
+            this.db.prepare(
+              'SELECT COALESCE(MAX(generation), 0) AS generation FROM checkpoints WHERE core_id = ?'
+            ).get(
+              coreId
+            );
+
+          const generation =
+            Number(
+              generationRow?.generation ||
+              0
+            ) + 1;
+
+          const provenanceRow =
+            this.db.prepare(`
+              SELECT input_cursor
+              FROM checkpoints
+              WHERE
+                core_id=? AND
+                instance_id=? AND
+                version=? AND
+                authority_epoch=?
+              ORDER BY generation DESC
+              LIMIT 1
+            `).get(
+              coreId,
+              instanceId,
+              version,
+              authorityEpoch
+            );
+
+          const inputCursor =
+            consumerAck
+              ? Number(
+                  consumerAck.sequence
+                ) || 0
+              : Number(
+                  provenanceRow?.input_cursor
+                ) || 0;
+
+          this.db.prepare(`
+            INSERT INTO checkpoints(
+              checkpoint_id,
+              core_id,
+              instance_id,
+              version,
+              authority_epoch,
+              state_schema,
+              generation,
+              blob_hash,
+              byte_length,
+              input_cursor,
+              created_at
+            )
+            VALUES(
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+          `).run(
+            checkpointId,
+            coreId,
+            instanceId,
+            version,
+            authorityEpoch,
+            stateSchema,
+            generation,
+            blob.hash,
+            blob.byteLength,
+            inputCursor,
+            createdAt
+          );
+
+          if (updateAuthority) {
+            const updated =
+              this.db.prepare(`
+                UPDATE authority
+                SET
+                  checkpoint_hash=?,
+                  updated_at=?
+                WHERE
+                  core_id=? AND
+                  instance_id=? AND
+                  version=? AND
+                  epoch=?
+              `).run(
+                blob.hash,
+                createdAt,
+                coreId,
+                instanceId,
+                version,
+                authorityEpoch
+              );
+
+            if (
+              updated.changes !==
+              1
+            ) {
+              throw Object.assign(
+                new Error(
+                  'checkpoint does not belong to current authority'
+                ),
+                {
+                  code:
+                    'CHECKPOINT_AUTHORITY_CONFLICT'
+                }
+              );
+            }
+          }
+
+          if (consumerAck) {
+            const delivery =
+              this.db.prepare(`
+                SELECT status
+                FROM biological_deliveries
+                WHERE
+                  consumer_id=? AND
+                  sequence=?
+              `).get(
+                consumerAck.consumerId,
+                consumerAck.sequence
+              );
+
+            if (!delivery) {
+              throw Object.assign(
+                new Error(
+                  'checkpoint acknowledgement has no durable delivery'
+                ),
+                {
+                  code:
+                    'BIOLOGICAL_DELIVERY_MISSING'
+                }
+              );
+            }
+
+            if (
+              delivery.status !==
+              'ACKED'
+            ) {
+              this.db.prepare(`
+                UPDATE biological_deliveries
+                SET
+                  status='ACKED',
+                  transition_id=?,
+                  checkpoint_hash=?,
+                  acknowledged_at=?
+                WHERE
+                  consumer_id=? AND
+                  sequence=? AND
+                  status='PENDING'
+              `).run(
+                consumerAck.transitionId ||
+                  null,
+                blob.hash,
+                createdAt,
+                consumerAck.consumerId,
+                consumerAck.sequence
+              );
+            }
+
+            const cursor =
+              this.advanceBiologicalCursor(
+                consumerAck.consumerId,
+                createdAt
+              );
+
+            this.db.prepare(`
+              UPDATE biological_consumers
+              SET
+                checkpoint_hash=?,
+                authority_epoch=?,
+                updated_at=?
+              WHERE consumer_id=?
+            `).run(
+              blob.hash,
+              authorityEpoch,
+              createdAt,
+              consumerAck.consumerId
+            );
+
+            if (
+              cursor <
+              consumerAck.sequence
+            ) {
+              // Earlier pending deliveries legitimately
+              // prevent the cursor crossing this event.
+            }
+          }
+
+          /*
+           * EF1-D / P0.34
+           *
+           * Checkpoint, authority pointer, incorporated
+           * input ACK and output obligation are one commit.
+           *
+           * No Fabric publication occurs inside this tx.
+           */
+          const committedOutbox =
+            this._commitBiologicalOutboxIntents({
+              coreId,
+              instanceId,
+              version,
+              authorityEpoch,
+              checkpointId,
+              checkpointHash:
+                blob.hash,
+              checkpointGeneration:
+                generation,
+              producerTransitionId,
+              consumerAck,
+              outboxIntents
+            });
+
+          return {
+            checkpointId,
+            generation,
+            outboxIntents:
+              committedOutbox
+          };
+        }
+      );
+
     this.markWriteSuccess();
-    await this.pruneCheckpoints(coreId, 32);
-    return { ...result, coreId, instanceId, version, authorityEpoch, stateSchema, blobHash: blob.hash, byteLength: blob.byteLength, createdAt };
+
+    await this.pruneCheckpoints(
+      coreId,
+      32
+    );
+
+    return {
+      ...result,
+      coreId,
+      instanceId,
+      version,
+      authorityEpoch,
+      stateSchema,
+      blobHash:
+        blob.hash,
+      byteLength:
+        blob.byteLength,
+      createdAt
+    };
   }
 
   async pruneCheckpoints(coreId, retention = 32) {
     const rows = this.db.prepare('SELECT checkpoint_id, blob_hash FROM checkpoints WHERE core_id=? ORDER BY generation DESC').all(coreId);
-    const remove = rows.slice(Math.max(1, retention));
+    const candidates =
+      rows.slice(
+        Math.max(
+          1,
+          retention
+        )
+      );
+
+    /*
+     * A committed-but-undrained biological obligation
+     * pins the checkpoint that produced it.
+     *
+     * Once published, normal checkpoint retention may
+     * reclaim that historical checkpoint.
+     */
+    const remove =
+      candidates.filter(
+        row =>
+          !this.db.prepare(`
+            SELECT 1
+            FROM biological_outbox_intents
+            WHERE
+              checkpoint_id=? AND
+              status='PENDING'
+            LIMIT 1
+          `).get(
+            row.checkpoint_id
+          )
+      );
     if (!remove.length) return;
     this.withTransaction(() => {
       const statement = this.db.prepare('DELETE FROM checkpoints WHERE checkpoint_id=?');

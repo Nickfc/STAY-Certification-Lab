@@ -57,7 +57,7 @@ test('G0-03: checkpoint, physiological transition and consumer acknowledgement c
   assert.ok(consumer.cursor >= event.sequence);
 });
 
-test('G0-04: failed producer commit replays once while its already-committed output remains exactly once', async t => {
+test('G0-04: failed producer commit publishes nothing before transition commit and replay produces exactly once', async t => {
   const { kernel, dataDir } = await makeKernel();
   let activeKernel = kernel;
   t.after(async () => { await activeKernel.stop().catch(() => {}); await fs.rm(dataDir, { recursive: true, force: true }); });
@@ -81,15 +81,24 @@ test('G0-04: failed producer commit replays once while its already-committed out
   await waitFor(() => kernel.registry.get('ledger-producer')?.active?.client?.lifecycle === 'active');
   const pendingBefore = kernel.stateStore.listPendingBiologicalEvents('core:ledger-producer');
   assert.equal(pendingBefore.filter(event => event.topic === 'bio.tick').length, 1);
-  assert.equal((await kernel.stateStore.readAuthoritativeCheckpoint('ledger-sink')).state.observed, 1);
+  assert.equal(
+    (await kernel.stateStore.readAuthoritativeCheckpoint('ledger-sink')).state.observed,
+    0
+  );
+  assert.equal(
+    kernel.stateStore.listPendingBiologicalOutboxIntents({
+      producerCoreId: 'ledger-producer'
+    }).length,
+    0
+  );
 
   kernel.stateStore.commitCheckpoint = originalCommit;
   await kernel.stop();
 
   const { kernel: restarted } = await makeKernel({ dataDir, allowIdentityBootstrap: false });
   activeKernel = restarted;
-  await restarted.installCore(producerPath);
   await restarted.installCore(sinkPath);
+  await restarted.installCore(producerPath);
   assert.equal((await restarted.stateStore.readAuthoritativeCheckpoint('ledger-producer')).state.ticks, 1);
   assert.equal((await restarted.stateStore.readAuthoritativeCheckpoint('ledger-sink')).state.observed, 1);
   assert.equal(restarted.stateStore.listPendingBiologicalEvents('core:ledger-producer').length, 0);
