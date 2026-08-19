@@ -191,7 +191,7 @@ function boundary() {
           8,
 
         authorityMode:
-          AUTHORITY_MODE.AUTHORITATIVE
+          AUTHORITY_MODE.SHADOW
       };
     },
 

@@ -220,7 +220,7 @@ function makeBoundary({
             epoch,
 
           authorityMode:
-            AUTHORITY_MODE.AUTHORITATIVE
+            AUTHORITY_MODE.SHADOW
         };
       },
 

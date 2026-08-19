@@ -561,7 +561,8 @@ class StateStore {
   appendAcceptedBiologicalEnvelope({
     prepared,
     finalizePrepared,
-    minimum = 0
+    minimum = 0,
+    authorityWitness = null
   }) {
     this.assertOpen();
 
@@ -614,6 +615,151 @@ class StateStore {
      */
     return this.withTransaction(
       () => {
+        const preparedKernel =
+          prepared?.kernel;
+
+        const preparedIsAuthoritative =
+          preparedKernel?.authority_mode ===
+          'authoritative';
+
+        if (
+          preparedIsAuthoritative &&
+          authorityWitness == null
+        ) {
+          throw Object.assign(
+            new Error(
+              'authoritative biological persistence requires a commit-time authority witness'
+            ),
+            {
+              code:
+                'BIOLOGICAL_AUTHORITY_WITNESS_REQUIRED'
+            }
+          );
+        }
+
+        if (
+          !preparedIsAuthoritative &&
+          authorityWitness != null
+        ) {
+          throw Object.assign(
+            new Error(
+              'non-authoritative biological persistence cannot claim an authority witness'
+            ),
+            {
+              code:
+                'BIOLOGICAL_AUTHORITY_WITNESS'
+            }
+          );
+        }
+
+        let boundAuthority =
+          null;
+
+        if (
+          authorityWitness != null
+        ) {
+          const witness = {
+            coreId:
+              authorityWitness.coreId ??
+              authorityWitness.core_id,
+
+            instanceId:
+              authorityWitness.instanceId ??
+              authorityWitness.instance_id,
+
+            version:
+              authorityWitness.version,
+
+            authorityEpoch:
+              Number(
+                authorityWitness.authorityEpoch ??
+                authorityWitness.authority_epoch
+              )
+          };
+
+          if (
+            typeof witness.coreId !==
+              'string' ||
+            !witness.coreId ||
+            typeof witness.instanceId !==
+              'string' ||
+            !witness.instanceId ||
+            typeof witness.version !==
+              'string' ||
+            !witness.version ||
+            !Number.isSafeInteger(
+              witness.authorityEpoch
+            ) ||
+            witness.authorityEpoch < 1
+          ) {
+            throw Object.assign(
+              new Error(
+                'biological authority witness is invalid'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_AUTHORITY_WITNESS'
+              }
+            );
+          }
+
+          if (
+            !preparedKernel ||
+            preparedKernel.authority_mode !==
+              'authoritative' ||
+            preparedKernel.producer_core_id !==
+              witness.coreId ||
+            preparedKernel.producer_instance_id !==
+              witness.instanceId ||
+            preparedKernel.producer_version !==
+              witness.version ||
+            Number(
+              preparedKernel.authority_epoch
+            ) !==
+              witness.authorityEpoch
+          ) {
+            throw Object.assign(
+              new Error(
+                'authority witness does not match prepared biological acceptance'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_AUTHORITY_WITNESS'
+              }
+            );
+          }
+
+          const currentAuthority =
+            this.getAuthority(
+              witness.coreId
+            );
+
+          if (
+            !currentAuthority ||
+            currentAuthority.instanceId !==
+              witness.instanceId ||
+            currentAuthority.version !==
+              witness.version ||
+            Number(
+              currentAuthority.epoch
+            ) !==
+              witness.authorityEpoch
+          ) {
+            throw Object.assign(
+              new Error(
+                'authoritative biological producer became stale before durable commit'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_AUTHORITY_STALE'
+              }
+            );
+          }
+
+          boundAuthority =
+            currentAuthority;
+        }
+
         const stored =
           this.metadataGet(
             'life:event-sequence',
@@ -641,7 +787,10 @@ class StateStore {
               stored?.sequence
             ) || 0,
             normalizedMinimum,
-            ledgerHighWater
+            ledgerHighWater,
+            Number(
+              boundAuthority?.barrierSequence
+            ) || 0
           ) + 1;
 
         if (
@@ -674,6 +823,37 @@ class StateStore {
           normalizeAcceptedEnvelope(
             finalized
           );
+
+        if (
+          boundAuthority
+        ) {
+          if (
+            envelope.authority_mode !==
+              'authoritative' ||
+            envelope.producer_core_id !==
+              boundAuthority.coreId ||
+            envelope.producer_instance_id !==
+              boundAuthority.instanceId ||
+            envelope.producer_version !==
+              boundAuthority.version ||
+            Number(
+              envelope.authority_epoch
+            ) !==
+              Number(
+                boundAuthority.epoch
+              )
+          ) {
+            throw Object.assign(
+              new Error(
+                'final authoritative biological envelope disagrees with commit-bound authority'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_AUTHORITY_STALE'
+              }
+            );
+          }
+        }
 
         if (
           envelope.fabric_sequence !==
