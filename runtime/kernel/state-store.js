@@ -1,5 +1,11 @@
 'use strict';
 
+
+const {
+  normalizeAcceptedEnvelope,
+  DURABILITY_CLASS
+} = require('./biological-envelope');
+
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -244,6 +250,40 @@ class StateStore {
         deduplication_sha256 TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS biological_envelopes_v2 (
+        sequence INTEGER PRIMARY KEY,
+        signal_id TEXT NOT NULL UNIQUE,
+        organism_id TEXT NOT NULL,
+        producer_core_id TEXT NOT NULL,
+        producer_instance_id TEXT NOT NULL,
+        producer_version TEXT NOT NULL,
+        producer_event_id TEXT NOT NULL,
+        producer_stream_id TEXT NOT NULL,
+        stream_sequence INTEGER NOT NULL CHECK(stream_sequence >= 1),
+        authority_epoch INTEGER NOT NULL CHECK(authority_epoch >= 1),
+        authority_mode TEXT NOT NULL CHECK(authority_mode IN ('neutral', 'lab', 'shadow', 'authoritative')),
+        accepted_time_us INTEGER NOT NULL CHECK(accepted_time_us >= 0),
+        order_time_us INTEGER NOT NULL CHECK(order_time_us >= 0),
+        envelope_json TEXT NOT NULL,
+        envelope_sha256 TEXT NOT NULL,
+        payload_sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(sequence)
+          REFERENCES biological_events(sequence)
+          ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS biological_v2_signal_stream
+        ON biological_envelopes_v2(
+          producer_stream_id,
+          authority_epoch,
+          stream_sequence
+        );
+      CREATE INDEX IF NOT EXISTS biological_v2_producer_event
+        ON biological_envelopes_v2(
+          organism_id,
+          producer_core_id,
+          producer_event_id
+        );
       CREATE TABLE IF NOT EXISTS biological_consumers (
         consumer_id TEXT PRIMARY KEY,
         core_id TEXT NOT NULL,
@@ -329,6 +369,47 @@ class StateStore {
     `).run(
       new Date().toISOString()
     );
+    const biologicalEnvelopeSchemaRow =
+      this.db.prepare(
+        "SELECT version FROM schema_versions WHERE name='biological-envelope'"
+      ).get();
+
+    if (
+      Number(
+        biologicalEnvelopeSchemaRow?.version ||
+        0
+      ) > 2
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological envelope schema is newer than this runtime supports'
+        ),
+        {
+          code:
+            'STATE_BIOLOGICAL_SCHEMA_UNSUPPORTED'
+        }
+      );
+    }
+
+    this.db.prepare(`
+      INSERT INTO schema_versions(
+        name,
+        version,
+        updated_at
+      )
+      VALUES(
+        'biological-envelope',
+        2,
+        ?
+      )
+      ON CONFLICT(name)
+      DO UPDATE SET
+        version=excluded.version,
+        updated_at=excluded.updated_at
+    `).run(
+      new Date().toISOString()
+    );
+
     await this.importLegacyMetadata();
     await this.reconcileMetadataMirrors();
     await this.assertCanonicalLifeMirror('identity');
@@ -476,6 +557,827 @@ class StateStore {
       return { event: this.biologicalEventFromRow(this.db.prepare('SELECT * FROM biological_events WHERE sequence=?').get(sequence), false), deduplicated: false };
     });
   }
+
+  appendAcceptedBiologicalEnvelope({
+    prepared,
+    finalizePrepared,
+    minimum = 0
+  }) {
+    this.assertOpen();
+
+    if (
+      typeof finalizePrepared !==
+      'function'
+    ) {
+      throw Object.assign(
+        new Error(
+          'finalizePrepared callback is required'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_PERSISTENCE_CONFIG'
+        }
+      );
+    }
+
+    const normalizedMinimum =
+      Number(minimum) || 0;
+
+    if (
+      !Number.isSafeInteger(
+        normalizedMinimum
+      ) ||
+      normalizedMinimum < 0
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological envelope minimum sequence is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_SEQUENCE'
+        }
+      );
+    }
+
+    /*
+     * Atomic B2B2 boundary:
+     *
+     *   determine sequence
+     *   finalize Envelope v2
+     *   persist canonical event
+     *   persist exact Envelope v2
+     *   create deliveries
+     *   advance sequence high-water
+     *
+     * Any failure rolls back the entire SQLite transaction.
+     */
+    return this.withTransaction(
+      () => {
+        const stored =
+          this.metadataGet(
+            'life:event-sequence',
+            {
+              sequence:
+                0
+            }
+          );
+
+        const ledgerHighWater =
+          Number(
+            this.db.prepare(`
+              SELECT COALESCE(
+                MAX(sequence),
+                0
+              ) AS value
+              FROM biological_events
+            `).get()?.value ||
+            0
+          );
+
+        const sequence =
+          Math.max(
+            Number(
+              stored?.sequence
+            ) || 0,
+            normalizedMinimum,
+            ledgerHighWater
+          ) + 1;
+
+        if (
+          !Number.isSafeInteger(
+            sequence
+          )
+        ) {
+          throw Object.assign(
+            new Error(
+              'event sequence exhausted'
+            ),
+            {
+              code:
+                'EVENT_SEQUENCE_EXHAUSTED'
+            }
+          );
+        }
+
+        /*
+         * StateStore owns the sequence. The acceptance
+         * boundary may only finalize against this exact value.
+         */
+        const finalized =
+          finalizePrepared(
+            prepared,
+            sequence
+          );
+
+        const envelope =
+          normalizeAcceptedEnvelope(
+            finalized
+          );
+
+        if (
+          envelope.fabric_sequence !==
+          sequence
+        ) {
+          throw Object.assign(
+            new Error(
+              'final Envelope v2 does not carry the StateStore-assigned sequence'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ENVELOPE_V2_SEQUENCE'
+            }
+          );
+        }
+
+        let eventClass;
+
+        if (
+          envelope.durability_class ===
+          DURABILITY_CLASS.CHECKPOINT_CRITICAL
+        ) {
+          eventClass =
+            'critical';
+
+        } else if (
+          envelope.durability_class ===
+            DURABILITY_CLASS.EPHEMERAL_REPLAYABLE ||
+          envelope.durability_class ===
+            DURABILITY_CLASS.DURABLE_TRANSITION
+        ) {
+          eventClass =
+            'durable';
+
+        } else {
+          throw Object.assign(
+            new Error(
+              'Envelope v2 durability cannot enter the biological ledger'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ENVELOPE_V2_DURABILITY'
+            }
+          );
+        }
+
+        const envelopeJson =
+          stableStringify(
+            envelope
+          );
+
+        const envelopeHash =
+          sha256(
+            envelopeJson
+          );
+
+        const payloadJson =
+          stableStringify(
+            envelope.payload
+          );
+
+        const payloadHash =
+          sha256(
+            payloadJson
+          );
+
+        if (
+          envelope.payload_hash !==
+          `sha256:${payloadHash}`
+        ) {
+          throw Object.assign(
+            new Error(
+              'Envelope v2 payload commitment disagrees with persisted payload'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ENVELOPE_V2_CORRUPT'
+            }
+          );
+        }
+
+        const provenance = {
+          protocol:
+            envelope.protocol,
+
+          signalId:
+            envelope.signal_id,
+
+          organismId:
+            envelope.organism_id,
+
+          sourceCore:
+            envelope.producer_core_id,
+
+          sourceVersion:
+            envelope.producer_version,
+
+          sourceInstanceId:
+            envelope.producer_instance_id,
+
+          producerEventId:
+            envelope.producer_event_id,
+
+          producerStreamId:
+            envelope.producer_stream_id,
+
+          streamSequence:
+            envelope.stream_sequence,
+
+          authorityEpoch:
+            envelope.authority_epoch,
+
+          authorityMode:
+            envelope.authority_mode,
+
+          acceptedTimeUs:
+            envelope.accepted_time_us,
+
+          orderTimeUs:
+            envelope.order_time_us
+        };
+
+        const provenanceHash =
+          sha256(
+            stableStringify(
+              provenance
+            )
+          );
+
+        const deduplicationKey =
+          envelope.signal_id;
+
+        const deduplicationHash =
+          sha256(
+            stableStringify({
+              protocol:
+                'stay-biological-envelope-v2-ledger-v1',
+
+              signalId:
+                envelope.signal_id,
+
+              envelopeHash:
+                `sha256:${envelopeHash}`
+            })
+          );
+
+        const eventId =
+          `evt-${sequence.toString(36)}-${envelopeHash.slice(0, 16)}`;
+
+        /*
+         * Existing EventFabric uses millisecond-shaped event
+         * time. This is compatibility metadata only.
+         *
+         * Exact biological microsecond time remains solely
+         * authoritative inside Envelope v2.
+         */
+        const compatibilityAtMs =
+          Math.floor(
+            envelope.order_time_us /
+            1000
+          );
+
+        const eventMeta = {
+          biologicalEnvelopeV2:
+            true,
+
+          biologicalEnvelopeProtocol:
+            envelope.protocol,
+
+          biologicalSignalId:
+            envelope.signal_id,
+
+          sourceCore:
+            envelope.producer_core_id,
+
+          sourceVersion:
+            envelope.producer_version,
+
+          sourceInstanceId:
+            envelope.producer_instance_id,
+
+          authorityEpoch:
+            envelope.authority_epoch,
+
+          authorityMode:
+            envelope.authority_mode,
+
+          producerStreamId:
+            envelope.producer_stream_id,
+
+          streamSequence:
+            envelope.stream_sequence,
+
+          producerEventId:
+            envelope.producer_event_id,
+
+          eventClass,
+
+          payloadHash:
+            `sha256:${payloadHash}`,
+
+          provenanceHash:
+            `sha256:${provenanceHash}`
+        };
+
+        const compatibilityEnvelope = {
+          id:
+            eventId,
+
+          sequence,
+
+          topic:
+            envelope.topic,
+
+          class:
+            eventClass,
+
+          payload:
+            envelope.payload,
+
+          at:
+            compatibilityAtMs,
+
+          deadlineAt:
+            null,
+
+          meta:
+            eventMeta
+        };
+
+        const compatibilityJson =
+          stableStringify(
+            compatibilityEnvelope
+          );
+
+        const compatibilityHash =
+          sha256(
+            compatibilityJson
+          );
+
+        const createdAt =
+          new Date().toISOString();
+
+        this.db.prepare(`
+          INSERT INTO biological_events(
+            sequence,
+            event_id,
+            topic,
+            event_class,
+            at_ms,
+            deadline_at_ms,
+            envelope_json,
+            envelope_sha256,
+            payload_sha256,
+            provenance_sha256,
+            deduplication_key,
+            deduplication_sha256,
+            created_at
+          )
+          VALUES(
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            NULL,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+          )
+        `).run(
+          sequence,
+          eventId,
+          envelope.topic,
+          eventClass,
+          compatibilityAtMs,
+          compatibilityJson,
+          compatibilityHash,
+          payloadHash,
+          provenanceHash,
+          deduplicationKey,
+          deduplicationHash,
+          createdAt
+        );
+
+        this.db.prepare(`
+          INSERT INTO biological_envelopes_v2(
+            sequence,
+            signal_id,
+            organism_id,
+            producer_core_id,
+            producer_instance_id,
+            producer_version,
+            producer_event_id,
+            producer_stream_id,
+            stream_sequence,
+            authority_epoch,
+            authority_mode,
+            accepted_time_us,
+            order_time_us,
+            envelope_json,
+            envelope_sha256,
+            payload_sha256,
+            created_at
+          )
+          VALUES(
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+          )
+        `).run(
+          sequence,
+          envelope.signal_id,
+          envelope.organism_id,
+          envelope.producer_core_id,
+          envelope.producer_instance_id,
+          envelope.producer_version,
+          envelope.producer_event_id,
+          envelope.producer_stream_id,
+          envelope.stream_sequence,
+          envelope.authority_epoch,
+          envelope.authority_mode,
+          envelope.accepted_time_us,
+          envelope.order_time_us,
+          envelopeJson,
+          envelopeHash,
+          payloadHash,
+          createdAt
+        );
+
+        this.db.prepare(`
+          INSERT INTO biological_deliveries(
+            sequence,
+            consumer_id
+          )
+          SELECT
+            ?,
+            consumer_id
+          FROM biological_consumers
+          WHERE active=1
+        `).run(
+          sequence
+        );
+
+        this.metadataSet(
+          'life:event-sequence',
+          {
+            sequence,
+
+            at:
+              createdAt,
+
+            durability:
+              'envelope-v2-appended-before-delivery'
+          }
+        );
+
+        const acceptedRow =
+          this.db.prepare(`
+            SELECT *
+            FROM biological_envelopes_v2
+            WHERE sequence=?
+          `).get(
+            sequence
+          );
+
+        const eventRow =
+          this.db.prepare(`
+            SELECT *
+            FROM biological_events
+            WHERE sequence=?
+          `).get(
+            sequence
+          );
+
+        return {
+          envelope:
+            this.acceptedBiologicalEnvelopeFromRow(
+              acceptedRow
+            ),
+
+          event:
+            this.biologicalEventFromRow(
+              eventRow,
+              false
+            ),
+
+          deduplicated:
+            false
+        };
+      }
+    );
+  }
+
+
+  acceptedBiologicalEnvelopeFromRow(
+    row
+  ) {
+    if (!row) {
+      return null;
+    }
+
+    /*
+     * Hash the exact stored bytes first.
+     */
+    if (
+      sha256(
+        row.envelope_json
+      ) !==
+      row.envelope_sha256
+    ) {
+      throw Object.assign(
+        new Error(
+          `accepted biological Envelope v2 ${row.sequence} is corrupt`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_CORRUPT'
+        }
+      );
+    }
+
+    let parsed;
+
+    try {
+      parsed =
+        JSON.parse(
+          row.envelope_json
+        );
+    } catch (cause) {
+      throw Object.assign(
+        new Error(
+          `accepted biological Envelope v2 ${row.sequence} is not valid JSON`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_CORRUPT',
+
+          cause
+        }
+      );
+    }
+
+    let envelope;
+
+    try {
+      envelope =
+        normalizeAcceptedEnvelope(
+          parsed
+        );
+    } catch (cause) {
+      throw Object.assign(
+        new Error(
+          `accepted biological Envelope v2 ${row.sequence} failed contract validation`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_CORRUPT',
+
+          cause
+        }
+      );
+    }
+
+    const payloadHash =
+      sha256(
+        stableStringify(
+          envelope.payload
+        )
+      );
+
+    const mismatch =
+      envelope.fabric_sequence !==
+        Number(row.sequence) ||
+      envelope.signal_id !==
+        row.signal_id ||
+      envelope.organism_id !==
+        row.organism_id ||
+      envelope.producer_core_id !==
+        row.producer_core_id ||
+      envelope.producer_instance_id !==
+        row.producer_instance_id ||
+      envelope.producer_version !==
+        row.producer_version ||
+      envelope.producer_event_id !==
+        row.producer_event_id ||
+      envelope.producer_stream_id !==
+        row.producer_stream_id ||
+      envelope.stream_sequence !==
+        Number(row.stream_sequence) ||
+      envelope.authority_epoch !==
+        Number(row.authority_epoch) ||
+      envelope.authority_mode !==
+        row.authority_mode ||
+      envelope.accepted_time_us !==
+        Number(row.accepted_time_us) ||
+      envelope.order_time_us !==
+        Number(row.order_time_us) ||
+      payloadHash !==
+        row.payload_sha256 ||
+      envelope.payload_hash !==
+        `sha256:${row.payload_sha256}`;
+
+    if (mismatch) {
+      throw Object.assign(
+        new Error(
+          `accepted biological Envelope v2 ${row.sequence} metadata disagrees with its durable index`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_CORRUPT'
+        }
+      );
+    }
+
+    return envelope;
+  }
+
+
+  getAcceptedBiologicalEnvelope(
+    signalId
+  ) {
+    this.assertOpen();
+
+    if (
+      typeof signalId !== 'string' ||
+      !signalId
+    ) {
+      throw Object.assign(
+        new Error(
+          'accepted biological signal id is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_ID'
+        }
+      );
+    }
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_envelopes_v2
+        WHERE signal_id=?
+      `).get(
+        signalId
+      );
+
+    return row
+      ? this.acceptedBiologicalEnvelopeFromRow(
+          row
+        )
+      : null;
+  }
+
+
+  getAcceptedBiologicalEnvelopeBySequence(
+    sequence
+  ) {
+    this.assertOpen();
+
+    const normalized =
+      Number(sequence);
+
+    if (
+      !Number.isSafeInteger(
+        normalized
+      ) ||
+      normalized < 1
+    ) {
+      throw Object.assign(
+        new Error(
+          'accepted biological sequence is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_SEQUENCE'
+        }
+      );
+    }
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_envelopes_v2
+        WHERE sequence=?
+      `).get(
+        normalized
+      );
+
+    return row
+      ? this.acceptedBiologicalEnvelopeFromRow(
+          row
+        )
+      : null;
+  }
+
+
+  listAcceptedBiologicalStreamRange({
+    producerStreamId,
+    authorityEpoch,
+    firstSequence,
+    lastSequence
+  }) {
+    this.assertOpen();
+
+    if (
+      typeof producerStreamId !==
+        'string' ||
+      !producerStreamId
+    ) {
+      throw Object.assign(
+        new Error(
+          'producer stream id is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_RANGE'
+        }
+      );
+    }
+
+    const epoch =
+      Number(
+        authorityEpoch
+      );
+
+    const first =
+      Number(
+        firstSequence
+      );
+
+    const last =
+      Number(
+        lastSequence
+      );
+
+    if (
+      !Number.isSafeInteger(
+        epoch
+      ) ||
+      epoch < 1 ||
+      !Number.isSafeInteger(
+        first
+      ) ||
+      first < 1 ||
+      !Number.isSafeInteger(
+        last
+      ) ||
+      last < first
+    ) {
+      throw Object.assign(
+        new Error(
+          'accepted biological stream range is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ENVELOPE_V2_RANGE'
+        }
+      );
+    }
+
+    return this.db.prepare(`
+      SELECT *
+      FROM biological_envelopes_v2
+      WHERE
+        producer_stream_id=? AND
+        authority_epoch=? AND
+        stream_sequence>=? AND
+        stream_sequence<=?
+      ORDER BY
+        stream_sequence ASC,
+        sequence ASC
+    `).all(
+      producerStreamId,
+      epoch,
+      first,
+      last
+    ).map(
+      row =>
+        this.acceptedBiologicalEnvelopeFromRow(
+          row
+        )
+    );
+  }
+
 
   biologicalEventFromRow(row, deduplicated = false) {
     const envelope = JSON.parse(row.envelope_json);
