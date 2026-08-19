@@ -375,7 +375,7 @@ test(
 
     assert.equal(
       Number(schema.version),
-      3
+      4
     );
   }
 );
@@ -1324,7 +1324,7 @@ test(
 
 
 test(
-  'EF1-B2B2 runtime refuses biological-envelope schema newer than version 3',
+  'EF1-B2B2 runtime refuses biological-envelope schema newer than version 4',
   async t => {
     const dataDir =
       await fs.mkdtemp(
@@ -1343,7 +1343,7 @@ test(
 
     first.db.prepare(`
       UPDATE schema_versions
-      SET version=4
+      SET version=5
       WHERE name='biological-envelope'
     `).run();
 

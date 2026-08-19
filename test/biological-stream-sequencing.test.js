@@ -1097,7 +1097,7 @@ test(
 
     assert.equal(
       Number(schema.version),
-      3
+      4
     );
 
     const head =

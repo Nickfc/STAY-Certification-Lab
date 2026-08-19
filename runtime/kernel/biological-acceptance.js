@@ -308,6 +308,7 @@ class BiologicalAcceptanceBoundary {
     resolveProducer,
     resolveSignal,
     resolveStreamRange,
+    resolveProducerEvent = null,
     allocateFabricSequence
   }) {
     if (
@@ -355,6 +356,21 @@ class BiologicalAcceptanceBoundary {
         'resolveStreamRange'
       );
 
+    /*
+     * Optional EF1-E retry resolver. Existing callers remain
+     * compatible, while StateStore-backed acceptance can short-
+     * circuit an already accepted producer_event_id before causal
+     * evidence is re-resolved. This matters after safe compaction:
+     * retry acknowledgement must not depend on retained parent rows.
+     */
+    this.resolveProducerEvent =
+      resolveProducerEvent == null
+        ? async () => null
+        : requireFunction(
+            resolveProducerEvent,
+            'resolveProducerEvent'
+          );
+
     this.allocateFabricSequence =
       requireFunction(
         allocateFabricSequence,
@@ -367,6 +383,13 @@ class BiologicalAcceptanceBoundary {
      * fabricate one merely by recreating its object shape.
      */
     this.preparedAcceptances =
+      new WeakSet();
+
+    /*
+     * Stream-progress declarations use the same
+     * unforgeable prepared-capability pattern as Envelope v2.
+     */
+    this.preparedStreamProgress =
       new WeakSet();
   }
 
@@ -613,6 +636,234 @@ class BiologicalAcceptanceBoundary {
           producerHandle
         )
       );
+
+    /*
+     * EF1-E retry fast path.
+     *
+     * A durable previously accepted producer_event_id is already
+     * evidence that its causal inputs were validated at original
+     * acceptance. Exact retry therefore authenticates the proposal
+     * against that immutable accepted envelope BEFORE trying to
+     * resolve historical parents/spans again. This preserves P0.29
+     * after legitimate evidence compaction.
+     *
+     * Changed content cannot use this path: reconstructing the
+     * envelope with the historical Kernel facts changes signal_id
+     * and fails closed.
+     */
+    const retryCandidate =
+      typeof proposal?.producer_event_id ===
+        'string' &&
+      proposal.producer_event_id
+        ? await this.resolveProducerEvent({
+            organismId:
+              this.organismId,
+
+            producerCoreId:
+              producer.coreId,
+
+            producerEventId:
+              proposal.producer_event_id
+          })
+        : null;
+
+    if (
+      retryCandidate
+    ) {
+      const existing =
+        this.validateEvidenceEnvelope(
+          retryCandidate
+        );
+
+      if (
+        existing.producer_core_id !==
+          producer.coreId ||
+        existing.producer_instance_id !==
+          producer.instanceId ||
+        existing.producer_version !==
+          producer.version ||
+        existing.authority_epoch !==
+          producer.authorityEpoch ||
+        existing.authority_mode !==
+          producer.authorityMode
+      ) {
+        fail(
+          'producer event retry does not match the accepted producer authority',
+          'BIOLOGICAL_PRODUCER_EVENT_CONFLICT'
+        );
+      }
+
+      const retryEnvelope =
+        acceptEnvelope(
+          proposal,
+          {
+            organism_id:
+              existing.organism_id,
+
+            producer_core_id:
+              existing.producer_core_id,
+
+            producer_instance_id:
+              existing.producer_instance_id,
+
+            producer_version:
+              existing.producer_version,
+
+            authority_epoch:
+              existing.authority_epoch,
+
+            authority_mode:
+              existing.authority_mode,
+
+            accepted_time_us:
+              existing.accepted_time_us,
+
+            fabric_sequence:
+              existing.fabric_sequence,
+
+            causal_roots:
+              existing.causal_roots,
+
+            causal_generation:
+              existing.causal_generation,
+
+            roots_overflow_digest:
+              existing.roots_overflow_digest,
+
+            lineage_digest:
+              existing.lineage_digest,
+
+            ancestor_core_set:
+              existing.ancestor_core_set,
+
+            causality_validated:
+              existing.direct_parents.length > 0 ||
+              existing.causal_source_spans.length > 0,
+
+            /*
+             * The original exact envelope proves its own causal
+             * precedence. Using its order time as the retry ceiling
+             * cannot authorize an earlier child; any changed temporal
+             * proposal also changes signal identity below.
+             */
+            max_causal_order_time_us:
+              existing.direct_parents.length > 0 ||
+              existing.causal_source_spans.length > 0
+                ? existing.order_time_us
+                : 0
+          }
+        );
+
+      if (
+        retryEnvelope.signal_id !==
+          existing.signal_id
+      ) {
+        fail(
+          'producer event identity was reused for different biological content',
+          'BIOLOGICAL_PRODUCER_EVENT_CONFLICT'
+        );
+      }
+
+      const preparedRetry =
+        Object.freeze({
+          proposal:
+            Object.freeze({
+              producer_event_id:
+                retryEnvelope.producer_event_id,
+
+              producer_stream_id:
+                retryEnvelope.producer_stream_id,
+
+              stream_sequence:
+                retryEnvelope.stream_sequence,
+
+              topic:
+                retryEnvelope.topic,
+
+              signal_class:
+                retryEnvelope.signal_class,
+
+              schema_version:
+                retryEnvelope.schema_version,
+
+              temporal:
+                retryEnvelope.temporal,
+
+              valid_from_us:
+                retryEnvelope.valid_from_us,
+
+              expires_at_us:
+                retryEnvelope.expires_at_us,
+
+              durability_class:
+                retryEnvelope.durability_class,
+
+              payload:
+                retryEnvelope.payload,
+
+              direct_parents:
+                retryEnvelope.direct_parents,
+
+              causal_source_spans:
+                retryEnvelope.causal_source_spans
+            }),
+
+          kernel:
+            Object.freeze({
+              organism_id:
+                retryEnvelope.organism_id,
+
+              producer_core_id:
+                retryEnvelope.producer_core_id,
+
+              producer_instance_id:
+                retryEnvelope.producer_instance_id,
+
+              producer_version:
+                retryEnvelope.producer_version,
+
+              authority_epoch:
+                retryEnvelope.authority_epoch,
+
+              authority_mode:
+                retryEnvelope.authority_mode,
+
+              accepted_time_us:
+                retryEnvelope.accepted_time_us,
+
+              causal_roots:
+                retryEnvelope.causal_roots,
+
+              causal_generation:
+                retryEnvelope.causal_generation,
+
+              roots_overflow_digest:
+                retryEnvelope.roots_overflow_digest,
+
+              lineage_digest:
+                retryEnvelope.lineage_digest,
+
+              ancestor_core_set:
+                retryEnvelope.ancestor_core_set,
+
+              causality_validated:
+                retryEnvelope.direct_parents.length > 0 ||
+                retryEnvelope.causal_source_spans.length > 0,
+
+              max_causal_order_time_us:
+                retryEnvelope.order_time_us
+            }),
+
+          existingAccepted:
+            existing
+        });
+
+      this.preparedAcceptances.add(
+        preparedRetry
+      );
+
+      return preparedRetry;
+    }
 
     /*
      * Resolve and validate every causal input before
@@ -902,6 +1153,22 @@ class BiologicalAcceptanceBoundary {
       );
     }
 
+    if (
+      prepared.existingAccepted
+    ) {
+      if (
+        fabricSequence !==
+          prepared.existingAccepted.fabric_sequence
+      ) {
+        fail(
+          'idempotent retry must finalize at its original Fabric sequence',
+          'BIOLOGICAL_PRODUCER_EVENT_CONFLICT'
+        );
+      }
+
+      return prepared.existingAccepted;
+    }
+
     return acceptEnvelope(
       prepared.proposal,
       {
@@ -911,6 +1178,197 @@ class BiologicalAcceptanceBoundary {
           fabricSequence
       }
     );
+  }
+
+
+
+  async prepareStreamProgress({
+    producerHandle,
+    progress
+  }) {
+    const producer =
+      validateProducer(
+        await this.resolveProducer(
+          producerHandle
+        )
+      );
+
+    if (
+      !progress ||
+      typeof progress !==
+        'object' ||
+      Array.isArray(
+        progress
+      )
+    ) {
+      fail(
+        'stream progress must be an object',
+        'BIOLOGICAL_STREAM_PROGRESS_INVALID'
+      );
+    }
+
+    const allowed =
+      new Set([
+        'producer_stream_id',
+        'finalized_through_us'
+      ]);
+
+    for (
+      const key of
+      Object.keys(
+        progress
+      )
+    ) {
+      if (
+        !allowed.has(
+          key
+        )
+      ) {
+        fail(
+          `stream progress contains unknown field ${key}`,
+          'BIOLOGICAL_STREAM_PROGRESS_INVALID'
+        );
+      }
+    }
+
+    if (
+      typeof progress.producer_stream_id !==
+        'string' ||
+      !progress.producer_stream_id ||
+      progress.producer_stream_id.length >
+        200
+    ) {
+      fail(
+        'stream progress producer_stream_id is invalid',
+        'BIOLOGICAL_STREAM_PROGRESS_INVALID'
+      );
+    }
+
+    const finalizedThroughUs =
+      Number(
+        progress.finalized_through_us
+      );
+
+    if (
+      !Number.isSafeInteger(
+        finalizedThroughUs
+      ) ||
+      finalizedThroughUs <
+        0
+    ) {
+      fail(
+        'stream progress finalized_through_us is invalid',
+        'BIOLOGICAL_STREAM_PROGRESS_INVALID'
+      );
+    }
+
+    const acceptedTimeUs =
+      assertTrustedTime(
+        await this.trustedTime.sample()
+      );
+
+    if (
+      finalizedThroughUs >
+        acceptedTimeUs
+    ) {
+      fail(
+        'stream progress cannot finalize future organism time',
+        'BIOLOGICAL_STREAM_PROGRESS_FUTURE'
+      );
+    }
+
+    const prepared =
+      Object.freeze({
+        protocol:
+          'stay-biological-stream-progress-prepared-v1',
+
+        producer_stream_id:
+          progress.producer_stream_id,
+
+        finalized_through_us:
+          finalizedThroughUs,
+
+        kernel:
+          Object.freeze({
+            organism_id:
+              this.organismId,
+
+            producer_core_id:
+              producer.coreId,
+
+            producer_instance_id:
+              producer.instanceId,
+
+            producer_version:
+              producer.version,
+
+            authority_epoch:
+              producer.authorityEpoch,
+
+            authority_mode:
+              producer.authorityMode,
+
+            accepted_time_us:
+              acceptedTimeUs
+          })
+      });
+
+    this.preparedStreamProgress.add(
+      prepared
+    );
+
+    return prepared;
+  }
+
+
+  finalizePreparedStreamProgress(
+    prepared
+  ) {
+    if (
+      !prepared ||
+      typeof prepared !==
+        'object' ||
+      !this.preparedStreamProgress.has(
+        prepared
+      )
+    ) {
+      fail(
+        'prepared stream progress was not minted by this Kernel boundary',
+        'BIOLOGICAL_STREAM_PROGRESS_PREPARED'
+      );
+    }
+
+    return Object.freeze({
+      protocol:
+        'stay-biological-stream-progress-v1',
+
+      producer_stream_id:
+        prepared.producer_stream_id,
+
+      finalized_through_us:
+        prepared.finalized_through_us,
+
+      organism_id:
+        prepared.kernel.organism_id,
+
+      producer_core_id:
+        prepared.kernel.producer_core_id,
+
+      producer_instance_id:
+        prepared.kernel.producer_instance_id,
+
+      producer_version:
+        prepared.kernel.producer_version,
+
+      authority_epoch:
+        prepared.kernel.authority_epoch,
+
+      authority_mode:
+        prepared.kernel.authority_mode,
+
+      accepted_time_us:
+        prepared.kernel.accepted_time_us
+    });
   }
 
 

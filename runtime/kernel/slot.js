@@ -904,20 +904,28 @@ class RuntimeSlot {
         .drainProducerOutbox();
 
     } catch (error) {
-      this.stateStore.recordRecovery(
-        'biological.outbox-drain-failed',
-        this.coreId,
-        {
-          code:
-            error.code ||
-            null,
+      /*
+       * Origin state is already committed here. Failure
+       * reporting is therefore best-effort too: an observer
+       * or recovery-journal fault must never turn delayed
+       * transport into transition rollback.
+       */
+      try {
+        this.stateStore.recordRecovery?.(
+          'biological.outbox-drain-failed',
+          this.coreId,
+          {
+            code:
+              error.code ||
+              null,
 
-          message:
-            error.message
-        }
-      );
+            message:
+              error.message
+          }
+        );
+      } catch {}
 
-      this.logger.warn?.(
+      this.logger?.warn?.(
         `[STAY] durable producer outbox for ${this.coreId} remains pending: ${error.message}`
       );
 

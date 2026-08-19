@@ -941,3 +941,451 @@ test(
     );
   }
 );
+
+
+test(
+  'EF1-EF hardening outbox stream head survives published-row compaction and prevents sequence rewind',
+  async t => {
+    const {
+      holder
+    } =
+      await makeStore(
+        t,
+        'durable-head'
+      );
+
+    const store =
+      holder.store;
+
+    const firstInput =
+      appendInput(
+        store,
+        'ef1-ef-head-1',
+        1
+      );
+
+    const first =
+      await commitTransition(
+        store,
+        firstInput
+      );
+
+    const intent =
+      first.outboxIntents[0];
+
+    const event =
+      store.appendBiologicalEvent({
+        topic:
+          intent.topic,
+
+        payload:
+          intent.payload,
+
+        meta:
+          intent.publishMeta,
+
+        eventClass:
+          'durable',
+
+        at:
+          5000,
+
+        minimum:
+          firstInput.sequence
+      }).event;
+
+    store.markBiologicalOutboxPublished({
+      producerEventId:
+        intent.producerEventId,
+
+      event
+    });
+
+    const headBefore =
+      store.getBiologicalOutboxStreamHead({
+        producerCoreId:
+          'outbox-producer',
+
+        authorityEpoch:
+          1,
+
+        producerStreamId:
+          'core:outbox-producer:outputs'
+      });
+
+    assert.equal(
+      headBefore.lastStreamSequence,
+      1
+    );
+
+    store.db.prepare(`
+      DELETE FROM biological_outbox_intents
+      WHERE producer_event_id=?
+    `).run(
+      intent.producerEventId
+    );
+
+    const secondInput =
+      appendInput(
+        store,
+        'ef1-ef-head-2',
+        2
+      );
+
+    const second =
+      await commitTransition(
+        store,
+        secondInput,
+        {
+          state: {
+            ticks:
+              2
+          }
+        }
+      );
+
+    assert.equal(
+      second.outboxIntents[0]
+        .streamSequence,
+      2
+    );
+
+    const headAfter =
+      store.getBiologicalOutboxStreamHead({
+        producerCoreId:
+          'outbox-producer',
+
+        authorityEpoch:
+          1,
+
+        producerStreamId:
+          'core:outbox-producer:outputs'
+      });
+
+    assert.equal(
+      headAfter.lastStreamSequence,
+      2
+    );
+  }
+);
+
+
+test(
+  'EF1-EF hardening physiological outbox payloads are bounded to 8 KiB and rejection rolls back the transition',
+  async t => {
+    const {
+      holder
+    } =
+      await makeStore(
+        t,
+        'payload-bound'
+      );
+
+    const store =
+      holder.store;
+
+    const input =
+      appendInput(
+        store,
+        'ef1-ef-payload-bound',
+        1
+      );
+
+    await assert.rejects(
+      () =>
+        commitTransition(
+          store,
+          input,
+          {
+            outputs: [
+              {
+                outputIndex:
+                  1,
+
+                topic:
+                  'bio.observed',
+
+                payload: {
+                  value:
+                    'x'.repeat(
+                      9 * 1024
+                    )
+                },
+
+                causeSequence:
+                  input.sequence,
+
+                causalParent:
+                  input.id
+              }
+            ]
+          }
+        ),
+      error =>
+        error?.code ===
+        'BIOLOGICAL_OUTBOX_BOUND'
+    );
+
+    assert.equal(
+      store.db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM checkpoints
+        WHERE core_id='outbox-producer'
+      `).get().count,
+      0
+    );
+
+    assert.equal(
+      store.db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM biological_outbox_intents
+      `).get().count,
+      0
+    );
+
+    assert.equal(
+      store
+        .getBiologicalDelivery(
+          'core:outbox-producer',
+          input.sequence
+        )
+        .status,
+      'PENDING'
+    );
+  }
+);
+
+
+test(
+  'EF1-EF hardening outbox schema v1 migrates durable stream heads without changing pending obligations',
+  async t => {
+    const {
+      dir,
+      holder
+    } =
+      await makeStore(
+        t,
+        'head-migration'
+      );
+
+    const input =
+      appendInput(
+        holder.store,
+        'ef1-ef-head-migration',
+        1
+      );
+
+    const committed =
+      await commitTransition(
+        holder.store,
+        input
+      );
+
+    const producerEventId =
+      committed
+        .outboxIntents[0]
+        .producerEventId;
+
+    holder.store.db.prepare(`
+      DELETE FROM biological_outbox_stream_heads
+    `).run();
+
+    holder.store.db.prepare(`
+      UPDATE schema_versions
+      SET version=1
+      WHERE name='biological-outbox'
+    `).run();
+
+    holder.store.close();
+
+    holder.store =
+      new StateStore(
+        dir
+      );
+
+    await holder.store.init();
+
+    const schema =
+      holder.store.db.prepare(`
+        SELECT version
+        FROM schema_versions
+        WHERE name='biological-outbox'
+      `).get();
+
+    assert.equal(
+      Number(
+        schema.version
+      ),
+      2
+    );
+
+    const head =
+      holder.store
+        .getBiologicalOutboxStreamHead({
+          producerCoreId:
+            'outbox-producer',
+
+          authorityEpoch:
+            1,
+
+          producerStreamId:
+            'core:outbox-producer:outputs'
+        });
+
+    assert.equal(
+      head.lastStreamSequence,
+      1
+    );
+
+    assert.equal(
+      head.lastProducerEventId,
+      producerEventId
+    );
+
+    assert.equal(
+      holder.store
+        .listPendingBiologicalOutboxIntents({
+          producerCoreId:
+            'outbox-producer'
+        })
+        .length,
+      1
+    );
+  }
+);
+
+
+test(
+  'EF1-EF hardening post-commit transport failure cannot be promoted into producer failure by broken recovery logging',
+  async t => {
+    const {
+      kernel,
+      dataDir
+    } =
+      await makeKernel();
+
+    t.after(
+      async () => {
+        await kernel
+          .stop()
+          .catch(
+            () => {}
+          );
+
+        await fs.rm(
+          dataDir,
+          {
+            recursive:
+              true,
+
+            force:
+              true
+          }
+        );
+      }
+    );
+
+    await kernel.installCore(
+      producerPath
+    );
+
+    const slot =
+      kernel.registry.get(
+        'ledger-producer'
+      );
+
+    const originalPublish =
+      kernel.fabric.publish
+        .bind(
+          kernel.fabric
+        );
+
+    const originalRecovery =
+      kernel.stateStore.recordRecovery;
+
+    kernel.fabric.publish =
+      async (
+        topic,
+        payload,
+        meta
+      ) => {
+        if (
+          topic ===
+          'bio.observed'
+        ) {
+          throw Object.assign(
+            new Error(
+              'forced transport failure'
+            ),
+            {
+              code:
+                'EF1_EF_TRANSPORT_FAILURE'
+            }
+          );
+        }
+
+        return originalPublish(
+          topic,
+          payload,
+          meta
+        );
+      };
+
+    kernel.stateStore.recordRecovery =
+      () => {
+        throw new Error(
+          'forced recovery journal failure'
+        );
+      };
+
+    const originalLogger =
+      slot.logger;
+
+    slot.logger =
+      null;
+
+    await kernel.publish(
+      'bio.tick',
+      {
+        value:
+          1
+      },
+      {
+        eventClass:
+          'durable',
+
+        deduplicationKey:
+          'ef1-ef-broken-reporting'
+      }
+    );
+
+    kernel.fabric.publish =
+      originalPublish;
+
+    kernel.stateStore.recordRecovery =
+      originalRecovery;
+
+    slot.logger =
+      originalLogger;
+
+    assert.equal(
+      kernel.stateStore
+        .listPendingBiologicalOutboxIntents({
+          producerCoreId:
+            'ledger-producer'
+        })
+        .length,
+      1
+    );
+
+    assert.equal(
+      (
+        await kernel.stateStore
+          .readAuthoritativeCheckpoint(
+            'ledger-producer'
+          )
+      ).state.ticks,
+      1
+    );
+  }
+);

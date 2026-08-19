@@ -38,6 +38,198 @@ async function exists(filePath) {
 function sha256(data) { return crypto.createHash('sha256').update(data).digest('hex'); }
 async function sha256File(filePath) { return sha256(await fs.readFile(filePath)); }
 
+
+function biologicalProducerProposal(
+  envelope
+) {
+  return {
+    producer_event_id:
+      envelope.producer_event_id,
+
+    producer_stream_id:
+      envelope.producer_stream_id,
+
+    stream_sequence:
+      envelope.stream_sequence,
+
+    topic:
+      envelope.topic,
+
+    signal_class:
+      envelope.signal_class,
+
+    schema_version:
+      envelope.schema_version,
+
+    temporal:
+      envelope.temporal,
+
+    valid_from_us:
+      envelope.valid_from_us,
+
+    expires_at_us:
+      envelope.expires_at_us,
+
+    durability_class:
+      envelope.durability_class,
+
+    payload:
+      envelope.payload,
+
+    direct_parents:
+      envelope.direct_parents,
+
+    causal_source_spans:
+      envelope.causal_source_spans
+  };
+}
+
+function biologicalProducerProposalHash(
+  envelope
+) {
+  return sha256(
+    stableStringify(
+      biologicalProducerProposal(
+        envelope
+      )
+    )
+  );
+}
+
+function biologicalRetrySemanticProjection(
+  envelope
+) {
+  return {
+    protocol:
+      envelope.protocol,
+
+    organism_id:
+      envelope.organism_id,
+
+    producer_core_id:
+      envelope.producer_core_id,
+
+    producer_instance_id:
+      envelope.producer_instance_id,
+
+    producer_version:
+      envelope.producer_version,
+
+    authority_epoch:
+      envelope.authority_epoch,
+
+    authority_mode:
+      envelope.authority_mode,
+
+    ...biologicalProducerProposal(
+      envelope
+    ),
+
+    order_time_us:
+      envelope.order_time_us,
+
+    payload_hash:
+      envelope.payload_hash,
+
+    causal_roots:
+      envelope.causal_roots,
+
+    causal_generation:
+      envelope.causal_generation,
+
+    roots_overflow_digest:
+      envelope.roots_overflow_digest,
+
+    lineage_digest:
+      envelope.lineage_digest,
+
+    ancestor_core_set:
+      envelope.ancestor_core_set,
+
+    causality_validated:
+      (
+        Array.isArray(
+          envelope.direct_parents
+        ) &&
+        envelope.direct_parents.length > 0
+      ) ||
+      (
+        Array.isArray(
+          envelope.causal_source_spans
+        ) &&
+        envelope.causal_source_spans.length > 0
+      )
+  };
+}
+
+function biologicalStreamProgressHeadBody(
+  value
+) {
+  return {
+    organismId:
+      value.organismId,
+
+    producerStreamId:
+      value.producerStreamId,
+
+    authorityEpoch:
+      value.authorityEpoch,
+
+    producerCoreId:
+      value.producerCoreId,
+
+    producerInstanceId:
+      value.producerInstanceId,
+
+    producerVersion:
+      value.producerVersion,
+
+    authorityMode:
+      value.authorityMode,
+
+    finalizedThroughUs:
+      value.finalizedThroughUs,
+
+    finalizedSignalCount:
+      value.finalizedSignalCount,
+
+    finalizedLastStreamSequence:
+      value.finalizedLastStreamSequence,
+
+    progressId:
+      value.progressId
+  };
+}
+
+
+
+function biologicalOutboxStreamHeadBody(
+  value
+) {
+  return {
+    producerCoreId:
+      value.producerCoreId,
+
+    authorityEpoch:
+      value.authorityEpoch,
+
+    producerStreamId:
+      value.producerStreamId,
+
+    producerInstanceId:
+      value.producerInstanceId,
+
+    producerVersion:
+      value.producerVersion,
+
+    lastStreamSequence:
+      value.lastStreamSequence,
+
+    lastProducerEventId:
+      value.lastProducerEventId
+  };
+}
+
 const RESIDENT_HASH =
   /^sha256:[0-9a-f]{64}$/;
 
@@ -264,6 +456,7 @@ class StateStore {
         authority_mode TEXT NOT NULL CHECK(authority_mode IN ('neutral', 'lab', 'shadow', 'authoritative')),
         accepted_time_us INTEGER NOT NULL CHECK(accepted_time_us >= 0),
         order_time_us INTEGER NOT NULL CHECK(order_time_us >= 0),
+        proposal_sha256 TEXT,
         envelope_json TEXT NOT NULL,
         envelope_sha256 TEXT NOT NULL,
         payload_sha256 TEXT NOT NULL,
@@ -303,6 +496,62 @@ class StateStore {
           authority_epoch
         )
       );
+      CREATE TABLE IF NOT EXISTS biological_stream_progress (
+        progress_id TEXT PRIMARY KEY,
+        organism_id TEXT NOT NULL,
+        producer_stream_id TEXT NOT NULL,
+        authority_epoch INTEGER NOT NULL CHECK(authority_epoch >= 1),
+        producer_core_id TEXT NOT NULL,
+        producer_instance_id TEXT NOT NULL,
+        producer_version TEXT NOT NULL,
+        authority_mode TEXT NOT NULL CHECK(authority_mode IN ('neutral', 'lab', 'shadow', 'authoritative')),
+        finalized_through_us INTEGER NOT NULL CHECK(finalized_through_us >= 0),
+        finalized_signal_count INTEGER NOT NULL CHECK(finalized_signal_count >= 0),
+        finalized_last_stream_sequence INTEGER NOT NULL CHECK(finalized_last_stream_sequence >= 0),
+        accepted_time_us INTEGER NOT NULL CHECK(accepted_time_us >= 0),
+        previous_progress_id TEXT,
+        progress_sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(
+          organism_id,
+          producer_stream_id,
+          authority_epoch,
+          finalized_through_us
+        )
+      );
+
+      CREATE INDEX IF NOT EXISTS biological_stream_progress_order
+        ON biological_stream_progress(
+          organism_id,
+          producer_stream_id,
+          authority_epoch,
+          finalized_through_us
+        );
+
+      CREATE TABLE IF NOT EXISTS biological_stream_progress_heads (
+        organism_id TEXT NOT NULL,
+        producer_stream_id TEXT NOT NULL,
+        authority_epoch INTEGER NOT NULL CHECK(authority_epoch >= 1),
+        producer_core_id TEXT NOT NULL,
+        producer_instance_id TEXT NOT NULL,
+        producer_version TEXT NOT NULL,
+        authority_mode TEXT NOT NULL CHECK(authority_mode IN ('neutral', 'lab', 'shadow', 'authoritative')),
+        finalized_through_us INTEGER NOT NULL CHECK(finalized_through_us >= 0),
+        finalized_signal_count INTEGER NOT NULL CHECK(finalized_signal_count >= 0),
+        finalized_last_stream_sequence INTEGER NOT NULL CHECK(finalized_last_stream_sequence >= 0),
+        progress_id TEXT NOT NULL,
+        head_sha256 TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(
+          organism_id,
+          producer_stream_id,
+          authority_epoch
+        ),
+        FOREIGN KEY(progress_id)
+          REFERENCES biological_stream_progress(progress_id)
+          ON DELETE RESTRICT
+      );
+
       CREATE TABLE IF NOT EXISTS biological_outbox_intents (
         producer_event_id TEXT PRIMARY KEY,
         producer_core_id TEXT NOT NULL,
@@ -358,6 +607,23 @@ class StateStore {
           authority_epoch,
           stream_sequence
         );
+
+      CREATE TABLE IF NOT EXISTS biological_outbox_stream_heads (
+        producer_core_id TEXT NOT NULL,
+        authority_epoch INTEGER NOT NULL CHECK(authority_epoch >= 1),
+        producer_stream_id TEXT NOT NULL,
+        producer_instance_id TEXT NOT NULL,
+        producer_version TEXT NOT NULL,
+        last_stream_sequence INTEGER NOT NULL CHECK(last_stream_sequence >= 1),
+        last_producer_event_id TEXT NOT NULL,
+        head_sha256 TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(
+          producer_core_id,
+          authority_epoch,
+          producer_stream_id
+        )
+      );
 
       CREATE TABLE IF NOT EXISTS biological_consumers (
         consumer_id TEXT PRIMARY KEY,
@@ -457,7 +723,7 @@ class StateStore {
 
       if (
         biologicalEnvelopeSchemaVersion >
-        3
+        4
       ) {
         throw Object.assign(
           new Error(
@@ -692,6 +958,228 @@ class StateStore {
         createBiologicalStreamSequenceIndex();
       }
 
+
+      /*
+       * EF1-E schema 4 adds the durable producer proposal
+       * commitment and makes producer_event_id unique within
+       * one organism/core identity.
+       *
+       * Existing accepted envelopes are backfilled from their
+       * canonical stored Envelope v2. Historical duplicate
+       * producer identities are not guessed away: migration
+       * fails closed because exactly-once identity would
+       * otherwise be ambiguous.
+       */
+      const biologicalEnvelopeColumns =
+        new Set(
+          this.db.prepare(
+            'PRAGMA table_info(biological_envelopes_v2)'
+          ).all().map(
+            row => row.name
+          )
+        );
+
+      if (
+        !biologicalEnvelopeColumns.has(
+          'proposal_sha256'
+        )
+      ) {
+        this.db.exec(
+          'ALTER TABLE biological_envelopes_v2 ADD COLUMN proposal_sha256 TEXT'
+        );
+      }
+
+      const createBiologicalProducerEventIndex =
+        () => {
+          this.db.exec(`
+            CREATE UNIQUE INDEX IF NOT EXISTS biological_v2_producer_event_identity
+            ON biological_envelopes_v2(
+              organism_id,
+              producer_core_id,
+              producer_event_id
+            )
+          `);
+        };
+
+      if (
+        biologicalEnvelopeSchemaVersion <
+        4
+      ) {
+        this.withTransaction(
+          () => {
+            const rows =
+              this.db.prepare(`
+                SELECT *
+                FROM biological_envelopes_v2
+                ORDER BY sequence ASC
+              `).all();
+
+            const identities =
+              new Set();
+
+            const updateProposal =
+              this.db.prepare(`
+                UPDATE biological_envelopes_v2
+                SET proposal_sha256=?
+                WHERE sequence=?
+              `);
+
+            for (
+              const row of rows
+            ) {
+              const identity =
+                stableStringify([
+                  row.organism_id,
+                  row.producer_core_id,
+                  row.producer_event_id
+                ]);
+
+              if (
+                identities.has(
+                  identity
+                )
+              ) {
+                throw Object.assign(
+                  new Error(
+                    'biological producer-event migration found duplicate historical identity'
+                  ),
+                  {
+                    code:
+                      'STATE_BIOLOGICAL_PRODUCER_EVENT_MIGRATION'
+                  }
+                );
+              }
+
+              identities.add(
+                identity
+              );
+
+              let envelope;
+
+              try {
+                envelope =
+                  normalizeAcceptedEnvelope(
+                    JSON.parse(
+                      row.envelope_json
+                    )
+                  );
+              } catch (error) {
+                throw Object.assign(
+                  new Error(
+                    'biological producer-event migration found corrupt Envelope v2 history'
+                  ),
+                  {
+                    code:
+                      'STATE_BIOLOGICAL_PRODUCER_EVENT_MIGRATION',
+
+                    cause:
+                      error
+                  }
+                );
+              }
+
+              updateProposal.run(
+                biologicalProducerProposalHash(
+                  envelope
+                ),
+                row.sequence
+              );
+            }
+
+            createBiologicalProducerEventIndex();
+
+            this.db.prepare(`
+              INSERT INTO schema_versions(
+                name,
+                version,
+                updated_at
+              )
+              VALUES(
+                'biological-envelope',
+                4,
+                ?
+              )
+              ON CONFLICT(name)
+              DO UPDATE SET
+                version=excluded.version,
+                updated_at=excluded.updated_at
+            `).run(
+              new Date().toISOString()
+            );
+          }
+        );
+
+      } else {
+        const missingProposal =
+          this.db.prepare(`
+            SELECT sequence
+            FROM biological_envelopes_v2
+            WHERE proposal_sha256 IS NULL
+            LIMIT 1
+          `).get();
+
+        if (
+          missingProposal
+        ) {
+          throw Object.assign(
+            new Error(
+              'biological envelope schema 4 contains an uncommitted producer proposal'
+            ),
+            {
+              code:
+                'STATE_BIOLOGICAL_PRODUCER_EVENT_MIGRATION'
+            }
+          );
+        }
+
+        createBiologicalProducerEventIndex();
+      }
+
+    const biologicalStreamProgressSchemaRow =
+      this.db.prepare(
+        "SELECT version FROM schema_versions WHERE name='biological-stream-progress'"
+      ).get();
+
+    const biologicalStreamProgressSchemaVersion =
+      Number(
+        biologicalStreamProgressSchemaRow?.version ||
+        0
+      );
+
+    if (
+      biologicalStreamProgressSchemaVersion >
+      1
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological stream-progress schema is newer than this runtime supports'
+        ),
+        {
+          code:
+            'STATE_BIOLOGICAL_STREAM_PROGRESS_SCHEMA_UNSUPPORTED'
+        }
+      );
+    }
+
+    this.db.prepare(`
+      INSERT INTO schema_versions(
+        name,
+        version,
+        updated_at
+      )
+      VALUES(
+        'biological-stream-progress',
+        1,
+        ?
+      )
+      ON CONFLICT(name)
+      DO UPDATE SET
+        version=excluded.version,
+        updated_at=excluded.updated_at
+    `).run(
+      new Date().toISOString()
+    );
+
     const biologicalOutboxSchemaRow =
       this.db.prepare(
         "SELECT version FROM schema_versions WHERE name='biological-outbox'"
@@ -705,7 +1193,7 @@ class StateStore {
 
     if (
       biologicalOutboxSchemaVersion >
-      1
+      2
     ) {
       throw Object.assign(
         new Error(
@@ -718,24 +1206,227 @@ class StateStore {
       );
     }
 
-    this.db.prepare(`
-      INSERT INTO schema_versions(
-        name,
-        version,
-        updated_at
-      )
-      VALUES(
-        'biological-outbox',
-        1,
-        ?
-      )
-      ON CONFLICT(name)
-      DO UPDATE SET
-        version=excluded.version,
-        updated_at=excluded.updated_at
-    `).run(
-      new Date().toISOString()
-    );
+    if (
+      biologicalOutboxSchemaVersion <
+      2
+    ) {
+      this.withTransaction(
+        () => {
+          const rows =
+            this.db.prepare(`
+              SELECT *
+              FROM biological_outbox_intents
+              ORDER BY
+                producer_core_id ASC,
+                authority_epoch ASC,
+                producer_stream_id ASC,
+                stream_sequence ASC
+            `).all();
+
+          const heads =
+            new Map();
+
+          for (
+            const row of rows
+          ) {
+            const key =
+              stableStringify([
+                row.producer_core_id,
+                Number(
+                  row.authority_epoch
+                ),
+                row.producer_stream_id
+              ]);
+
+            const previous =
+              heads.get(
+                key
+              );
+
+            if (
+              previous &&
+              (
+                previous.producerInstanceId !==
+                  row.producer_instance_id ||
+                previous.producerVersion !==
+                  row.producer_version
+              )
+            ) {
+              throw Object.assign(
+                new Error(
+                  'biological outbox migration found producer identity drift inside one authority epoch'
+                ),
+                {
+                  code:
+                    'STATE_BIOLOGICAL_OUTBOX_MIGRATION'
+                }
+              );
+            }
+
+            if (
+              previous &&
+              Number(
+                row.stream_sequence
+              ) <=
+                previous.lastStreamSequence
+            ) {
+              throw Object.assign(
+                new Error(
+                  'biological outbox migration found non-monotonic producer stream'
+                ),
+                {
+                  code:
+                    'STATE_BIOLOGICAL_OUTBOX_MIGRATION'
+                }
+              );
+            }
+
+            heads.set(
+              key,
+              {
+                producerCoreId:
+                  row.producer_core_id,
+
+                authorityEpoch:
+                  Number(
+                    row.authority_epoch
+                  ),
+
+                producerStreamId:
+                  row.producer_stream_id,
+
+                producerInstanceId:
+                  row.producer_instance_id,
+
+                producerVersion:
+                  row.producer_version,
+
+                lastStreamSequence:
+                  Number(
+                    row.stream_sequence
+                  ),
+
+                lastProducerEventId:
+                  row.producer_event_id
+              }
+            );
+          }
+
+          this.db.prepare(
+            'DELETE FROM biological_outbox_stream_heads'
+          ).run();
+
+          const insert =
+            this.db.prepare(`
+              INSERT INTO biological_outbox_stream_heads(
+                producer_core_id,
+                authority_epoch,
+                producer_stream_id,
+                producer_instance_id,
+                producer_version,
+                last_stream_sequence,
+                last_producer_event_id,
+                head_sha256,
+                updated_at
+              )
+              VALUES(
+                ?, ?, ?, ?, ?, ?, ?, ?, ?
+              )
+            `);
+
+          const updatedAt =
+            new Date().toISOString();
+
+          for (
+            const head of
+            heads.values()
+          ) {
+            insert.run(
+              head.producerCoreId,
+              head.authorityEpoch,
+              head.producerStreamId,
+              head.producerInstanceId,
+              head.producerVersion,
+              head.lastStreamSequence,
+              head.lastProducerEventId,
+              sha256(
+                stableStringify(
+                  biologicalOutboxStreamHeadBody(
+                    head
+                  )
+                )
+              ),
+              updatedAt
+            );
+          }
+
+          this.db.prepare(`
+            INSERT INTO schema_versions(
+              name,
+              version,
+              updated_at
+            )
+            VALUES(
+              'biological-outbox',
+              2,
+              ?
+            )
+            ON CONFLICT(name)
+            DO UPDATE SET
+              version=excluded.version,
+              updated_at=excluded.updated_at
+          `).run(
+            new Date().toISOString()
+          );
+        }
+      );
+
+    } else {
+      const row =
+        this.db.prepare(`
+          SELECT COUNT(*) AS value
+          FROM biological_outbox_intents
+        `).get();
+
+      const headCoverage =
+        this.db.prepare(`
+          SELECT COUNT(*) AS value
+          FROM (
+            SELECT
+              producer_core_id,
+              authority_epoch,
+              producer_stream_id
+            FROM biological_outbox_intents
+            GROUP BY
+              producer_core_id,
+              authority_epoch,
+              producer_stream_id
+          )
+        `).get();
+
+      const headCount =
+        this.db.prepare(`
+          SELECT COUNT(*) AS value
+          FROM biological_outbox_stream_heads
+        `).get();
+
+      if (
+        Number(row?.value || 0) >
+          0 &&
+        Number(headCoverage?.value || 0) !==
+          Number(headCount?.value || 0)
+      ) {
+        throw Object.assign(
+          new Error(
+            'biological outbox schema 2 has incomplete durable stream heads'
+          ),
+          {
+            code:
+              'STATE_BIOLOGICAL_OUTBOX_MIGRATION'
+          }
+        );
+      }
+    }
 
     await this.importLegacyMetadata();
     await this.reconcileMetadataMirrors();
@@ -1087,6 +1778,151 @@ class StateStore {
             currentAuthority;
         }
 
+
+        /*
+         * EF1-E producer-event idempotency.
+         *
+         * The exact producer-owned proposal is committed
+         * independently from Kernel acceptance time and Fabric
+         * sequence. A retry therefore returns the already
+         * accepted biological fact without allocating a second
+         * sequence. Reusing the identity for any other semantic
+         * fact fails closed.
+         */
+        const preparedIdentity = {
+          organismId:
+            preparedKernel?.organism_id,
+
+          producerCoreId:
+            preparedKernel?.producer_core_id,
+
+          producerEventId:
+            prepared?.proposal?.producer_event_id
+        };
+
+        if (
+          typeof preparedIdentity.organismId ===
+            'string' &&
+          preparedIdentity.organismId &&
+          typeof preparedIdentity.producerCoreId ===
+            'string' &&
+          preparedIdentity.producerCoreId &&
+          typeof preparedIdentity.producerEventId ===
+            'string' &&
+          preparedIdentity.producerEventId
+        ) {
+          const existingProducerEvent =
+            this.db.prepare(`
+              SELECT *
+              FROM biological_envelopes_v2
+              WHERE
+                organism_id=? AND
+                producer_core_id=? AND
+                producer_event_id=?
+            `).get(
+              preparedIdentity.organismId,
+              preparedIdentity.producerCoreId,
+              preparedIdentity.producerEventId
+            );
+
+          if (
+            existingProducerEvent
+          ) {
+            const retryEnvelope =
+              normalizeAcceptedEnvelope(
+                finalizePrepared(
+                  prepared,
+                  Number(
+                    existingProducerEvent.sequence
+                  )
+                )
+              );
+
+            const existingEnvelope =
+              this.acceptedBiologicalEnvelopeFromRow(
+                existingProducerEvent
+              );
+
+            const retryProposalHash =
+              biologicalProducerProposalHash(
+                retryEnvelope
+              );
+
+            const storedProposalHash =
+              existingProducerEvent.proposal_sha256;
+
+            const sameProposal =
+              typeof storedProposalHash ===
+                'string' &&
+              storedProposalHash ===
+                retryProposalHash;
+
+            const sameSemantics =
+              stableStringify(
+                biologicalRetrySemanticProjection(
+                  retryEnvelope
+                )
+              ) ===
+              stableStringify(
+                biologicalRetrySemanticProjection(
+                  existingEnvelope
+                )
+              );
+
+            if (
+              !sameProposal ||
+              !sameSemantics
+            ) {
+              throw Object.assign(
+                new Error(
+                  'producer event identity was reused for a different biological fact'
+                ),
+                {
+                  code:
+                    'BIOLOGICAL_PRODUCER_EVENT_CONFLICT'
+                }
+              );
+            }
+
+            const eventRow =
+              this.db.prepare(`
+                SELECT *
+                FROM biological_events
+                WHERE sequence=?
+              `).get(
+                existingProducerEvent.sequence
+              );
+
+            if (
+              !eventRow
+            ) {
+              throw Object.assign(
+                new Error(
+                  'idempotent producer event lost its durable Fabric event'
+                ),
+                {
+                  code:
+                    'BIOLOGICAL_PRODUCER_EVENT_CORRUPT'
+                }
+              );
+            }
+
+            return {
+              envelope:
+                existingEnvelope,
+
+              event:
+                this.biologicalEventFromRow(
+                  eventRow,
+                  true
+                ),
+
+              deduplicated:
+                true
+            };
+          }
+        }
+
         const stored =
           this.metadataGet(
             'life:event-sequence',
@@ -1202,6 +2038,35 @@ class StateStore {
                 streamHeadRow
               )
             : null;
+
+
+        const finalizedProgress =
+          this.getBiologicalStreamProgress({
+            organismId:
+              envelope.organism_id,
+
+            producerStreamId:
+              envelope.producer_stream_id,
+
+            authorityEpoch:
+              envelope.authority_epoch
+          });
+
+        if (
+          finalizedProgress &&
+          envelope.order_time_us <=
+            finalizedProgress.finalizedThroughUs
+        ) {
+          throw Object.assign(
+            new Error(
+              'biological signal attempts to enter a finalized stream-time region'
+            ),
+            {
+              code:
+                'BIOLOGICAL_STREAM_FINALIZED_TIME'
+            }
+          );
+        }
 
         if (
           streamHead &&
@@ -1554,12 +2419,14 @@ class StateStore {
             authority_mode,
             accepted_time_us,
             order_time_us,
+            proposal_sha256,
             envelope_json,
             envelope_sha256,
             payload_sha256,
             created_at
           )
           VALUES(
+            ?,
             ?,
             ?,
             ?,
@@ -1592,6 +2459,9 @@ class StateStore {
           envelope.authority_mode,
           envelope.accepted_time_us,
           envelope.order_time_us,
+          biologicalProducerProposalHash(
+            envelope
+          ),
           envelopeJson,
           envelopeHash,
           payloadHash,
@@ -2045,6 +2915,10 @@ class StateStore {
         Number(row.accepted_time_us) ||
       envelope.order_time_us !==
         Number(row.order_time_us) ||
+      biologicalProducerProposalHash(
+        envelope
+      ) !==
+        row.proposal_sha256 ||
       payloadHash !==
         row.payload_sha256 ||
       envelope.payload_hash !==
@@ -2145,6 +3019,72 @@ class StateStore {
   }
 
 
+
+  getAcceptedBiologicalEnvelopeByProducerEvent({
+    organismId,
+    producerCoreId,
+    producerEventId
+  }) {
+    this.assertOpen();
+
+    for (
+      const [
+        value,
+        label
+      ] of [
+        [
+          organismId,
+          'organism id'
+        ],
+        [
+          producerCoreId,
+          'producer core id'
+        ],
+        [
+          producerEventId,
+          'producer event id'
+        ]
+      ]
+    ) {
+      if (
+        typeof value !==
+          'string' ||
+        !value
+      ) {
+        throw Object.assign(
+          new Error(
+            `accepted biological ${label} is invalid`
+          ),
+          {
+            code:
+              'BIOLOGICAL_PRODUCER_EVENT_ID'
+          }
+        );
+      }
+    }
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_envelopes_v2
+        WHERE
+          organism_id=? AND
+          producer_core_id=? AND
+          producer_event_id=?
+      `).get(
+        organismId,
+        producerCoreId,
+        producerEventId
+      );
+
+    return row
+      ? this.acceptedBiologicalEnvelopeFromRow(
+          row
+        )
+      : null;
+  }
+
+
   listAcceptedBiologicalStreamRange({
     producerStreamId,
     authorityEpoch,
@@ -2231,6 +3171,1227 @@ class StateStore {
           row
         )
     );
+  }
+
+
+
+  biologicalStreamProgressFromRow(
+    row
+  ) {
+    if (!row) {
+      return null;
+    }
+
+    const progress = {
+      progressId:
+        row.progress_id,
+
+      organismId:
+        row.organism_id,
+
+      producerStreamId:
+        row.producer_stream_id,
+
+      authorityEpoch:
+        Number(
+          row.authority_epoch
+        ),
+
+      producerCoreId:
+        row.producer_core_id,
+
+      producerInstanceId:
+        row.producer_instance_id,
+
+      producerVersion:
+        row.producer_version,
+
+      authorityMode:
+        row.authority_mode,
+
+      finalizedThroughUs:
+        Number(
+          row.finalized_through_us
+        ),
+
+      finalizedSignalCount:
+        Number(
+          row.finalized_signal_count
+        ),
+
+      finalizedLastStreamSequence:
+        Number(
+          row.finalized_last_stream_sequence
+        ),
+
+      acceptedTimeUs:
+        Number(
+          row.accepted_time_us
+        ),
+
+      previousProgressId:
+        row.previous_progress_id ||
+        null
+    };
+
+    const body = {
+      protocol:
+        'stay-biological-stream-progress-v1',
+
+      organismId:
+        progress.organismId,
+
+      producerStreamId:
+        progress.producerStreamId,
+
+      authorityEpoch:
+        progress.authorityEpoch,
+
+      producerCoreId:
+        progress.producerCoreId,
+
+      producerInstanceId:
+        progress.producerInstanceId,
+
+      producerVersion:
+        progress.producerVersion,
+
+      authorityMode:
+        progress.authorityMode,
+
+      finalizedThroughUs:
+        progress.finalizedThroughUs,
+
+      finalizedSignalCount:
+        progress.finalizedSignalCount,
+
+      finalizedLastStreamSequence:
+        progress.finalizedLastStreamSequence,
+
+      acceptedTimeUs:
+        progress.acceptedTimeUs,
+
+      previousProgressId:
+        progress.previousProgressId
+    };
+
+    const expectedProgressId =
+      `sha256:${sha256(
+        stableStringify(
+          body
+        )
+      )}`;
+
+    const expectedProgressHash =
+      sha256(
+        stableStringify({
+          ...body,
+          progressId:
+            expectedProgressId
+        })
+      );
+
+    if (
+      progress.progressId !==
+        expectedProgressId ||
+      row.progress_sha256 !==
+        expectedProgressHash
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological stream progress ${progress.producerStreamId}/${progress.authorityEpoch} is corrupt`
+        ),
+        {
+          code:
+            'BIOLOGICAL_STREAM_PROGRESS_CORRUPT'
+        }
+      );
+    }
+
+    return Object.freeze(
+      progress
+    );
+  }
+
+
+  biologicalStreamProgressHeadFromRow(
+    row
+  ) {
+    if (!row) {
+      return null;
+    }
+
+    const head = {
+      organismId:
+        row.organism_id,
+
+      producerStreamId:
+        row.producer_stream_id,
+
+      authorityEpoch:
+        Number(
+          row.authority_epoch
+        ),
+
+      producerCoreId:
+        row.producer_core_id,
+
+      producerInstanceId:
+        row.producer_instance_id,
+
+      producerVersion:
+        row.producer_version,
+
+      authorityMode:
+        row.authority_mode,
+
+      finalizedThroughUs:
+        Number(
+          row.finalized_through_us
+        ),
+
+      finalizedSignalCount:
+        Number(
+          row.finalized_signal_count
+        ),
+
+      finalizedLastStreamSequence:
+        Number(
+          row.finalized_last_stream_sequence
+        ),
+
+      progressId:
+        row.progress_id
+    };
+
+    if (
+      sha256(
+        stableStringify(
+          biologicalStreamProgressHeadBody(
+            head
+          )
+        )
+      ) !==
+        row.head_sha256
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological stream-progress head ${head.producerStreamId}/${head.authorityEpoch} is corrupt`
+        ),
+        {
+          code:
+            'BIOLOGICAL_STREAM_PROGRESS_CORRUPT'
+        }
+      );
+    }
+
+    const progressRow =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_stream_progress
+        WHERE progress_id=?
+      `).get(
+        head.progressId
+      );
+
+    const progress =
+      this.biologicalStreamProgressFromRow(
+        progressRow
+      );
+
+    if (
+      !progress ||
+      progress.organismId !==
+        head.organismId ||
+      progress.producerStreamId !==
+        head.producerStreamId ||
+      progress.authorityEpoch !==
+        head.authorityEpoch ||
+      progress.producerCoreId !==
+        head.producerCoreId ||
+      progress.producerInstanceId !==
+        head.producerInstanceId ||
+      progress.producerVersion !==
+        head.producerVersion ||
+      progress.authorityMode !==
+        head.authorityMode ||
+      progress.finalizedThroughUs !==
+        head.finalizedThroughUs ||
+      progress.finalizedSignalCount !==
+        head.finalizedSignalCount ||
+      progress.finalizedLastStreamSequence !==
+        head.finalizedLastStreamSequence
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological stream-progress head disagrees with its durable progress record'
+        ),
+        {
+          code:
+            'BIOLOGICAL_STREAM_PROGRESS_CORRUPT'
+        }
+      );
+    }
+
+    return progress;
+  }
+
+
+  getBiologicalStreamProgress({
+    organismId,
+    producerStreamId,
+    authorityEpoch
+  }) {
+    this.assertOpen();
+
+    const epoch =
+      Number(
+        authorityEpoch
+      );
+
+    if (
+      typeof organismId !==
+        'string' ||
+      !organismId ||
+      typeof producerStreamId !==
+        'string' ||
+      !producerStreamId ||
+      !Number.isSafeInteger(
+        epoch
+      ) ||
+      epoch < 1
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological stream-progress identity is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_STREAM_PROGRESS_ID'
+        }
+      );
+    }
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_stream_progress_heads
+        WHERE
+          organism_id=? AND
+          producer_stream_id=? AND
+          authority_epoch=?
+      `).get(
+        organismId,
+        producerStreamId,
+        epoch
+      );
+
+    return row
+      ? this.biologicalStreamProgressHeadFromRow(
+          row
+        )
+      : null;
+  }
+
+
+  commitBiologicalStreamProgress({
+    prepared,
+    finalizePrepared,
+    authorityWitness = null
+  }) {
+    this.assertOpen();
+
+    if (
+      typeof finalizePrepared !==
+        'function'
+    ) {
+      throw Object.assign(
+        new Error(
+          'stream-progress finalizer is required'
+        ),
+        {
+          code:
+            'BIOLOGICAL_STREAM_PROGRESS_CONFIG'
+        }
+      );
+    }
+
+    return this.withTransaction(
+      () => {
+        /*
+         * Finalization authenticates the prepared capability
+         * before StateStore trusts any caller-supplied field.
+         */
+        const progress =
+          finalizePrepared(
+            prepared
+          );
+
+        const epoch =
+          Number(
+            progress?.authority_epoch
+          );
+
+        if (
+          !progress ||
+          progress.protocol !==
+            'stay-biological-stream-progress-v1' ||
+          typeof progress.organism_id !==
+            'string' ||
+          !progress.organism_id ||
+          typeof progress.producer_core_id !==
+            'string' ||
+          !progress.producer_core_id ||
+          typeof progress.producer_instance_id !==
+            'string' ||
+          !progress.producer_instance_id ||
+          typeof progress.producer_version !==
+            'string' ||
+          !progress.producer_version ||
+          typeof progress.producer_stream_id !==
+            'string' ||
+          !progress.producer_stream_id ||
+          progress.producer_stream_id.length >
+            200 ||
+          !Number.isSafeInteger(
+            epoch
+          ) ||
+          epoch < 1 ||
+          ![
+            'neutral',
+            'lab',
+            'shadow',
+            'authoritative'
+          ].includes(
+            progress.authority_mode
+          ) ||
+          !Number.isSafeInteger(
+            progress.finalized_through_us
+          ) ||
+          progress.finalized_through_us <
+            0 ||
+          !Number.isSafeInteger(
+            progress.accepted_time_us
+          ) ||
+          progress.accepted_time_us <
+            0
+        ) {
+          throw Object.assign(
+            new Error(
+              'prepared biological stream progress is invalid'
+            ),
+            {
+              code:
+                'BIOLOGICAL_STREAM_PROGRESS_INVALID'
+            }
+          );
+        }
+
+        if (
+          progress.finalized_through_us >
+            progress.accepted_time_us
+        ) {
+          throw Object.assign(
+            new Error(
+              'stream progress cannot finalize future organism time'
+            ),
+            {
+              code:
+                'BIOLOGICAL_STREAM_PROGRESS_FUTURE'
+            }
+          );
+        }
+
+        const authoritative =
+          progress.authority_mode ===
+            'authoritative';
+
+        if (
+          authoritative &&
+          authorityWitness == null
+        ) {
+          throw Object.assign(
+            new Error(
+              'authoritative stream progress requires a commit-time authority witness'
+            ),
+            {
+              code:
+                'BIOLOGICAL_AUTHORITY_WITNESS_REQUIRED'
+            }
+          );
+        }
+
+        if (
+          !authoritative &&
+          authorityWitness != null
+        ) {
+          throw Object.assign(
+            new Error(
+              'non-authoritative stream progress cannot claim an authority witness'
+            ),
+            {
+              code:
+                'BIOLOGICAL_AUTHORITY_WITNESS'
+            }
+          );
+        }
+
+        if (
+          authoritative
+        ) {
+          const witness = {
+            coreId:
+              authorityWitness.coreId ??
+              authorityWitness.core_id,
+
+            instanceId:
+              authorityWitness.instanceId ??
+              authorityWitness.instance_id,
+
+            version:
+              authorityWitness.version,
+
+            authorityEpoch:
+              Number(
+                authorityWitness.authorityEpoch ??
+                authorityWitness.authority_epoch
+              )
+          };
+
+          if (
+            witness.coreId !==
+              progress.producer_core_id ||
+            witness.instanceId !==
+              progress.producer_instance_id ||
+            witness.version !==
+              progress.producer_version ||
+            witness.authorityEpoch !==
+              epoch
+          ) {
+            throw Object.assign(
+              new Error(
+                'stream-progress authority witness disagrees with prepared producer'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_AUTHORITY_WITNESS'
+              }
+            );
+          }
+
+          const current =
+            this.getAuthority(
+              witness.coreId
+            );
+
+          if (
+            !current ||
+            current.instanceId !==
+              witness.instanceId ||
+            current.version !==
+              witness.version ||
+            Number(
+              current.epoch
+            ) !==
+              witness.authorityEpoch
+          ) {
+            throw Object.assign(
+              new Error(
+                'stream-progress producer became stale before durable commit'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_AUTHORITY_STALE'
+              }
+            );
+          }
+        }
+
+        const streamHead =
+          this.getBiologicalStreamHead({
+            organismId:
+              progress.organism_id,
+
+            producerStreamId:
+              progress.producer_stream_id,
+
+            authorityEpoch:
+              epoch
+          });
+
+        if (
+          streamHead &&
+          streamHead.producerCoreId !==
+            progress.producer_core_id
+        ) {
+          throw Object.assign(
+            new Error(
+              'stream progress changed owning core inside one authority epoch'
+            ),
+            {
+              code:
+                'BIOLOGICAL_STREAM_IDENTITY'
+            }
+          );
+        }
+
+        const previous =
+          this.getBiologicalStreamProgress({
+            organismId:
+              progress.organism_id,
+
+            producerStreamId:
+              progress.producer_stream_id,
+
+            authorityEpoch:
+              epoch
+          });
+
+        if (
+          previous &&
+          (
+            previous.producerCoreId !==
+              progress.producer_core_id ||
+            previous.producerInstanceId !==
+              progress.producer_instance_id ||
+            previous.producerVersion !==
+              progress.producer_version ||
+            previous.authorityMode !==
+              progress.authority_mode
+          )
+        ) {
+          throw Object.assign(
+            new Error(
+              'stream-progress producer identity changed inside one authority epoch'
+            ),
+            {
+              code:
+                'BIOLOGICAL_STREAM_PROGRESS_IDENTITY'
+            }
+          );
+        }
+
+        if (
+          previous &&
+          progress.finalized_through_us <
+            previous.finalizedThroughUs
+        ) {
+          throw Object.assign(
+            new Error(
+              'biological stream finalization cannot move backward'
+            ),
+            {
+              code:
+                'BIOLOGICAL_STREAM_PROGRESS_REWIND'
+            }
+          );
+        }
+
+        if (
+          previous &&
+          progress.finalized_through_us ===
+            previous.finalizedThroughUs
+        ) {
+          return {
+            ...previous,
+            deduplicated:
+              true
+          };
+        }
+
+        /*
+         * Finalized counts are cumulative durability metadata, not
+         * a recount of whatever raw Envelope rows happen to remain.
+         * Once a lower progress record exists, later progress adds
+         * only signals in the newly finalized time interval. Safe
+         * compaction of older finalized rows therefore cannot make
+         * cumulative completeness move backward or fabricate silence.
+         */
+        const intervalSummary =
+          previous
+            ? this.db.prepare(`
+                SELECT
+                  COUNT(*) AS signal_count,
+                  COALESCE(
+                    MAX(stream_sequence),
+                    0
+                  ) AS last_stream_sequence
+                FROM biological_envelopes_v2
+                WHERE
+                  organism_id=? AND
+                  producer_stream_id=? AND
+                  authority_epoch=? AND
+                  order_time_us>? AND
+                  order_time_us<=?
+              `).get(
+                progress.organism_id,
+                progress.producer_stream_id,
+                epoch,
+                previous.finalizedThroughUs,
+                progress.finalized_through_us
+              )
+            : this.db.prepare(`
+                SELECT
+                  COUNT(*) AS signal_count,
+                  COALESCE(
+                    MAX(stream_sequence),
+                    0
+                  ) AS last_stream_sequence
+                FROM biological_envelopes_v2
+                WHERE
+                  organism_id=? AND
+                  producer_stream_id=? AND
+                  authority_epoch=? AND
+                  order_time_us<=?
+              `).get(
+                progress.organism_id,
+                progress.producer_stream_id,
+                epoch,
+                progress.finalized_through_us
+              );
+
+        const intervalSignalCount =
+          Number(
+            intervalSummary?.signal_count ||
+            0
+          );
+
+        const intervalLastStreamSequence =
+          Number(
+            intervalSummary?.last_stream_sequence ||
+            0
+          );
+
+        const finalizedSignalCount =
+          (
+            previous?.finalizedSignalCount ||
+            0
+          ) +
+          intervalSignalCount;
+
+        const finalizedLastStreamSequence =
+          Math.max(
+            previous?.finalizedLastStreamSequence ||
+              0,
+            intervalLastStreamSequence
+          );
+
+        const body = {
+          protocol:
+            'stay-biological-stream-progress-v1',
+
+          organismId:
+            progress.organism_id,
+
+          producerStreamId:
+            progress.producer_stream_id,
+
+          authorityEpoch:
+            epoch,
+
+          producerCoreId:
+            progress.producer_core_id,
+
+          producerInstanceId:
+            progress.producer_instance_id,
+
+          producerVersion:
+            progress.producer_version,
+
+          authorityMode:
+            progress.authority_mode,
+
+          finalizedThroughUs:
+            progress.finalized_through_us,
+
+          finalizedSignalCount,
+
+          finalizedLastStreamSequence,
+
+          acceptedTimeUs:
+            progress.accepted_time_us,
+
+          previousProgressId:
+            previous?.progressId ||
+            null
+        };
+
+        const progressId =
+          `sha256:${sha256(
+            stableStringify(
+              body
+            )
+          )}`;
+
+        const progressHash =
+          sha256(
+            stableStringify({
+              ...body,
+              progressId
+            })
+          );
+
+        const createdAt =
+          new Date().toISOString();
+
+        this.db.prepare(`
+          INSERT INTO biological_stream_progress(
+            progress_id,
+            organism_id,
+            producer_stream_id,
+            authority_epoch,
+            producer_core_id,
+            producer_instance_id,
+            producer_version,
+            authority_mode,
+            finalized_through_us,
+            finalized_signal_count,
+            finalized_last_stream_sequence,
+            accepted_time_us,
+            previous_progress_id,
+            progress_sha256,
+            created_at
+          )
+          VALUES(
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          )
+        `).run(
+          progressId,
+          body.organismId,
+          body.producerStreamId,
+          body.authorityEpoch,
+          body.producerCoreId,
+          body.producerInstanceId,
+          body.producerVersion,
+          body.authorityMode,
+          body.finalizedThroughUs,
+          body.finalizedSignalCount,
+          body.finalizedLastStreamSequence,
+          body.acceptedTimeUs,
+          body.previousProgressId,
+          progressHash,
+          createdAt
+        );
+
+        const nextHead = {
+          organismId:
+            body.organismId,
+
+          producerStreamId:
+            body.producerStreamId,
+
+          authorityEpoch:
+            body.authorityEpoch,
+
+          producerCoreId:
+            body.producerCoreId,
+
+          producerInstanceId:
+            body.producerInstanceId,
+
+          producerVersion:
+            body.producerVersion,
+
+          authorityMode:
+            body.authorityMode,
+
+          finalizedThroughUs:
+            body.finalizedThroughUs,
+
+          finalizedSignalCount:
+            body.finalizedSignalCount,
+
+          finalizedLastStreamSequence:
+            body.finalizedLastStreamSequence,
+
+          progressId
+        };
+
+        const headHash =
+          sha256(
+            stableStringify(
+              biologicalStreamProgressHeadBody(
+                nextHead
+              )
+            )
+          );
+
+        if (
+          previous
+        ) {
+          const updated =
+            this.db.prepare(`
+              UPDATE biological_stream_progress_heads
+              SET
+                producer_core_id=?,
+                producer_instance_id=?,
+                producer_version=?,
+                authority_mode=?,
+                finalized_through_us=?,
+                finalized_signal_count=?,
+                finalized_last_stream_sequence=?,
+                progress_id=?,
+                head_sha256=?,
+                updated_at=?
+              WHERE
+                organism_id=? AND
+                producer_stream_id=? AND
+                authority_epoch=? AND
+                progress_id=?
+            `).run(
+              nextHead.producerCoreId,
+              nextHead.producerInstanceId,
+              nextHead.producerVersion,
+              nextHead.authorityMode,
+              nextHead.finalizedThroughUs,
+              nextHead.finalizedSignalCount,
+              nextHead.finalizedLastStreamSequence,
+              nextHead.progressId,
+              headHash,
+              createdAt,
+              nextHead.organismId,
+              nextHead.producerStreamId,
+              nextHead.authorityEpoch,
+              previous.progressId
+            );
+
+          if (
+            updated.changes !==
+            1
+          ) {
+            throw Object.assign(
+              new Error(
+                'biological stream-progress head compare-and-swap failed'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_STREAM_PROGRESS_CONFLICT'
+              }
+            );
+          }
+
+        } else {
+          this.db.prepare(`
+            INSERT INTO biological_stream_progress_heads(
+              organism_id,
+              producer_stream_id,
+              authority_epoch,
+              producer_core_id,
+              producer_instance_id,
+              producer_version,
+              authority_mode,
+              finalized_through_us,
+              finalized_signal_count,
+              finalized_last_stream_sequence,
+              progress_id,
+              head_sha256,
+              updated_at
+            )
+            VALUES(
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+          `).run(
+            nextHead.organismId,
+            nextHead.producerStreamId,
+            nextHead.authorityEpoch,
+            nextHead.producerCoreId,
+            nextHead.producerInstanceId,
+            nextHead.producerVersion,
+            nextHead.authorityMode,
+            nextHead.finalizedThroughUs,
+            nextHead.finalizedSignalCount,
+            nextHead.finalizedLastStreamSequence,
+            nextHead.progressId,
+            headHash,
+            createdAt
+          );
+        }
+
+        return {
+          ...this.getBiologicalStreamProgress({
+            organismId:
+              body.organismId,
+
+            producerStreamId:
+              body.producerStreamId,
+
+            authorityEpoch:
+              body.authorityEpoch
+          }),
+
+          deduplicated:
+            false
+        };
+      }
+    );
+  }
+
+
+  proveBiologicalSilence({
+    organismId,
+    producerStreamId,
+    authorityEpoch,
+    fromUs,
+    throughUs
+  }) {
+    this.assertOpen();
+
+    const epoch =
+      Number(
+        authorityEpoch
+      );
+
+    const from =
+      Number(
+        fromUs
+      );
+
+    const through =
+      Number(
+        throughUs
+      );
+
+    if (
+      typeof organismId !==
+        'string' ||
+      !organismId ||
+      typeof producerStreamId !==
+        'string' ||
+      !producerStreamId ||
+      !Number.isSafeInteger(
+        epoch
+      ) ||
+      epoch < 1 ||
+      !Number.isSafeInteger(
+        from
+      ) ||
+      from < 0 ||
+      !Number.isSafeInteger(
+        through
+      ) ||
+      through < from
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological silence query is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_STREAM_SILENCE_QUERY'
+        }
+      );
+    }
+
+    const upperRow =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_stream_progress
+        WHERE
+          organism_id=? AND
+          producer_stream_id=? AND
+          authority_epoch=? AND
+          finalized_through_us>=?
+        ORDER BY finalized_through_us ASC
+        LIMIT 1
+      `).get(
+        organismId,
+        producerStreamId,
+        epoch,
+        through
+      );
+
+    if (
+      !upperRow
+    ) {
+      return Object.freeze({
+        complete:
+          false,
+
+        silent:
+          null,
+
+        reason:
+          'STREAM_PROGRESS_INCOMPLETE',
+
+        fromUs:
+          from,
+
+        throughUs:
+          through
+      });
+    }
+
+    const upper =
+      this.biologicalStreamProgressFromRow(
+        upperRow
+      );
+
+    const retainedSignal =
+      this.db.prepare(`
+        SELECT
+          signal_id,
+          order_time_us,
+          stream_sequence
+        FROM biological_envelopes_v2
+        WHERE
+          organism_id=? AND
+          producer_stream_id=? AND
+          authority_epoch=? AND
+          order_time_us>? AND
+          order_time_us<=?
+        ORDER BY
+          order_time_us ASC,
+          stream_sequence ASC
+        LIMIT 1
+      `).get(
+        organismId,
+        producerStreamId,
+        epoch,
+        from,
+        through
+      );
+
+    if (
+      retainedSignal
+    ) {
+      return Object.freeze({
+        complete:
+          true,
+
+        silent:
+          false,
+
+        reason:
+          'SIGNAL_PRESENT',
+
+        fromUs:
+          from,
+
+        throughUs:
+          through,
+
+        coveringProgressId:
+          upper.progressId,
+
+        signalId:
+          retainedSignal.signal_id,
+
+        signalOrderTimeUs:
+          Number(
+            retainedSignal.order_time_us
+          ),
+
+        signalStreamSequence:
+          Number(
+            retainedSignal.stream_sequence
+          )
+      });
+    }
+
+    const lowerRow =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_stream_progress
+        WHERE
+          organism_id=? AND
+          producer_stream_id=? AND
+          authority_epoch=? AND
+          finalized_through_us<=?
+        ORDER BY finalized_through_us DESC
+        LIMIT 1
+      `).get(
+        organismId,
+        producerStreamId,
+        epoch,
+        from
+      );
+
+    if (
+      !lowerRow
+    ) {
+      return Object.freeze({
+        complete:
+          true,
+
+        silent:
+          null,
+
+        reason:
+          'LOWER_PROGRESS_BOUND_MISSING',
+
+        fromUs:
+          from,
+
+        throughUs:
+          through,
+
+        coveringProgressId:
+          upper.progressId
+      });
+    }
+
+    const lower =
+      this.biologicalStreamProgressFromRow(
+        lowerRow
+      );
+
+    if (
+      lower.finalizedSignalCount ===
+        upper.finalizedSignalCount
+    ) {
+      return Object.freeze({
+        complete:
+          true,
+
+        silent:
+          true,
+
+        reason:
+          'FINALIZED_COUNT_UNCHANGED',
+
+        fromUs:
+          from,
+
+        throughUs:
+          through,
+
+        lowerProgressId:
+          lower.progressId,
+
+        coveringProgressId:
+          upper.progressId
+      });
+    }
+
+    /*
+     * A changed cumulative count proves that at least one
+     * signal exists somewhere between the two progress
+     * boundaries. If that signal has since been compacted and
+     * no retained row locates it inside the requested
+     * sub-window, the only safe answer is UNKNOWN.
+     */
+    return Object.freeze({
+      complete:
+        true,
+
+      silent:
+        null,
+
+      reason:
+        'COMPACTED_OR_OUTSIDE_SUBWINDOW',
+
+      fromUs:
+        from,
+
+      throughUs:
+        through,
+
+      lowerProgressId:
+        lower.progressId,
+
+      coveringProgressId:
+        upper.progressId
+    });
   }
 
 
@@ -3462,6 +5623,125 @@ class StateStore {
     };
   }
 
+
+  biologicalOutboxStreamHeadFromRow(
+    row
+  ) {
+    if (!row) {
+      return null;
+    }
+
+    const head = {
+      producerCoreId:
+        row.producer_core_id,
+
+      authorityEpoch:
+        Number(
+          row.authority_epoch
+        ),
+
+      producerStreamId:
+        row.producer_stream_id,
+
+      producerInstanceId:
+        row.producer_instance_id,
+
+      producerVersion:
+        row.producer_version,
+
+      lastStreamSequence:
+        Number(
+          row.last_stream_sequence
+        ),
+
+      lastProducerEventId:
+        row.last_producer_event_id
+    };
+
+    if (
+      sha256(
+        stableStringify(
+          biologicalOutboxStreamHeadBody(
+            head
+          )
+        )
+      ) !==
+        row.head_sha256
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological outbox stream head ${head.producerCoreId}/${head.authorityEpoch} is corrupt`
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_HEAD_CORRUPT'
+        }
+      );
+    }
+
+    return Object.freeze(
+      head
+    );
+  }
+
+
+  getBiologicalOutboxStreamHead({
+    producerCoreId,
+    authorityEpoch,
+    producerStreamId
+  }) {
+    this.assertOpen();
+
+    const epoch =
+      Number(
+        authorityEpoch
+      );
+
+    if (
+      typeof producerCoreId !==
+        'string' ||
+      !producerCoreId ||
+      typeof producerStreamId !==
+        'string' ||
+      !producerStreamId ||
+      !Number.isSafeInteger(
+        epoch
+      ) ||
+      epoch < 1
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological outbox stream identity is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_STREAM_ID'
+        }
+      );
+    }
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_outbox_stream_heads
+        WHERE
+          producer_core_id=? AND
+          authority_epoch=? AND
+          producer_stream_id=?
+      `).get(
+        producerCoreId,
+        epoch,
+        producerStreamId
+      );
+
+    return row
+      ? this.biologicalOutboxStreamHeadFromRow(
+          row
+        )
+      : null;
+  }
+
+
   biologicalOutboxIntentFromRow(row) {
     if (!row) return null;
 
@@ -3809,25 +6089,39 @@ class StateStore {
     const producerStreamId =
       `core:${coreId}:outputs`;
 
-    let streamSequence =
-      Number(
-        this.db.prepare(`
-          SELECT COALESCE(
-            MAX(stream_sequence),
-            0
-          ) AS value
-          FROM biological_outbox_intents
-          WHERE
-            producer_core_id=? AND
-            authority_epoch=? AND
-            producer_stream_id=?
-        `).get(
+    const outboxHead =
+      this.getBiologicalOutboxStreamHead({
+        producerCoreId:
           coreId,
-          authorityEpoch,
-          producerStreamId
-        )?.value ||
-        0
+
+        authorityEpoch,
+
+        producerStreamId
+      });
+
+    if (
+      outboxHead &&
+      (
+        outboxHead.producerInstanceId !==
+          instanceId ||
+        outboxHead.producerVersion !==
+          version
+      )
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological outbox producer identity changed inside one authority epoch'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_STREAM_IDENTITY'
+        }
       );
+    }
+
+    let streamSequence =
+      outboxHead?.lastStreamSequence ||
+      0;
 
     const committed =
       [];
@@ -3946,10 +6240,9 @@ class StateStore {
 
       const payloadBytes =
         Buffer.byteLength(
-          stableStringify({
-            topic,
+          stableStringify(
             payload
-          })
+          )
         );
 
       totalBytes +=
@@ -3957,9 +6250,9 @@ class StateStore {
 
       if (
         payloadBytes >
-          1024 * 1024 ||
+          8 * 1024 ||
         totalBytes >
-          1024 * 1024
+          64 * 8 * 1024
       ) {
         throw Object.assign(
           new Error(
@@ -4227,6 +6520,121 @@ class StateStore {
         this.getBiologicalOutboxIntent(
           producerEventId
         )
+      );
+    }
+
+    const lastIntent =
+      committed.at(
+        -1
+      );
+
+    const nextHead = {
+      producerCoreId:
+        coreId,
+
+      authorityEpoch,
+
+      producerStreamId,
+
+      producerInstanceId:
+        instanceId,
+
+      producerVersion:
+        version,
+
+      lastStreamSequence:
+        lastIntent.streamSequence,
+
+      lastProducerEventId:
+        lastIntent.producerEventId
+    };
+
+    const headHash =
+      sha256(
+        stableStringify(
+          biologicalOutboxStreamHeadBody(
+            nextHead
+          )
+        )
+      );
+
+    const updatedAt =
+      new Date().toISOString();
+
+    if (
+      outboxHead
+    ) {
+      const updated =
+        this.db.prepare(`
+          UPDATE biological_outbox_stream_heads
+          SET
+            producer_instance_id=?,
+            producer_version=?,
+            last_stream_sequence=?,
+            last_producer_event_id=?,
+            head_sha256=?,
+            updated_at=?
+          WHERE
+            producer_core_id=? AND
+            authority_epoch=? AND
+            producer_stream_id=? AND
+            last_stream_sequence=? AND
+            last_producer_event_id=?
+        `).run(
+          nextHead.producerInstanceId,
+          nextHead.producerVersion,
+          nextHead.lastStreamSequence,
+          nextHead.lastProducerEventId,
+          headHash,
+          updatedAt,
+          nextHead.producerCoreId,
+          nextHead.authorityEpoch,
+          nextHead.producerStreamId,
+          outboxHead.lastStreamSequence,
+          outboxHead.lastProducerEventId
+        );
+
+      if (
+        updated.changes !==
+        1
+      ) {
+        throw Object.assign(
+          new Error(
+            'biological outbox stream head compare-and-swap failed'
+          ),
+          {
+            code:
+              'BIOLOGICAL_OUTBOX_STREAM_CONFLICT'
+          }
+        );
+      }
+
+    } else {
+      this.db.prepare(`
+        INSERT INTO biological_outbox_stream_heads(
+          producer_core_id,
+          authority_epoch,
+          producer_stream_id,
+          producer_instance_id,
+          producer_version,
+          last_stream_sequence,
+          last_producer_event_id,
+          head_sha256,
+          updated_at
+        )
+        VALUES(
+          ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+      `).run(
+        nextHead.producerCoreId,
+        nextHead.authorityEpoch,
+        nextHead.producerStreamId,
+        nextHead.producerInstanceId,
+        nextHead.producerVersion,
+        nextHead.lastStreamSequence,
+        nextHead.lastProducerEventId,
+        headHash,
+        updatedAt
       );
     }
 
