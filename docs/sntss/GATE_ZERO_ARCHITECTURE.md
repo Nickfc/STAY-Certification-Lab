@@ -34,6 +34,22 @@ Progress is durable, hash-bound, scoped by organism + stream + authority epoch a
 
 Silence may be inferred only from durable progress evidence. An unchanged finalized signal count between a lower and covering progress boundary proves silence for the enclosed interval. If evidence has been compacted and the retained progress bounds cannot prove the requested sub-window, the result remains UNKNOWN rather than fabricating silence.
 
+## Authority cutover spool
+
+Authority promotion is a biological barrier, not merely a CoreHost mode switch. `commitUpgrade()` now seals every committed pending old-epoch producer obligation into a Kernel-owned `biological_cutover_spool` in the **same SQLite transaction** that advances authority. If spool creation fails, authority remains on the old epoch. There is no durable state in which the old epoch is revoked while one of its committed outputs has become ownerless.
+
+A spooled obligation keeps its original `producer_event_id`, producer instance/version, `authority_epoch`, producer stream, stream sequence, proposal commitment and intent commitment. The new CoreHost never re-authors it. Recovery may drain a revoked epoch only when that exact obligation has a verified `SPOOLED` record. Future-epoch output is never drainable by older authority, and an unspooled revoked-epoch output fails closed.
+
+When Event Fabric publication succeeds, outbox completion and spool completion bind to the same durable Fabric event identity. An ambiguous publish acknowledgement therefore retries the same durable event rather than creating a replacement fact. Startup recovery binds persisted authority first, then attempts spool/outbox drain, then replays pending consumer input. Promotion/rollback releases the in-memory cutover hold before post-commit spool draining so recursive durable publication cannot deadlock on its own barrier.
+
+## Required route lifecycle and completeness barriers
+
+Required biological routes are durable infrastructure records with explicit states: `ACTIVE`, `DEGRADED`, `EVIDENCE_GAP`, `CLOSED`, and terminal `RETIRED`. Route heads, append-only transitions and consumer boundary acknowledgements are independently hash-bound.
+
+`ACTIVE` routes contribute their explicit `STREAM_PROGRESS` frontier to consumer safe completeness. Missing progress is a blocker; traffic silence never advances completeness. When a required route leaves `ACTIVE`, the transition records the last known-complete `route_barrier_us`. `EVIDENCE_GAP` additionally binds the exact unavailable interval. Until the consumer durably acknowledges that boundary against one of its content-addressed checkpoints, the route continues to pin safe completeness at the barrier.
+
+A degraded/gap route can reactivate only at an explicit forward boundary strictly beyond the consumer-committed unavailable interval and without authority-epoch rewind. A `CLOSED` route requires a `COMPLETE_END` acknowledgement before it can become `RETIRED`; retired anatomy cannot silently reactivate. After a valid boundary acknowledgement, the failed route may stop pinning the minimum frontier, while the acknowledgement preserves `UNKNOWN_INPUT` or `COMPLETE_END` provenance instead of fabricating a biological zero.
+
 ## Durable tables
 
 - `biological_events`: canonical envelopes, hashes and deterministic keys.
@@ -43,6 +59,10 @@ Silence may be inferred only from durable progress evidence. An unchanged finali
 - `biological_stream_progress_heads`: hash-bound latest finalization per stream/epoch.
 - `biological_outbox_intents`: transactional authoritative producer output obligations.
 - `biological_outbox_stream_heads`: durable outbox sequencing that survives row compaction.
+- `biological_cutover_spool`: immutable old-epoch obligations transferred atomically before authority revocation.
+- `biological_routes`: hash-bound required-route heads and current lifecycle/barrier state.
+- `biological_route_transitions`: append-only route lifecycle history.
+- `biological_route_boundary_acks`: checkpoint-bound consumer acknowledgement of unknown/end boundaries.
 - `biological_consumers`: stable consumer identity, topic profile, cursor, authority epoch and checkpoint link.
 - `biological_deliveries`: pending/acknowledged event-consumer pairs, transition IDs and checkpoint hashes.
 - `checkpoints.input_cursor`: event boundary represented by the checkpoint transition.
@@ -58,6 +78,10 @@ Silence may be inferred only from durable progress evidence. An unchanged finali
 | checkpoint/ack/outbox transaction commits, transport fails | producer state remains committed; output obligation stays pending and retries exact identity |
 | exact producer event is retried | original accepted signal/event is returned; no new sequence is allocated |
 | stream progress finalized through T, later signal claims time <= T | fail closed |
+| authority promotion with pending old-epoch output | spool every obligation atomically before authority changes, or abort cutover |
+| restart after authority cutover but before old output delivery | drain only verified old-epoch spool identities; never impersonate old authority |
+| required route leaves ACTIVE | pin completeness at exact barrier until consumer checkpoint acknowledges unknown/end semantics |
+| replay horizon is exhausted | record EVIDENCE_GAP interval; never infer silence/zero from missing history |
 | envelope/dedup content conflict | fail closed |
 
 ## Evidence currently present
@@ -66,7 +90,9 @@ Silence may be inferred only from durable progress evidence. An unchanged finali
 - G0-02: deterministic exact deduplication and conflict rejection.
 - G0-03: checkpoint, transition ID, delivery ACK and cursor agreement.
 - G0-04: injected producer commit failure, CoreHost recovery, Kernel restart, deterministic replay and exactly-once downstream effect.
+- EF1-G: authority-cutover spool atomicity, revoked/future epoch drain policy, route barriers, evidence gaps, forward-only reactivation and checkpoint-bound route release.
+- EF1-H: crash-before-seal, restart-after-seal, ambiguous publish retry, spool corruption and recovery ordering hostile closure.
 
 ## Certification gaps
 
-The candidate is not Gate Zero complete until the full append/delivery/output/checkpoint/ack crash matrix, out-of-order concurrency, corruption, retention exhaustion, authority cutover, failed upgrade, host power loss, restore, latency, growth and independent hostile review evidence all pass on one pinned candidate.
+This EF1-G/H candidate closes the repository-level authority-cutover, route-lifecycle and crash/replay contracts. Gate Zero / P0-EF1 is complete only after the combined candidate passes its direct hostile tests, targeted regressions and the full pinned repository certification. Host-only endurance evidence remains a separate later gate where explicitly required.

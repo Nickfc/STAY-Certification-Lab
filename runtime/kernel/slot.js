@@ -534,6 +534,17 @@ class RuntimeSlot {
       authorityEpoch: this.authorityEpoch
     });
     await this.persistActive();
+
+    /*
+     * EF1-G — recovery may inherit Kernel-spooled obligations from a
+     * previously authoritative epoch.  Authority is bound before this
+     * drain, so StateStore can distinguish the current epoch from
+     * historically committed spool work.  Failure is deliberately
+     * non-fatal: the obligation stays durable and origin state is not
+     * replayed.
+     */
+    await this.tryDrainProducerOutbox();
+
     await this.replayPendingBiologicalEvents();
     return unit;
   }
@@ -741,6 +752,14 @@ class RuntimeSlot {
       await Promise.all([next.client.setMode('active'), previous.client.setMode('standby')]);
       if (oldStandby) await oldStandby.stop();
       await this.persistActive();
+
+      /*
+       * The cutover queue has already been released here.  Draining any
+       * old-epoch spool before release could deadlock on a recursively
+       * published durable event held by this same cutover.
+       */
+      await this.tryDrainProducerOutbox();
+
       return { active: this.active.manifest, standby: this.standby.manifest, authority, transactionId: transaction.transactionId };
     } catch (error) {
       if (!committed) {
@@ -806,6 +825,7 @@ class RuntimeSlot {
       this.releaseHeld(previous);
       await Promise.all([previous.client.setMode('active'), current.client.setMode('standby')]);
       await this.persistActive();
+      await this.tryDrainProducerOutbox();
       return { active: this.active.manifest, standby: this.standby.manifest, authority, transactionId: transaction.transactionId };
     } catch (error) {
       if (!committed) {
@@ -852,9 +872,12 @@ class RuntimeSlot {
     for (;;) {
       const intents =
         this.stateStore
-          .listPendingBiologicalOutboxIntents({
+          .listDrainableBiologicalOutboxIntents({
             producerCoreId:
               this.coreId,
+
+            currentAuthorityEpoch:
+              this.authorityEpoch,
 
             limit
           });

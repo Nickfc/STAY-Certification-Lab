@@ -230,6 +230,187 @@ function biologicalOutboxStreamHeadBody(
   };
 }
 
+
+function biologicalCutoverSpoolBody(
+  value
+) {
+  return {
+    transactionId:
+      value.transactionId,
+
+    producerEventId:
+      value.producerEventId,
+
+    producerCoreId:
+      value.producerCoreId,
+
+    producerInstanceId:
+      value.producerInstanceId,
+
+    producerVersion:
+      value.producerVersion,
+
+    fromAuthorityEpoch:
+      value.fromAuthorityEpoch,
+
+    toAuthorityEpoch:
+      value.toAuthorityEpoch,
+
+    barrierSequence:
+      value.barrierSequence,
+
+    producerStreamId:
+      value.producerStreamId,
+
+    streamSequence:
+      value.streamSequence,
+
+    proposalHash:
+      value.proposalHash,
+
+    intentHash:
+      value.intentHash
+  };
+}
+
+
+const BIOLOGICAL_ROUTE_STATES =
+  Object.freeze([
+    'ACTIVE',
+    'DEGRADED',
+    'EVIDENCE_GAP',
+    'CLOSED',
+    'RETIRED'
+  ]);
+
+const BIOLOGICAL_ROUTE_STATE_SET =
+  new Set(
+    BIOLOGICAL_ROUTE_STATES
+  );
+
+function biologicalRouteHeadBody(
+  value
+) {
+  return {
+    routeId:
+      value.routeId,
+
+    organismId:
+      value.organismId,
+
+    consumerId:
+      value.consumerId,
+
+    producerCoreId:
+      value.producerCoreId,
+
+    producerStreamId:
+      value.producerStreamId,
+
+    authorityEpoch:
+      value.authorityEpoch,
+
+    required:
+      value.required,
+
+    state:
+      value.state,
+
+    activeFromUs:
+      value.activeFromUs,
+
+    routeBarrierUs:
+      value.routeBarrierUs,
+
+    gapFromUs:
+      value.gapFromUs,
+
+    gapThroughUs:
+      value.gapThroughUs,
+
+    transitionSequence:
+      value.transitionSequence,
+
+    lastTransitionId:
+      value.lastTransitionId
+  };
+}
+
+function biologicalRouteTransitionBody(
+  value
+) {
+  return {
+    protocol:
+      'stay-biological-route-transition-v1',
+
+    routeId:
+      value.routeId,
+
+    transitionSequence:
+      value.transitionSequence,
+
+    fromState:
+      value.fromState,
+
+    toState:
+      value.toState,
+
+    authorityEpoch:
+      value.authorityEpoch,
+
+    activeFromUs:
+      value.activeFromUs,
+
+    routeBarrierUs:
+      value.routeBarrierUs,
+
+    gapFromUs:
+      value.gapFromUs,
+
+    gapThroughUs:
+      value.gapThroughUs,
+
+    reason:
+      value.reason
+  };
+}
+
+function biologicalRouteBoundaryAckBody(
+  value
+) {
+  return {
+    protocol:
+      'stay-biological-route-boundary-ack-v1',
+
+    routeId:
+      value.routeId,
+
+    transitionSequence:
+      value.transitionSequence,
+
+    consumerId:
+      value.consumerId,
+
+    boundaryState:
+      value.boundaryState,
+
+    routeBarrierUs:
+      value.routeBarrierUs,
+
+    committedThroughUs:
+      value.committedThroughUs,
+
+    checkpointHash:
+      value.checkpointHash,
+
+    transitionId:
+      value.transitionId,
+
+    semantics:
+      value.semantics
+  };
+}
+
 const RESIDENT_HASH =
   /^sha256:[0-9a-f]{64}$/;
 
@@ -337,6 +518,9 @@ class StateStore {
         finalized_at TEXT,
         to_checkpoint_hash TEXT,
         to_state_schema INTEGER,
+        spooled_intent_count INTEGER NOT NULL DEFAULT 0,
+        spool_sha256 TEXT,
+        cutover_sealed_at TEXT,
         detail_json TEXT NOT NULL DEFAULT '{}'
       );
       CREATE INDEX IF NOT EXISTS upgrade_core_status ON upgrade_transactions(core_id, status);
@@ -625,6 +809,43 @@ class StateStore {
         )
       );
 
+      CREATE TABLE IF NOT EXISTS biological_cutover_spool (
+        producer_event_id TEXT PRIMARY KEY,
+        transaction_id TEXT NOT NULL,
+        producer_core_id TEXT NOT NULL,
+        producer_instance_id TEXT NOT NULL,
+        producer_version TEXT NOT NULL,
+        from_authority_epoch INTEGER NOT NULL CHECK(from_authority_epoch >= 1),
+        to_authority_epoch INTEGER NOT NULL CHECK(to_authority_epoch > from_authority_epoch),
+        barrier_sequence INTEGER NOT NULL CHECK(barrier_sequence >= 0),
+        producer_stream_id TEXT NOT NULL,
+        stream_sequence INTEGER NOT NULL CHECK(stream_sequence >= 1),
+        proposal_sha256 TEXT NOT NULL,
+        intent_sha256 TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'SPOOLED'
+          CHECK(status IN ('SPOOLED', 'ACCEPTED')),
+        fabric_sequence INTEGER,
+        fabric_event_id TEXT,
+        spool_sha256 TEXT NOT NULL,
+        spooled_at TEXT NOT NULL,
+        accepted_at TEXT,
+        FOREIGN KEY(producer_event_id)
+          REFERENCES biological_outbox_intents(producer_event_id)
+          ON DELETE RESTRICT,
+        FOREIGN KEY(transaction_id)
+          REFERENCES upgrade_transactions(transaction_id)
+          ON DELETE RESTRICT
+      );
+
+      CREATE INDEX IF NOT EXISTS biological_cutover_spool_core_status
+        ON biological_cutover_spool(
+          producer_core_id,
+          status,
+          from_authority_epoch,
+          producer_stream_id,
+          stream_sequence
+        );
+
       CREATE TABLE IF NOT EXISTS biological_consumers (
         consumer_id TEXT PRIMARY KEY,
         core_id TEXT NOT NULL,
@@ -650,6 +871,79 @@ class StateStore {
         FOREIGN KEY(consumer_id) REFERENCES biological_consumers(consumer_id) ON DELETE RESTRICT
       );
       CREATE INDEX IF NOT EXISTS biological_delivery_pending ON biological_deliveries(consumer_id, status, sequence);
+      CREATE TABLE IF NOT EXISTS biological_routes (
+        route_id TEXT PRIMARY KEY,
+        organism_id TEXT NOT NULL,
+        consumer_id TEXT NOT NULL,
+        producer_core_id TEXT NOT NULL,
+        producer_stream_id TEXT NOT NULL,
+        authority_epoch INTEGER NOT NULL CHECK(authority_epoch >= 1),
+        required INTEGER NOT NULL DEFAULT 1 CHECK(required IN (0, 1)),
+        state TEXT NOT NULL CHECK(state IN ('ACTIVE', 'DEGRADED', 'EVIDENCE_GAP', 'CLOSED', 'RETIRED')),
+        active_from_us INTEGER NOT NULL CHECK(active_from_us >= 0),
+        route_barrier_us INTEGER,
+        gap_from_us INTEGER,
+        gap_through_us INTEGER,
+        transition_sequence INTEGER NOT NULL CHECK(transition_sequence >= 1),
+        last_transition_id TEXT NOT NULL,
+        head_sha256 TEXT NOT NULL,
+        registered_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(consumer_id)
+          REFERENCES biological_consumers(consumer_id)
+          ON DELETE RESTRICT
+      );
+
+      CREATE INDEX IF NOT EXISTS biological_routes_consumer_state
+        ON biological_routes(
+          consumer_id,
+          required,
+          state,
+          route_id
+        );
+
+      CREATE TABLE IF NOT EXISTS biological_route_transitions (
+        route_id TEXT NOT NULL,
+        transition_sequence INTEGER NOT NULL CHECK(transition_sequence >= 1),
+        transition_id TEXT NOT NULL UNIQUE,
+        from_state TEXT,
+        to_state TEXT NOT NULL CHECK(to_state IN ('ACTIVE', 'DEGRADED', 'EVIDENCE_GAP', 'CLOSED', 'RETIRED')),
+        authority_epoch INTEGER NOT NULL CHECK(authority_epoch >= 1),
+        active_from_us INTEGER NOT NULL CHECK(active_from_us >= 0),
+        route_barrier_us INTEGER,
+        gap_from_us INTEGER,
+        gap_through_us INTEGER,
+        reason TEXT NOT NULL,
+        transition_sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(route_id, transition_sequence),
+        FOREIGN KEY(route_id)
+          REFERENCES biological_routes(route_id)
+          ON DELETE RESTRICT
+      );
+
+      CREATE TABLE IF NOT EXISTS biological_route_boundary_acks (
+        route_id TEXT NOT NULL,
+        transition_sequence INTEGER NOT NULL CHECK(transition_sequence >= 1),
+        ack_id TEXT NOT NULL UNIQUE,
+        consumer_id TEXT NOT NULL,
+        boundary_state TEXT NOT NULL CHECK(boundary_state IN ('DEGRADED', 'EVIDENCE_GAP', 'CLOSED')),
+        route_barrier_us INTEGER NOT NULL CHECK(route_barrier_us >= 0),
+        committed_through_us INTEGER NOT NULL CHECK(committed_through_us >= route_barrier_us),
+        checkpoint_hash TEXT NOT NULL,
+        transition_id TEXT NOT NULL,
+        semantics TEXT NOT NULL CHECK(semantics IN ('UNKNOWN_INPUT', 'COMPLETE_END')),
+        ack_sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(route_id, transition_sequence),
+        FOREIGN KEY(route_id, transition_sequence)
+          REFERENCES biological_route_transitions(route_id, transition_sequence)
+          ON DELETE RESTRICT,
+        FOREIGN KEY(consumer_id)
+          REFERENCES biological_consumers(consumer_id)
+          ON DELETE RESTRICT
+      );
+
       CREATE TABLE IF NOT EXISTS recovery_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
@@ -666,6 +960,9 @@ class StateStore {
     const upgradeColumns = new Set(this.db.prepare('PRAGMA table_info(upgrade_transactions)').all().map(row => row.name));
     if (!upgradeColumns.has('to_checkpoint_hash')) this.db.exec('ALTER TABLE upgrade_transactions ADD COLUMN to_checkpoint_hash TEXT');
     if (!upgradeColumns.has('to_state_schema')) this.db.exec('ALTER TABLE upgrade_transactions ADD COLUMN to_state_schema INTEGER');
+    if (!upgradeColumns.has('spooled_intent_count')) this.db.exec('ALTER TABLE upgrade_transactions ADD COLUMN spooled_intent_count INTEGER NOT NULL DEFAULT 0');
+    if (!upgradeColumns.has('spool_sha256')) this.db.exec('ALTER TABLE upgrade_transactions ADD COLUMN spool_sha256 TEXT');
+    if (!upgradeColumns.has('cutover_sealed_at')) this.db.exec('ALTER TABLE upgrade_transactions ADD COLUMN cutover_sealed_at TEXT');
     const checkpointColumns = new Set(this.db.prepare('PRAGMA table_info(checkpoints)').all().map(row => row.name));
     if (!checkpointColumns.has('input_cursor')) this.db.exec('ALTER TABLE checkpoints ADD COLUMN input_cursor INTEGER NOT NULL DEFAULT 0');
     const schemaRow = this.db.prepare("SELECT version FROM schema_versions WHERE name='continuity'").get();
@@ -1427,6 +1724,88 @@ class StateStore {
         );
       }
     }
+
+    const biologicalCutoverSchemaVersion =
+      Number(
+        this.db.prepare(
+          "SELECT version FROM schema_versions WHERE name='biological-cutover'"
+        ).get()?.version || 0
+      );
+
+    if (
+      biologicalCutoverSchemaVersion >
+      1
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological cutover schema is newer than this runtime supports'
+        ),
+        {
+          code:
+            'STATE_BIOLOGICAL_CUTOVER_SCHEMA_UNSUPPORTED'
+        }
+      );
+    }
+
+    this.db.prepare(`
+      INSERT INTO schema_versions(
+        name,
+        version,
+        updated_at
+      )
+      VALUES(
+        'biological-cutover',
+        1,
+        ?
+      )
+      ON CONFLICT(name)
+      DO UPDATE SET
+        version=excluded.version,
+        updated_at=excluded.updated_at
+    `).run(
+      new Date().toISOString()
+    );
+
+    const biologicalRouteSchemaVersion =
+      Number(
+        this.db.prepare(
+          "SELECT version FROM schema_versions WHERE name='biological-routes'"
+        ).get()?.version || 0
+      );
+
+    if (
+      biologicalRouteSchemaVersion >
+      1
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological route schema is newer than this runtime supports'
+        ),
+        {
+          code:
+            'STATE_BIOLOGICAL_ROUTE_SCHEMA_UNSUPPORTED'
+        }
+      );
+    }
+
+    this.db.prepare(`
+      INSERT INTO schema_versions(
+        name,
+        version,
+        updated_at
+      )
+      VALUES(
+        'biological-routes',
+        1,
+        ?
+      )
+      ON CONFLICT(name)
+      DO UPDATE SET
+        version=excluded.version,
+        updated_at=excluded.updated_at
+    `).run(
+      new Date().toISOString()
+    );
 
     await this.importLegacyMetadata();
     await this.reconcileMetadataMirrors();
@@ -4395,6 +4774,1834 @@ class StateStore {
   }
 
 
+
+  biologicalRouteTransitionFromRow(
+    row
+  ) {
+    if (!row) {
+      return null;
+    }
+
+    const transition = {
+      routeId:
+        row.route_id,
+
+      transitionSequence:
+        Number(
+          row.transition_sequence
+        ),
+
+      transitionId:
+        row.transition_id,
+
+      fromState:
+        row.from_state ||
+        null,
+
+      toState:
+        row.to_state,
+
+      authorityEpoch:
+        Number(
+          row.authority_epoch
+        ),
+
+      activeFromUs:
+        Number(
+          row.active_from_us
+        ),
+
+      routeBarrierUs:
+        row.route_barrier_us == null
+          ? null
+          : Number(
+              row.route_barrier_us
+            ),
+
+      gapFromUs:
+        row.gap_from_us == null
+          ? null
+          : Number(
+              row.gap_from_us
+            ),
+
+      gapThroughUs:
+        row.gap_through_us == null
+          ? null
+          : Number(
+              row.gap_through_us
+            ),
+
+      reason:
+        row.reason
+    };
+
+    const body =
+      biologicalRouteTransitionBody(
+        transition
+      );
+
+    const expectedId =
+      `sha256:${sha256(
+        stableStringify(
+          body
+        )
+      )}`;
+
+    const expectedHash =
+      sha256(
+        stableStringify({
+          ...body,
+          transitionId:
+            expectedId
+        })
+      );
+
+    if (
+      transition.transitionId !==
+        expectedId ||
+      row.transition_sha256 !==
+        expectedHash
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological route transition ${transition.routeId}/${transition.transitionSequence} is corrupt`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_CORRUPT'
+        }
+      );
+    }
+
+    return Object.freeze(
+      transition
+    );
+  }
+
+
+  biologicalRouteBoundaryAckFromRow(
+    row
+  ) {
+    if (!row) {
+      return null;
+    }
+
+    const ack = {
+      routeId:
+        row.route_id,
+
+      transitionSequence:
+        Number(
+          row.transition_sequence
+        ),
+
+      ackId:
+        row.ack_id,
+
+      consumerId:
+        row.consumer_id,
+
+      boundaryState:
+        row.boundary_state,
+
+      routeBarrierUs:
+        Number(
+          row.route_barrier_us
+        ),
+
+      committedThroughUs:
+        Number(
+          row.committed_through_us
+        ),
+
+      checkpointHash:
+        row.checkpoint_hash,
+
+      transitionId:
+        row.transition_id,
+
+      semantics:
+        row.semantics,
+
+      createdAt:
+        row.created_at
+    };
+
+    const body =
+      biologicalRouteBoundaryAckBody(
+        ack
+      );
+
+    const expectedId =
+      `sha256:${sha256(
+        stableStringify(
+          body
+        )
+      )}`;
+
+    const expectedHash =
+      sha256(
+        stableStringify({
+          ...body,
+          ackId:
+            expectedId
+        })
+      );
+
+    if (
+      ack.ackId !==
+        expectedId ||
+      row.ack_sha256 !==
+        expectedHash
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological route boundary acknowledgement ${ack.routeId}/${ack.transitionSequence} is corrupt`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_CORRUPT'
+        }
+      );
+    }
+
+    return Object.freeze(
+      ack
+    );
+  }
+
+
+  biologicalRouteFromRow(
+    row
+  ) {
+    if (!row) {
+      return null;
+    }
+
+    const route = {
+      routeId:
+        row.route_id,
+
+      organismId:
+        row.organism_id,
+
+      consumerId:
+        row.consumer_id,
+
+      producerCoreId:
+        row.producer_core_id,
+
+      producerStreamId:
+        row.producer_stream_id,
+
+      authorityEpoch:
+        Number(
+          row.authority_epoch
+        ),
+
+      required:
+        Boolean(
+          row.required
+        ),
+
+      state:
+        row.state,
+
+      activeFromUs:
+        Number(
+          row.active_from_us
+        ),
+
+      routeBarrierUs:
+        row.route_barrier_us == null
+          ? null
+          : Number(
+              row.route_barrier_us
+            ),
+
+      gapFromUs:
+        row.gap_from_us == null
+          ? null
+          : Number(
+              row.gap_from_us
+            ),
+
+      gapThroughUs:
+        row.gap_through_us == null
+          ? null
+          : Number(
+              row.gap_through_us
+            ),
+
+      transitionSequence:
+        Number(
+          row.transition_sequence
+        ),
+
+      lastTransitionId:
+        row.last_transition_id,
+
+      registeredAt:
+        row.registered_at,
+
+      updatedAt:
+        row.updated_at
+    };
+
+    if (
+      !BIOLOGICAL_ROUTE_STATE_SET.has(
+        route.state
+      ) ||
+      sha256(
+        stableStringify(
+          biologicalRouteHeadBody(
+            route
+          )
+        )
+      ) !==
+        row.head_sha256
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological route ${route.routeId} head is corrupt`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_CORRUPT'
+        }
+      );
+    }
+
+    const transitionRow =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_route_transitions
+        WHERE
+          route_id=? AND
+          transition_sequence=?
+      `).get(
+        route.routeId,
+        route.transitionSequence
+      );
+
+    const transition =
+      this.biologicalRouteTransitionFromRow(
+        transitionRow
+      );
+
+    if (
+      !transition ||
+      transition.transitionId !==
+        route.lastTransitionId ||
+      transition.toState !==
+        route.state ||
+      transition.authorityEpoch !==
+        route.authorityEpoch ||
+      transition.activeFromUs !==
+        route.activeFromUs ||
+      transition.routeBarrierUs !==
+        route.routeBarrierUs ||
+      transition.gapFromUs !==
+        route.gapFromUs ||
+      transition.gapThroughUs !==
+        route.gapThroughUs
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological route ${route.routeId} head disagrees with transition history`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_CORRUPT'
+        }
+      );
+    }
+
+    const ackRow =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_route_boundary_acks
+        WHERE
+          route_id=? AND
+          transition_sequence=?
+      `).get(
+        route.routeId,
+        route.transitionSequence
+      );
+
+    const boundaryAck =
+      ackRow
+        ? this.biologicalRouteBoundaryAckFromRow(
+            ackRow
+          )
+        : null;
+
+    if (
+      boundaryAck &&
+      (
+        boundaryAck.consumerId !==
+          route.consumerId ||
+        boundaryAck.boundaryState !==
+          route.state ||
+        boundaryAck.routeBarrierUs !==
+          route.routeBarrierUs
+      )
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological route ${route.routeId} acknowledgement disagrees with route boundary`
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_CORRUPT'
+        }
+      );
+    }
+
+    return Object.freeze({
+      ...route,
+      transition,
+      boundaryAck
+    });
+  }
+
+
+  getBiologicalRoute(
+    routeId
+  ) {
+    this.assertOpen();
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_routes
+        WHERE route_id=?
+      `).get(
+        routeId
+      );
+
+    return row
+      ? this.biologicalRouteFromRow(
+          row
+        )
+      : null;
+  }
+
+
+  listBiologicalRoutes({
+    consumerId = null,
+    required = null,
+    state = null
+  } = {}) {
+    this.assertOpen();
+
+    if (
+      state != null &&
+      !BIOLOGICAL_ROUTE_STATE_SET.has(
+        state
+      )
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological route state filter is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_QUERY'
+        }
+      );
+    }
+
+    const clauses = [];
+    const args = [];
+
+    if (
+      consumerId != null
+    ) {
+      clauses.push(
+        'consumer_id=?'
+      );
+      args.push(
+        consumerId
+      );
+    }
+
+    if (
+      required != null
+    ) {
+      clauses.push(
+        'required=?'
+      );
+      args.push(
+        required
+          ? 1
+          : 0
+      );
+    }
+
+    if (
+      state != null
+    ) {
+      clauses.push(
+        'state=?'
+      );
+      args.push(
+        state
+      );
+    }
+
+    const where =
+      clauses.length
+        ? `WHERE ${clauses.join(' AND ')}`
+        : '';
+
+    return this.db.prepare(`
+      SELECT *
+      FROM biological_routes
+      ${where}
+      ORDER BY route_id ASC
+    `).all(
+      ...args
+    ).map(
+      row =>
+        this.biologicalRouteFromRow(
+          row
+        )
+    );
+  }
+
+
+  registerBiologicalRoute({
+    routeId,
+    organismId,
+    consumerId,
+    producerCoreId,
+    producerStreamId,
+    authorityEpoch,
+    required = true,
+    activeFromUs = 0,
+    reason = 'route.registered'
+  }) {
+    this.assertOpen();
+
+    const epoch =
+      Number(
+        authorityEpoch
+      );
+
+    const activeFrom =
+      Number(
+        activeFromUs
+      );
+
+    if (
+      typeof routeId !==
+        'string' ||
+      !routeId ||
+      routeId.length >
+        200 ||
+      typeof organismId !==
+        'string' ||
+      !organismId ||
+      typeof consumerId !==
+        'string' ||
+      !consumerId ||
+      typeof producerCoreId !==
+        'string' ||
+      !producerCoreId ||
+      typeof producerStreamId !==
+        'string' ||
+      !producerStreamId ||
+      producerStreamId.length >
+        200 ||
+      !Number.isSafeInteger(
+        epoch
+      ) ||
+      epoch < 1 ||
+      !Number.isSafeInteger(
+        activeFrom
+      ) ||
+      activeFrom < 0 ||
+      typeof reason !==
+        'string' ||
+      !reason ||
+      reason.length >
+        256
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological route registration is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_INVALID'
+        }
+      );
+    }
+
+    const consumer =
+      this.getBiologicalConsumer(
+        consumerId
+      );
+
+    if (!consumer) {
+      throw Object.assign(
+        new Error(
+          'biological route consumer is not registered'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_CONSUMER'
+        }
+      );
+    }
+
+    const existing =
+      this.getBiologicalRoute(
+        routeId
+      );
+
+    if (
+      existing
+    ) {
+      if (
+        existing.organismId ===
+          organismId &&
+        existing.consumerId ===
+          consumerId &&
+        existing.producerCoreId ===
+          producerCoreId &&
+        existing.producerStreamId ===
+          producerStreamId &&
+        existing.authorityEpoch ===
+          epoch &&
+        existing.required ===
+          Boolean(required) &&
+        existing.state ===
+          'ACTIVE' &&
+        existing.activeFromUs ===
+          activeFrom
+      ) {
+        return existing;
+      }
+
+      throw Object.assign(
+        new Error(
+          'biological route identity was reused with different anatomy'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_CONFLICT'
+        }
+      );
+    }
+
+    const transition = {
+      routeId,
+      transitionSequence:
+        1,
+      fromState:
+        null,
+      toState:
+        'ACTIVE',
+      authorityEpoch:
+        epoch,
+      activeFromUs:
+        activeFrom,
+      routeBarrierUs:
+        null,
+      gapFromUs:
+        null,
+      gapThroughUs:
+        null,
+      reason
+    };
+
+    const transitionBody =
+      biologicalRouteTransitionBody(
+        transition
+      );
+
+    const transitionId =
+      `sha256:${sha256(
+        stableStringify(
+          transitionBody
+        )
+      )}`;
+
+    const transitionHash =
+      sha256(
+        stableStringify({
+          ...transitionBody,
+          transitionId
+        })
+      );
+
+    const head = {
+      routeId,
+      organismId,
+      consumerId,
+      producerCoreId,
+      producerStreamId,
+      authorityEpoch:
+        epoch,
+      required:
+        Boolean(required),
+      state:
+        'ACTIVE',
+      activeFromUs:
+        activeFrom,
+      routeBarrierUs:
+        null,
+      gapFromUs:
+        null,
+      gapThroughUs:
+        null,
+      transitionSequence:
+        1,
+      lastTransitionId:
+        transitionId
+    };
+
+    const headHash =
+      sha256(
+        stableStringify(
+          biologicalRouteHeadBody(
+            head
+          )
+        )
+      );
+
+    const at =
+      new Date().toISOString();
+
+    this.withTransaction(
+      () => {
+        this.db.prepare(`
+          INSERT INTO biological_routes(
+            route_id,
+            organism_id,
+            consumer_id,
+            producer_core_id,
+            producer_stream_id,
+            authority_epoch,
+            required,
+            state,
+            active_from_us,
+            route_barrier_us,
+            gap_from_us,
+            gap_through_us,
+            transition_sequence,
+            last_transition_id,
+            head_sha256,
+            registered_at,
+            updated_at
+          )
+          VALUES(
+            ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, NULL, NULL, NULL, 1, ?, ?, ?, ?
+          )
+        `).run(
+          routeId,
+          organismId,
+          consumerId,
+          producerCoreId,
+          producerStreamId,
+          epoch,
+          required
+            ? 1
+            : 0,
+          activeFrom,
+          transitionId,
+          headHash,
+          at,
+          at
+        );
+
+        this.db.prepare(`
+          INSERT INTO biological_route_transitions(
+            route_id,
+            transition_sequence,
+            transition_id,
+            from_state,
+            to_state,
+            authority_epoch,
+            active_from_us,
+            route_barrier_us,
+            gap_from_us,
+            gap_through_us,
+            reason,
+            transition_sha256,
+            created_at
+          )
+          VALUES(
+            ?, 1, ?, NULL, 'ACTIVE', ?, ?, NULL, NULL, NULL, ?, ?, ?
+          )
+        `).run(
+          routeId,
+          transitionId,
+          epoch,
+          activeFrom,
+          reason,
+          transitionHash,
+          at
+        );
+      }
+    );
+
+    this.markWriteSuccess();
+
+    return this.getBiologicalRoute(
+      routeId
+    );
+  }
+
+
+  transitionBiologicalRoute({
+    routeId,
+    toState,
+    routeBarrierUs = null,
+    gapFromUs = null,
+    gapThroughUs = null,
+    activeFromUs = null,
+    authorityEpoch = null,
+    reason = 'route.transition'
+  }) {
+    this.assertOpen();
+
+    if (
+      !BIOLOGICAL_ROUTE_STATE_SET.has(
+        toState
+      ) ||
+      typeof reason !==
+        'string' ||
+      !reason ||
+      reason.length >
+        256
+    ) {
+      throw Object.assign(
+        new Error(
+          'biological route transition is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_ROUTE_TRANSITION'
+        }
+      );
+    }
+
+    const result = this.withTransaction(
+      () => {
+        const current =
+          this.getBiologicalRoute(
+            routeId
+          );
+
+        if (!current) {
+          throw Object.assign(
+            new Error(
+              'unknown biological route'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_UNKNOWN'
+            }
+          );
+        }
+
+        if (
+          current.state ===
+            'RETIRED'
+        ) {
+          throw Object.assign(
+            new Error(
+              'retired biological route is terminal'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_RETIRED'
+            }
+          );
+        }
+
+        if (
+          current.state ===
+            toState
+        ) {
+          throw Object.assign(
+            new Error(
+              'biological route transition does not change state'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_TRANSITION'
+            }
+          );
+        }
+
+        let nextEpoch =
+          current.authorityEpoch;
+
+        let nextActiveFrom =
+          current.activeFromUs;
+
+        let nextBarrier =
+          null;
+
+        let nextGapFrom =
+          null;
+
+        let nextGapThrough =
+          null;
+
+        if (
+          toState ===
+            'ACTIVE'
+        ) {
+          if (
+            ![
+              'DEGRADED',
+              'EVIDENCE_GAP'
+            ].includes(
+              current.state
+            )
+          ) {
+            throw Object.assign(
+              new Error(
+                'only a degraded or evidence-gap route may reactivate'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_REACTIVATION'
+              }
+            );
+          }
+
+          const ack =
+            current.boundaryAck;
+
+          if (!ack) {
+            throw Object.assign(
+              new Error(
+                'route cannot reactivate before consumer boundary acknowledgement'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_BOUNDARY_UNACKNOWLEDGED'
+              }
+            );
+          }
+
+          nextActiveFrom =
+            Number(
+              activeFromUs
+            );
+
+          nextEpoch =
+            authorityEpoch == null
+              ? current.authorityEpoch
+              : Number(
+                  authorityEpoch
+                );
+
+          if (
+            !Number.isSafeInteger(
+              nextActiveFrom
+            ) ||
+            nextActiveFrom <=
+              ack.committedThroughUs ||
+            !Number.isSafeInteger(
+              nextEpoch
+            ) ||
+            nextEpoch <
+              current.authorityEpoch
+          ) {
+            throw Object.assign(
+              new Error(
+                'route reactivation must begin beyond committed degraded history without authority rewind'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_REACTIVATION'
+              }
+            );
+          }
+
+        } else if (
+          toState ===
+            'DEGRADED'
+        ) {
+          if (
+            current.state !==
+              'ACTIVE'
+          ) {
+            throw Object.assign(
+              new Error(
+                'only an active route may enter degraded state'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_TRANSITION'
+              }
+            );
+          }
+
+          nextBarrier =
+            Number(
+              routeBarrierUs
+            );
+
+          if (
+            !Number.isSafeInteger(
+              nextBarrier
+            ) ||
+            nextBarrier <
+              current.activeFromUs
+          ) {
+            throw Object.assign(
+              new Error(
+                'degraded route requires a complete non-rewinding barrier'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_BARRIER'
+              }
+            );
+          }
+
+        } else if (
+          toState ===
+            'EVIDENCE_GAP'
+        ) {
+          if (
+            current.state !==
+              'ACTIVE'
+          ) {
+            throw Object.assign(
+              new Error(
+                'only an active route may enter evidence-gap state'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_TRANSITION'
+              }
+            );
+          }
+
+          nextBarrier =
+            Number(
+              routeBarrierUs
+            );
+
+          nextGapFrom =
+            Number(
+              gapFromUs
+            );
+
+          nextGapThrough =
+            Number(
+              gapThroughUs
+            );
+
+          if (
+            !Number.isSafeInteger(
+              nextBarrier
+            ) ||
+            nextBarrier <
+              current.activeFromUs ||
+            !Number.isSafeInteger(
+              nextGapFrom
+            ) ||
+            nextGapFrom <=
+              nextBarrier ||
+            !Number.isSafeInteger(
+              nextGapThrough
+            ) ||
+            nextGapThrough <
+              nextGapFrom
+          ) {
+            throw Object.assign(
+              new Error(
+                'evidence-gap route requires an exact missing interval beyond its complete barrier'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_EVIDENCE_GAP'
+              }
+            );
+          }
+
+        } else if (
+          toState ===
+            'CLOSED'
+        ) {
+          if (
+            current.state !==
+              'ACTIVE'
+          ) {
+            throw Object.assign(
+              new Error(
+                'only an active route may close with a final complete boundary'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_TRANSITION'
+              }
+            );
+          }
+
+          nextBarrier =
+            Number(
+              routeBarrierUs
+            );
+
+          if (
+            !Number.isSafeInteger(
+              nextBarrier
+            ) ||
+            nextBarrier <
+              current.activeFromUs
+          ) {
+            throw Object.assign(
+              new Error(
+                'closed route requires a final non-rewinding complete boundary'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_BARRIER'
+              }
+            );
+          }
+
+        } else if (
+          toState ===
+            'RETIRED'
+        ) {
+          if (
+            current.state !==
+              'CLOSED' ||
+            !current.boundaryAck
+          ) {
+            throw Object.assign(
+              new Error(
+                'route may retire only after a closed boundary is durably acknowledged'
+              ),
+              {
+                code:
+                  'BIOLOGICAL_ROUTE_RETIREMENT'
+              }
+            );
+          }
+
+          nextBarrier =
+            current.routeBarrierUs;
+        }
+
+        const transitionSequence =
+          current.transitionSequence +
+          1;
+
+        const transition = {
+          routeId:
+            current.routeId,
+
+          transitionSequence,
+
+          fromState:
+            current.state,
+
+          toState,
+
+          authorityEpoch:
+            nextEpoch,
+
+          activeFromUs:
+            nextActiveFrom,
+
+          routeBarrierUs:
+            nextBarrier,
+
+          gapFromUs:
+            nextGapFrom,
+
+          gapThroughUs:
+            nextGapThrough,
+
+          reason
+        };
+
+        const transitionBody =
+          biologicalRouteTransitionBody(
+            transition
+          );
+
+        const transitionId =
+          `sha256:${sha256(
+            stableStringify(
+              transitionBody
+            )
+          )}`;
+
+        const transitionHash =
+          sha256(
+            stableStringify({
+              ...transitionBody,
+              transitionId
+            })
+          );
+
+        const nextHead = {
+          routeId:
+            current.routeId,
+
+          organismId:
+            current.organismId,
+
+          consumerId:
+            current.consumerId,
+
+          producerCoreId:
+            current.producerCoreId,
+
+          producerStreamId:
+            current.producerStreamId,
+
+          authorityEpoch:
+            nextEpoch,
+
+          required:
+            current.required,
+
+          state:
+            toState,
+
+          activeFromUs:
+            nextActiveFrom,
+
+          routeBarrierUs:
+            nextBarrier,
+
+          gapFromUs:
+            nextGapFrom,
+
+          gapThroughUs:
+            nextGapThrough,
+
+          transitionSequence,
+
+          lastTransitionId:
+            transitionId
+        };
+
+        const headHash =
+          sha256(
+            stableStringify(
+              biologicalRouteHeadBody(
+                nextHead
+              )
+            )
+          );
+
+        const at =
+          new Date().toISOString();
+
+        this.db.prepare(`
+          INSERT INTO biological_route_transitions(
+            route_id,
+            transition_sequence,
+            transition_id,
+            from_state,
+            to_state,
+            authority_epoch,
+            active_from_us,
+            route_barrier_us,
+            gap_from_us,
+            gap_through_us,
+            reason,
+            transition_sha256,
+            created_at
+          )
+          VALUES(
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          )
+        `).run(
+          transition.routeId,
+          transition.transitionSequence,
+          transitionId,
+          transition.fromState,
+          transition.toState,
+          transition.authorityEpoch,
+          transition.activeFromUs,
+          transition.routeBarrierUs,
+          transition.gapFromUs,
+          transition.gapThroughUs,
+          transition.reason,
+          transitionHash,
+          at
+        );
+
+        const updated =
+          this.db.prepare(`
+            UPDATE biological_routes
+            SET
+              authority_epoch=?,
+              state=?,
+              active_from_us=?,
+              route_barrier_us=?,
+              gap_from_us=?,
+              gap_through_us=?,
+              transition_sequence=?,
+              last_transition_id=?,
+              head_sha256=?,
+              updated_at=?
+            WHERE
+              route_id=? AND
+              transition_sequence=? AND
+              last_transition_id=?
+          `).run(
+            nextHead.authorityEpoch,
+            nextHead.state,
+            nextHead.activeFromUs,
+            nextHead.routeBarrierUs,
+            nextHead.gapFromUs,
+            nextHead.gapThroughUs,
+            nextHead.transitionSequence,
+            nextHead.lastTransitionId,
+            headHash,
+            at,
+            current.routeId,
+            current.transitionSequence,
+            current.lastTransitionId
+          );
+
+        if (
+          updated.changes !==
+            1
+        ) {
+          throw Object.assign(
+            new Error(
+              'biological route transition compare-and-swap failed'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_CONFLICT'
+            }
+          );
+        }
+
+        return this.getBiologicalRoute(
+          routeId
+        );
+      }
+    );
+
+    this.markWriteSuccess();
+
+    return result;
+  }
+
+
+  acknowledgeBiologicalRouteBoundary({
+    routeId,
+    checkpointHash,
+    transitionId,
+    committedThroughUs,
+    semantics
+  }) {
+    this.assertOpen();
+
+    const result = this.withTransaction(
+      () => {
+        const route =
+          this.getBiologicalRoute(
+            routeId
+          );
+
+        if (!route) {
+          throw Object.assign(
+            new Error(
+              'unknown biological route'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_UNKNOWN'
+            }
+          );
+        }
+
+        if (
+          ![
+            'DEGRADED',
+            'EVIDENCE_GAP',
+            'CLOSED'
+          ].includes(
+            route.state
+          ) ||
+          route.routeBarrierUs ==
+            null
+        ) {
+          throw Object.assign(
+            new Error(
+              'biological route has no acknowledgeable boundary'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_BOUNDARY'
+            }
+          );
+        }
+
+        const expectedSemantics =
+          route.state ===
+            'CLOSED'
+            ? 'COMPLETE_END'
+            : 'UNKNOWN_INPUT';
+
+        if (
+          semantics !==
+            expectedSemantics
+        ) {
+          throw Object.assign(
+            new Error(
+              'route boundary acknowledgement semantics do not match route state'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_BOUNDARY_SEMANTICS'
+            }
+          );
+        }
+
+        if (
+          route.boundaryAck
+        ) {
+          if (
+            route.boundaryAck.checkpointHash ===
+              checkpointHash &&
+            route.boundaryAck.transitionId ===
+              transitionId &&
+            route.boundaryAck.committedThroughUs ===
+              Number(
+                committedThroughUs
+              ) &&
+            route.boundaryAck.semantics ===
+              semantics
+          ) {
+            return route.boundaryAck;
+          }
+
+          throw Object.assign(
+            new Error(
+              'route boundary was already acknowledged with different committed evidence'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_BOUNDARY_CONFLICT'
+            }
+          );
+        }
+
+        const committedThrough =
+          Number(
+            committedThroughUs
+          );
+
+        const requiredThrough =
+          route.state ===
+            'EVIDENCE_GAP'
+            ? route.gapThroughUs
+            : route.routeBarrierUs;
+
+        if (
+          !Number.isSafeInteger(
+            committedThrough
+          ) ||
+          committedThrough <
+            requiredThrough ||
+          typeof checkpointHash !==
+            'string' ||
+          !/^[0-9a-f]{64}$/.test(
+            checkpointHash
+          ) ||
+          typeof transitionId !==
+            'string' ||
+          !transitionId ||
+          transitionId.length >
+            256
+        ) {
+          throw Object.assign(
+            new Error(
+              'route boundary acknowledgement is invalid or precedes the unavailable interval'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_BOUNDARY_ACK'
+            }
+          );
+        }
+
+        const consumer =
+          this.getBiologicalConsumer(
+            route.consumerId
+          );
+
+        if (!consumer) {
+          throw Object.assign(
+            new Error(
+              'route consumer disappeared before boundary acknowledgement'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_CONSUMER'
+            }
+          );
+        }
+
+        const checkpoint =
+          this.db.prepare(`
+            SELECT checkpoint_id
+            FROM checkpoints
+            WHERE
+              core_id=? AND
+              blob_hash=?
+            LIMIT 1
+          `).get(
+            consumer.coreId,
+            checkpointHash
+          );
+
+        if (!checkpoint) {
+          throw Object.assign(
+            new Error(
+              'route boundary acknowledgement is not bound to a durable consumer checkpoint'
+            ),
+            {
+              code:
+                'BIOLOGICAL_ROUTE_BOUNDARY_CHECKPOINT'
+            }
+          );
+        }
+
+        const ack = {
+          routeId:
+            route.routeId,
+
+          transitionSequence:
+            route.transitionSequence,
+
+          consumerId:
+            route.consumerId,
+
+          boundaryState:
+            route.state,
+
+          routeBarrierUs:
+            route.routeBarrierUs,
+
+          committedThroughUs:
+            committedThrough,
+
+          checkpointHash,
+
+          transitionId,
+
+          semantics
+        };
+
+        const body =
+          biologicalRouteBoundaryAckBody(
+            ack
+          );
+
+        const ackId =
+          `sha256:${sha256(
+            stableStringify(
+              body
+            )
+          )}`;
+
+        const ackHash =
+          sha256(
+            stableStringify({
+              ...body,
+              ackId
+            })
+          );
+
+        const at =
+          new Date().toISOString();
+
+        this.db.prepare(`
+          INSERT INTO biological_route_boundary_acks(
+            route_id,
+            transition_sequence,
+            ack_id,
+            consumer_id,
+            boundary_state,
+            route_barrier_us,
+            committed_through_us,
+            checkpoint_hash,
+            transition_id,
+            semantics,
+            ack_sha256,
+            created_at
+          )
+          VALUES(
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          )
+        `).run(
+          ack.routeId,
+          ack.transitionSequence,
+          ackId,
+          ack.consumerId,
+          ack.boundaryState,
+          ack.routeBarrierUs,
+          ack.committedThroughUs,
+          ack.checkpointHash,
+          ack.transitionId,
+          ack.semantics,
+          ackHash,
+          at
+        );
+
+        return this.biologicalRouteBoundaryAckFromRow(
+          this.db.prepare(`
+            SELECT *
+            FROM biological_route_boundary_acks
+            WHERE
+              route_id=? AND
+              transition_sequence=?
+          `).get(
+            route.routeId,
+            route.transitionSequence
+          )
+        );
+      }
+    );
+
+    this.markWriteSuccess();
+
+    return result;
+  }
+
+
+  computeBiologicalSafeCompletenessFrontier({
+    consumerId
+  }) {
+    this.assertOpen();
+
+    const consumer =
+      this.getBiologicalConsumer(
+        consumerId
+      );
+
+    if (!consumer) {
+      throw Object.assign(
+        new Error(
+          'unknown biological consumer'
+        ),
+        {
+          code:
+            'BIOLOGICAL_CONSUMER_UNKNOWN'
+        }
+      );
+    }
+
+    const routes =
+      this.listBiologicalRoutes({
+        consumerId,
+        required:
+          true
+      }).filter(
+        route =>
+          route.state !==
+            'RETIRED'
+      );
+
+    const active = [];
+    const blockers = [];
+    const released = [];
+
+    for (
+      const route of routes
+    ) {
+      if (
+        route.state ===
+          'ACTIVE'
+      ) {
+        const progress =
+          this.getBiologicalStreamProgress({
+            organismId:
+              route.organismId,
+
+            producerStreamId:
+              route.producerStreamId,
+
+            authorityEpoch:
+              route.authorityEpoch
+          });
+
+        if (
+          !progress ||
+          progress.finalizedThroughUs <
+            route.activeFromUs
+        ) {
+          blockers.push(
+            Object.freeze({
+              routeId:
+                route.routeId,
+
+              state:
+                route.state,
+
+              reason:
+                'STREAM_PROGRESS_INCOMPLETE',
+
+              routeBarrierUs:
+                null
+            })
+          );
+
+          continue;
+        }
+
+        active.push(
+          Object.freeze({
+            routeId:
+              route.routeId,
+
+            frontierUs:
+              progress.finalizedThroughUs,
+
+            progressId:
+              progress.progressId
+          })
+        );
+
+        continue;
+      }
+
+      if (
+        [
+          'DEGRADED',
+          'EVIDENCE_GAP',
+          'CLOSED'
+        ].includes(
+          route.state
+        )
+      ) {
+        if (
+          !route.boundaryAck
+        ) {
+          blockers.push(
+            Object.freeze({
+              routeId:
+                route.routeId,
+
+              state:
+                route.state,
+
+              reason:
+                'ROUTE_BOUNDARY_UNACKNOWLEDGED',
+
+              routeBarrierUs:
+                route.routeBarrierUs
+            })
+          );
+
+        } else {
+          released.push(
+            Object.freeze({
+              routeId:
+                route.routeId,
+
+              state:
+                route.state,
+
+              routeBarrierUs:
+                route.routeBarrierUs,
+
+              committedThroughUs:
+                route.boundaryAck.committedThroughUs,
+
+              semantics:
+                route.boundaryAck.semantics
+            })
+          );
+        }
+      }
+    }
+
+    const missingProgress =
+      blockers.some(
+        blocker =>
+          blocker.reason ===
+            'STREAM_PROGRESS_INCOMPLETE'
+      );
+
+    if (
+      missingProgress
+    ) {
+      return Object.freeze({
+        consumerId,
+        complete:
+          false,
+        unconstrained:
+          false,
+        frontierUs:
+          null,
+        activeRoutes:
+          Object.freeze(active),
+        blockers:
+          Object.freeze(blockers),
+        releasedRoutes:
+          Object.freeze(released)
+      });
+    }
+
+    const frontierCandidates = [
+      ...active.map(
+        value =>
+          value.frontierUs
+      ),
+      ...blockers
+        .filter(
+          blocker =>
+            blocker.routeBarrierUs !=
+              null
+        )
+        .map(
+          blocker =>
+            blocker.routeBarrierUs
+        )
+    ];
+
+    const frontierUs =
+      frontierCandidates.length
+        ? Math.min(
+            ...frontierCandidates
+          )
+        : null;
+
+    return Object.freeze({
+      consumerId,
+      complete:
+        blockers.length ===
+        0,
+      unconstrained:
+        frontierCandidates.length ===
+        0,
+      frontierUs,
+      activeRoutes:
+        Object.freeze(active),
+      blockers:
+        Object.freeze(blockers),
+      releasedRoutes:
+        Object.freeze(released)
+    });
+  }
+
+
   biologicalEventFromRow(row, deduplicated = false) {
     const envelope = JSON.parse(row.envelope_json);
     if (sha256(stableStringify(envelope)) !== row.envelope_sha256) {
@@ -6015,6 +8222,554 @@ class StateStore {
     );
   }
 
+
+  biologicalCutoverSpoolFromRow(
+    row
+  ) {
+    if (!row) {
+      return null;
+    }
+
+    const spool = {
+      transactionId:
+        row.transaction_id,
+
+      producerEventId:
+        row.producer_event_id,
+
+      producerCoreId:
+        row.producer_core_id,
+
+      producerInstanceId:
+        row.producer_instance_id,
+
+      producerVersion:
+        row.producer_version,
+
+      fromAuthorityEpoch:
+        Number(
+          row.from_authority_epoch
+        ),
+
+      toAuthorityEpoch:
+        Number(
+          row.to_authority_epoch
+        ),
+
+      barrierSequence:
+        Number(
+          row.barrier_sequence
+        ),
+
+      producerStreamId:
+        row.producer_stream_id,
+
+      streamSequence:
+        Number(
+          row.stream_sequence
+        ),
+
+      proposalHash:
+        row.proposal_sha256,
+
+      intentHash:
+        row.intent_sha256,
+
+      status:
+        row.status,
+
+      fabricSequence:
+        row.fabric_sequence == null
+          ? null
+          : Number(
+              row.fabric_sequence
+            ),
+
+      fabricEventId:
+        row.fabric_event_id ||
+        null,
+
+      spooledAt:
+        row.spooled_at,
+
+      acceptedAt:
+        row.accepted_at ||
+        null
+    };
+
+    const body =
+      biologicalCutoverSpoolBody(
+        spool
+      );
+
+    if (
+      sha256(
+        stableStringify(
+          body
+        )
+      ) !==
+        row.spool_sha256
+    ) {
+      throw Object.assign(
+        new Error(
+          `biological cutover spool ${spool.producerEventId} is corrupt`
+        ),
+        {
+          code:
+            'BIOLOGICAL_CUTOVER_SPOOL_CORRUPT'
+        }
+      );
+    }
+
+    const intent =
+      this.getBiologicalOutboxIntent(
+        spool.producerEventId
+      );
+
+    if (
+      !intent ||
+      intent.producerCoreId !==
+        spool.producerCoreId ||
+      intent.producerInstanceId !==
+        spool.producerInstanceId ||
+      intent.producerVersion !==
+        spool.producerVersion ||
+      intent.authorityEpoch !==
+        spool.fromAuthorityEpoch ||
+      intent.producerStreamId !==
+        spool.producerStreamId ||
+      intent.streamSequence !==
+        spool.streamSequence ||
+      intent.proposalHash !==
+        spool.proposalHash ||
+      intent.intentHash !==
+        spool.intentHash
+    ) {
+      throw Object.assign(
+        new Error(
+          'cutover spool disagrees with immutable producer outbox intent'
+        ),
+        {
+          code:
+            'BIOLOGICAL_CUTOVER_SPOOL_CORRUPT'
+        }
+      );
+    }
+
+    if (
+      spool.status ===
+        'ACCEPTED' &&
+      (
+        intent.status !==
+          'PUBLISHED' ||
+        intent.fabricSequence !==
+          spool.fabricSequence ||
+        intent.fabricEventId !==
+          spool.fabricEventId
+      )
+    ) {
+      throw Object.assign(
+        new Error(
+          'accepted cutover spool disagrees with durable Fabric publication'
+        ),
+        {
+          code:
+            'BIOLOGICAL_CUTOVER_SPOOL_CORRUPT'
+        }
+      );
+    }
+
+    if (
+      spool.status ===
+        'SPOOLED' &&
+      intent.status !==
+        'PENDING'
+    ) {
+      throw Object.assign(
+        new Error(
+          'pending cutover spool disagrees with producer outbox status'
+        ),
+        {
+          code:
+            'BIOLOGICAL_CUTOVER_SPOOL_CORRUPT'
+        }
+      );
+    }
+
+    return Object.freeze(
+      spool
+    );
+  }
+
+
+  getBiologicalCutoverSpoolIntent(
+    producerEventId
+  ) {
+    this.assertOpen();
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_cutover_spool
+        WHERE producer_event_id=?
+      `).get(
+        producerEventId
+      );
+
+    return row
+      ? this.biologicalCutoverSpoolFromRow(
+          row
+        )
+      : null;
+  }
+
+
+  listBiologicalCutoverSpool({
+    producerCoreId = null,
+    status = null
+  } = {}) {
+    this.assertOpen();
+
+    if (
+      status != null &&
+      ![
+        'SPOOLED',
+        'ACCEPTED'
+      ].includes(
+        status
+      )
+    ) {
+      throw Object.assign(
+        new Error(
+          'cutover spool status filter is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_CUTOVER_SPOOL_QUERY'
+        }
+      );
+    }
+
+    const clauses = [];
+    const args = [];
+
+    if (
+      producerCoreId != null
+    ) {
+      clauses.push(
+        'producer_core_id=?'
+      );
+      args.push(
+        producerCoreId
+      );
+    }
+
+    if (
+      status != null
+    ) {
+      clauses.push(
+        'status=?'
+      );
+      args.push(
+        status
+      );
+    }
+
+    const where =
+      clauses.length
+        ? `WHERE ${clauses.join(' AND ')}`
+        : '';
+
+    return this.db.prepare(`
+      SELECT *
+      FROM biological_cutover_spool
+      ${where}
+      ORDER BY
+        from_authority_epoch ASC,
+        producer_stream_id ASC,
+        stream_sequence ASC
+    `).all(
+      ...args
+    ).map(
+      row =>
+        this.biologicalCutoverSpoolFromRow(
+          row
+        )
+    );
+  }
+
+
+  listDrainableBiologicalOutboxIntents({
+    producerCoreId,
+    currentAuthorityEpoch,
+    limit = 256
+  }) {
+    this.assertOpen();
+
+    const epoch =
+      Number(
+        currentAuthorityEpoch
+      );
+
+    if (
+      typeof producerCoreId !==
+        'string' ||
+      !producerCoreId ||
+      !Number.isSafeInteger(
+        epoch
+      ) ||
+      epoch < 1
+    ) {
+      throw Object.assign(
+        new Error(
+          'drainable biological outbox authority is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_DRAIN_AUTHORITY'
+        }
+      );
+    }
+
+    const future =
+      this.db.prepare(`
+        SELECT producer_event_id
+        FROM biological_outbox_intents
+        WHERE
+          producer_core_id=? AND
+          status='PENDING' AND
+          authority_epoch>?
+        LIMIT 1
+      `).get(
+        producerCoreId,
+        epoch
+      );
+
+    if (
+      future
+    ) {
+      throw Object.assign(
+        new Error(
+          'producer outbox contains a future authority epoch'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_FUTURE_AUTHORITY'
+        }
+      );
+    }
+
+    const orphan =
+      this.db.prepare(`
+        SELECT o.producer_event_id
+        FROM biological_outbox_intents o
+        LEFT JOIN biological_cutover_spool s
+          ON s.producer_event_id=o.producer_event_id
+        WHERE
+          o.producer_core_id=? AND
+          o.status='PENDING' AND
+          o.authority_epoch<? AND
+          (
+            s.producer_event_id IS NULL OR
+            s.status<>'SPOOLED'
+          )
+        LIMIT 1
+      `).get(
+        producerCoreId,
+        epoch
+      );
+
+    if (
+      orphan
+    ) {
+      throw Object.assign(
+        new Error(
+          'revoked authority has an unspooled pending biological output'
+        ),
+        {
+          code:
+            'BIOLOGICAL_CUTOVER_ORPHANED_OUTBOX',
+
+          producerEventId:
+            orphan.producer_event_id
+        }
+      );
+    }
+
+    const boundedLimit =
+      Math.max(
+        1,
+        Math.min(
+          1024,
+          Number(limit) ||
+          256
+        )
+      );
+
+    return this.db.prepare(`
+      SELECT o.*
+      FROM biological_outbox_intents o
+      LEFT JOIN biological_cutover_spool s
+        ON s.producer_event_id=o.producer_event_id
+      WHERE
+        o.producer_core_id=? AND
+        o.status='PENDING' AND
+        (
+          o.authority_epoch=? OR
+          (
+            o.authority_epoch<? AND
+            s.status='SPOOLED'
+          )
+        )
+      ORDER BY
+        o.authority_epoch ASC,
+        o.producer_stream_id ASC,
+        o.stream_sequence ASC
+      LIMIT ?
+    `).all(
+      producerCoreId,
+      epoch,
+      epoch,
+      boundedLimit
+    ).map(
+      row =>
+        this.biologicalOutboxIntentFromRow(
+          row
+        )
+    );
+  }
+
+
+  _spoolPendingBiologicalOutboxForUpgrade({
+    transactionId,
+    coreId,
+    fromEpoch,
+    toEpoch,
+    barrierSequence,
+    spooledAt
+  }) {
+    const rows =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_outbox_intents
+        WHERE
+          producer_core_id=? AND
+          authority_epoch=? AND
+          status='PENDING'
+        ORDER BY
+          producer_stream_id ASC,
+          stream_sequence ASC
+      `).all(
+        coreId,
+        fromEpoch
+      );
+
+    const digestEntries = [];
+
+    const insert =
+      this.db.prepare(`
+        INSERT INTO biological_cutover_spool(
+          producer_event_id,
+          transaction_id,
+          producer_core_id,
+          producer_instance_id,
+          producer_version,
+          from_authority_epoch,
+          to_authority_epoch,
+          barrier_sequence,
+          producer_stream_id,
+          stream_sequence,
+          proposal_sha256,
+          intent_sha256,
+          status,
+          spool_sha256,
+          spooled_at
+        )
+        VALUES(
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SPOOLED', ?, ?
+        )
+      `);
+
+    for (
+      const row of rows
+    ) {
+      const intent =
+        this.biologicalOutboxIntentFromRow(
+          row
+        );
+
+      const spool = {
+        transactionId,
+        producerEventId:
+          intent.producerEventId,
+        producerCoreId:
+          intent.producerCoreId,
+        producerInstanceId:
+          intent.producerInstanceId,
+        producerVersion:
+          intent.producerVersion,
+        fromAuthorityEpoch:
+          fromEpoch,
+        toAuthorityEpoch:
+          toEpoch,
+        barrierSequence,
+        producerStreamId:
+          intent.producerStreamId,
+        streamSequence:
+          intent.streamSequence,
+        proposalHash:
+          intent.proposalHash,
+        intentHash:
+          intent.intentHash
+      };
+
+      const spoolHash =
+        sha256(
+          stableStringify(
+            biologicalCutoverSpoolBody(
+              spool
+            )
+          )
+        );
+
+      insert.run(
+        spool.producerEventId,
+        spool.transactionId,
+        spool.producerCoreId,
+        spool.producerInstanceId,
+        spool.producerVersion,
+        spool.fromAuthorityEpoch,
+        spool.toAuthorityEpoch,
+        spool.barrierSequence,
+        spool.producerStreamId,
+        spool.streamSequence,
+        spool.proposalHash,
+        spool.intentHash,
+        spoolHash,
+        spooledAt
+      );
+
+      digestEntries.push({
+        producerEventId:
+          spool.producerEventId,
+        spoolHash
+      });
+    }
+
+    return {
+      count:
+        digestEntries.length,
+
+      digest:
+        sha256(
+          stableStringify(
+            digestEntries
+          )
+        )
+    };
+  }
+
+
   _commitBiologicalOutboxIntents({
     coreId,
     instanceId,
@@ -6797,6 +9552,83 @@ class StateStore {
           );
         }
 
+        /*
+         * If this obligation crossed an authority cutover,
+         * acceptance of the exact durable Fabric identity also
+         * resolves the Kernel-controlled spool entry in the same
+         * SQLite transaction as the outbox publication marker.
+         */
+        const spool =
+          this.db.prepare(`
+            SELECT *
+            FROM biological_cutover_spool
+            WHERE producer_event_id=?
+          `).get(
+            producerEventId
+          );
+
+        if (
+          spool
+        ) {
+          if (
+            spool.status ===
+              'ACCEPTED'
+          ) {
+            if (
+              Number(
+                spool.fabric_sequence
+              ) !==
+                sequence ||
+              spool.fabric_event_id !==
+                eventId
+            ) {
+              throw Object.assign(
+                new Error(
+                  'cutover spool was rebound to another Fabric identity'
+                ),
+                {
+                  code:
+                    'BIOLOGICAL_CUTOVER_SPOOL_CONFLICT'
+                }
+              );
+            }
+
+          } else {
+            const spoolUpdated =
+              this.db.prepare(`
+                UPDATE biological_cutover_spool
+                SET
+                  status='ACCEPTED',
+                  fabric_sequence=?,
+                  fabric_event_id=?,
+                  accepted_at=?
+                WHERE
+                  producer_event_id=? AND
+                  status='SPOOLED'
+              `).run(
+                sequence,
+                eventId,
+                publishedAt,
+                producerEventId
+              );
+
+            if (
+              spoolUpdated.changes !==
+              1
+            ) {
+              throw Object.assign(
+                new Error(
+                  'cutover spool lost pending publication identity'
+                ),
+                {
+                  code:
+                    'BIOLOGICAL_CUTOVER_SPOOL_CONFLICT'
+                }
+              );
+            }
+          }
+        }
+
         return this.getBiologicalOutboxIntent(
           producerEventId
         );
@@ -7262,33 +10094,304 @@ class StateStore {
 
   commitUpgrade(transactionId) {
     const at = new Date().toISOString();
+
     const result = this.withTransaction(() => {
-      const tx = this.db.prepare('SELECT * FROM upgrade_transactions WHERE transaction_id = ?').get(transactionId);
-      if (!tx || tx.status !== 'PREPARED') throw Object.assign(new Error('upgrade transaction is not prepared'), { code: 'UPGRADE_STATE' });
+      const tx = this.db.prepare(
+        'SELECT * FROM upgrade_transactions WHERE transaction_id = ?'
+      ).get(transactionId);
+
+      if (!tx || tx.status !== 'PREPARED') {
+        throw Object.assign(
+          new Error('upgrade transaction is not prepared'),
+          { code: 'UPGRADE_STATE' }
+        );
+      }
+
       const authority = this.getAuthority(tx.core_id);
-      if (!authority || authority.instanceId !== tx.from_instance_id || authority.epoch !== tx.from_epoch) {
-        throw Object.assign(new Error('authority changed during upgrade transaction'), { code: 'AUTHORITY_CONFLICT' });
+
+      if (
+        !authority ||
+        authority.instanceId !== tx.from_instance_id ||
+        authority.epoch !== tx.from_epoch
+      ) {
+        throw Object.assign(
+          new Error('authority changed during upgrade transaction'),
+          { code: 'AUTHORITY_CONFLICT' }
+        );
       }
-      const checkpoint = this.db.prepare(`SELECT checkpoint_id FROM checkpoints
-        WHERE core_id=? AND instance_id=? AND version=? AND authority_epoch=?
-          AND state_schema=? AND blob_hash=? LIMIT 1`).get(
-        tx.core_id, tx.to_instance_id, tx.to_version, tx.to_epoch,
-        tx.to_state_schema, tx.to_checkpoint_hash
+
+      const checkpoint = this.db.prepare(`
+        SELECT checkpoint_id
+        FROM checkpoints
+        WHERE
+          core_id=? AND
+          instance_id=? AND
+          version=? AND
+          authority_epoch=? AND
+          state_schema=? AND
+          blob_hash=?
+        LIMIT 1
+      `).get(
+        tx.core_id,
+        tx.to_instance_id,
+        tx.to_version,
+        tx.to_epoch,
+        tx.to_state_schema,
+        tx.to_checkpoint_hash
       );
+
       if (!checkpoint) {
-        throw Object.assign(new Error('upgrade checkpoint disappeared or does not match target authority'), { code: 'UPGRADE_CHECKPOINT_MISMATCH' });
+        throw Object.assign(
+          new Error(
+            'upgrade checkpoint disappeared or does not match target authority'
+          ),
+          { code: 'UPGRADE_CHECKPOINT_MISMATCH' }
+        );
       }
-      const updated = this.db.prepare(`UPDATE authority SET instance_id=?, version=?, epoch=?, barrier_sequence=?, checkpoint_hash=?, updated_at=?
-        WHERE core_id=? AND instance_id=? AND epoch=?`).run(
-        tx.to_instance_id, tx.to_version, tx.to_epoch, tx.barrier_sequence,
-        tx.to_checkpoint_hash, at, tx.core_id, tx.from_instance_id, tx.from_epoch
+
+      /*
+       * EF1-G / P0.35 — authority-cutover outbox barrier.
+       *
+       * Every old-epoch output obligation that is still pending at
+       * the cutover barrier is copied into a Kernel-owned immutable
+       * spool BEFORE authority is changed. Both operations live in
+       * this one BEGIN IMMEDIATE transaction, so there is no crash
+       * state in which the old epoch is revoked while a committed
+       * output has become ownerless.
+       */
+      const spool =
+        this._spoolPendingBiologicalOutboxForUpgrade({
+          transactionId:
+            tx.transaction_id,
+
+          coreId:
+            tx.core_id,
+
+          fromEpoch:
+            Number(tx.from_epoch),
+
+          toEpoch:
+            Number(tx.to_epoch),
+
+          barrierSequence:
+            Number(tx.barrier_sequence),
+
+          spooledAt:
+            at
+        });
+
+      const sealed =
+        this.db.prepare(`
+          UPDATE upgrade_transactions
+          SET
+            spooled_intent_count=?,
+            spool_sha256=?,
+            cutover_sealed_at=?
+          WHERE
+            transaction_id=? AND
+            status='PREPARED'
+        `).run(
+          spool.count,
+          spool.digest,
+          at,
+          transactionId
+        );
+
+      if (
+        sealed.changes !== 1
+      ) {
+        throw Object.assign(
+          new Error(
+            'authority cutover spool seal lost upgrade identity'
+          ),
+          { code: 'BIOLOGICAL_CUTOVER_SPOOL_CONFLICT' }
+        );
+      }
+
+      const updated = this.db.prepare(`
+        UPDATE authority
+        SET
+          instance_id=?,
+          version=?,
+          epoch=?,
+          barrier_sequence=?,
+          checkpoint_hash=?,
+          updated_at=?
+        WHERE
+          core_id=? AND
+          instance_id=? AND
+          epoch=?
+      `).run(
+        tx.to_instance_id,
+        tx.to_version,
+        tx.to_epoch,
+        tx.barrier_sequence,
+        tx.to_checkpoint_hash,
+        at,
+        tx.core_id,
+        tx.from_instance_id,
+        tx.from_epoch
       );
-      if (updated.changes !== 1) throw Object.assign(new Error('authority compare-and-swap failed'), { code: 'AUTHORITY_CONFLICT' });
-      this.db.prepare(`UPDATE upgrade_transactions SET status='COMMITTED', finalized_at=? WHERE transaction_id=?`).run(at, transactionId);
+
+      if (updated.changes !== 1) {
+        throw Object.assign(
+          new Error('authority compare-and-swap failed'),
+          { code: 'AUTHORITY_CONFLICT' }
+        );
+      }
+
+      this.db.prepare(`
+        UPDATE upgrade_transactions
+        SET
+          status='COMMITTED',
+          finalized_at=?
+        WHERE transaction_id=?
+      `).run(
+        at,
+        transactionId
+      );
+
       return tx.core_id;
     });
+
     this.markWriteSuccess();
     return this.getAuthority(result);
+  }
+
+
+  getUpgradeTransaction(transactionId) {
+    this.assertOpen();
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM upgrade_transactions
+        WHERE transaction_id=?
+      `).get(
+        transactionId
+      );
+
+    if (!row) {
+      return null;
+    }
+
+    const spooledIntentCount =
+      Number(
+        row.spooled_intent_count ||
+        0
+      );
+
+    const spoolHash =
+      row.spool_sha256 ||
+      null;
+
+    const cutoverSealedAt =
+      row.cutover_sealed_at ||
+      null;
+
+    /*
+     * EF1-G seal integrity.  Historical upgrade rows created before
+     * biological-cutover schema v1 have no cutover_sealed_at and stay
+     * readable as legacy evidence.  New sealed rows must prove that the
+     * aggregate spool identity still matches the transaction seal.
+     */
+    if (
+      cutoverSealedAt != null
+    ) {
+      const entries =
+        this.db.prepare(`
+          SELECT *
+          FROM biological_cutover_spool
+          WHERE transaction_id=?
+          ORDER BY
+            producer_stream_id ASC,
+            stream_sequence ASC,
+            producer_event_id ASC
+        `).all(
+          transactionId
+        ).map(
+          spoolRow => {
+            const spool =
+              this.biologicalCutoverSpoolFromRow(
+                spoolRow
+              );
+
+            return {
+              producerEventId:
+                spool.producerEventId,
+
+              spoolHash:
+                spoolRow.spool_sha256
+            };
+          }
+        );
+
+      const actualHash =
+        sha256(
+          stableStringify(
+            entries
+          )
+        );
+
+      if (
+        entries.length !==
+          spooledIntentCount ||
+        typeof spoolHash !==
+          'string' ||
+        actualHash !==
+          spoolHash
+      ) {
+        throw Object.assign(
+          new Error(
+            'authority cutover transaction spool seal is corrupt'
+          ),
+          {
+            code:
+              'BIOLOGICAL_CUTOVER_SPOOL_CORRUPT'
+          }
+        );
+      }
+    }
+
+    return Object.freeze({
+      transactionId:
+        row.transaction_id,
+
+      coreId:
+        row.core_id,
+
+      status:
+        row.status,
+
+      from:
+        Object.freeze({
+          instanceId: row.from_instance_id,
+          version: row.from_version,
+          epoch: Number(row.from_epoch)
+        }),
+
+      to:
+        Object.freeze({
+          instanceId: row.to_instance_id,
+          version: row.to_version,
+          epoch: Number(row.to_epoch)
+        }),
+
+      barrierSequence:
+        Number(row.barrier_sequence),
+
+      spooledIntentCount,
+
+      spoolHash,
+
+      cutoverSealedAt,
+
+      preparedAt:
+        row.prepared_at,
+
+      finalizedAt:
+        row.finalized_at || null
+    });
   }
 
   abortUpgrade(transactionId, reason = 'aborted') {
