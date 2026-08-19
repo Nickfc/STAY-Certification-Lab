@@ -111,30 +111,123 @@ class EventFabric {
    * The EventFabric, not the biological producer, remains authoritative for
    * ledger sequence and event identity.
    */
-  async publishBiologicalSignal(signal) {
+  async publishBiologicalSignal(signal, options = {}) {
     const normalized = normalizeSignal(signal);
     const bridged = toEventFabricInput(normalized);
+
+    if (
+      options === null ||
+      typeof options !== 'object' ||
+      Array.isArray(options)
+    ) {
+      throw Object.assign(
+        new Error('biological publish options are invalid'),
+        { code: 'BIOLOGICAL_FABRIC_PUBLISH_OPTIONS' }
+      );
+    }
 
     const meta = {
       biological: bridged.biological
     };
 
+    /*
+     * Compatibility metadata is reconstructed from the canonical provenance
+     * by trusted Kernel code. Biological producers do not get to supply
+     * sourceCore or authorityEpoch independently.
+     *
+     * This keeps already-certified SNTSS binding/time validators compatible
+     * while the canonical biological envelope becomes the source of truth.
+     */
+    if (
+      normalized.provenance.producerType === 'kernel' ||
+      normalized.provenance.producerType === 'core'
+    ) {
+      meta.sourceCore =
+        normalized.provenance.producerId;
+
+      meta.authorityEpoch =
+        normalized.provenance.authorityEpoch;
+    }
+
+    if (options.sourceVersion != null) {
+      if (
+        typeof options.sourceVersion !== 'string' ||
+        !options.sourceVersion ||
+        options.sourceVersion.length > 128
+      ) {
+        throw Object.assign(
+          new Error('biological source version is invalid'),
+          { code: 'BIOLOGICAL_FABRIC_PUBLISH_OPTIONS' }
+        );
+      }
+
+      meta.sourceVersion = options.sourceVersion;
+    }
+
+    if (options.evidenceHash != null) {
+      if (
+        typeof options.evidenceHash !== 'string' ||
+        !options.evidenceHash ||
+        options.evidenceHash.length > 256
+      ) {
+        throw Object.assign(
+          new Error('biological evidence hash is invalid'),
+          { code: 'BIOLOGICAL_FABRIC_PUBLISH_OPTIONS' }
+        );
+      }
+
+      meta.evidenceHash = options.evidenceHash;
+    }
+
     if (normalized.durability === DURABILITY.DURABLE) {
-      meta.eventClass = 'durable';
+      const eventClass =
+        options.eventClass == null
+          ? 'durable'
+          : options.eventClass;
+
+      if (
+        eventClass !== 'durable' &&
+        eventClass !== 'critical'
+      ) {
+        throw Object.assign(
+          new Error(
+            'durable biological signal requires durable or critical EventFabric class'
+          ),
+          { code: 'BIOLOGICAL_FABRIC_EVENT_CLASS' }
+        );
+      }
+
+      meta.eventClass = eventClass;
 
       /*
-       * A stable signal identity becomes the durable ledger deduplication
-       * identity. Re-publication of the same biological cause cannot invent
-       * a second durable cause.
+       * signalId IS the durable identity.
+       *
+       * Using it directly lets canonical fabric signals preserve an existing
+       * Kernel deduplication identity during migration. A historical organism
+       * binding therefore cannot become a second biological cause merely
+       * because it now travels inside the common Biological Fabric envelope.
        */
       meta.deduplicationKey =
-        `biological-signal:${normalized.signalId}`;
+        normalized.signalId;
     } else {
-      /*
-       * Biological "ephemeral" describes transport durability, not semantic
-       * telemetry. EventFabric's generic non-durable class is best-effort.
-       */
-      meta.eventClass = 'best-effort';
+      const eventClass =
+        options.eventClass == null
+          ? 'best-effort'
+          : options.eventClass;
+
+      if (
+        eventClass !== 'best-effort' &&
+        eventClass !== 'telemetry'
+      ) {
+        throw Object.assign(
+          new Error(
+            'ephemeral biological signal requires non-durable EventFabric class'
+          ),
+          { code: 'BIOLOGICAL_FABRIC_EVENT_CLASS' }
+        );
+      }
+
+      meta.eventClass = eventClass;
     }
 
     return this.publish(

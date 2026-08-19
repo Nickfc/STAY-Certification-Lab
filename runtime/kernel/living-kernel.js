@@ -3,6 +3,10 @@
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { EventFabric } = require('./event-fabric');
+const {
+  DURABILITY,
+  createSignal
+} = require('./biological-fabric');
 const { StateStore } = require('./state-store');
 const { RuntimeRegistry } = require('./registry');
 const { UpgradeManager } = require('./upgrades');
@@ -400,29 +404,60 @@ class LivingKernel {
           true
       });
 
-    return this.publish(
-      'runtime.organism.binding',
-      binding,
-      {
-        eventClass:
-          'critical',
+    const signalId =
+      `runtime.organism.binding:v${binding.bindingVersion}:${binding.identitySha256}`;
 
-        sourceCore:
-          'living-kernel',
+    const signal =
+      createSignal({
+        signalId,
 
-        sourceVersion:
-          binding.kernelVersion,
+        topic:
+          'runtime.organism.binding',
 
-        authorityEpoch:
-          binding.authorityEpoch,
+        payload:
+          binding,
 
-        evidenceHash:
-          binding.identitySha256,
+        trustedTime: {
+          source:
+            'kernel',
 
-        deduplicationKey:
-          `runtime.organism.binding:v${binding.bindingVersion}:${binding.identitySha256}`
-      }
-    );
+          observedAtMs:
+            Number(this.clock())
+        },
+
+        provenance: {
+          producerType:
+            'kernel',
+
+          producerId:
+            'living-kernel',
+
+          authorityEpoch:
+            binding.authorityEpoch
+        },
+
+        durability:
+          DURABILITY.DURABLE
+      });
+
+    return this.fabric
+      .publishBiologicalSignal(
+        signal,
+        {
+          /*
+           * Organism binding was already a critical Kernel event.
+           * Canonical biological transport must not weaken that property.
+           */
+          eventClass:
+            'critical',
+
+          sourceVersion:
+            binding.kernelVersion,
+
+          evidenceHash:
+            binding.identitySha256
+        }
+      );
   }
 
   async attachResident(
@@ -1143,20 +1178,68 @@ class LivingKernel {
 
   async publishTimePulse(clockStatus = 'trusted') {
     if (!['trusted', 'degraded', 'uncertain'].includes(clockStatus)) throw Object.assign(new Error('invalid runtime clock status'), { code: 'RUNTIME_CLOCK_STATUS' });
-    const pulseSequence = ++this.trustedTimePulseSequence;
-    const wallClockMs = Number(this.clock());
-    return this.publish('runtime.time.pulse', {
-      wallClockMs,
-      runtimeRevision: this.runtimeRevision,
-      pulseSequence,
-      clockStatus
-    }, {
-      eventClass: 'durable',
-      sourceCore: 'living-kernel',
-      sourceVersion: KERNEL_VERSION,
-      authorityEpoch: this.runtimeRevision,
-      deduplicationKey: `runtime.time.pulse:${this.runtimeRevision}:${pulseSequence}`
-    });
+
+    const pulseSequence =
+      ++this.trustedTimePulseSequence;
+
+    const wallClockMs =
+      Number(this.clock());
+
+    const signalId =
+      `runtime.time.pulse:${this.runtimeRevision}:${pulseSequence}`;
+
+    const signal =
+      createSignal({
+        signalId,
+
+        topic:
+          'runtime.time.pulse',
+
+        payload: {
+          wallClockMs,
+          runtimeRevision:
+            this.runtimeRevision,
+          pulseSequence,
+          clockStatus
+        },
+
+        trustedTime: {
+          source:
+            'kernel',
+
+          observedAtMs:
+            wallClockMs,
+
+          pulseId:
+            `pulse-${this.runtimeRevision}-${pulseSequence}`
+        },
+
+        provenance: {
+          producerType:
+            'kernel',
+
+          producerId:
+            'living-kernel',
+
+          authorityEpoch:
+            this.runtimeRevision
+        },
+
+        durability:
+          DURABILITY.DURABLE
+      });
+
+    return this.fabric
+      .publishBiologicalSignal(
+        signal,
+        {
+          eventClass:
+            'durable',
+
+          sourceVersion:
+            KERNEL_VERSION
+        }
+      );
   }
 
   async stageCoreUpgrade(modulePath) {

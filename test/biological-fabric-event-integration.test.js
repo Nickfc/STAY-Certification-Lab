@@ -108,7 +108,7 @@ test(
 
     assert.equal(
       ledger.calls[0].meta.deduplicationKey,
-      'biological-signal:bio-f02-durable'
+      'bio-f02-durable'
     );
 
     assert.equal(
