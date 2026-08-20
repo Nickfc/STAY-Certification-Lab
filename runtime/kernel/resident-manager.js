@@ -71,6 +71,99 @@ const L0_SNTSS_CONTRACT =
   });
 
 
+/*
+ * The CoreHost handler deadline bounds only the in-worker biological
+ * computation. A resident queue handler additionally includes the durable
+ * checkpoint + ledger ACK commit after CoreHost dispatch. Reusing the same
+ * deadline for both layers leaves zero persistence budget and can convert a
+ * healthy, bounded host response into a false resident chronology failure.
+ *
+ * Keep the host deadline unchanged and independently bound the complete
+ * resident transition. The outer deadline is always strictly larger while
+ * remaining finite/fail-closed.
+ */
+function residentTransitionTimeoutMs(
+  handlerTimeoutMs
+) {
+  const hostBudget =
+    Math.max(
+      1,
+      Number(
+        handlerTimeoutMs
+      ) || 5000
+    );
+
+  return Math.max(
+    1000,
+    Math.min(
+      30000,
+      hostBudget * 2 + 500
+    )
+  );
+}
+
+
+function residentDrainTimeoutMs(
+  handlerTimeoutMs
+) {
+  const transitionBudget =
+    residentTransitionTimeoutMs(
+      handlerTimeoutMs
+    );
+
+  const recoveryBudget =
+    Math.max(
+      5000,
+      transitionBudget * 3
+    );
+
+  /*
+   * A cutover/drain barrier is not a CoreHost compute deadline. It must remain
+   * bounded while allowing two bounded host recoveries plus three complete
+   * transition attempts for the same durable event.
+   */
+  return Math.min(
+    30000,
+    recoveryBudget * 2 +
+      transitionBudget * 3 +
+      1000
+  );
+}
+
+
+function replayRetryableCoreHostError(error) {
+  return ['COREHOST_TIMEOUT', 'COREHOST_EXIT'].includes(String(error?.code || ''));
+}
+
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+
+async function waitForResidentCoreHostRecovery(client, timeoutMs = 5000) {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    if (client.quarantined) {
+      throw Object.assign(new Error('resident CoreHost quarantined during replay recovery'), {
+        code: 'RESIDENT_REPLAY_COREHOST_QUARANTINED'
+      });
+    }
+
+    if (!client.restarting && client.child?.connected && client.lifecycle !== 'recovering') {
+      return;
+    }
+
+    await sleep(10);
+  }
+
+  throw Object.assign(new Error('resident CoreHost did not recover before replay retry deadline'), {
+    code: 'RESIDENT_REPLAY_COREHOST_RECOVERY_TIMEOUT'
+  });
+}
+
+
 function sha256(value) {
   return (
     'sha256:' +
@@ -594,6 +687,12 @@ class ResidentManager {
         false,
 
       lastError:
+        null,
+
+      replayHold:
+        true,
+
+      replaySequence:
         null
     };
 
@@ -608,14 +707,29 @@ class ResidentManager {
             .queueCapacity,
 
         handlerTimeoutMs:
-          client.policy
-            .handlerTimeoutMs,
+          residentTransitionTimeoutMs(
+            client.policy
+              .handlerTimeoutMs
+          ),
 
         handler:
           event =>
             this.processEvent(
               unit,
               event
+            ),
+
+        recoverFailure:
+          (
+            error,
+            event,
+            context
+          ) =>
+            this.recoverResidentEventFailure(
+              unit,
+              error,
+              event,
+              context
             ),
 
         onFault:
@@ -821,13 +935,6 @@ class ResidentManager {
       });
 
 
-    this.stateStore
-      .setResidentStatus(
-        resident.residencyId,
-        'RUNNING'
-      );
-
-
     unit.resident =
       this.stateStore
         .getResident(
@@ -841,40 +948,95 @@ class ResidentManager {
     );
 
 
-    this.stateStore
-      .recordRecovery(
-        checkpoint
-          ? 'resident.recovered'
-          : 'resident.attached',
-        manifest.coreId,
-        {
-          residencyId:
-            resident.residencyId,
-
-          instanceId:
-            resident.instanceId,
-
-          version:
-            manifest.version,
-
-          checkpointHash:
-            persisted.blobHash
-        }
-      );
-
-
     /*
-     * A reconstructed manager may have durable
-     * deliveries that were appended before the
-     * previous manager disappeared.
-     *
-     * They MUST be replayed from the last committed
-     * resident checkpoint rather than silently lost.
+     * Hold live enqueue while reconstruction retires durable replay debt.
+     * Incoming durable events remain PENDING in StateStore and are discovered
+     * by the replay loop in canonical sequence order.
      */
     try {
       await this.replayPendingBiologicalEvents(
         unit
       );
+
+      /*
+       * Release the hold and synchronously prove there is no tail debt before
+       * returning control to the event loop. If a tail exists, restore the
+       * hold and drain it before declaring the resident RUNNING.
+       */
+      let replayQuiescent =
+        false;
+
+      for (let pass = 0; pass < 4; pass += 1) {
+        unit.replayHold = false;
+
+        const tail =
+          this.stateStore
+            .listPendingBiologicalEvents(
+              unit.residencyId,
+              1024
+            );
+
+        if (!tail.length) {
+          replayQuiescent =
+            true;
+
+          break;
+        }
+
+        unit.replayHold = true;
+        await this.replayPendingBiologicalEvents(unit);
+      }
+
+      if (!replayQuiescent) {
+        unit.replayHold = false;
+
+        const finalTail =
+          this.stateStore
+            .listPendingBiologicalEvents(
+              unit.residencyId,
+              1024
+            );
+
+        if (finalTail.length) {
+          fail(
+            'resident replay could not reach a bounded quiescent boundary',
+            'RESIDENT_REPLAY_NOT_QUIESCENT'
+          );
+        }
+      }
+
+      this.stateStore
+        .setResidentStatus(
+          resident.residencyId,
+          'RUNNING'
+        );
+
+      unit.resident =
+        this.stateStore
+          .getResident(
+            resident.residencyId
+          );
+
+      this.stateStore
+        .recordRecovery(
+          checkpoint
+            ? 'resident.recovered'
+            : 'resident.attached',
+          manifest.coreId,
+          {
+            residencyId:
+              resident.residencyId,
+
+            instanceId:
+              resident.instanceId,
+
+            version:
+              manifest.version,
+
+            checkpointHash:
+              persisted.blobHash
+          }
+        );
     } catch (error) {
       this.units.delete(
         resident.residencyId
@@ -1203,6 +1365,17 @@ class ResidentManager {
       }
 
 
+      if (unit.replayHold) {
+        /*
+         * Reconstructed residents must retire all durable replay debt before
+         * live observation may enqueue newer biology. The EventFabric ledger
+         * already owns this delivery, so holding it here loses nothing and
+         * prevents sequence inversion during recovery.
+         */
+        continue;
+      }
+
+
       /*
        * Deliberately fire-and-contain.
        *
@@ -1388,6 +1561,147 @@ class ResidentManager {
 
 
     return persisted;
+  }
+
+
+  async recoverResidentEventFailure(
+    unit,
+    error,
+    event,
+    {
+      attempt =
+        1
+    } = {}
+  ) {
+    if (
+      !event?.ledger?.durable ||
+      !replayRetryableCoreHostError(
+        error
+      ) ||
+      attempt >= 3
+    ) {
+      return false;
+    }
+
+
+    const resident =
+      this.stateStore
+        .getResident(
+          unit.residencyId
+        );
+
+
+    if (
+      !resident ||
+      ![
+        'ATTACHED',
+        'RECOVERING',
+        'RUNNING'
+      ].includes(
+        resident.status
+      )
+    ) {
+      return false;
+    }
+
+
+    const before =
+      this.stateStore
+        .getBiologicalDelivery(
+          unit.residencyId,
+          event.sequence
+        );
+
+
+    if (
+      !before ||
+      before.status !==
+        'PENDING'
+    ) {
+      throw Object.assign(
+        new Error(
+          'resident retryable CoreHost failure changed durable delivery state'
+        ),
+        {
+          code:
+            'RESIDENT_RETRY_STATE'
+        }
+      );
+    }
+
+
+    /*
+     * The actor handler has already failed and returned control to
+     * BoundedActorQueue. Recovery happens here outside that handler deadline.
+     *
+     * EVENT timeout/exit recovery is initiated by CoreHostClient.request().
+     * A durable SNAPSHOT timeout is initiated by CoreHostClient.dispatch()
+     * using the last committed recovery image. Either way, never retry until
+     * the previous process is gone and the replacement host is connected.
+     */
+    await waitForResidentCoreHostRecovery(
+      unit.client,
+      Math.max(
+        5000,
+        residentTransitionTimeoutMs(
+          unit.client.policy
+            .handlerTimeoutMs
+        ) * 3
+      )
+    );
+
+
+    const after =
+      this.stateStore
+        .getBiologicalDelivery(
+          unit.residencyId,
+          event.sequence
+        );
+
+
+    if (
+      !after ||
+      after.status !==
+        'PENDING'
+    ) {
+      throw Object.assign(
+        new Error(
+          'resident durable delivery changed while CoreHost was recovering'
+        ),
+        {
+          code:
+            'RESIDENT_RETRY_STATE'
+        }
+      );
+    }
+
+
+    try {
+      this.stateStore
+        .recordRecovery(
+          'resident.delivery-retry',
+          unit.manifest.coreId,
+          {
+            residencyId:
+              unit.residencyId,
+
+            sequence:
+              event.sequence,
+
+            attempt,
+
+            code:
+              error.code || null,
+
+            operation:
+              error.coreHostOperation ||
+              null
+          }
+        );
+    } catch {}
+
+
+    return true;
   }
 
 
@@ -2098,8 +2412,13 @@ class ResidentManager {
 
       if (
         !resident ||
-        resident.status !==
+        ![
+          'ATTACHED',
+          'RECOVERING',
           'RUNNING'
+        ].includes(
+          resident.status
+        )
       ) {
         fail(
           'resident became unavailable during pending replay',
@@ -2109,12 +2428,10 @@ class ResidentManager {
 
 
       /*
-       * Replay is intentionally awaited here.
-       *
-       * Unlike the live EventFabric boundary,
-       * reconstruction MUST know whether all
-       * previously durable input has crossed into
-       * resident persistence successfully.
+       * BoundedActorQueue owns retry serialization for durable CoreHost
+       * timeout/exit recovery. The enqueue Promise remains unresolved across a
+       * bounded host reconstruction, so newer queued biology cannot overtake
+       * this exact PENDING event and drain barriers stay pinned to it.
        */
       await unit.queue
         .enqueue(
@@ -2153,7 +2470,11 @@ class ResidentManager {
 
     return unit.queue
       .drainThrough(
-        sequence
+        sequence,
+        residentDrainTimeoutMs(
+          unit.client.policy
+            .handlerTimeoutMs
+        )
       );
   }
 
@@ -2393,5 +2714,6 @@ module.exports = {
   ResidentManager,
   L0_SNTSS_CONTRACT,
   canonicalHash,
-  transitionId
+  transitionId,
+  residentTransitionTimeoutMs
 };

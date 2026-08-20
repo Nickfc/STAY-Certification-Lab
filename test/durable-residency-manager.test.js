@@ -44,6 +44,13 @@ const {
 );
 
 
+const {
+  CoreHostClient
+} = require(
+  '../runtime/kernel/core-host-client'
+);
+
+
 const RELEASE_ROOT =
   path.resolve(
     __dirname,
@@ -1574,6 +1581,868 @@ test(
 
     assert.equal(
       status.observedOutputs,
+      0
+    );
+  }
+);
+
+
+
+test(
+  'L0-B1-09: resident transition deadline includes durable commit time without relaxing the CoreHost handler deadline',
+  async t => {
+    const runtime =
+      await makeRuntime(t);
+
+    const manager =
+      runtime.createManager();
+
+    await manager.attach({
+      moduleRelativePath:
+        MODULE,
+
+      binding:
+        runtime.binding
+    });
+
+
+    const unit =
+      manager.units.get(
+        'resident:sntss'
+      );
+
+
+    /*
+     * The SNTSS CoreHost computation budget remains 250 ms.
+     * Deliberately delay only the post-dispatch durable commit beyond that
+     * host budget. The outer resident transition must still complete because
+     * compute and persistence are separate bounded phases.
+     */
+    assert.equal(
+      unit.client.policy
+        .handlerTimeoutMs,
+      250
+    );
+
+    assert.ok(
+      unit.queue
+        .handlerTimeoutMs >
+          unit.client.policy
+            .handlerTimeoutMs
+    );
+
+
+    const originalCommit =
+      runtime.stateStore
+        .commitResidentCheckpoint
+        .bind(
+          runtime.stateStore
+        );
+
+    let delayed =
+      false;
+
+    runtime.stateStore
+      .commitResidentCheckpoint =
+        async args => {
+          if (
+            !delayed &&
+            Number(
+              args?.consumerAck
+                ?.sequence
+            ) > 0
+          ) {
+            delayed =
+              true;
+
+            await delay(
+              350
+            );
+          }
+
+          return originalCommit(
+            args
+          );
+        };
+
+
+    const pulse =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1000,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            1
+        }
+      );
+
+
+    await manager.drain(
+      'resident:sntss',
+      pulse.sequence
+    );
+
+
+    assert.equal(
+      delayed,
+      true
+    );
+
+
+    const delivery =
+      runtime.stateStore
+        .getBiologicalDelivery(
+          'resident:sntss',
+          pulse.sequence
+        );
+
+    assert.equal(
+      delivery.status,
+      'ACKED'
+    );
+
+
+    const status =
+      await manager.status();
+
+    assert.equal(
+      status.status,
+      'RUNNING'
+    );
+
+    assert.equal(
+      status.lastError,
+      null
+    );
+
+    assert.equal(
+      unit.queue.metrics
+        .timedOut,
+      0
+    );
+  }
+);
+
+
+
+test(
+  'L0-B1-10: recovery replay retries one timed-out CoreHost attempt from the exact committed resident checkpoint',
+  async t => {
+    const runtime =
+      await makeRuntime(t);
+
+    const firstManager =
+      runtime.createManager();
+
+    await firstManager.attach({
+      moduleRelativePath:
+        MODULE,
+
+      binding:
+        runtime.binding
+    });
+
+    const first =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1000,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            1
+        }
+      );
+
+    await firstManager.drain(
+      'resident:sntss',
+      first.sequence
+    );
+
+    const firstUnit =
+      firstManager.units.get(
+        'resident:sntss'
+      );
+
+    firstManager.unsubscribe();
+    firstManager.closed =
+      true;
+    firstUnit.queue.close();
+    await firstUnit.client.stop();
+    firstManager.units.clear();
+
+    const second =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1250,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            2
+        }
+      );
+
+    assert.equal(
+      runtime.stateStore
+        .getBiologicalDelivery(
+          'resident:sntss',
+          second.sequence
+        )
+        .status,
+      'PENDING'
+    );
+
+    const originalDispatch =
+      CoreHostClient.prototype
+        .dispatch;
+
+    let injected =
+      false;
+
+    CoreHostClient.prototype
+      .dispatch =
+        async function(
+          event,
+          context
+        ) {
+          if (
+            !injected &&
+            event?.topic ===
+              'runtime.time.pulse' &&
+            Number(
+              event?.sequence
+            ) ===
+              Number(
+                second.sequence
+              )
+          ) {
+            injected =
+              true;
+
+            this.recycle(
+              'timeout:event'
+            ).catch(
+              () => {}
+            );
+
+            throw Object.assign(
+              new Error(
+                'synthetic replay CoreHost timeout'
+              ),
+              {
+                code:
+                  'COREHOST_TIMEOUT'
+              }
+            );
+          }
+
+          return originalDispatch.call(
+            this,
+            event,
+            context
+          );
+        };
+
+    t.after(() => {
+      CoreHostClient.prototype
+        .dispatch =
+          originalDispatch;
+    });
+
+    const secondManager =
+      runtime.createManager();
+
+    await secondManager.recover(
+      'resident:sntss',
+      runtime.binding
+    );
+
+    assert.equal(
+      injected,
+      true
+    );
+
+    const recovered =
+      await runtime.stateStore
+        .readResidentCheckpoint(
+          'resident:sntss'
+        );
+
+    assert.equal(
+      recovered.state
+        .trustedTime
+        .lastPulseSequence,
+      2
+    );
+
+    assert.equal(
+      recovered.state
+        .chemistry
+        .modelClock,
+      250
+    );
+
+    const delivery =
+      runtime.stateStore
+        .getBiologicalDelivery(
+          'resident:sntss',
+          second.sequence
+        );
+
+    assert.equal(
+      delivery.status,
+      'ACKED'
+    );
+
+    await secondManager.drain(
+      'resident:sntss',
+      second.sequence
+    );
+
+    const status =
+      await secondManager.status();
+
+    assert.equal(
+      status.status,
+      'RUNNING'
+    );
+
+    assert.equal(
+      status.pendingDeliveries,
+      0
+    );
+  }
+);
+
+
+test(
+  'L0-B1-11: live durable delivery retries one CoreHost event timeout without releasing the drain barrier',
+  async t => {
+    const runtime =
+      await makeRuntime(t);
+
+    const manager =
+      runtime.createManager();
+
+    await manager.attach({
+      moduleRelativePath:
+        MODULE,
+
+      binding:
+        runtime.binding
+    });
+
+    const unit =
+      manager.units.get(
+        'resident:sntss'
+      );
+
+    const originalDispatch =
+      unit.client.dispatch
+        .bind(
+          unit.client
+        );
+
+    let injected =
+      false;
+
+    unit.client.dispatch =
+      async function(
+        event,
+        context
+      ) {
+        if (
+          !injected &&
+          event?.topic ===
+            'runtime.time.pulse'
+        ) {
+          injected =
+            true;
+
+          this.recycle(
+            'timeout:event'
+          ).catch(
+            () => {}
+          );
+
+          throw Object.assign(
+            new Error(
+              'synthetic live CoreHost event timeout'
+            ),
+            {
+              code:
+                'COREHOST_TIMEOUT',
+
+              coreHostOperation:
+                'event'
+            }
+          );
+        }
+
+        return originalDispatch(
+          event,
+          context
+        );
+      };
+
+    const pulse =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1000,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            1
+        }
+      );
+
+    await manager.drain(
+      'resident:sntss',
+      pulse.sequence
+    );
+
+    assert.equal(
+      injected,
+      true
+    );
+
+    assert.equal(
+      runtime.stateStore
+        .getBiologicalDelivery(
+          'resident:sntss',
+          pulse.sequence
+        )
+        .status,
+      'ACKED'
+    );
+
+    const checkpoint =
+      await runtime.stateStore
+        .readResidentCheckpoint(
+          'resident:sntss'
+        );
+
+    assert.equal(
+      checkpoint.state
+        .trustedTime
+        .lastPulseSequence,
+      1
+    );
+
+    assert.equal(
+      unit.handledEvents,
+      1
+    );
+
+    assert.equal(
+      unit.queue.metrics
+        .recoveryAttempts,
+      1
+    );
+
+    assert.equal(
+      unit.queue.metrics
+        .recovered,
+      1
+    );
+
+    const status =
+      await manager.status();
+
+    assert.equal(
+      status.status,
+      'RUNNING'
+    );
+
+    assert.equal(
+      status.pendingDeliveries,
+      0
+    );
+  }
+);
+
+
+test(
+  'L0-B1-12: durable snapshot timeout recycles uncommitted CoreHost memory before exact event retry',
+  async t => {
+    const runtime =
+      await makeRuntime(t);
+
+    const manager =
+      runtime.createManager();
+
+    await manager.attach({
+      moduleRelativePath:
+        MODULE,
+
+      binding:
+        runtime.binding
+    });
+
+    const first =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1000,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            1
+        }
+      );
+
+    await manager.drain(
+      'resident:sntss',
+      first.sequence
+    );
+
+    const unit =
+      manager.units.get(
+        'resident:sntss'
+      );
+
+    const generationBefore =
+      unit.client.generation;
+
+    const originalRequest =
+      unit.client.request
+        .bind(
+          unit.client
+        );
+
+    let injected =
+      false;
+
+    unit.client.request =
+      async function(
+        operation,
+        payload,
+        timeoutMs
+      ) {
+        if (
+          !injected &&
+          operation ===
+            'snapshot'
+        ) {
+          injected =
+            true;
+
+          throw Object.assign(
+            new Error(
+              'synthetic durable snapshot timeout'
+            ),
+            {
+              code:
+                'COREHOST_TIMEOUT'
+            }
+          );
+        }
+
+        return originalRequest(
+          operation,
+          payload,
+          timeoutMs
+        );
+      };
+
+    const second =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1250,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            2
+        }
+      );
+
+    await manager.drain(
+      'resident:sntss',
+      second.sequence
+    );
+
+    assert.equal(
+      injected,
+      true
+    );
+
+    assert.ok(
+      unit.client.generation >
+        generationBefore
+    );
+
+    const checkpoint =
+      await runtime.stateStore
+        .readResidentCheckpoint(
+          'resident:sntss'
+        );
+
+    assert.equal(
+      checkpoint.state
+        .trustedTime
+        .lastPulseSequence,
+      2
+    );
+
+    assert.equal(
+      checkpoint.state
+        .chemistry
+        .modelClock,
+      250
+    );
+
+    assert.equal(
+      runtime.stateStore
+        .getBiologicalDelivery(
+          'resident:sntss',
+          second.sequence
+        )
+        .status,
+      'ACKED'
+    );
+
+    assert.equal(
+      unit.handledEvents,
+      2
+    );
+
+    assert.equal(
+      unit.queue.metrics
+        .recovered,
+      1
+    );
+  }
+);
+
+
+test(
+  'L0-B1-13: newer durable biology cannot overtake a timed-out resident event during host recovery',
+  async t => {
+    const runtime =
+      await makeRuntime(t);
+
+    const manager =
+      runtime.createManager();
+
+    await manager.attach({
+      moduleRelativePath:
+        MODULE,
+
+      binding:
+        runtime.binding
+    });
+
+    const anchor =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1000,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            1
+        }
+      );
+
+    await manager.drain(
+      'resident:sntss',
+      anchor.sequence
+    );
+
+    const unit =
+      manager.units.get(
+        'resident:sntss'
+      );
+
+    const originalDispatch =
+      unit.client.dispatch
+        .bind(
+          unit.client
+        );
+
+    const originalNoteRestart =
+      unit.client.noteRestart
+        .bind(
+          unit.client
+        );
+
+    let injected =
+      false;
+
+    unit.client.noteRestart =
+      async function(
+        reason
+      ) {
+        await delay(150);
+
+        return originalNoteRestart(
+          reason
+        );
+      };
+
+    unit.client.dispatch =
+      async function(
+        event,
+        context
+      ) {
+        if (
+          !injected &&
+          event?.topic ===
+            'runtime.time.pulse' &&
+          event?.payload
+            ?.pulseSequence ===
+              2
+        ) {
+          injected =
+            true;
+
+          this.recycle(
+            'timeout:event'
+          ).catch(
+            () => {}
+          );
+
+          throw Object.assign(
+            new Error(
+              'synthetic ordered live timeout'
+            ),
+            {
+              code:
+                'COREHOST_TIMEOUT',
+
+              coreHostOperation:
+                'event'
+            }
+          );
+        }
+
+        return originalDispatch(
+          event,
+          context
+        );
+      };
+
+    const second =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1250,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            2
+        }
+      );
+
+    await waitFor(
+      () =>
+        injected ===
+          true
+    );
+
+    const third =
+      await publishPulse(
+        runtime,
+        {
+          wallClockMs:
+            1500,
+
+          runtimeRevision:
+            1,
+
+          pulseSequence:
+            3
+        }
+      );
+
+    await manager.drain(
+      'resident:sntss',
+      third.sequence
+    );
+
+    const checkpoint =
+      await runtime.stateStore
+        .readResidentCheckpoint(
+          'resident:sntss'
+        );
+
+    assert.equal(
+      checkpoint.state
+        .trustedTime
+        .lastPulseSequence,
+      3
+    );
+
+    assert.equal(
+      checkpoint.state
+        .chemistry
+        .modelClock,
+      500
+    );
+
+    assert.equal(
+      runtime.stateStore
+        .getBiologicalDelivery(
+          'resident:sntss',
+          second.sequence
+        )
+        .status,
+      'ACKED'
+    );
+
+    assert.equal(
+      runtime.stateStore
+        .getBiologicalDelivery(
+          'resident:sntss',
+          third.sequence
+        )
+        .status,
+      'ACKED'
+    );
+
+    assert.equal(
+      unit.handledEvents,
+      3
+    );
+
+    assert.equal(
+      unit.queue.metrics
+        .recovered,
+      1
+    );
+
+    assert.equal(
+      unit.queue.failures
+        .length,
       0
     );
   }

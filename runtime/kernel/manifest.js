@@ -1,5 +1,9 @@
 'use strict';
 
+const {
+  normalizeBiologyManifest
+} = require('./biological-signalling-fabric');
+
 function requireText(value, field) {
   if (typeof value !== 'string' || value.trim() === '') throw new Error('manifest field missing: ' + field);
 }
@@ -36,8 +40,10 @@ function validateManifest(manifest) {
   if (typeof manifest.hotSwap !== 'boolean') throw new Error('manifest.hotSwap must be a boolean');
   const priority = manifest.priority || 'normal';
   if (!['critical', 'normal', 'optional'].includes(priority)) throw new Error('manifest.priority must be critical, normal or optional');
+  const biology = normalizeBiologyManifest(manifest.biology, manifest.coreId);
   return Object.freeze({
     ...manifest,
+    ...(biology ? { biology } : {}),
     priority,
     inputs: Object.freeze([...(manifest.inputs || [])]),
     outputs: Object.freeze([...(manifest.outputs || [])]),

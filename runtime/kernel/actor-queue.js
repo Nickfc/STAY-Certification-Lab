@@ -23,7 +23,8 @@ class BoundedActorQueue {
     capacity = 256,
     handlerTimeoutMs = 5000,
     clock = () => Date.now(),
-    onFault = () => {}
+    onFault = () => {},
+    recoverFailure = null
   }) {
     if (typeof handler !== 'function') throw new Error('actor queue requires a handler');
     this.name = name || 'actor';
@@ -32,6 +33,7 @@ class BoundedActorQueue {
     this.handlerTimeoutMs = Math.max(1, Number(handlerTimeoutMs) || 5000);
     this.clock = clock;
     this.onFault = onFault;
+    this.recoverFailure = typeof recoverFailure === 'function' ? recoverFailure : null;
     this.items = [];
     this.running = false;
     this.runningSequence = null;
@@ -47,6 +49,8 @@ class BoundedActorQueue {
       coalesced: 0,
       failed: 0,
       timedOut: 0,
+      recoveryAttempts: 0,
+      recovered: 0,
       maxDepth: 0,
       maxLatencyMs: 0,
       lastLatencyMs: 0,
@@ -105,24 +109,68 @@ class BoundedActorQueue {
       const latencyMs = Math.max(0, this.clock() - item.enqueuedAt);
       this.metrics.lastLatencyMs = latencyMs;
       this.metrics.maxLatencyMs = Math.max(this.metrics.maxLatencyMs, latencyMs);
-      try {
-        const result = await withTimeout(
-          Promise.resolve().then(() => this.handler(item.event)),
-          this.handlerTimeoutMs,
-          `${this.name} handler`
-        );
-        this.metrics.completed += 1;
-        this.lastCompletedSequence = Math.max(this.lastCompletedSequence, Number(item.event?.sequence || item.event?.id) || 0);
-        item.resolve({ delivered: true, result });
-      } catch (error) {
-        this.metrics.failed += 1;
-        if (error.code === 'ACTOR_HANDLER_TIMEOUT') this.metrics.timedOut += 1;
-        this.metrics.lastError = { code: error.code || null, message: error.message, at: new Date().toISOString() };
-        this.failures.push({ sequence: this.runningSequence, error });
-        if (this.failures.length > 128) this.failures.shift();
-        item.reject(error);
-        this.onFault(error, item.event);
+
+      let attempt = 1;
+      let settled = false;
+
+      while (!this.closed && !settled) {
+        try {
+          const result = await withTimeout(
+            Promise.resolve().then(() => this.handler(item.event)),
+            this.handlerTimeoutMs,
+            `${this.name} handler`
+          );
+
+          this.metrics.completed += 1;
+          if (attempt > 1) this.metrics.recovered += 1;
+          this.lastCompletedSequence = Math.max(
+            this.lastCompletedSequence,
+            Number(item.event?.sequence || item.event?.id) || 0
+          );
+          item.resolve({ delivered: true, result, attempts: attempt });
+          settled = true;
+        } catch (handlerError) {
+          let error = handlerError;
+          let recovered = false;
+
+          if (this.recoverFailure) {
+            try {
+              recovered = Boolean(
+                await this.recoverFailure(
+                  error,
+                  item.event,
+                  {
+                    attempt,
+                    sequence: this.runningSequence
+                  }
+                )
+              );
+            } catch (recoveryError) {
+              error = recoveryError;
+            }
+          }
+
+          if (recovered) {
+            this.metrics.recoveryAttempts += 1;
+            attempt += 1;
+            continue;
+          }
+
+          this.metrics.failed += 1;
+          if (error.code === 'ACTOR_HANDLER_TIMEOUT') this.metrics.timedOut += 1;
+          this.metrics.lastError = {
+            code: error.code || null,
+            message: error.message,
+            at: new Date().toISOString()
+          };
+          this.failures.push({ sequence: this.runningSequence, error });
+          if (this.failures.length > 128) this.failures.shift();
+          item.reject(error);
+          this.onFault(error, item.event);
+          settled = true;
+        }
       }
+
       this.runningSequence = null;
       this.resolveWaiters();
     }
@@ -148,6 +196,26 @@ class BoundedActorQueue {
       } else remaining.push(waiter);
     }
     this.waiters = remaining;
+  }
+
+  resolveRetriedFailure(sequence, allowedCodes = ['COREHOST_TIMEOUT', 'COREHOST_EXIT']) {
+    const target = Number(sequence) || 0;
+    if (!(target > 0) || this.lastCompletedSequence < target) {
+      throw Object.assign(new Error(`${this.name} retry cannot clear an uncompleted failure`), {
+        code: 'ACTOR_RETRY_NOT_COMPLETED', eventSequence: target
+      });
+    }
+    const allowed = new Set(allowedCodes.map(value => String(value)));
+    const matching = this.failures.filter(entry => entry.sequence === target);
+    const blocked = matching.find(entry => !allowed.has(String(entry.error?.code || '')));
+    if (blocked) {
+      throw Object.assign(new Error(`${this.name} retry cannot clear non-retryable failure`), {
+        code: 'ACTOR_RETRY_FAILURE_CLASS', eventSequence: target, failureCode: blocked.error?.code || null
+      });
+    }
+    const before = this.failures.length;
+    this.failures = this.failures.filter(entry => !(entry.sequence === target && allowed.has(String(entry.error?.code || ''))));
+    return before - this.failures.length;
   }
 
   drainThrough(sequence, timeoutMs = 5000) {

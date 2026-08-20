@@ -309,7 +309,8 @@ class BiologicalAcceptanceBoundary {
     resolveSignal,
     resolveStreamRange,
     resolveProducerEvent = null,
-    allocateFabricSequence
+    allocateFabricSequence,
+    bsfPolicy = null
   }) {
     if (
       typeof organismId !== 'string' ||
@@ -376,6 +377,23 @@ class BiologicalAcceptanceBoundary {
         allocateFabricSequence,
         'allocateFabricSequence'
       );
+
+    if (
+      bsfPolicy != null &&
+      (
+        typeof bsfPolicy !== 'object' ||
+        typeof bsfPolicy.validateProposal !== 'function' ||
+        typeof bsfPolicy.validateStreamProgress !== 'function'
+      )
+    ) {
+      fail(
+        'bsfPolicy must expose validateProposal and validateStreamProgress',
+        'BIOLOGICAL_ACCEPTANCE_CONFIGURATION'
+      );
+    }
+
+    this.bsfPolicy =
+      bsfPolicy;
 
     /*
      * Prepared acceptances are capabilities minted only by
@@ -636,6 +654,18 @@ class BiologicalAcceptanceBoundary {
           producerHandle
         )
       );
+
+    if (
+      this.bsfPolicy
+    ) {
+      await this.bsfPolicy.validateProposal({
+        producer:
+          Object.freeze({ ...producer }),
+        proposal,
+        organismId:
+          this.organismId
+      });
+    }
 
     /*
      * EF1-E retry fast path.
@@ -1192,6 +1222,18 @@ class BiologicalAcceptanceBoundary {
           producerHandle
         )
       );
+
+    if (
+      this.bsfPolicy
+    ) {
+      await this.bsfPolicy.validateStreamProgress({
+        producer:
+          Object.freeze({ ...producer }),
+        progress,
+        organismId:
+          this.organismId
+      });
+    }
 
     if (
       !progress ||

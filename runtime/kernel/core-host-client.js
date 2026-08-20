@@ -255,8 +255,18 @@ class CoreHostClient extends EventEmitter {
     const eventSequence = Number(context?.eventSequence || event?.sequence || event?.id) || 0;
     let result;
     let requestError = null;
-    try { result = await this.request('event', { event, context }, this.policy.handlerTimeoutMs); }
-    catch (error) { requestError = error; }
+
+    try {
+      result = await this.request(
+        'event',
+        { event, context },
+        this.policy.handlerTimeoutMs
+      );
+    } catch (error) {
+      error.coreHostOperation = 'event';
+      requestError = error;
+    }
+
     try {
       const outputs = [...(this.outputsByEvent.get(eventSequence) || [])];
       if (outputs.length) {
@@ -268,13 +278,51 @@ class CoreHostClient extends EventEmitter {
           });
         }
       }
+
       if (requestError) throw requestError;
+
       let checkpoint = null;
       if (['critical', 'durable'].includes(event.class)) {
-        checkpoint = await this.request('snapshot', {}, this.policy.handlerTimeoutMs);
+        try {
+          checkpoint = await this.request(
+            'snapshot',
+            {},
+            this.policy.handlerTimeoutMs
+          );
+        } catch (error) {
+          error.coreHostOperation = 'snapshot';
+
+          /*
+           * A durable event may already have mutated in-process CoreHost state
+           * before its snapshot request times out. That state is not yet
+           * committed and must never be retried on the same process.
+           *
+           * Recycle asynchronously from the last committed recovery image,
+           * exactly as an event timeout does. ResidentManager waits for this
+           * recovery outside the bounded actor handler before retrying the same
+           * still-PENDING durable event.
+           */
+          if (
+            error.code === 'COREHOST_TIMEOUT' &&
+            this.mode !== 'shadow'
+          ) {
+            this.recycle(
+              'uncommitted-transition',
+              {
+                eventSequence,
+                operation: 'snapshot'
+              }
+            ).catch(() => {});
+          }
+
+          throw error;
+        }
       }
+
       return { result, checkpoint };
-    } finally { this.outputsByEvent.delete(eventSequence); }
+    } finally {
+      this.outputsByEvent.delete(eventSequence);
+    }
   }
 
   async snapshot() {
