@@ -71,6 +71,216 @@ const L0_SNTSS_CONTRACT =
   });
 
 
+const RESIDENT_SIGNALLING =
+  Object.freeze({
+    FORBIDDEN:
+      'FORBIDDEN',
+
+    LAB_SHADOW_ONLY:
+      'LAB_SHADOW_ONLY'
+  });
+
+
+function normalizeResidentContract(
+  input
+) {
+  if (
+    !input ||
+    typeof input !==
+      'object' ||
+    Array.isArray(input)
+  ) {
+    fail(
+      'resident contract must be an object',
+      'RESIDENT_CONTRACT_INVALID'
+    );
+  }
+
+  const requiredText =
+    [
+      'residencyId',
+      'coreId',
+      'role',
+      'version',
+      'stage',
+      'priority'
+    ];
+
+  for (
+    const field
+    of requiredText
+  ) {
+    if (
+      typeof input[field] !==
+        'string' ||
+      input[field].trim() ===
+        ''
+    ) {
+      fail(
+        `resident contract field is invalid: ${field}`,
+        'RESIDENT_CONTRACT_INVALID'
+      );
+    }
+  }
+
+  if (
+    !Number.isSafeInteger(
+      input.stateSchema
+    ) ||
+    input.stateSchema < 1 ||
+    input.productionEligible !==
+      false ||
+    !Array.isArray(input.inputs) ||
+    !Array.isArray(input.outputs) ||
+    input.inputs.some(
+      topic =>
+        typeof topic !==
+          'string' ||
+        topic.trim() ===
+          ''
+    ) ||
+    input.outputs.some(
+      topic =>
+        typeof topic !==
+          'string' ||
+        topic.trim() ===
+          ''
+    )
+  ) {
+    fail(
+      'resident contract shape is invalid',
+      'RESIDENT_CONTRACT_INVALID'
+    );
+  }
+
+  const signalling =
+    input.signalling ||
+    (
+      input.outputs.length ===
+        0
+        ? RESIDENT_SIGNALLING
+            .FORBIDDEN
+        : null
+    );
+
+  if (
+    !Object.values(
+      RESIDENT_SIGNALLING
+    ).includes(
+      signalling
+    ) ||
+    (
+      signalling ===
+        RESIDENT_SIGNALLING
+          .FORBIDDEN &&
+      input.outputs.length !==
+        0
+    ) ||
+    (
+      signalling ===
+        RESIDENT_SIGNALLING
+          .LAB_SHADOW_ONLY &&
+      input.outputs.length ===
+        0
+    ) ||
+    (
+      input.packagePolicyHash !==
+        null &&
+      input.packagePolicyHash !==
+        undefined &&
+      !/^sha256:[0-9a-f]{64}$/.test(
+        input.packagePolicyHash
+      )
+    )
+  ) {
+    fail(
+      'resident signalling contract is invalid',
+      'RESIDENT_CONTRACT_INVALID'
+    );
+  }
+
+  return Object.freeze({
+    ...input,
+
+    inputs:
+      Object.freeze([
+        ...input.inputs
+      ]),
+
+    outputs:
+      Object.freeze([
+        ...input.outputs
+      ]),
+
+    packagePolicyHash:
+      input.packagePolicyHash ??
+      null,
+
+    signalling
+  });
+}
+
+
+function createResidentContractRegistry(
+  contracts
+) {
+  if (
+    !Array.isArray(contracts) ||
+    contracts.length < 1
+  ) {
+    fail(
+      'resident contract registry is empty',
+      'RESIDENT_CONTRACT_INVALID'
+    );
+  }
+
+  const byResidencyId =
+    new Map();
+
+  const byCoreId =
+    new Map();
+
+  for (
+    const entry
+    of contracts
+  ) {
+    const contract =
+      normalizeResidentContract(
+        entry
+      );
+
+    if (
+      byResidencyId.has(
+        contract.residencyId
+      ) ||
+      byCoreId.has(
+        contract.coreId
+      )
+    ) {
+      fail(
+        'resident contract identity is duplicated',
+        'RESIDENT_CONTRACT_DUPLICATE'
+      );
+    }
+
+    byResidencyId.set(
+      contract.residencyId,
+      contract
+    );
+
+    byCoreId.set(
+      contract.coreId,
+      contract
+    );
+  }
+
+  return Object.freeze({
+    byResidencyId,
+    byCoreId
+  });
+}
+
+
 /*
  * The CoreHost handler deadline bounds only the in-worker biological
  * computation. A resident queue handler additionally includes the durable
@@ -220,7 +430,8 @@ class ResidentManager {
     identity,
     logger = console,
     clock = () => Date.now(),
-    contract = L0_SNTSS_CONTRACT
+    contract = L0_SNTSS_CONTRACT,
+    contracts = null
   }) {
     if (!releaseRoot) {
       throw new Error(
@@ -272,8 +483,30 @@ class ResidentManager {
     this.clock =
       clock;
 
+    this.contractRegistry =
+      createResidentContractRegistry(
+        contracts ??
+        [
+          contract
+        ]
+      );
+
+    /*
+     * Preserve the original default-contract surface for every existing L0
+     * caller. Generic operations resolve a contract explicitly from the
+     * resident/core identity instead.
+     */
     this.contract =
-      contract;
+      this.contractRegistry
+        .byResidencyId
+        .get(
+          contract.residencyId
+        ) ||
+      this.contractRegistry
+        .byResidencyId
+        .values()
+        .next()
+        .value;
 
     this.units =
       new Map();
@@ -397,7 +630,9 @@ class ResidentManager {
 
 
   async inspect(
-    moduleRelativePath
+    moduleRelativePath,
+    expectedResidencyId =
+      null
   ) {
     const normalized =
       String(
@@ -460,7 +695,24 @@ class ResidentManager {
       definition.manifest;
 
     const contract =
-      this.contract;
+      expectedResidencyId
+        ? this.contractRegistry
+            .byResidencyId
+            .get(
+              expectedResidencyId
+            )
+        : this.contractRegistry
+            .byCoreId
+            .get(
+              manifest.coreId
+            );
+
+    if (!contract) {
+      fail(
+        'resident package has no declared contract',
+        'RESIDENT_CONTRACT_UNKNOWN'
+      );
+    }
 
     if (
       manifest.coreId !==
@@ -474,15 +726,19 @@ class ResidentManager {
       manifest.priority !==
         contract.priority ||
       manifest.productionEligible !==
-        false ||
+        contract.productionEligible ||
       stableStringify(
         [...manifest.inputs]
       ) !==
         stableStringify(
           [...contract.inputs]
         ) ||
-      manifest.outputs.length !==
-        0 ||
+      stableStringify(
+        [...manifest.outputs]
+      ) !==
+        stableStringify(
+          [...contract.outputs]
+        ) ||
       definition.packagePolicyHash !==
         contract.packagePolicyHash
     ) {
@@ -494,6 +750,8 @@ class ResidentManager {
 
     return {
       definition,
+
+      contract,
 
       moduleRelativePath:
         relative,
@@ -1071,8 +1329,13 @@ class ResidentManager {
       );
     }
 
+    const inspected =
+      await this.inspect(
+        moduleRelativePath
+      );
+
     const contract =
-      this.contract;
+      inspected.contract;
 
     const existing =
       this.stateStore
@@ -1086,11 +1349,6 @@ class ResidentManager {
         'RESIDENT_EXISTS'
       );
     }
-
-    const inspected =
-      await this.inspect(
-        moduleRelativePath
-      );
 
     this.validateBinding(
       binding
@@ -1219,7 +1477,8 @@ class ResidentManager {
 
     const inspected =
       await this.inspect(
-        resident.moduleRelativePath
+        resident.moduleRelativePath,
+        residencyId
       );
 
     this.verifyExistingIdentity(
@@ -2713,6 +2972,9 @@ class ResidentManager {
 module.exports = {
   ResidentManager,
   L0_SNTSS_CONTRACT,
+  RESIDENT_SIGNALLING,
+  normalizeResidentContract,
+  createResidentContractRegistry,
   canonicalHash,
   transitionId,
   residentTransitionTimeoutMs
