@@ -191,6 +191,23 @@ function normalizeResidentContract(
       !/^sha256:[0-9a-f]{64}$/.test(
         input.packagePolicyHash
       )
+    ) ||
+    (
+      signalling ===
+        RESIDENT_SIGNALLING
+          .LAB_SHADOW_ONLY &&
+      (
+        !Number.isSafeInteger(
+          input.producerEpoch
+        ) ||
+        input.producerEpoch < 1 ||
+        ![
+          'lab',
+          'shadow'
+        ].includes(
+          input.authorityMode
+        )
+      )
     )
   ) {
     fail(
@@ -951,7 +968,13 @@ class ResidentManager {
         true,
 
       replaySequence:
-        null
+        null,
+
+      contract:
+        inspected.contract,
+
+      pendingOutputIntents:
+        new Map()
     };
 
 
@@ -1007,10 +1030,17 @@ class ResidentManager {
     client.on(
       'output',
       message =>
-        this.handleOutputViolation(
-          unit,
-          message
-        )
+        unit.contract.signalling ===
+          RESIDENT_SIGNALLING
+            .FORBIDDEN
+          ? this.handleOutputViolation(
+              unit,
+              message
+            )
+          : this.handleSignallingOutput(
+              unit,
+              message
+            )
     );
 
 
@@ -1121,7 +1151,13 @@ class ResidentManager {
             resident.instanceId,
 
           authorityEpoch:
-            0,
+            unit.contract
+              .signalling ===
+                RESIDENT_SIGNALLING
+                  .LAB_SHADOW_ONLY
+              ? unit.contract
+                  .producerEpoch
+              : 0,
 
           eventSequence:
             0,
@@ -1683,7 +1719,13 @@ class ResidentManager {
                 .instanceId,
 
             authorityEpoch:
-              0,
+              unit.contract
+                .signalling ===
+                  RESIDENT_SIGNALLING
+                    .LAB_SHADOW_ONLY
+                ? unit.contract
+                    .producerEpoch
+                : 0,
 
             eventSequence:
               event.sequence,
@@ -1704,9 +1746,29 @@ class ResidentManager {
     }
 
 
+    const outputIntents =
+      unit.pendingOutputIntents
+        .get(
+          event.sequence
+        ) ||
+      [];
+
+
     if (
       !event.ledger?.durable
     ) {
+      unit.pendingOutputIntents
+        .delete(
+          event.sequence
+        );
+
+      if (outputIntents.length > 0) {
+        fail(
+          'resident signalling requires a durable originating event',
+          'RESIDENT_OUTPUT_CAUSALITY'
+        );
+      }
+
       return;
     }
 
@@ -1760,9 +1822,28 @@ class ResidentManager {
                   unit.residencyId,
                   event
                 )
-            }
+            },
+
+            producerEpoch:
+              unit.contract
+                .producerEpoch ||
+              null,
+
+            producerTransitionId:
+              transitionId(
+                unit.residencyId,
+                event
+              ),
+
+            outboxIntents:
+              outputIntents
           });
     } catch (error) {
+      unit.pendingOutputIntents
+        .delete(
+          event.sequence
+        );
+
       /*
        * The in-process resident state changed but
        * its durable checkpoint did not.
@@ -1807,6 +1888,20 @@ class ResidentManager {
         unit.manifest
           .stateSchema
       );
+
+    unit.pendingOutputIntents
+      .delete(
+        event.sequence
+      );
+
+    if (
+      persisted.outboxIntents
+        ?.length > 0
+    ) {
+      await this.tryDrainResidentOutbox(
+        unit
+      );
+    }
 
 
     unit.handledEvents +=
@@ -2099,6 +2194,191 @@ class ResidentManager {
     /*
      * Intentionally NO EventFabric publish path.
      */
+  }
+
+
+  handleSignallingOutput(
+    unit,
+    message
+  ) {
+    unit.observedOutputs +=
+      1;
+
+    const topic =
+      message?.topic;
+
+    const context =
+      message?.context;
+
+    const eventSequence =
+      Number(
+        context?.eventSequence
+      );
+
+    const outputIndex =
+      Number(
+        message?.meta
+          ?.outputIndex
+      );
+
+    if (
+      !unit.manifest.outputs.includes(
+        topic
+      ) ||
+      context?.coreId !==
+        unit.manifest.coreId ||
+      context
+        ?.implementationInstanceId !==
+        unit.resident.instanceId ||
+      Number(
+        context?.authorityEpoch
+      ) !==
+        unit.contract.producerEpoch ||
+      !Number.isSafeInteger(
+        eventSequence
+      ) ||
+      eventSequence < 1 ||
+      !Number.isSafeInteger(
+        outputIndex
+      ) ||
+      outputIndex < 1
+    ) {
+      fail(
+        'resident signalling output has invalid provenance',
+        'RESIDENT_OUTPUT_PROVENANCE'
+      );
+    }
+
+    const pending =
+      unit.pendingOutputIntents
+        .get(
+          eventSequence
+        ) ||
+      [];
+
+    if (
+      pending.some(
+        intent =>
+          intent.outputIndex ===
+            outputIndex
+      )
+    ) {
+      fail(
+        'resident signalling output index is duplicated',
+        'BIOLOGICAL_OUTBOX_ORDER'
+      );
+    }
+
+    pending.push({
+      outputIndex,
+      topic,
+      payload:
+        structuredClone(
+          message.payload
+        ),
+      causeSequence:
+        eventSequence,
+      causalParent:
+        context?.eventId ||
+        null
+    });
+
+    pending.sort(
+      (left, right) =>
+        left.outputIndex -
+        right.outputIndex
+    );
+
+    unit.pendingOutputIntents
+      .set(
+        eventSequence,
+        pending
+      );
+  }
+
+
+  async drainResidentOutbox(
+    unit,
+    limit = 128
+  ) {
+    let drained = 0;
+
+    for (;;) {
+      const intents =
+        this.stateStore
+          .listDrainableBiologicalOutboxIntents({
+            producerCoreId:
+              unit.manifest.coreId,
+            currentAuthorityEpoch:
+              unit.contract
+                .producerEpoch,
+            limit
+          });
+
+      if (intents.length === 0) {
+        return drained;
+      }
+
+      for (const intent of intents) {
+        const event =
+          await this.fabric.publish(
+            intent.topic,
+            intent.payload,
+            {
+              ...intent.publishMeta,
+              authorityMode:
+                unit.contract
+                  .authorityMode,
+              physiologicalAuthority:
+                false
+            }
+          );
+
+        this.stateStore
+          .markBiologicalOutboxPublished({
+            producerEventId:
+              intent.producerEventId,
+            event
+          });
+
+        drained += 1;
+      }
+
+      if (intents.length < limit) {
+        return drained;
+      }
+    }
+  }
+
+
+  async tryDrainResidentOutbox(
+    unit
+  ) {
+    try {
+      return await this
+        .drainResidentOutbox(
+          unit
+        );
+    } catch (error) {
+      try {
+        this.stateStore
+          .recordRecovery(
+            'resident.outbox-pending',
+            unit.manifest.coreId,
+            {
+              residencyId:
+                unit.residencyId,
+              code:
+                error.code ||
+                null,
+              message:
+                error.message
+            }
+          );
+      } catch {}
+
+      return 0;
+    }
   }
 
 

@@ -27,6 +27,7 @@ class LivingKernel {
     snapshotIntervalMs = Number(process.env.STAY_SNAPSHOT_INTERVAL_MS || 21600000),
     snapshotRetention = Number(process.env.STAY_SNAPSHOT_RETENTION || 24),
     releaseRoot = path.resolve(__dirname, '..', '..'),
+    trustedOrganismTime = null,
     allowLaboratoryResidentAttachment =
       process.env.STAY_REQUIRE_CORE_PROMOTION_CERT !== '1',
 
@@ -64,7 +65,21 @@ class LivingKernel {
     this.statusInFlight = null;
     this.statusCacheTtlMs = 1000;
     this.trustedTimePulseSequence = 0;
+    this.trustedOrganismTimePulseSequence = 0;
     this.lastBiologicalRetention = null;
+    this.trustedOrganismTime =
+      trustedOrganismTime;
+
+    if (
+      this.trustedOrganismTime !== null &&
+      typeof this.trustedOrganismTime
+        ?.sample !== 'function'
+    ) {
+      throw Object.assign(
+        new Error('Kernel trusted organism time provider is invalid'),
+        { code: 'TRUSTED_TIME_PROVIDER_INVALID' }
+      );
+    }
 
     this.releaseRoot =
       path.resolve(releaseRoot);
@@ -1240,6 +1255,115 @@ class LivingKernel {
             KERNEL_VERSION
         }
       );
+  }
+
+  async publishTrustedOrganismTimePulse() {
+    const evidence =
+      await this.sampleTrustedTimeEvidence();
+
+    const pulseSequence =
+      ++this.trustedOrganismTimePulseSequence;
+
+    const wallClockMs =
+      Number(this.clock());
+
+    const signalId =
+      `runtime.trusted-organism-time.pulse:${this.runtimeRevision}:${pulseSequence}`;
+
+    const signal =
+      createSignal({
+        signalId,
+        topic:
+          'runtime.trusted-organism-time.pulse',
+        payload: {
+          runtimeRevision:
+            this.runtimeRevision,
+          pulseSequence,
+          ...evidence
+        },
+        trustedTime: {
+          source:
+            'kernel',
+          observedAtMs:
+            wallClockMs,
+          pulseId:
+            `trusted-organism-time-${this.runtimeRevision}-${pulseSequence}`
+        },
+        provenance: {
+          producerType:
+            'kernel',
+          producerId:
+            'living-kernel',
+          authorityEpoch:
+            this.runtimeRevision
+        },
+        durability:
+          DURABILITY.DURABLE
+      });
+
+    return this.fabric
+      .publishBiologicalSignal(
+        signal,
+        {
+          eventClass:
+            'durable',
+          authorityEpoch:
+            this.runtimeRevision,
+          deduplicationKey:
+            signalId
+        }
+      );
+  }
+
+  async sampleTrustedTimeEvidence() {
+    if (!this.trustedOrganismTime) {
+      return Object.freeze({
+        status:
+          'TRUSTED_TIME_UNAVAILABLE',
+        trustedTimeUs:
+          null,
+        continuityEpoch:
+          null,
+        reasonCode:
+          'TRUSTED_TIME_PROVIDER_UNAVAILABLE'
+      });
+    }
+
+    const sampled =
+      await this.trustedOrganismTime
+        .sample();
+
+    const trusted =
+      sampled?.status ===
+        'TRUSTED' &&
+      Number.isSafeInteger(
+        sampled.trustedTimeUs
+      ) &&
+      sampled.trustedTimeUs >= 0 &&
+      Number.isSafeInteger(
+        sampled.continuityEpoch
+      ) &&
+      sampled.continuityEpoch >= 1;
+
+    return Object.freeze({
+      status:
+        trusted
+          ? 'TRUSTED'
+          : 'TRUSTED_TIME_UNCERTAIN',
+      trustedTimeUs:
+        trusted
+          ? sampled.trustedTimeUs
+          : null,
+      continuityEpoch:
+        trusted
+          ? sampled.continuityEpoch
+          : null,
+      reasonCode:
+        trusted
+          ? null
+          : sampled?.reasonCode ||
+            'TRUSTED_TIME_UNCERTAIN'
+    });
   }
 
   async stageCoreUpgrade(modulePath) {

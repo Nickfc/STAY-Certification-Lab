@@ -11,7 +11,7 @@ const manifest = Object.freeze({
   productionEligible: false,
   inputs: Object.freeze([
     'runtime.organism.binding',
-    'runtime.time.pulse',
+    'runtime.trusted-organism-time.pulse',
     'environment.photic.exposure',
   ]),
   outputs: Object.freeze([
@@ -36,25 +36,29 @@ const manifest = Object.freeze({
   }),
 });
 
-function createCore() {
-  let state = Object.freeze({ schemaVersion: 1, transitionCount: 0 });
+async function createCore({ initialState, emit }) {
+  const state = {
+    schemaVersion: 1,
+    transitionCount: Number(initialState?.transitionCount) || 0,
+  };
   return {
-    manifest,
-    async initialize(snapshot) {
-      if (snapshot) state = Object.freeze({ ...snapshot });
-      return { ready: true };
-    },
-    async handleEvent() {
-      state = Object.freeze({ ...state, transitionCount: state.transitionCount + 1 });
-      return { outputs: [] };
+    async start() {},
+    async handle(event) {
+      state.transitionCount += 1;
+      if (event.topic === 'environment.photic.exposure') {
+        await emit('chronobiology.phase.summary', {
+          transitionCount: state.transitionCount,
+          mode: 'LABORATORY',
+        }, { eventClass: 'durable' });
+      }
     },
     async snapshot() {
       return { ...state };
     },
     async health() {
-      return { healthy: true };
+      return { ok: true };
     },
-    async shutdown() {},
+    async stop() {},
   };
 }
 

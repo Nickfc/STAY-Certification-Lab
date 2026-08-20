@@ -26,7 +26,7 @@ const CHRONOBIOLOGY_TEST_CONTRACT = Object.freeze({
   stateSchema: 1,
   inputs: Object.freeze([
     'runtime.organism.binding',
-    'runtime.time.pulse',
+    'runtime.trusted-organism-time.pulse',
     'environment.photic.exposure',
   ]),
   outputs: Object.freeze([
@@ -34,6 +34,8 @@ const CHRONOBIOLOGY_TEST_CONTRACT = Object.freeze({
   ]),
   packagePolicyHash: null,
   signalling: RESIDENT_SIGNALLING.LAB_SHADOW_ONLY,
+  producerEpoch: 1,
+  authorityMode: 'lab',
 });
 
 function manager() {

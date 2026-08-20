@@ -7424,7 +7424,10 @@ class StateStore {
     version,
     stateSchema,
     state,
-    consumerAck = null
+    consumerAck = null,
+    producerEpoch = null,
+    producerTransitionId = null,
+    outboxIntents = []
   }) {
     const resident =
       this.getResident(residencyId);
@@ -7640,9 +7643,30 @@ class StateStore {
           }
         }
 
+        const committedOutbox =
+          this._commitBiologicalOutboxIntents({
+            coreId:
+              resident.coreId,
+            instanceId,
+            version,
+            authorityEpoch:
+              producerEpoch ||
+              1,
+            checkpointId,
+            checkpointHash:
+              blob.hash,
+            checkpointGeneration:
+              generation,
+            producerTransitionId,
+            consumerAck,
+            outboxIntents
+          });
+
         return {
           checkpointId,
-          generation
+          generation,
+          outboxIntents:
+            committedOutbox
         };
       });
 
