@@ -12,7 +12,9 @@
     "maximum_pending_intervals": 64,
     "spectral_channels_model_v1": "unsupported and rejected",
     "missing_evidence": "GAP; free-run with degraded cue confidence",
-    "measured_zero": "COMPLETE zero broadband measurement; valid darkness"
+    "measured_zero": "COMPLETE zero broadband measurement; valid darkness",
+    "required_route_law": "trusted advance is deferred until the shared route frontier is finalized and all temporally prior durable route evidence is delivered",
+    "late_evidence_law": "accepted late evidence is integrated before deferred trusted advance; evidence behind a genuinely committed finalized frontier fails closed"
   },
   "transducer_profile": {
     "curve": "level/(level+half_saturation)",
@@ -38,8 +40,8 @@
     "gap_status": "CUE_UNCERTAIN"
   },
   "direct_certification": {
-    "tests": 13,
-    "passed": 13,
+    "tests": 16,
+    "passed": 16,
     "covered": [
       "phase advance",
       "phase delay",
@@ -53,16 +55,23 @@
       "chaotic cue bounds",
       "invalid evidence rejection",
       "trusted-time causality",
-      "bounded cue-flood backpressure"
+      "bounded cue-flood backpressure",
+      "required-route finalization gating",
+      "late-accepted evidence causality",
+      "post-finalization late-evidence rejection"
     ]
   },
   "source_sha256": {
-    "cores/chronobiology/c3/calibration-profile.js": "21d181273e9b2eeb049683f5bdf23f0ffb4d316c5374628242b6e78ad70ca755",
+    "cores/chronobiology/c3/calibration-profile.js": "e758ac1956b53cb02d0ab0d95bff67be948525127185295eb05f280838519ff3",
     "cores/chronobiology/c3/entrainment.js": "62003617ff2c323fb99da02e868d54ef8a40dac97f950a984f680f2b0f49702e",
     "cores/chronobiology/c3/phase-response.js": "b6174a57b5313bf5540b5c7c6093045bd5681bd9b85692b2eee33dc8b1a933d1",
     "cores/chronobiology/c3/photic-calibration-profile.js": "a4c02de768c486eb836c20ac98e0f03d7f8d363394a6cc6f266f7404f3ca67ab",
     "cores/chronobiology/c3/photic-transducer.js": "1a87ca4bf5a231988035df60a94bc257edd2ff3241340fd38c64b522a327017a",
     "cores/chronobiology/c3/oscillator.js": "740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
-    "test/chronobiology-c2-photic.test.js": "3b2b94617af2c6529ea4aadb2666ddf8c58e08b5963aa7432d0e2acd11a0d2bc"
+    "cores/chronobiology/c3/state.js": "e94bf43872e0019fa6c21e0b6f3961422f64d10fe34926829134ced1d30720de",
+    "runtime/kernel/resident-manager.js": "c8c2bf21266b7847ce53e302f553ee39d0da60b6f4577062d584e7b9bdbe7cad",
+    "runtime/kernel/state-store.js": "7e7515b472e5510f2a4d19d7eb94b64a24897f2949feeab48613ebad1cdb1aa8",
+    "test/chronobiology-c2-photic.test.js": "6dc03cf14430db686670d921d6a2fc18299fefaa2bdafa11f6d8228d5ebdcf3e",
+    "test/biological-stream-progress.test.js": "b74a7432f345937f650a56f92e1c01f8336b1309110296f3109c8249afbd96a9"
   }
 }

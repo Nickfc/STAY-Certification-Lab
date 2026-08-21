@@ -104,6 +104,31 @@ function pulse(sequence, timeUs) {
   };
 }
 
+function routeCompleteness({ frontierUs, pendingEvidence = false, complete = true } = {}) {
+  return {
+    complete,
+    unconstrained: false,
+    configured: true,
+    frontierUs: frontierUs ?? null,
+    pendingEvidence,
+    activeRoutes: [{
+      routeId: 'route:lab-photic',
+      producerStreamId: 'laboratory:photic',
+      frontierUs: frontierUs ?? 0,
+      progressId: `progress-${frontierUs ?? 0}`,
+    }],
+    blockers: complete ? [] : [{
+      routeId: 'route:lab-photic', state: 'ACTIVE',
+      reason: 'STREAM_PROGRESS_INCOMPLETE', routeBarrierUs: null,
+    }],
+    releasedRoutes: [],
+  };
+}
+
+function withRoute(event, context) {
+  return { ...event, meta: { ...(event.meta || {}), residentRouteCompleteness: context } };
+}
+
 test('C2-PHOT-01 cue at advance-sensitive phase produces bounded advance', () => {
   const state = phasePrepared(0x40000000);
   const free = integrateFreeRun(state, 6 * HOUR_US);
@@ -284,4 +309,52 @@ test('C2-PHOT-13 cue flood is bounded and exact queued duplicates are idempotent
     fromUs: 64 * 60_000_000,
     toUs: 65 * 60_000_000,
   })), { code: 'CHRONOBIOLOGY_PHOTIC_BACKPRESSURE' });
+});
+
+test('C2-PHOT-14 trusted time cannot pass a required photic finalization frontier', () => {
+  let state = bindState(emptyState(), binding());
+  state = advanceTrustedTime(state, pulse(1, 0));
+  state = advanceTrustedTime(state, withRoute(
+    pulse(2, 6 * HOUR_US),
+    routeCompleteness({ frontierUs: 3 * HOUR_US }),
+  ));
+  assert.equal(state.continuity.committed_through_us, 0);
+  assert.equal(state.continuity.deferred_trusted_time_evidence.trusted_time_us, 6 * HOUR_US);
+  assert.equal(state.continuity.photic_route_configured, true);
+});
+
+test('C2-PHOT-15 late-accepted route evidence is applied before deferred trusted advance', async () => {
+  const outputs = [];
+  const { createCore } = require('../cores/chronobiology/c3');
+  const core = await createCore({ emit: async (_topic, payload) => outputs.push(payload) });
+  await core.handle(binding());
+  await core.handle(pulse(1, 0));
+  await core.handle(withRoute(
+    pulse(2, 6 * HOUR_US),
+    routeCompleteness({ frontierUs: 6 * HOUR_US, pendingEvidence: true }),
+  ));
+  assert.equal((await core.snapshot()).continuity.committed_through_us, 0);
+
+  await core.handle(withRoute(
+    evidence({ id: 'late-accepted', fromUs: 0, toUs: 6 * HOUR_US }),
+    routeCompleteness({ frontierUs: 6 * HOUR_US, pendingEvidence: false }),
+  ));
+  const recovered = await core.snapshot();
+  assert.equal(recovered.continuity.committed_through_us, 6 * HOUR_US);
+  assert.equal(recovered.continuity.deferred_trusted_time_evidence, null);
+  assert.equal(recovered.continuity.pending_photic_evidence.length, 0);
+  assert.ok(recovered.acquired.cue_coverage_q > 0);
+});
+
+test('C2-PHOT-16 evidence behind a genuinely committed finalized frontier fails closed', () => {
+  let state = bindState(emptyState(), binding());
+  state = advanceTrustedTime(state, pulse(1, 0));
+  state = advanceTrustedTime(state, withRoute(
+    pulse(2, 6 * HOUR_US),
+    routeCompleteness({ frontierUs: 6 * HOUR_US }),
+  ));
+  assert.throws(() => queuePhoticEvidence(state,
+    evidence({ id: 'impossible-late', fromUs: 0, toUs: HOUR_US })), {
+    code: 'CHRONOBIOLOGY_PHOTIC_LATE',
+  });
 });

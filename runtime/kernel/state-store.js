@@ -6470,6 +6470,9 @@ class StateStore {
             routeId:
               route.routeId,
 
+            producerStreamId:
+              route.producerStreamId,
+
             frontierUs:
               progress.finalizedThroughUs,
 
@@ -6599,6 +6602,47 @@ class StateStore {
       releasedRoutes:
         Object.freeze(released)
     });
+  }
+
+
+  hasPendingBiologicalRouteEvidence({
+    consumerId,
+    producerStreamIds,
+    throughUs,
+    excludingSequence = null
+  }) {
+    this.assertOpen();
+    if (typeof consumerId !== 'string' || !consumerId
+      || !Array.isArray(producerStreamIds)
+      || producerStreamIds.some(value => typeof value !== 'string' || !value)
+      || !Number.isSafeInteger(throughUs) || throughUs < 0
+      || (excludingSequence !== null
+        && (!Number.isSafeInteger(excludingSequence) || excludingSequence < 1))) {
+      throw Object.assign(new Error('pending route-evidence query is invalid'), {
+        code: 'BIOLOGICAL_ROUTE_PENDING_QUERY'
+      });
+    }
+    const streams = [...new Set(producerStreamIds)].sort();
+    if (streams.length === 0) return false;
+    const placeholders = streams.map(() => '?').join(',');
+    const excluded = excludingSequence === null ? '' : 'AND d.sequence<>?';
+    const row = this.db.prepare(`
+      SELECT 1 AS present
+      FROM biological_deliveries d
+      JOIN biological_envelopes_v2 v ON v.sequence=d.sequence
+      WHERE d.consumer_id=?
+        AND d.status='PENDING'
+        AND v.producer_stream_id IN (${placeholders})
+        AND v.order_time_us<=?
+        ${excluded}
+      LIMIT 1
+    `).get(
+      consumerId,
+      ...streams,
+      throughUs,
+      ...(excludingSequence === null ? [] : [excludingSequence])
+    );
+    return Boolean(row);
   }
 
 

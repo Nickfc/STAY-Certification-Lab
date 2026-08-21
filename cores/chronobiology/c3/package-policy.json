@@ -27,7 +27,7 @@
     "entrainment.js": "sha256:62003617ff2c323fb99da02e868d54ef8a40dac97f950a984f680f2b0f49702e",
     "fixed-point.js": "sha256:2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
     "founder.js": "sha256:1cf3b5b1a683b56773476d6305393eb395f023492da3373a16d310e1aa42491b",
-    "index.js": "sha256:d68da0d6b1e87de746b1b9b176b6336b3d07185ffa19cc4e13e287b15af7e221",
+    "index.js": "sha256:45c6639fd1c06e5ed20d180d0c1565d4aea7b8e889ca55bc7e667588f5644b84",
     "long-gap.js": "sha256:48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
     "oscillator.js": "sha256:740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
     "phase-response.js": "sha256:b6174a57b5313bf5540b5c7c6093045bd5681bd9b85692b2eee33dc8b1a933d1",
@@ -36,10 +36,10 @@
     "schemas/phase-summary.schema.json": "sha256:1eb7e4446040b111032d34294fa5edb66ed2863b6da3701be6e7996813d8acf9",
     "schemas/photic-evidence.schema.json": "sha256:6054d0e3e5aabe3611130650313f629b1485e6de97e9cc575298345a0126d47e",
     "schemas/state.schema.json": "sha256:4234e38bc33dfde950cf94be0b06099e2200eafa77e08e98d5bf2e401bb6fa9a",
-    "state.js": "sha256:135ace1630bcd319285a747922de53795e83ad2d156284975f40692b2c877a22",
+    "state.js": "sha256:e94bf43872e0019fa6c21e0b6f3961422f64d10fe34926829134ced1d30720de",
     "summary.js": "sha256:ddf8a1a129f7d47331e5ec28c1eb1fbc82ebcc55e7bffb145a7cc7f7fc6cba9c",
     "trig-table.js": "sha256:2e360df71cf652ae926fbb82861b362b438cf6794cd6751e541968571ce37668",
-    "validation.js": "sha256:4ed8abaa79d4df31e145380d3c7c08b9f87e6369fc50f65f9314f2496837a0c7"
+    "validation.js": "sha256:41aa2dc63a66c38caacaa8e1dd87fe04d79a9db75965f5a8062f1adb5276d5f0"
   },
   "resourceContract": {
     "cgroupV2": {
@@ -85,5 +85,5 @@
     "pendingRequests": 128,
     "productionOutputs": 0
   },
-  "policyHash": "sha256:6322b24987ee672541bb2dc472df0d52ab59ad8ffcfc17fb06c38582d2256ca0"
+  "policyHash": "sha256:ae386f932d479ebce7ec54fb970556bf088368dd7ef8f5c00d361e3309383e2c"
 }

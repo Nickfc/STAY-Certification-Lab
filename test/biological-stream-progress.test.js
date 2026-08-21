@@ -486,3 +486,27 @@ test('EF1-F stream progress cannot silently move to another producer instance wi
     error => error?.code === 'BIOLOGICAL_STREAM_PROGRESS_IDENTITY'
   );
 });
+
+test('EF1-F resident route query detects temporally prior pending durable evidence', async t => {
+  const { holder } = await makeStore(t, 'stay-ef1-f-pending-route-');
+  holder.store.registerBiologicalConsumer({
+    consumerId: 'resident:chronobiology',
+    coreId: 'chronobiology',
+    topics: ['pulse.beat.summary'],
+    required: false,
+    authorityEpoch: 0,
+  });
+  const accepted = await acceptSignal(holder.store, makeBoundary(),
+    signalProposal({ id: 91, sequence: 1, atUs: 1_000 }));
+  assert.equal(holder.store.hasPendingBiologicalRouteEvidence({
+    consumerId: 'resident:chronobiology',
+    producerStreamIds: ['pulse:beats'],
+    throughUs: 2_000,
+  }), true);
+  assert.equal(holder.store.hasPendingBiologicalRouteEvidence({
+    consumerId: 'resident:chronobiology',
+    producerStreamIds: ['pulse:beats'],
+    throughUs: 2_000,
+    excludingSequence: accepted.envelope.fabric_sequence,
+  }), false);
+});

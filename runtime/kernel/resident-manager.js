@@ -110,7 +110,10 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       ]),
 
     packagePolicyHash:
-      'sha256:6322b24987ee672541bb2dc472df0d52ab59ad8ffcfc17fb06c38582d2256ca0',
+      'sha256:ae386f932d479ebce7ec54fb970556bf088368dd7ef8f5c00d361e3309383e2c',
+
+    routeCompleteness:
+      true,
 
     signalling:
       'LAB_SHADOW_ONLY',
@@ -214,6 +217,11 @@ function normalizeResidentContract(
             .FORBIDDEN
         : null
     );
+
+  if (input.routeCompleteness !== undefined
+    && typeof input.routeCompleteness !== 'boolean') {
+    fail('resident route-completeness flag is invalid', 'RESIDENT_CONTRACT_INVALID');
+  }
 
   if (
     !Object.values(
@@ -1769,10 +1777,16 @@ class ResidentManager {
       );
     }
 
+    const dispatchedEvent =
+      this.withRouteCompleteness(
+        unit,
+        event
+      );
+
     const dispatched =
       await unit.client
         .dispatch(
-          event,
+          dispatchedEvent,
           {
             coreId:
               unit.manifest.coreId,
@@ -1978,6 +1992,50 @@ class ResidentManager {
 
 
     return persisted;
+  }
+
+
+  withRouteCompleteness(unit, event) {
+    if (!unit.contract.routeCompleteness) return event;
+    const completeness = this.stateStore.computeBiologicalSafeCompletenessFrontier({
+      consumerId: unit.residencyId
+    });
+    const targetUs = event.topic === 'runtime.trusted-organism-time.pulse'
+      ? event.payload?.trustedTimeUs
+      : event.topic === 'environment.photic.exposure'
+        ? event.payload?.effective_to_us
+        : null;
+    const activeStreams = completeness.activeRoutes
+      .map(route => route.producerStreamId)
+      .filter(Boolean);
+    const pendingThroughUs = event.topic === 'runtime.trusted-organism-time.pulse'
+      ? targetUs
+      : completeness.frontierUs;
+    const pendingEvidence = Number.isSafeInteger(pendingThroughUs)
+      && this.stateStore.hasPendingBiologicalRouteEvidence({
+        consumerId: unit.residencyId,
+        producerStreamIds: activeStreams,
+        throughUs: pendingThroughUs,
+        excludingSequence: event.sequence
+      });
+    return Object.freeze({
+      ...event,
+      meta: Object.freeze({
+        ...(event.meta || {}),
+        residentRouteCompleteness: Object.freeze({
+          complete: completeness.complete,
+          unconstrained: completeness.unconstrained,
+          configured: completeness.activeRoutes.length
+            + completeness.blockers.length
+            + completeness.releasedRoutes.length > 0,
+          frontierUs: completeness.frontierUs,
+          pendingEvidence,
+          activeRoutes: completeness.activeRoutes,
+          blockers: completeness.blockers,
+          releasedRoutes: completeness.releasedRoutes
+        })
+      })
+    });
   }
 
 

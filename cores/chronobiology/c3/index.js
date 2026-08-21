@@ -10,6 +10,7 @@ const {
   normalizeState,
   queuePhoticEvidence,
   recordSummaryEmission,
+  resumeDeferredTrustedTime,
 } = require('./state');
 const { buildPhaseSummary, shouldEmitPhaseSummary } = require('./summary');
 
@@ -99,6 +100,15 @@ async function createCore({
         }
       } else if (event?.topic === PHOTIC_TOPIC) {
         state = queuePhoticEvidence(state, event);
+        const candidate = resumeDeferredTrustedTime(state, event);
+        if (candidate !== state && shouldEmitPhaseSummary(candidate)) {
+          const payload = buildPhaseSummary(candidate);
+          const committed = recordSummaryEmission(candidate, payload);
+          await emit('chronobiology.phase.summary', payload, { eventClass: 'durable' });
+          state = committed;
+        } else {
+          state = candidate;
+        }
       }
       // C1 is observably neutral. A later C3 shadow gate publishes summaries.
       return undefined;

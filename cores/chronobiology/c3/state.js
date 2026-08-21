@@ -45,6 +45,7 @@ function normalizeState(input) {
     candidate.continuity.recent_photic_evidence ??= [];
     candidate.continuity.last_summary_emitted_us ??= null;
     candidate.continuity.last_summary_payload_hash ??= null;
+    candidate.continuity.deferred_trusted_time_evidence ??= null;
   }
   validateState(candidate);
   return freeze(candidate);
@@ -123,6 +124,62 @@ function normalizeTrustedTimeEvent(event) {
 
 function evidenceHash(evidence) {
   return sha256(stableStringify(evidence));
+}
+
+function normalizeRouteCompleteness(event) {
+  const value = event?.meta?.residentRouteCompleteness;
+  if (value === undefined) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || typeof value.complete !== 'boolean'
+    || typeof value.unconstrained !== 'boolean'
+    || typeof value.configured !== 'boolean'
+    || (value.frontierUs !== null
+      && (!Number.isSafeInteger(value.frontierUs) || value.frontierUs < 0))
+    || typeof value.pendingEvidence !== 'boolean'
+    || !Array.isArray(value.activeRoutes)
+    || !Array.isArray(value.blockers)
+    || !Array.isArray(value.releasedRoutes)) {
+    fail('resident route completeness is invalid', 'CHRONOBIOLOGY_ROUTE_INVALID');
+  }
+  return freeze(structuredClone(value));
+}
+
+function withRouteContext(state, context) {
+  if (!context) return state;
+  return {
+    ...state,
+    continuity: {
+      ...state.continuity,
+      photic_route_configured: context.configured,
+      input_route_states: {
+        ...state.continuity.input_route_states,
+        photic: context,
+      },
+    },
+  };
+}
+
+function routeAllowsAdvance(context, targetUs) {
+  if (!context || !context.configured) return true;
+  if (!context.complete || context.pendingEvidence) return false;
+  if (context.unconstrained) return true;
+  return Number.isSafeInteger(context.frontierUs) && context.frontierUs >= targetUs;
+}
+
+function deferTrustedTime(state, evidence, context) {
+  const previous = state.continuity.deferred_trusted_time_evidence;
+  if (previous && (evidence.runtime_revision < previous.runtime_revision
+    || (evidence.runtime_revision === previous.runtime_revision
+      && evidence.pulse_sequence < previous.pulse_sequence))) {
+    fail('deferred trusted pulse rewound', 'CHRONOBIOLOGY_TIME_REWIND');
+  }
+  return normalizeState({
+    ...withRouteContext(state, context),
+    continuity: {
+      ...withRouteContext(state, context).continuity,
+      deferred_trusted_time_evidence: evidence,
+    },
+  });
 }
 
 function queuePhoticEvidence(state, event) {
@@ -225,11 +282,18 @@ function recordSummaryEmission(state, payload) {
 function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
   const current = normalizeState(state);
   const evidence = normalizeTrustedTimeEvent(event);
+  const routeContext = normalizeRouteCompleteness(event);
   if (evidence.status !== 'TRUSTED') return current;
   if (!current.binding) return current;
   if (!current.genesis) return initializeGenesis(current, evidence, founderSeedHex);
 
-  const continuity = current.continuity;
+  if (!routeAllowsAdvance(routeContext, evidence.trusted_time_us)) {
+    return deferTrustedTime(current, evidence, routeContext);
+  }
+
+  const routedCurrent = withRouteContext(current, routeContext);
+
+  const continuity = routedCurrent.continuity;
   const hash = evidenceHash(evidence);
   if (evidence.runtime_revision < continuity.last_runtime_revision) {
     fail('runtime revision rewound', 'CHRONOBIOLOGY_TIME_REWIND');
@@ -255,10 +319,10 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
     fail('trusted interval exceeds bounded integration work', 'CHRONOBIOLOGY_INTERVAL_BOUND');
   }
   const integrated = maySkip
-    ? skipLongInterval(current, evidence.trusted_time_us, {
+    ? skipLongInterval(routedCurrent, evidence.trusted_time_us, {
       evidenceGap: continuity.photic_route_configured,
     })
-    : integrateEvidencePlan(current, evidence.trusted_time_us);
+    : integrateEvidencePlan(routedCurrent, evidence.trusted_time_us);
   const remainingIds = new Set((integrated.pending_photic_evidence
     ?? continuity.pending_photic_evidence).map(entry => entry.event_id));
   const consumedEvidence = continuity.pending_photic_evidence
@@ -268,7 +332,7 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
       evidence_hash: entry.evidence_hash,
     }));
   const advanced = appendAggregateObservation({
-    ...current,
+    ...routedCurrent,
     acquired: integrated.acquired,
     continuity: {
       ...continuity,
@@ -277,6 +341,7 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
       last_runtime_revision: evidence.runtime_revision,
       trusted_time_continuity_epoch: evidence.continuity_epoch,
       last_trusted_evidence_hash: hash,
+      deferred_trusted_time_evidence: null,
       pending_photic_evidence:
         integrated.pending_photic_evidence ?? continuity.pending_photic_evidence,
       recent_photic_evidence: [
@@ -286,6 +351,29 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
     },
   }, evidence.trusted_time_us);
   return normalizeState(advanced);
+}
+
+function resumeDeferredTrustedTime(state, event) {
+  const current = normalizeState(state);
+  const deferred = current.continuity?.deferred_trusted_time_evidence;
+  const routeContext = normalizeRouteCompleteness(event);
+  if (!deferred || !routeAllowsAdvance(routeContext, deferred.trusted_time_us)) return current;
+  return advanceTrustedTime(current, {
+    id: `deferred-trusted-${deferred.runtime_revision}-${deferred.pulse_sequence}`,
+    topic: TRUSTED_TIME_TOPIC,
+    payload: {
+      runtimeRevision: deferred.runtime_revision,
+      pulseSequence: deferred.pulse_sequence,
+      status: deferred.status,
+      trustedTimeUs: deferred.trusted_time_us,
+      continuityEpoch: deferred.continuity_epoch,
+      reasonCode: deferred.reason_code,
+    },
+    meta: {
+      sourceCore: 'living-kernel',
+      residentRouteCompleteness: routeContext,
+    },
+  });
 }
 
 module.exports = {
@@ -302,4 +390,5 @@ module.exports = {
   normalizeTrustedTimeEvent,
   queuePhoticEvidence,
   recordSummaryEmission,
+  resumeDeferredTrustedTime,
 };

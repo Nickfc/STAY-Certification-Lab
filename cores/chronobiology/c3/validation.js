@@ -183,6 +183,17 @@ function validateContinuity(state) {
   }
   object(continuity.consumed_stream_cursors, 'consumed stream cursors');
   object(continuity.input_route_states, 'input route states');
+  if (continuity.deferred_trusted_time_evidence !== null) {
+    const deferred = object(continuity.deferred_trusted_time_evidence,
+      'deferred trusted time evidence');
+    integer(deferred.runtime_revision, 'deferred runtime revision', 1);
+    integer(deferred.pulse_sequence, 'deferred pulse sequence', 1);
+    integer(deferred.trusted_time_us, 'deferred trusted time', continuity.committed_through_us);
+    integer(deferred.continuity_epoch, 'deferred continuity epoch', 1);
+    if (deferred.status !== 'TRUSTED' || deferred.reason_code !== null) {
+      fail('deferred trusted time evidence is not trusted');
+    }
+  }
   const summaryTime = continuity.last_summary_emitted_us;
   const summaryHash = continuity.last_summary_payload_hash;
   if ((summaryTime === null) !== (summaryHash === null)) {
