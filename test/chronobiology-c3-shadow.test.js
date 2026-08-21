@@ -293,3 +293,94 @@ test('C3-SHD-07 BSF capability accepts SHADOW and rejects authority relabeling',
     proposal,
   }), { code: 'BIOLOGICAL_BSF_CAPABILITY' });
 });
+
+test('C3-SHD-08 corrupt newest checkpoint recovers prior valid state by finalized replay', async t => {
+  const runtime = await makeRuntime(t);
+  const observed = [];
+  runtime.fabric.subscribeAll(event => { if (event.topic === SUMMARY_TOPIC) observed.push(event); });
+  const first = runtime.createManager();
+  await first.attach({ moduleRelativePath: MODULE, binding: binding(runtime.identity) });
+  const genesis = await publishPulse(runtime, 1, 0);
+  await first.drain('resident:chronobiology', genesis.sequence);
+  const later = await publishPulse(runtime, 2, SUMMARY_CADENCE_US);
+  await first.drain('resident:chronobiology', later.sequence);
+  const expected = (await runtime.stateStore.readResidentCheckpoint(
+    'resident:chronobiology')).state;
+  const outputCount = observed.length;
+  await first.shutdown();
+
+  const newest = await runtime.stateStore.readResidentCheckpoint('resident:chronobiology');
+  await fs.writeFile(runtime.stateStore.blobPath(newest.blobHash), 'corrupt-checkpoint');
+  const recovered = runtime.createManager();
+  await recovered.recover('resident:chronobiology', binding(runtime.identity));
+  const actual = (await runtime.stateStore.readResidentCheckpoint(
+    'resident:chronobiology')).state;
+  assert.equal(stableStringify(actual), stableStringify(expected));
+  assert.equal(observed.length, outputCount);
+});
+
+test('C3-SHD-09 no retained valid checkpoint fails closed without founder reroll', async t => {
+  const runtime = await makeRuntime(t);
+  const first = runtime.createManager();
+  await first.attach({ moduleRelativePath: MODULE, binding: binding(runtime.identity) });
+  const genesis = await publishPulse(runtime, 1, 0);
+  await first.drain('resident:chronobiology', genesis.sequence);
+  await first.shutdown();
+  const hashes = runtime.stateStore.db.prepare(`
+    SELECT DISTINCT blob_hash FROM resident_checkpoints WHERE residency_id=?
+  `).all('resident:chronobiology').map(row => row.blob_hash);
+  for (const hash of hashes) await fs.writeFile(runtime.stateStore.blobPath(hash), 'corrupt-all');
+  const recovered = runtime.createManager();
+  await assert.rejects(
+    () => recovered.recover('resident:chronobiology', binding(runtime.identity)),
+    { code: 'RESIDENT_CHECKPOINT_NO_VALID' },
+  );
+  assert.equal(runtime.stateStore.getResident('resident:chronobiology').checkpointGeneration > 0,
+    true);
+});
+
+test('C3-SHD-10 semantically invalid newest state falls back to a CoreHost-valid checkpoint', async t => {
+  const runtime = await makeRuntime(t);
+  const first = runtime.createManager();
+  await first.attach({ moduleRelativePath: MODULE, binding: binding(runtime.identity) });
+  const genesis = await publishPulse(runtime, 1, 0);
+  await first.drain('resident:chronobiology', genesis.sequence);
+  const expected = (await runtime.stateStore.readResidentCheckpoint(
+    'resident:chronobiology')).state;
+  await first.shutdown();
+
+  const resident = runtime.stateStore.getResident('resident:chronobiology');
+  const invalid = structuredClone(expected);
+  invalid.acquired.oscillators[7].phase_q = -1;
+  await runtime.stateStore.commitResidentCheckpoint({
+    residencyId: resident.residencyId,
+    instanceId: resident.instanceId,
+    version: resident.version,
+    stateSchema: resident.stateSchema,
+    state: invalid,
+  });
+  const recovered = runtime.createManager();
+  await recovered.recover('resident:chronobiology', binding(runtime.identity));
+  const actual = (await runtime.stateStore.readResidentCheckpoint(
+    'resident:chronobiology')).state;
+  assert.equal(stableStringify(actual), stableStringify(expected));
+});
+
+test('C3-SHD-11 missing finalized replay evidence fails closed', async t => {
+  const runtime = await makeRuntime(t);
+  const first = runtime.createManager();
+  await first.attach({ moduleRelativePath: MODULE, binding: binding(runtime.identity) });
+  const genesis = await publishPulse(runtime, 1, 0);
+  await first.drain('resident:chronobiology', genesis.sequence);
+  const later = await publishPulse(runtime, 2, SUMMARY_CADENCE_US);
+  await first.drain('resident:chronobiology', later.sequence);
+  await first.shutdown();
+  const newest = await runtime.stateStore.readResidentCheckpoint('resident:chronobiology');
+  await fs.writeFile(runtime.stateStore.blobPath(newest.blobHash), 'corrupt-checkpoint');
+  runtime.stateStore.db.prepare('DELETE FROM biological_events WHERE sequence=?').run(later.sequence);
+  const recovered = runtime.createManager();
+  await assert.rejects(
+    () => recovered.recover('resident:chronobiology', binding(runtime.identity)),
+    { code: 'RESIDENT_FINALIZED_REPLAY_INCOMPLETE' },
+  );
+});

@@ -7471,7 +7471,8 @@ class StateStore {
     consumerAck = null,
     producerEpoch = null,
     producerTransitionId = null,
-    outboxIntents = []
+    outboxIntents = [],
+    allowCommittedOutboxReplay = false
   }) {
     const resident =
       this.getResident(residencyId);
@@ -7703,7 +7704,8 @@ class StateStore {
               generation,
             producerTransitionId,
             consumerAck,
-            outboxIntents
+            outboxIntents,
+            allowCommittedOutboxReplay
           });
 
         return {
@@ -7896,6 +7898,134 @@ class StateStore {
           bytes.toString('utf8')
         )
     };
+  }
+
+
+  async buildResidentCheckpointRecoveryPlan(residencyId) {
+    const resident = this.getResident(residencyId);
+    if (!resident || !resident.checkpointHash || !resident.checkpointGeneration) return null;
+    const rows = this.db.prepare(`
+      SELECT * FROM resident_checkpoints
+      WHERE residency_id=? AND instance_id=? AND version=? AND state_schema=?
+        AND generation<=?
+      ORDER BY generation DESC
+    `).all(
+      resident.residencyId,
+      resident.instanceId,
+      resident.version,
+      resident.stateSchema,
+      resident.checkpointGeneration
+    );
+    const pointer = rows.find(row => Number(row.generation) === resident.checkpointGeneration
+      && row.blob_hash === resident.checkpointHash);
+    if (!pointer) {
+      throw Object.assign(new Error(`resident checkpoint tuple is missing for ${residencyId}`), {
+        code: 'RESIDENT_CHECKPOINT_MISMATCH'
+      });
+    }
+    const candidates = [];
+    const rejected = [];
+    for (const row of rows) {
+      try {
+        const bytes = await this.readBlob(row.blob_hash);
+        if (bytes.length !== Number(row.byte_length)) {
+          throw Object.assign(new Error('resident checkpoint byte length mismatch'), {
+            code: 'CHECKPOINT_CORRUPT'
+          });
+        }
+        candidates.push(Object.freeze({
+          checkpointId: row.checkpoint_id,
+          residencyId: row.residency_id,
+          instanceId: row.instance_id,
+          version: row.version,
+          stateSchema: Number(row.state_schema),
+          generation: Number(row.generation),
+          blobHash: row.blob_hash,
+          byteLength: Number(row.byte_length),
+          inputCursor: Number(row.input_cursor) || 0,
+          createdAt: row.created_at,
+          state: JSON.parse(bytes.toString('utf8'))
+        }));
+      } catch (error) {
+        rejected.push(Object.freeze({
+          checkpointId: row.checkpoint_id,
+          generation: Number(row.generation),
+          blobHash: row.blob_hash,
+          code: error?.code || 'CHECKPOINT_CORRUPT'
+        }));
+      }
+    }
+    for (const hash of new Set(rejected.map(value => value.blobHash))) {
+      const source = this.blobPath(hash);
+      if (await exists(source)) {
+        await fs.rename(source, `${source}.corrupt-${crypto.randomUUID()}`);
+      }
+    }
+    return Object.freeze({
+      residencyId,
+      pointerGeneration: Number(pointer.generation),
+      replayThroughCursor: Number(pointer.input_cursor) || 0,
+      candidates: Object.freeze(candidates),
+      rejected: Object.freeze(rejected)
+    });
+  }
+
+
+  listFinalizedResidentReplayEvents({
+    residencyId,
+    afterGeneration,
+    throughGeneration,
+    afterInputCursor,
+    throughInputCursor,
+    limit = 1024
+  }) {
+    const values = [afterGeneration, throughGeneration, afterInputCursor, throughInputCursor];
+    if (typeof residencyId !== 'string' || !residencyId
+      || values.some(value => !Number.isSafeInteger(value) || value < 0)
+      || throughGeneration < afterGeneration || throughInputCursor < afterInputCursor) {
+      throw Object.assign(new Error('resident finalized replay query is invalid'), {
+        code: 'RESIDENT_FINALIZED_REPLAY_QUERY'
+      });
+    }
+    const bounded = Math.max(1, Math.min(1024, Number(limit) || 1024));
+    const cursorRows = this.db.prepare(`
+      SELECT DISTINCT input_cursor
+      FROM resident_checkpoints
+      WHERE residency_id=? AND generation>? AND generation<=?
+        AND input_cursor>? AND input_cursor<=?
+      ORDER BY input_cursor ASC
+    `).all(
+      residencyId, afterGeneration, throughGeneration,
+      afterInputCursor, throughInputCursor
+    );
+    if (cursorRows.length >= bounded) {
+      throw Object.assign(new Error('resident finalized replay exceeds bounded window'), {
+        code: 'RESIDENT_REPLAY_BOUNDED'
+      });
+    }
+    const events = [];
+    for (const cursorRow of cursorRows) {
+      const sequence = Number(cursorRow.input_cursor);
+      const row = this.db.prepare(`
+        SELECT e.*, d.status AS delivery_status
+        FROM biological_events e
+        JOIN biological_deliveries d ON d.sequence=e.sequence
+        WHERE d.consumer_id=? AND e.sequence=?
+      `).get(residencyId, sequence);
+      if (!row || row.delivery_status !== 'ACKED') {
+        throw Object.assign(new Error(
+          `resident finalized replay evidence ${sequence} is unavailable or uncommitted`
+        ), { code: 'RESIDENT_FINALIZED_REPLAY_INCOMPLETE' });
+      }
+      events.push(this.biologicalEventFromRow(row, false));
+    }
+    const last = events.at(-1)?.sequence ?? afterInputCursor;
+    if (last !== throughInputCursor && throughInputCursor !== afterInputCursor) {
+      throw Object.assign(new Error('resident replay provenance does not reach checkpoint frontier'), {
+        code: 'RESIDENT_FINALIZED_REPLAY_INCOMPLETE'
+      });
+    }
+    return Object.freeze(events);
   }
 
 
@@ -8848,7 +8978,8 @@ class StateStore {
     checkpointGeneration,
     producerTransitionId,
     consumerAck,
-    outboxIntents
+    outboxIntents,
+    allowCommittedOutboxReplay = false
   }) {
     if (
       !Array.isArray(
@@ -9184,6 +9315,11 @@ class StateStore {
           );
         }
 
+        if (allowCommittedOutboxReplay) {
+          committed.push(this.getBiologicalOutboxIntent(producerEventId));
+          continue;
+        }
+
         throw Object.assign(
           new Error(
             'authoritative biological transition was already committed'
@@ -9350,6 +9486,10 @@ class StateStore {
       committed.at(
         -1
       );
+
+    if (committed.every(intent => intent.checkpointId !== checkpointId)) {
+      return committed;
+    }
 
     const nextHead = {
       producerCoreId:

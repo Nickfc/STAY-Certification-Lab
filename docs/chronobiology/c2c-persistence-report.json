@@ -1,15 +1,19 @@
 {
   "report_schema": "chronobiology.c2c-persistence-report/v1",
   "result": "PASS",
-  "core_version": "0.4.0-c2c",
-  "package_policy_hash": "sha256:7104e01104dee261d84ce0ee769f184d24df5ba8e01756527f31be64b3b1e53d",
+  "core_version": "1.0.0-c3rc",
+  "package_policy_hash": "sha256:ae386f932d479ebce7ec54fb970556bf088368dd7ef8f5c00d361e3309383e2c",
   "durability": {
     "founder_reroll": false,
     "oscillator_local_repair": false,
     "adaptation_persistent": true,
     "pending_evidence_capacity": 64,
     "consumed_evidence_identity_capacity": 64,
-    "legacy_checkpoint_upgrade": "deterministic additive defaults; phenotype unchanged"
+    "legacy_checkpoint_upgrade": "deterministic additive defaults; phenotype unchanged",
+    "newest_corrupt_checkpoint": "forensically quarantined; latest prior exact-identity CoreHost-valid checkpoint selected",
+    "replay_source": "ACKed durable events named by retained shared resident checkpoint input_cursor provenance",
+    "private_replay_ledger": false,
+    "duplicate_replay_output": false
   },
   "long_gap": {
     "canonical_coarse_quantum_us": 43200000000,
@@ -39,8 +43,8 @@
     "result": "PASS"
   },
   "direct_certification": {
-    "tests": 7,
-    "passed": 7,
+    "tests": 11,
+    "passed": 11,
     "covered": [
       "checkpoint restart identity",
       "consumed duplicate idempotency",
@@ -48,14 +52,21 @@
       "single-unit corruption rejection",
       "coarse long-gap convergence",
       "long-gap replay and bound",
-      "founder corruption quarantine"
+      "founder corruption quarantine",
+      "corrupt newest checkpoint prior-valid recovery",
+      "no-valid-checkpoint fail-closed behavior",
+      "semantic CoreHost validation fallback",
+      "missing finalized replay evidence rejection"
     ]
   },
   "source_sha256": {
     "cores/chronobiology/c3/coarse-free-run.js": "13ec141fbca5bea9aac11055ced246a4114de834394d08252c82eca27c41aa6c",
     "cores/chronobiology/c3/long-gap.js": "48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
-    "cores/chronobiology/c3/state.js": "8012e6ec3df0e0b3d234063c7b7487e77bdc56818e070afbb5a26e8f7454f9f1",
-    "cores/chronobiology/c3/validation.js": "45b97675080c68280197c9a8b5b3ae35b20f981267b92c057e8f182c2d898318",
-    "test/chronobiology-c2-persistence.test.js": "3e822e7bb5306aaf5f9f688014e138d2c558bf35d93ae22b6285a721ebd029ec"
+    "cores/chronobiology/c3/state.js": "e94bf43872e0019fa6c21e0b6f3961422f64d10fe34926829134ced1d30720de",
+    "cores/chronobiology/c3/validation.js": "41aa2dc63a66c38caacaa8e1dd87fe04d79a9db75965f5a8062f1adb5276d5f0",
+    "runtime/kernel/resident-manager.js": "f29fc5187d171e2a7158d9aadc20ed82f2b059f7e10aa4fcc9ee6660dfcbf989",
+    "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4",
+    "test/chronobiology-c2-persistence.test.js": "3e822e7bb5306aaf5f9f688014e138d2c558bf35d93ae22b6285a721ebd029ec",
+    "test/chronobiology-c3-shadow.test.js": "f367dd2a7d1a6efb7faa63e2f9f271b003cf7149280086da3acc3658ec516c1f"
   }
 }

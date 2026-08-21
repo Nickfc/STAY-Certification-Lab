@@ -115,6 +115,9 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
     routeCompleteness:
       true,
 
+    priorCheckpointRecovery:
+      true,
+
     signalling:
       'LAB_SHADOW_ONLY',
 
@@ -221,6 +224,10 @@ function normalizeResidentContract(
   if (input.routeCompleteness !== undefined
     && typeof input.routeCompleteness !== 'boolean') {
     fail('resident route-completeness flag is invalid', 'RESIDENT_CONTRACT_INVALID');
+  }
+  if (input.priorCheckpointRecovery !== undefined
+    && typeof input.priorCheckpointRecovery !== 'boolean') {
+    fail('resident prior-checkpoint recovery flag is invalid', 'RESIDENT_CONTRACT_INVALID');
   }
 
   if (
@@ -953,7 +960,8 @@ class ResidentManager {
     resident,
     inspected,
     binding,
-    checkpoint = null
+    checkpoint = null,
+    finalizedReplay = []
   }) {
     const manifest =
       inspected.definition
@@ -1034,7 +1042,10 @@ class ResidentManager {
         inspected.contract,
 
       pendingOutputIntents:
-        new Map()
+        new Map(),
+
+      finalizedReplayTail:
+        [...finalizedReplay]
     };
 
 
@@ -1308,6 +1319,8 @@ class ResidentManager {
      * by the replay loop in canonical sequence order.
      */
     try {
+      await this.replayFinalizedResidentEvents(unit);
+
       await this.replayPendingBiologicalEvents(
         unit
       );
@@ -1593,16 +1606,41 @@ class ResidentManager {
       inspected
     );
 
-    const checkpoint =
-      await this.stateStore
-        .readResidentCheckpoint(
-          residencyId
-        );
+    let checkpoint;
+    let finalizedReplay = [];
+
+    if (inspected.contract.priorCheckpointRecovery) {
+      const plan = await this.stateStore.buildResidentCheckpointRecoveryPlan(residencyId);
+      if (plan) {
+        for (const candidate of plan.candidates) {
+          if (await this.preflightResidentCheckpoint(resident, inspected, candidate)) {
+            checkpoint = candidate;
+            break;
+          }
+        }
+        if (checkpoint) {
+          finalizedReplay = this.stateStore.listFinalizedResidentReplayEvents({
+            residencyId,
+            afterGeneration: checkpoint.generation,
+            throughGeneration: plan.pointerGeneration,
+            afterInputCursor: checkpoint.inputCursor,
+            throughInputCursor: plan.replayThroughCursor,
+            limit: 1024
+          });
+        }
+      }
+    } else {
+      checkpoint = await this.stateStore.readResidentCheckpoint(residencyId);
+    }
 
     if (!checkpoint) {
       fail(
-        'resident history is missing; refusing neutral reconstruction',
-        'RESIDENT_CHECKPOINT_MISSING'
+        inspected.contract.priorCheckpointRecovery
+          ? 'no retained resident checkpoint validates; refusing reconstruction'
+          : 'resident history is missing; refusing neutral reconstruction',
+        inspected.contract.priorCheckpointRecovery
+          ? 'RESIDENT_CHECKPOINT_NO_VALID'
+          : 'RESIDENT_CHECKPOINT_MISSING'
       );
     }
 
@@ -1621,8 +1659,33 @@ class ResidentManager {
 
       inspected,
       binding,
-      checkpoint
+      checkpoint,
+      finalizedReplay
     });
+  }
+
+
+  async preflightResidentCheckpoint(resident, inspected, checkpoint) {
+    const client = new CoreHostClient({
+      modulePath: inspected.definition.modulePath,
+      expectedManifest: inspected.definition.manifest,
+      instanceId: resident.instanceId,
+      mode: 'standby',
+      logger: this.logger,
+      policy: {
+        resources: inspected.definition.manifest.resources,
+        priority: inspected.definition.manifest.priority
+      }
+    });
+    client.on('error', () => {});
+    try {
+      await client.start(checkpoint.state, checkpoint.stateSchema);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      await client.stop().catch(() => {});
+    }
   }
 
 
@@ -1913,7 +1976,10 @@ class ResidentManager {
               ),
 
             outboxIntents:
-              outputIntents
+              outputIntents,
+
+            allowCommittedOutboxReplay:
+              unit.replaySequence === event.sequence
           });
     } catch (error) {
       unit.pendingOutputIntents
@@ -2011,13 +2077,18 @@ class ResidentManager {
     const pendingThroughUs = event.topic === 'runtime.trusted-organism-time.pulse'
       ? targetUs
       : completeness.frontierUs;
-    const pendingEvidence = Number.isSafeInteger(pendingThroughUs)
+    const pendingReplayEvidence = Number.isSafeInteger(pendingThroughUs)
+      && unit.finalizedReplayTail.some(candidate => candidate.sequence !== event.sequence
+        && activeStreams.includes(candidate.meta?.producerStreamId)
+        && Number.isSafeInteger(candidate.payload?.effective_from_us)
+        && candidate.payload.effective_from_us <= pendingThroughUs);
+    const pendingEvidence = pendingReplayEvidence || (Number.isSafeInteger(pendingThroughUs)
       && this.stateStore.hasPendingBiologicalRouteEvidence({
         consumerId: unit.residencyId,
         producerStreamIds: activeStreams,
         throughUs: pendingThroughUs,
         excludingSequence: event.sequence
-      });
+      }));
     return Object.freeze({
       ...event,
       meta: Object.freeze({
@@ -3108,6 +3179,21 @@ class ResidentManager {
       replayed,
       ignored
     };
+  }
+
+
+  async replayFinalizedResidentEvents(unit) {
+    while (unit.finalizedReplayTail.length > 0) {
+      const event = unit.finalizedReplayTail[0];
+      if (!event?.ledger?.durable) {
+        fail('resident finalized replay contains non-durable evidence',
+          'RESIDENT_FINALIZED_REPLAY_INCOMPLETE');
+      }
+      unit.replaySequence = event.sequence;
+      await unit.queue.enqueue(event);
+      unit.finalizedReplayTail.shift();
+    }
+    unit.replaySequence = null;
   }
 
 
