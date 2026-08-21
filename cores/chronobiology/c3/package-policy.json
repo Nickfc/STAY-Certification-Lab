@@ -27,7 +27,7 @@
     "entrainment.js": "sha256:62003617ff2c323fb99da02e868d54ef8a40dac97f950a984f680f2b0f49702e",
     "fixed-point.js": "sha256:2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
     "founder.js": "sha256:a7d59bb4cab45454ce2637fc416e7fba056cfc8e366d86bf35040aa922819613",
-    "index.js": "sha256:fa7ec247e5ee6c3b299ddf3e7fbbb852a65d54bd25b71b4ce59b0c40758da03d",
+    "index.js": "sha256:3d3d8d99949fd9fb182429e8e1af84e97d92068d3784b680de0b8ff946f8c09d",
     "long-gap.js": "sha256:48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
     "oscillator.js": "sha256:740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
     "phase-response.js": "sha256:b6174a57b5313bf5540b5c7c6093045bd5681bd9b85692b2eee33dc8b1a933d1",
@@ -84,5 +84,5 @@
     "pendingRequests": 128,
     "productionOutputs": 0
   },
-  "policyHash": "sha256:7104e01104dee261d84ce0ee769f184d24df5ba8e01756527f31be64b3b1e53d"
+  "policyHash": "sha256:8bd8abe0f8dc79d9ea06a09589c81dd7c4778b0061e8cf44f1dc46c376f07746"
 }

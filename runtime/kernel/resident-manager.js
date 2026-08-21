@@ -83,13 +83,13 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       'chronobiology',
 
     version:
-      '0.4.0-c2c',
+      '0.5.0-c3a',
 
     stateSchema:
       1,
 
     stage:
-      'c2c-persistence-recovery',
+      'c3a-containment',
 
     priority:
       'optional',
@@ -110,7 +110,7 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       ]),
 
     packagePolicyHash:
-      'sha256:7104e01104dee261d84ce0ee769f184d24df5ba8e01756527f31be64b3b1e53d',
+      'sha256:8bd8abe0f8dc79d9ea06a09589c81dd7c4778b0061e8cf44f1dc46c376f07746',
 
     signalling:
       'LAB_SHADOW_ONLY',
