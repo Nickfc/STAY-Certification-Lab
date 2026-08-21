@@ -1,0 +1,61 @@
+{
+  "report_schema": "chronobiology.c2c-persistence-report/v1",
+  "result": "PASS",
+  "core_version": "0.4.0-c2c",
+  "package_policy_hash": "sha256:7104e01104dee261d84ce0ee769f184d24df5ba8e01756527f31be64b3b1e53d",
+  "durability": {
+    "founder_reroll": false,
+    "oscillator_local_repair": false,
+    "adaptation_persistent": true,
+    "pending_evidence_capacity": 64,
+    "consumed_evidence_identity_capacity": 64,
+    "legacy_checkpoint_upgrade": "deterministic additive defaults; phenotype unchanged"
+  },
+  "long_gap": {
+    "canonical_coarse_quantum_us": 43200000000,
+    "certified_minimum_interval_us": 2592000000000,
+    "certified_maximum_interval_us": 63072000000000,
+    "comparison_interval_us": 7776000000000,
+    "exact_60s": {
+      "central_phase_q": 1139802112,
+      "oscillator_coherence_q": 2120624316,
+      "rhythm_amplitude_q": 1813262957
+    },
+    "coarse_12h": {
+      "central_phase_q": 1139802112,
+      "oscillator_coherence_q": 2120624102,
+      "rhythm_amplitude_q": 1813262957
+    },
+    "observed_difference": {
+      "phase_q": 0,
+      "coherence_q": 214,
+      "amplitude_q": 0
+    },
+    "declared_quantum_tolerance": {
+      "phase_q": 5965232,
+      "coherence_q": 10737418,
+      "amplitude_q": 2147484
+    },
+    "result": "PASS"
+  },
+  "direct_certification": {
+    "tests": 7,
+    "passed": 7,
+    "covered": [
+      "checkpoint restart identity",
+      "consumed duplicate idempotency",
+      "legacy checkpoint upgrade",
+      "single-unit corruption rejection",
+      "coarse long-gap convergence",
+      "long-gap replay and bound",
+      "founder corruption quarantine"
+    ]
+  },
+  "source_sha256": {
+    "cores/chronobiology/c3/coarse-free-run.js": "13ec141fbca5bea9aac11055ced246a4114de834394d08252c82eca27c41aa6c",
+    "cores/chronobiology/c3/long-gap.js": "48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
+    "cores/chronobiology/c3/state.js": "8012e6ec3df0e0b3d234063c7b7487e77bdc56818e070afbb5a26e8f7454f9f1",
+    "cores/chronobiology/c3/validation.js": "45b97675080c68280197c9a8b5b3ae35b20f981267b92c057e8f182c2d898318",
+    "test/chronobiology-c2-persistence.test.js": "3e822e7bb5306aaf5f9f688014e138d2c558bf35d93ae22b6285a721ebd029ec"
+  }
+}

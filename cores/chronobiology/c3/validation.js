@@ -167,7 +167,9 @@ function validateContinuity(state) {
   object(continuity.input_route_states, 'input route states');
   if (typeof continuity.photic_route_configured !== 'boolean'
     || !Array.isArray(continuity.pending_photic_evidence)
-    || continuity.pending_photic_evidence.length > PHOTIC_PROFILE.evidenceCapacity) {
+    || continuity.pending_photic_evidence.length > PHOTIC_PROFILE.evidenceCapacity
+    || !Array.isArray(continuity.recent_photic_evidence)
+    || continuity.recent_photic_evidence.length > PHOTIC_PROFILE.evidenceCapacity) {
     fail('pending photic evidence is outside its durable bound');
   }
   let previousEnd = continuity.committed_through_us;
@@ -175,6 +177,7 @@ function validateContinuity(state) {
   for (const evidence of continuity.pending_photic_evidence) {
     object(evidence, 'pending photic evidence');
     text(evidence.event_id, 'photic event id');
+    if (!HASH.test(evidence.evidence_hash)) fail('pending photic evidence hash is invalid');
     integer(evidence.effective_from_us, 'photic evidence start', previousEnd);
     integer(evidence.effective_to_us, 'photic evidence end', evidence.effective_from_us + 1);
     if (eventIds.has(evidence.event_id) || evidence.effective_from_us < previousEnd) {
@@ -182,6 +185,11 @@ function validateContinuity(state) {
     }
     eventIds.add(evidence.event_id);
     previousEnd = evidence.effective_to_us;
+  }
+  for (const evidence of continuity.recent_photic_evidence) {
+    object(evidence, 'recent photic evidence identity');
+    text(evidence.event_id, 'recent photic event id');
+    if (!HASH.test(evidence.evidence_hash)) fail('recent photic evidence hash is invalid');
   }
   if (continuity.state_schema_version !== 1) {
     fail('state schema is unsupported', 'CHRONOBIOLOGY_VERSION_UNSUPPORTED');

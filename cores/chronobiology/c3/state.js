@@ -10,6 +10,7 @@ const { MAX_INTEGRATION_STEPS } = require('./oscillator');
 const { PROFILE } = require('./calibration-profile');
 const { PHOTIC_PROFILE } = require('./photic-calibration-profile');
 const { normalizePhoticEvidence, PHOTIC_TOPIC } = require('./photic-transducer');
+const { LONG_GAP_THRESHOLD_US, skipLongInterval } = require('./long-gap');
 const { STATE_SCHEMA, fail, validateState } = require('./validation');
 
 const TRUSTED_TIME_TOPIC = 'runtime.trusted-organism-time.pulse';
@@ -36,6 +37,11 @@ function normalizeState(input) {
   const candidate = input && Object.keys(input).length > 0
     ? structuredClone(input)
     : emptyState();
+  if (candidate.genesis && candidate.continuity) {
+    candidate.continuity.photic_route_configured ??= false;
+    candidate.continuity.pending_photic_evidence ??= [];
+    candidate.continuity.recent_photic_evidence ??= [];
+  }
   validateState(candidate);
   return freeze(candidate);
 }
@@ -120,8 +126,18 @@ function queuePhoticEvidence(state, event) {
   if (!current.genesis) {
     fail('photic evidence cannot precede canonical genesis', 'CHRONOBIOLOGY_PHOTIC_BEFORE_GENESIS');
   }
-  const evidence = normalizePhoticEvidence(event);
+  const normalized = normalizePhoticEvidence(event);
+  const evidence = Object.freeze({
+    ...normalized,
+    evidence_hash: evidenceHash(normalized),
+  });
   const pending = current.continuity.pending_photic_evidence;
+  const recent = current.continuity.recent_photic_evidence;
+  const consumed = recent.find(entry => entry.event_id === evidence.event_id);
+  if (consumed) {
+    if (consumed.evidence_hash === evidence.evidence_hash) return current;
+    fail('consumed photic evidence identity conflicts with content', 'CHRONOBIOLOGY_PHOTIC_CONFLICT');
+  }
   const duplicate = pending.find(entry => entry.event_id === evidence.event_id);
   if (duplicate) {
     if (stableStringify(duplicate) === stableStringify(evidence)) return current;
@@ -172,6 +188,7 @@ function initializeGenesis(state, evidence, founderSeedHex) {
       last_trusted_evidence_hash: evidenceHash(evidence),
       photic_route_configured: false,
       pending_photic_evidence: Object.freeze([]),
+      recent_photic_evidence: Object.freeze([]),
     },
   };
   return normalizeState(next);
@@ -204,10 +221,24 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
   }
 
   const interval = evidence.trusted_time_us - continuity.committed_through_us;
-  if (Math.ceil(interval / PROFILE.integrationQuantumUs) > MAX_INTEGRATION_STEPS) {
+  const maySkip = interval > LONG_GAP_THRESHOLD_US
+    && continuity.pending_photic_evidence.length === 0;
+  if (!maySkip && Math.ceil(interval / PROFILE.integrationQuantumUs) > MAX_INTEGRATION_STEPS) {
     fail('trusted interval exceeds bounded integration work', 'CHRONOBIOLOGY_INTERVAL_BOUND');
   }
-  const integrated = integrateEvidencePlan(current, evidence.trusted_time_us);
+  const integrated = maySkip
+    ? skipLongInterval(current, evidence.trusted_time_us, {
+      evidenceGap: continuity.photic_route_configured,
+    })
+    : integrateEvidencePlan(current, evidence.trusted_time_us);
+  const remainingIds = new Set((integrated.pending_photic_evidence
+    ?? continuity.pending_photic_evidence).map(entry => entry.event_id));
+  const consumedEvidence = continuity.pending_photic_evidence
+    .filter(entry => !remainingIds.has(entry.event_id))
+    .map(entry => Object.freeze({
+      event_id: entry.event_id,
+      evidence_hash: entry.evidence_hash,
+    }));
   return normalizeState({
     ...current,
     acquired: integrated.acquired,
@@ -218,7 +249,12 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
       last_runtime_revision: evidence.runtime_revision,
       trusted_time_continuity_epoch: evidence.continuity_epoch,
       last_trusted_evidence_hash: hash,
-      pending_photic_evidence: integrated.pending_photic_evidence,
+      pending_photic_evidence:
+        integrated.pending_photic_evidence ?? continuity.pending_photic_evidence,
+      recent_photic_evidence: [
+        ...continuity.recent_photic_evidence,
+        ...consumedEvidence,
+      ].slice(-PROFILE.entrainmentHistoryCapacity),
     },
   });
 }

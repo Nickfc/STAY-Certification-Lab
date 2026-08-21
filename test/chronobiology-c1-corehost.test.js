@@ -82,7 +82,7 @@ test('CHR-C1-HOST-02 CoreHost lifecycle persists exact founder and emits nothing
 
 test('CHR-C1-HOST-02A package is hash-bound and resource policy matches its manifest', () => {
   const record = enforcePackagePolicy(require.resolve('../cores/chronobiology/c3'));
-  assert.equal(record.attestedFiles, 17);
+  assert.equal(record.attestedFiles, 19);
   assert.doesNotThrow(() => verifyManifestAgainstPackagePolicy(record, manifest));
   assert.equal(record.policy.ambientCapabilities.network, false);
   assert.equal(record.policy.bounds.productionOutputs, 0);
