@@ -57,6 +57,7 @@ test('CHR-C1-HOST-01 manifest is neutral, bounded, production-ineligible signall
   assert.deepEqual(manifest.inputs, [
     'runtime.organism.binding',
     'runtime.trusted-organism-time.pulse',
+    'environment.photic.exposure',
   ]);
   assert.deepEqual(manifest.outputs, ['chronobiology.phase.summary']);
   assert.equal(manifest.resources.hardRamMiB, 96);
@@ -81,7 +82,7 @@ test('CHR-C1-HOST-02 CoreHost lifecycle persists exact founder and emits nothing
 
 test('CHR-C1-HOST-02A package is hash-bound and resource policy matches its manifest', () => {
   const record = enforcePackagePolicy(require.resolve('../cores/chronobiology/c3'));
-  assert.equal(record.attestedFiles, 12);
+  assert.equal(record.attestedFiles, 17);
   assert.doesNotThrow(() => verifyManifestAgainstPackagePolicy(record, manifest));
   assert.equal(record.policy.ambientCapabilities.network, false);
   assert.equal(record.policy.bounds.productionOutputs, 0);

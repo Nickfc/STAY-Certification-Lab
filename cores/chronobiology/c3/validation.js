@@ -5,6 +5,7 @@ const {
 } = require('../../../runtime/kernel/canonical-json');
 
 const { PROFILE } = require('./calibration-profile');
+const { PHOTIC_PROFILE } = require('./photic-calibration-profile');
 const {
   ENGINE_VERSION,
   Q31_ONE,
@@ -164,6 +165,24 @@ function validateContinuity(state) {
   }
   object(continuity.consumed_stream_cursors, 'consumed stream cursors');
   object(continuity.input_route_states, 'input route states');
+  if (typeof continuity.photic_route_configured !== 'boolean'
+    || !Array.isArray(continuity.pending_photic_evidence)
+    || continuity.pending_photic_evidence.length > PHOTIC_PROFILE.evidenceCapacity) {
+    fail('pending photic evidence is outside its durable bound');
+  }
+  let previousEnd = continuity.committed_through_us;
+  const eventIds = new Set();
+  for (const evidence of continuity.pending_photic_evidence) {
+    object(evidence, 'pending photic evidence');
+    text(evidence.event_id, 'photic event id');
+    integer(evidence.effective_from_us, 'photic evidence start', previousEnd);
+    integer(evidence.effective_to_us, 'photic evidence end', evidence.effective_from_us + 1);
+    if (eventIds.has(evidence.event_id) || evidence.effective_from_us < previousEnd) {
+      fail('pending photic evidence overlaps or duplicates identity');
+    }
+    eventIds.add(evidence.event_id);
+    previousEnd = evidence.effective_to_us;
+  }
   if (continuity.state_schema_version !== 1) {
     fail('state schema is unsupported', 'CHRONOBIOLOGY_VERSION_UNSUPPORTED');
   }

@@ -5,7 +5,11 @@ const {
 } = require('../../../runtime/kernel/canonical-json');
 
 const { createFounderState, sha256 } = require('./founder');
-const { integratePopulation } = require('./oscillator');
+const { integrateEvidencePlan } = require('./entrainment');
+const { MAX_INTEGRATION_STEPS } = require('./oscillator');
+const { PROFILE } = require('./calibration-profile');
+const { PHOTIC_PROFILE } = require('./photic-calibration-profile');
+const { normalizePhoticEvidence, PHOTIC_TOPIC } = require('./photic-transducer');
 const { STATE_SCHEMA, fail, validateState } = require('./validation');
 
 const TRUSTED_TIME_TOPIC = 'runtime.trusted-organism-time.pulse';
@@ -111,6 +115,38 @@ function evidenceHash(evidence) {
   return sha256(stableStringify(evidence));
 }
 
+function queuePhoticEvidence(state, event) {
+  const current = normalizeState(state);
+  if (!current.genesis) {
+    fail('photic evidence cannot precede canonical genesis', 'CHRONOBIOLOGY_PHOTIC_BEFORE_GENESIS');
+  }
+  const evidence = normalizePhoticEvidence(event);
+  const pending = current.continuity.pending_photic_evidence;
+  const duplicate = pending.find(entry => entry.event_id === evidence.event_id);
+  if (duplicate) {
+    if (stableStringify(duplicate) === stableStringify(evidence)) return current;
+    fail('photic evidence identity conflicts with queued content', 'CHRONOBIOLOGY_PHOTIC_CONFLICT');
+  }
+  if (evidence.effective_from_us < current.continuity.committed_through_us) {
+    fail('photic evidence arrived behind committed physiology', 'CHRONOBIOLOGY_PHOTIC_LATE');
+  }
+  const previous = pending.at(-1);
+  if (previous && evidence.effective_from_us < previous.effective_to_us) {
+    fail('photic evidence intervals overlap', 'CHRONOBIOLOGY_PHOTIC_OVERLAP');
+  }
+  if (pending.length >= PHOTIC_PROFILE.evidenceCapacity) {
+    fail('photic evidence queue capacity exceeded', 'CHRONOBIOLOGY_PHOTIC_BACKPRESSURE');
+  }
+  return normalizeState({
+    ...current,
+    continuity: {
+      ...current.continuity,
+      photic_route_configured: true,
+      pending_photic_evidence: [...pending, evidence],
+    },
+  });
+}
+
 function initializeGenesis(state, evidence, founderSeedHex) {
   const current = normalizeState(state);
   if (current.genesis !== null) {
@@ -134,6 +170,8 @@ function initializeGenesis(state, evidence, founderSeedHex) {
     continuity: {
       ...founder.continuity,
       last_trusted_evidence_hash: evidenceHash(evidence),
+      photic_route_configured: false,
+      pending_photic_evidence: Object.freeze([]),
     },
   };
   return normalizeState(next);
@@ -165,7 +203,11 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
     fail('trusted organism time rewound', 'CHRONOBIOLOGY_TIME_REWIND');
   }
 
-  const integrated = integratePopulation(current, evidence.trusted_time_us);
+  const interval = evidence.trusted_time_us - continuity.committed_through_us;
+  if (Math.ceil(interval / PROFILE.integrationQuantumUs) > MAX_INTEGRATION_STEPS) {
+    fail('trusted interval exceeds bounded integration work', 'CHRONOBIOLOGY_INTERVAL_BOUND');
+  }
+  const integrated = integrateEvidencePlan(current, evidence.trusted_time_us);
   return normalizeState({
     ...current,
     acquired: integrated.acquired,
@@ -176,12 +218,14 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
       last_runtime_revision: evidence.runtime_revision,
       trusted_time_continuity_epoch: evidence.continuity_epoch,
       last_trusted_evidence_hash: hash,
+      pending_photic_evidence: integrated.pending_photic_evidence,
     },
   });
 }
 
 module.exports = {
   TRUSTED_TIME_TOPIC,
+  PHOTIC_TOPIC,
   advanceTrustedTime,
   bindState,
   emptyState,
@@ -191,4 +235,5 @@ module.exports = {
   normalizeBindingEvent,
   normalizeState,
   normalizeTrustedTimeEvent,
+  queuePhoticEvidence,
 };

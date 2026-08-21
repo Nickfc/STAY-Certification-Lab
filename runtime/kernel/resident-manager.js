@@ -83,13 +83,13 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       'chronobiology',
 
     version:
-      '0.2.0-c2a',
+      '0.3.0-c2b',
 
     stateSchema:
       1,
 
     stage:
-      'c2a-deterministic-oscillator',
+      'c2b-photic-entrainment',
 
     priority:
       'optional',
@@ -100,7 +100,8 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
     inputs:
       Object.freeze([
         'runtime.organism.binding',
-        'runtime.trusted-organism-time.pulse'
+        'runtime.trusted-organism-time.pulse',
+        'environment.photic.exposure'
       ]),
 
     outputs:
@@ -109,7 +110,7 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       ]),
 
     packagePolicyHash:
-      'sha256:8541212a1ae85c4cec073f5c190872065209de9b8afecf1746ff3e983f66ca63',
+      'sha256:f330984ecbd1dadaa9d804b9a51a562077fb31158fbfe5a08737afab41e10c18',
 
     signalling:
       'LAB_SHADOW_ONLY',

@@ -3,24 +3,27 @@
 const { deriveAggregate } = require('./aggregate');
 const {
   TRUSTED_TIME_TOPIC,
+  PHOTIC_TOPIC,
   advanceTrustedTime,
   bindState,
   emptyState,
   normalizeState,
+  queuePhoticEvidence,
 } = require('./state');
 
 const manifest = Object.freeze({
   coreId: 'chronobiology',
-  version: '0.2.0-c2a',
+  version: '0.3.0-c2b',
   protocol: 'stay-chronobiology-v1',
   stateSchema: 1,
   hotSwap: true,
   priority: 'optional',
-  stage: 'c2a-deterministic-oscillator',
+  stage: 'c2b-photic-entrainment',
   productionEligible: false,
   inputs: Object.freeze([
     'runtime.organism.binding',
     TRUSTED_TIME_TOPIC,
+    PHOTIC_TOPIC,
   ]),
   outputs: Object.freeze([
     'chronobiology.phase.summary',
@@ -65,6 +68,8 @@ async function createCore({ manifest: activeManifest = manifest, initialState } 
         state = bindState(state, event);
       } else if (event?.topic === TRUSTED_TIME_TOPIC) {
         state = advanceTrustedTime(state, event);
+      } else if (event?.topic === PHOTIC_TOPIC) {
+        state = queuePhoticEvidence(state, event);
       }
       // C1 is observably neutral. A later C3 shadow gate publishes summaries.
       return undefined;
