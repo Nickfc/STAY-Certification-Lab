@@ -15,12 +15,12 @@ const { buildPhaseSummary, shouldEmitPhaseSummary } = require('./summary');
 
 const manifest = Object.freeze({
   coreId: 'chronobiology',
-  version: '0.6.0-c3b',
+  version: '1.0.0-c3rc',
   protocol: 'stay-chronobiology-v1',
   stateSchema: 1,
   hotSwap: true,
   priority: 'optional',
-  stage: 'c3b-shadow-integration',
+  stage: 'c3-shadow-release-candidate',
   productionEligible: false,
   inputs: Object.freeze([
     'runtime.organism.binding',

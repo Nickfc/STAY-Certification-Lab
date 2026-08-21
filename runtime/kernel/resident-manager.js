@@ -83,13 +83,13 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       'chronobiology',
 
     version:
-      '0.6.0-c3b',
+      '1.0.0-c3rc',
 
     stateSchema:
       1,
 
     stage:
-      'c3b-shadow-integration',
+      'c3-shadow-release-candidate',
 
     priority:
       'optional',
@@ -110,7 +110,7 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       ]),
 
     packagePolicyHash:
-      'sha256:53b4a31c9e700def3edc36ce54418930ec8cbf767adb941df05f5df4f3a38fa1',
+      'sha256:da13abcb0e7c6e3ff9584bd80710e3fca4a6622c198ba974350f4d6dcd5cd03d',
 
     signalling:
       'LAB_SHADOW_ONLY',

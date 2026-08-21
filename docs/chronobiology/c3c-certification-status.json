@@ -1,0 +1,86 @@
+{
+  "schema": "stay.chronobiology.c3c-certification-status/v1",
+  "result": "ENVIRONMENT_BLOCKED",
+  "release_sealed": false,
+  "candidate": {
+    "version": "1.0.0-c3rc",
+    "stage": "c3-shadow-release-candidate",
+    "production_eligible": false,
+    "authority_mode": "shadow",
+    "parent_checkpoint": "9eb567531b03acdf7f4bd93ec2745817b4b08754"
+  },
+  "certification": {
+    "direct_hostile": {
+      "tests": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "result": "PASS"
+    },
+    "chronobiology_suite": {
+      "tests": 65,
+      "passed": 65,
+      "failed": 0,
+      "skipped": 0,
+      "result": "PASS"
+    },
+    "targeted_integration": {
+      "tests": 143,
+      "passed": 143,
+      "failed": 0,
+      "skipped": 0,
+      "result": "PASS"
+    },
+    "fresh_repository_suite": {
+      "tests": 675,
+      "passed": 670,
+      "failed": 4,
+      "skipped": 1,
+      "result": "ENVIRONMENT_BLOCKED",
+      "duration_ms": 234049.421185,
+      "failures": [
+        {
+          "tests": [
+            "R11-M03-01",
+            "R11-M03-02",
+            "R11-M03-03",
+            "R11-M03-06"
+          ],
+          "classification": "ENVIRONMENT_FAILURE",
+          "cause": "Workspace sandbox denied Unix-domain socket listen with EPERM under /tmp; no Chronobiology execution path was implicated."
+        }
+      ],
+      "skips": [
+        {
+          "test": "I1-C",
+          "classification": "ENVIRONMENT_FIXTURE_UNAVAILABLE",
+          "cause": "Sealed legacy 0.6 source is unavailable at /opt/stay/legacy/0.6.0 in this workspace."
+        }
+      ]
+    }
+  },
+  "integrity": {
+    "source_sha256": {
+      "cores/chronobiology/c3/index.js": "d68da0d6b1e87de746b1b9b176b6336b3d07185ffa19cc4e13e287b15af7e221",
+      "cores/chronobiology/c3/package-policy.json": "d2e6e6477c91e37a7be15012bda3d2b9efc7c828d641ba01e898b65a3d064eeb",
+      "runtime/kernel/resident-manager.js": "5854aefd92938df24500dd30bc2c64cca2d44639051abdd9d01303ae426116c8",
+      "test/chronobiology-hostile-certification.test.js": "09d3257ffb910d3b2e8d1da7ad8177c1948f573e4950f8c68fac3d065dd60c98"
+    },
+    "schema_sha256": {
+      "phase-summary.schema.json": "1eb7e4446040b111032d34294fa5edb66ed2863b6da3701be6e7996813d8acf9",
+      "photic-evidence.schema.json": "6054d0e3e5aabe3611130650313f629b1485e6de97e9cc575298345a0126d47e",
+      "state.schema.json": "4234e38bc33dfde950cf94be0b06099e2200eafa77e08e98d5bf2e401bb6fa9a"
+    },
+    "package_policy_hash": "sha256:da13abcb0e7c6e3ff9584bd80710e3fca4a6622c198ba974350f4d6dcd5cd03d",
+    "sntss_source_modified": false
+  },
+  "safety": {
+    "live_operations_performed": false,
+    "live_deployment_performed": false,
+    "live_service_restarted": false,
+    "main_merged": false,
+    "authoritative_effects_enabled": false,
+    "post_run_live_host_sentinel": "NOT_EXECUTED_FROM_SOURCE_WORKSPACE"
+  },
+  "next_gate": "Run the fresh repository suite in the authorized server environment with Unix-domain sockets and /opt/stay/legacy/0.6.0 available; require zero failures and zero skips before creating the final seal commit."
+}
