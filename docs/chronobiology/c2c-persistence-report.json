@@ -72,7 +72,7 @@
     "cores/chronobiology/c3/schemas/state.schema.json": "ddfa9942cce9ee8246b6f2b05048ed46a666ccf7c9f05169f86479e0b0d8f2b8",
     "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
     "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4",
-    "test/chronobiology-c2-persistence.test.js": "3e822e7bb5306aaf5f9f688014e138d2c558bf35d93ae22b6285a721ebd029ec",
+    "test/chronobiology-c2-persistence.test.js": "308d52446f8143fc9b38fd4d1f7f84e2568f1aa0cc200ad6b1665fbad47a2aab",
     "test/chronobiology-c3-shadow.test.js": "f367dd2a7d1a6efb7faa63e2f9f271b003cf7149280086da3acc3658ec516c1f",
     "test/chronobiology-c1-corehost.test.js": "0feaaf5dc09e1181a26eab606e4760804cf4f283997f6f697ab4a6ebdd2780d5"
   }

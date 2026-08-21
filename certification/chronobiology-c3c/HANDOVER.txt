@@ -1,0 +1,32 @@
+Run on the authorized development server as staydeploy:
+
+  cd /home/staydeploy/STAY-Genesis-I1A
+  git fetch origin feature/chronobiology
+  git switch feature/chronobiology
+  git pull --ff-only origin feature/chronobiology
+  test -z "$(git status --porcelain=v1)"
+  bash certification/chronobiology-c3c/RUN.sh
+
+Read-only progress from another shell:
+
+  cd /home/staydeploy/STAY-Genesis-I1A
+  bash certification/chronobiology-c3c/WATCH.sh
+
+On success, return these files without altering the repository:
+
+  /var/tmp/stay-chronobiology-c3c/STATUS.json
+  /var/tmp/stay-chronobiology-c3c/SHA256SUMS.txt
+  /var/tmp/stay-chronobiology-c3c/logs/direct.tap
+  /var/tmp/stay-chronobiology-c3c/logs/targeted.tap
+  /var/tmp/stay-chronobiology-c3c/logs/full.tap
+  /var/tmp/stay-chronobiology-c3c/evidence/live-before.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/live-after.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/node-pids-before.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/node-pids-after.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/new-node-pids.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/source-before.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/source-tree.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/candidate-source-sha256.txt
+
+Do not create a seal, deploy, restart stay.service, switch /opt/stay/current,
+merge main, or enable Chronobiology authority after this run.

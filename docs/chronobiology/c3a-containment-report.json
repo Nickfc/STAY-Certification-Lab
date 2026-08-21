@@ -1,8 +1,8 @@
 {
   "report_schema": "chronobiology.c3a-containment-report/v1",
   "result": "PASS",
-  "core_version": "0.5.0-c3a",
-  "package_policy_hash": "sha256:8bd8abe0f8dc79d9ea06a09589c81dd7c4778b0061e8cf44f1dc46c376f07746",
+  "core_version": "1.0.0-c3rc.1",
+  "package_policy_hash": "sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820",
   "authority": {
     "production_eligible": false,
     "operating_scope": [
@@ -30,13 +30,14 @@
     }
   },
   "observed": {
-    "one_year_handler_ms": 147.007,
-    "checkpoint_bytes_after_64_cues": 60530,
-    "checkpoint_bytes_after_192_cues": 60557,
-    "checkpoint_growth_bytes": 27,
+    "one_year_handler_ms": 144.907,
+    "checkpoint_bytes_after_64_cues": 68119,
+    "checkpoint_bytes_after_192_cues": 68328,
+    "checkpoint_growth_bytes": 209,
     "checkpoint_ceiling_bytes": 1048576,
     "recent_evidence_entries": 64,
     "entrainment_history_entries": 64,
+    "aggregate_history_entries": 64,
     "pending_request_rejection_at": 129,
     "restart_quarantine_after": 5
   },
@@ -63,16 +64,16 @@
       "skipped": 0
     },
     "chronobiology_regression": {
-      "tests": 56,
-      "passed": 56,
+      "tests": 79,
+      "passed": 79,
       "failed": 0,
       "skipped": 0
     }
   },
   "source_sha256": {
-    "cores/chronobiology/c3/index.js": "3d3d8d99949fd9fb182429e8e1af84e97d92068d3784b680de0b8ff946f8c09d",
-    "cores/chronobiology/c3/package-policy.json": "024a8b9163904d0a846e8fbdcc1b433ae20919914af5eb6ef268011c2a9e4226",
-    "runtime/kernel/resident-manager.js": "cc91a81e6e0ab2b7c3f85c199bb09d5f6042809724978bbd0ba074d6f92901eb",
+    "cores/chronobiology/c3/index.js": "60d15f828a58a0f3dd70a424b2bdb5a7e56c090efa7594c9bb141452439c8a9e",
+    "cores/chronobiology/c3/package-policy.json": "f03b9a2f782edac7c18c8199259a646e5982ea624504906dee0d45a60ad8bcbf",
+    "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
     "test/chronobiology-c3-containment.test.js": "19d6fca17e4ba168b94a55f70c7bf22f12349c113abc09b625de004da6a7079a"
   }
 }

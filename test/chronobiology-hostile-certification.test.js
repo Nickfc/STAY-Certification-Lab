@@ -146,3 +146,29 @@ test('C3-REL-05 every tranche evidence record is present and passed', () => {
     assert.equal(report.result, 'PASS', file);
   }
 });
+
+test('C3-REL-06 C0 audit is closed and the server bundle cannot claim a seal', () => {
+  const audit = fs.readFileSync(
+    path.join(root, 'docs/chronobiology/c0-implementation-audit.md'),
+    'utf8',
+  );
+  assert.match(audit, /IMPLEMENTATION CLOSED; C3-C SEAL BLOCKED/);
+  assert.match(audit, /C3-REL-02.*SERVER GATE/);
+  assert.match(audit, /C3-REL-05.*BLOCKED/);
+
+  const bundleRoot = path.join(root, 'certification/chronobiology-c3c');
+  for (const file of ['RUN.sh', 'WATCH.sh', 'README.txt', 'HANDOVER.txt', 'STATUS.json']) {
+    assert.equal(fs.existsSync(path.join(bundleRoot, file)), true, file);
+  }
+  const initialStatus = JSON.parse(fs.readFileSync(path.join(bundleRoot, 'STATUS.json')));
+  assert.equal(initialStatus.result, 'NOT_RUN');
+  assert.equal(initialStatus.release_sealed, false);
+
+  const runner = fs.readFileSync(path.join(bundleRoot, 'RUN.sh'), 'utf8');
+  assert.match(runner, /CANDIDATE_CERTIFIED_UNSEALED/);
+  assert.doesNotMatch(runner, /systemctl\s+(restart|stop|start)|opt\/stay\/current.*ln|git\s+merge/);
+  assert.match(runner, /require_zero_tap DIRECT/);
+  assert.match(runner, /require_zero_tap TARGETED/);
+  assert.match(runner, /require_zero_tap FULL/);
+  assert.match(runner, /cmp -s .*live-before\.txt.*live-after\.txt/);
+});

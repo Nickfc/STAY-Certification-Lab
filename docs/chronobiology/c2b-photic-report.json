@@ -68,9 +68,9 @@
     "cores/chronobiology/c3/photic-calibration-profile.js": "a4c02de768c486eb836c20ac98e0f03d7f8d363394a6cc6f266f7404f3ca67ab",
     "cores/chronobiology/c3/photic-transducer.js": "1a87ca4bf5a231988035df60a94bc257edd2ff3241340fd38c64b522a327017a",
     "cores/chronobiology/c3/oscillator.js": "740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
-    "cores/chronobiology/c3/state.js": "e94bf43872e0019fa6c21e0b6f3961422f64d10fe34926829134ced1d30720de",
-    "runtime/kernel/resident-manager.js": "c8c2bf21266b7847ce53e302f553ee39d0da60b6f4577062d584e7b9bdbe7cad",
-    "runtime/kernel/state-store.js": "7e7515b472e5510f2a4d19d7eb94b64a24897f2949feeab48613ebad1cdb1aa8",
+    "cores/chronobiology/c3/state.js": "c51e375c07ebd0108b4619f8d75aa1880d7bdde355c63c1afb6c924282b1ea83",
+    "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
+    "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4",
     "test/chronobiology-c2-photic.test.js": "6dc03cf14430db686670d921d6a2fc18299fefaa2bdafa11f6d8228d5ebdcf3e",
     "test/biological-stream-progress.test.js": "b74a7432f345937f650a56f92e1c01f8336b1309110296f3109c8249afbd96a9"
   }

@@ -111,7 +111,7 @@
     "cores/chronobiology/c3/aggregate.js": "5e3b783ebe6a2f83c12442631a4f66240636d0bc18c7ede1fe17c3b5b0aa990a",
     "cores/chronobiology/c3/fixed-point.js": "2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
     "cores/chronobiology/c3/trig-table.js": "2e360df71cf652ae926fbb82861b362b438cf6794cd6751e541968571ce37668",
-    "cores/chronobiology/c3/founder.js": "1cf3b5b1a683b56773476d6305393eb395f023492da3373a16d310e1aa42491b",
+    "cores/chronobiology/c3/founder.js": "a8ed1f62a257acb15bf1b966d1e59d77e0613c020f718621a751724f9dea1e33",
     "cores/chronobiology/c3/oscillator.js": "740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
     "tools/chronobiology-convergence-lab.js": "6a650077ae5755a071c116d3e8e8d1b512199fcf1a13cd205071e7cc2db51a92",
     "test/chronobiology-c2-oscillator.test.js": "da3b4c6f017832bac030644dddc6bedf03d354dc321e4884acf85a6001195811"

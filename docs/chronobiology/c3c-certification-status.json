@@ -1,86 +1,121 @@
 {
-  "schema": "stay.chronobiology.c3c-certification-status/v1",
-  "result": "ENVIRONMENT_BLOCKED",
+  "schema": "stay.chronobiology.c3c-certification-status/v2",
+  "result": "FINAL_CANDIDATE_UNSEALED",
   "release_sealed": false,
   "candidate": {
-    "version": "1.0.0-c3rc",
+    "version": "1.0.0-c3rc.1",
     "stage": "c3-shadow-release-candidate",
+    "branch": "feature/chronobiology",
+    "implementation_parent_checkpoint": "ce7c06c50052abc189c0764558c91ef409c0e880",
     "production_eligible": false,
     "authority_mode": "shadow",
-    "parent_checkpoint": "9eb567531b03acdf7f4bd93ec2745817b4b08754"
+    "c0_document_audit": "IMPLEMENTATION_CLOSED",
+    "server_release_gates": "PENDING"
   },
-  "certification": {
-    "direct_hostile": {
-      "tests": 5,
-      "passed": 5,
+  "local_certification": {
+    "chronobiology_direct": {
+      "tests": 79,
+      "passed": 79,
       "failed": 0,
       "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "duration_ms": 190111.615323,
       "result": "PASS"
     },
-    "chronobiology_suite": {
-      "tests": 65,
-      "passed": 65,
+    "targeted_residency_bsf_corehost_sntss": {
+      "tests": 303,
+      "passed": 302,
       "failed": 0,
-      "skipped": 0,
-      "result": "PASS"
-    },
-    "targeted_integration": {
-      "tests": 143,
-      "passed": 143,
-      "failed": 0,
-      "skipped": 0,
-      "result": "PASS"
+      "skipped": 1,
+      "todo": 0,
+      "cancelled": 0,
+      "duration_ms": 47630.525715,
+      "result": "ENVIRONMENT_FIXTURE_REQUIRED",
+      "skip": {
+        "test": "I1-C",
+        "classification": "ENVIRONMENT_FIXTURE_UNAVAILABLE",
+        "cause": "The sealed legacy 0.6 source is unavailable at /opt/stay/legacy/0.6.0 in this workspace."
+      }
     },
     "fresh_repository_suite": {
-      "tests": 675,
-      "passed": 670,
+      "tests": 690,
+      "passed": 685,
       "failed": 4,
       "skipped": 1,
+      "todo": 0,
+      "cancelled": 0,
+      "duration_ms": 229708.862406,
       "result": "ENVIRONMENT_BLOCKED",
-      "duration_ms": 234049.421185,
-      "failures": [
-        {
-          "tests": [
-            "R11-M03-01",
-            "R11-M03-02",
-            "R11-M03-03",
-            "R11-M03-06"
-          ],
-          "classification": "ENVIRONMENT_FAILURE",
-          "cause": "Workspace sandbox denied Unix-domain socket listen with EPERM under /tmp; no Chronobiology execution path was implicated."
-        }
-      ],
-      "skips": [
-        {
-          "test": "I1-C",
-          "classification": "ENVIRONMENT_FIXTURE_UNAVAILABLE",
-          "cause": "Sealed legacy 0.6 source is unavailable at /opt/stay/legacy/0.6.0 in this workspace."
-        }
-      ]
-    }
+      "log_sha256": "sha256:cc1818cbc51b62f9672f1852c8925a7f40d8dd5a258400adf8115fa1fe45bdf3",
+      "failures": [{
+        "tests": ["R11-M03-01", "R11-M03-02", "R11-M03-03", "R11-M03-06"],
+        "classification": "ENVIRONMENT_FAILURE",
+        "cause": "The workspace sandbox denies Unix-domain socket listen with EPERM; no Chronobiology execution path is implicated."
+      }],
+      "skip": {
+        "test": "I1-C",
+        "classification": "ENVIRONMENT_FIXTURE_UNAVAILABLE",
+        "cause": "The sealed legacy 0.6 source is unavailable at /opt/stay/legacy/0.6.0 in this workspace."
+      }
+    },
+    "leaked_node_processes_after_suite": 0
+  },
+  "server_certification": {
+    "bundle": "certification/chronobiology-c3c",
+    "required_result": "CANDIDATE_CERTIFIED_UNSEALED",
+    "required_test_result": "ZERO_FAILURE_ZERO_SKIP_ZERO_TODO_ZERO_CANCELLED",
+    "required_live_sentinel": "BYTE_IDENTICAL_BEFORE_AFTER",
+    "required_new_node_processes": 0,
+    "result": "NOT_RUN"
   },
   "integrity": {
-    "source_sha256": {
-      "cores/chronobiology/c3/index.js": "d68da0d6b1e87de746b1b9b176b6336b3d07185ffa19cc4e13e287b15af7e221",
-      "cores/chronobiology/c3/package-policy.json": "d2e6e6477c91e37a7be15012bda3d2b9efc7c828d641ba01e898b65a3d064eeb",
-      "runtime/kernel/resident-manager.js": "5854aefd92938df24500dd30bc2c64cca2d44639051abdd9d01303ae426116c8",
-      "test/chronobiology-hostile-certification.test.js": "09d3257ffb910d3b2e8d1da7ad8177c1948f573e4950f8c68fac3d065dd60c98"
+    "package_policy_hash": "sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820",
+    "chronobiology_source_sha256": {
+      "aggregate.js": "5e3b783ebe6a2f83c12442631a4f66240636d0bc18c7ede1fe17c3b5b0aa990a",
+      "calibration-profile.js": "e758ac1956b53cb02d0ab0d95bff67be948525127185295eb05f280838519ff3",
+      "coarse-free-run.js": "13ec141fbca5bea9aac11055ced246a4114de834394d08252c82eca27c41aa6c",
+      "entrainment.js": "62003617ff2c323fb99da02e868d54ef8a40dac97f950a984f680f2b0f49702e",
+      "fixed-point.js": "2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
+      "founder.js": "a8ed1f62a257acb15bf1b966d1e59d77e0613c020f718621a751724f9dea1e33",
+      "index.js": "60d15f828a58a0f3dd70a424b2bdb5a7e56c090efa7594c9bb141452439c8a9e",
+      "long-gap.js": "48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
+      "oscillator.js": "740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
+      "phase-response.js": "b6174a57b5313bf5540b5c7c6093045bd5681bd9b85692b2eee33dc8b1a933d1",
+      "photic-calibration-profile.js": "a4c02de768c486eb836c20ac98e0f03d7f8d363394a6cc6f266f7404f3ca67ab",
+      "photic-transducer.js": "1a87ca4bf5a231988035df60a94bc257edd2ff3241340fd38c64b522a327017a",
+      "state.js": "c51e375c07ebd0108b4619f8d75aa1880d7bdde355c63c1afb6c924282b1ea83",
+      "summary.js": "ddf8a1a129f7d47331e5ec28c1eb1fbc82ebcc55e7bffb145a7cc7f7fc6cba9c",
+      "trig-table.js": "2e360df71cf652ae926fbb82861b362b438cf6794cd6751e541968571ce37668",
+      "validation.js": "7c9bd5f394048a2c41b5de336ff91faaa48db8c7c93b545c21ac013a62879eb6"
     },
     "schema_sha256": {
       "phase-summary.schema.json": "1eb7e4446040b111032d34294fa5edb66ed2863b6da3701be6e7996813d8acf9",
       "photic-evidence.schema.json": "6054d0e3e5aabe3611130650313f629b1485e6de97e9cc575298345a0126d47e",
-      "state.schema.json": "4234e38bc33dfde950cf94be0b06099e2200eafa77e08e98d5bf2e401bb6fa9a"
+      "state.schema.json": "ddfa9942cce9ee8246b6f2b05048ed46a666ccf7c9f05169f86479e0b0d8f2b8"
     },
-    "package_policy_hash": "sha256:da13abcb0e7c6e3ff9584bd80710e3fca4a6622c198ba974350f4d6dcd5cd03d",
+    "shared_infrastructure_sha256": {
+      "runtime/kernel/biological-signalling-fabric.js": "9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a",
+      "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
+      "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4"
+    },
+    "closure_evidence_sha256": {
+      "docs/chronobiology/c0-implementation-audit.md": "0e29961211417bdd28e1d18dc25478c293bd4701451c8d3cb03597696bcc8219",
+      "test/chronobiology-c1-genesis.test.js": "92d069df1a23d7c6c89c57a3f892e093d948e513d14e4922461ec6ab531c0757",
+      "test/chronobiology-hostile-certification.test.js": "4ed96d2776dd2c7f9836251a6a2b99b1aa7f144ef8a59a1472a6d2f21927770e",
+      "certification/chronobiology-c3c/RUN.sh": "b71457648dea9e1faf7d308989a28f99646073f03711ebe581b09848f9d1417e",
+      "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29"
+    },
     "sntss_source_modified": false
   },
   "safety": {
     "live_operations_performed": false,
     "live_deployment_performed": false,
     "live_service_restarted": false,
+    "live_current_switched": false,
     "main_merged": false,
     "authoritative_effects_enabled": false,
-    "post_run_live_host_sentinel": "NOT_EXECUTED_FROM_SOURCE_WORKSPACE"
+    "final_seal_created": false
   },
-  "next_gate": "Run the fresh repository suite in the authorized server environment with Unix-domain sockets and /opt/stay/legacy/0.6.0 available; require zero failures and zero skips before creating the final seal commit."
+  "next_gate": "Run certification/chronobiology-c3c/RUN.sh on the authorized server. Bind and review its zero-failure/zero-skip hashes, leaked-process proof, and unchanged live sentinels before any final C3-C seal."
 }

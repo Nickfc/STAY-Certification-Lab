@@ -123,7 +123,32 @@ test('CHR-C1-TIME-02 duplicate evidence is exactly once and conflicts fail close
   })), /trusted organism-time evidence is invalid/);
 });
 
-test('CHR-C1-TIME-03 uncertainty freezes physiology and trusted advance is endogenous', () => {
+test('CHR-C1-TIME-03 trusted frontier and pulse sequence rewind are rejected', () => {
+  const state = genesis();
+  assert.throws(() => advanceTrustedTime(state, trusted({
+    sequence: 2, timeUs: 9_999_999,
+  })), { code: 'CHRONOBIOLOGY_TIME_REWIND' });
+  const advanced = advanceTrustedTime(state, trusted({ sequence: 2, timeUs: 70_000_000 }));
+  assert.throws(() => advanceTrustedTime(advanced, trusted({
+    sequence: 1, timeUs: 80_000_000,
+  })), { code: 'CHRONOBIOLOGY_TIME_REWIND' });
+});
+
+test('CHR-C1-TIME-04 runtime revision re-anchor preserves founder and acquired state', () => {
+  const state = genesis();
+  const advanced = advanceTrustedTime(state, trusted({
+    revision: 2,
+    sequence: 1,
+    timeUs: 10_000_000 + PROFILE.integrationQuantumUs,
+  }));
+  assert.equal(advanced.genesis.phenotype_hash, state.genesis.phenotype_hash);
+  assert.equal(stableStringify(advanced.phenotype), stableStringify(state.phenotype));
+  assert.equal(advanced.continuity.last_runtime_revision, 2);
+  assert.equal(advanced.continuity.committed_through_us,
+    10_000_000 + PROFILE.integrationQuantumUs);
+});
+
+test('CHR-C1-TIME-05 uncertainty freezes physiology and trusted advance is endogenous', () => {
   const state = genesis();
   assert.equal(stableStringify(advanceTrustedTime(state, uncertain())), stableStringify(state));
 
