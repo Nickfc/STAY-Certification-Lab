@@ -265,7 +265,8 @@ function createFounderState({
       last_trusted_evidence_hash: null,
       consumed_stream_cursors: Object.freeze({}),
       input_route_states: Object.freeze({}),
-      state_schema_version: 1,
+      state_schema_version: 2,
+      representation_migrations: Object.freeze([]),
     }),
   });
 }

@@ -1,5 +1,6 @@
 'use strict';
 
+const { stableStringify } = require('../../../runtime/kernel/canonical-json');
 const { deriveAggregate } = require('./aggregate');
 const {
   TRUSTED_TIME_TOPIC,
@@ -16,9 +17,9 @@ const { buildPhaseSummary, shouldEmitPhaseSummary } = require('./summary');
 
 const manifest = Object.freeze({
   coreId: 'chronobiology',
-  version: '1.0.0-c3rc',
+  version: '1.0.0-c3rc.1',
   protocol: 'stay-chronobiology-v1',
-  stateSchema: 1,
+  stateSchema: 2,
   hotSwap: true,
   priority: 'optional',
   stage: 'c3-shadow-release-candidate',
@@ -136,12 +137,41 @@ async function createCore({
 }
 
 async function migrateState({ state, fromSchema, toSchema }) {
-  if (fromSchema !== 1 || toSchema !== 1) {
+  if (fromSchema === 2 && toSchema === 2) {
+    return structuredClone(normalizeState(state));
+  }
+  if (fromSchema === 1 && toSchema === 2) {
+    const legacy = structuredClone(state);
+    if (!legacy || legacy.schema !== 'chronobiology.state/v1'
+      || legacy.continuity?.state_schema_version !== 1) {
+      throw Object.assign(new Error('Chronobiology schema-v1 migration input is invalid'), {
+        code: 'CHRONOBIOLOGY_MIGRATION_INVALID',
+      });
+    }
+    const inputStateHash = require('./founder').sha256(stableStringify(legacy));
+    legacy.schema = 'chronobiology.state/v2';
+    legacy.acquired.aggregate_phase_history ??= [];
+    legacy.continuity.photic_route_configured ??= false;
+    legacy.continuity.pending_photic_evidence ??= [];
+    legacy.continuity.recent_photic_evidence ??= [];
+    legacy.continuity.last_summary_emitted_us ??= null;
+    legacy.continuity.last_summary_payload_hash ??= null;
+    legacy.continuity.deferred_trusted_time_evidence ??= null;
+    legacy.continuity.state_schema_version = 2;
+    legacy.continuity.representation_migrations = [{
+      migration_id: 'chronobiology-state-v1-to-v2',
+      from_schema: 1,
+      to_schema: 2,
+      applied_at_us: legacy.continuity.committed_through_us,
+      input_state_hash: inputStateHash,
+    }];
+    return structuredClone(normalizeState(legacy));
+  }
+  {
     throw Object.assign(new Error(`unsupported Chronobiology migration ${fromSchema}->${toSchema}`), {
       code: 'CHRONOBIOLOGY_MIGRATION_UNSUPPORTED',
     });
   }
-  return structuredClone(normalizeState(state));
 }
 
 module.exports = {

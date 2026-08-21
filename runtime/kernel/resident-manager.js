@@ -83,10 +83,10 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       'chronobiology',
 
     version:
-      '1.0.0-c3rc',
+      '1.0.0-c3rc.1',
 
     stateSchema:
-      1,
+      2,
 
     stage:
       'c3-shadow-release-candidate',
@@ -110,7 +110,7 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       ]),
 
     packagePolicyHash:
-      'sha256:ae386f932d479ebce7ec54fb970556bf088368dd7ef8f5c00d361e3309383e2c',
+      'sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820',
 
     routeCompleteness:
       true,

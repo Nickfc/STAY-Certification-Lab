@@ -28,7 +28,7 @@ const sha256 = bytes => `sha256:${crypto.createHash('sha256').update(bytes).dige
 test('C3-REL-01 exact release candidate is hash-bound and remains SHADOW-only', () => {
   const record = enforcePackagePolicy(require.resolve('../cores/chronobiology/c3'));
   assert.equal(verifyManifestAgainstPackagePolicy(record, chronobiology.manifest), true);
-  assert.equal(chronobiology.manifest.version, '1.0.0-c3rc');
+  assert.equal(chronobiology.manifest.version, '1.0.0-c3rc.1');
   assert.equal(chronobiology.manifest.stage, 'c3-shadow-release-candidate');
   assert.equal(chronobiology.manifest.productionEligible, false);
   assert.deepEqual(chronobiology.manifest.biology.producerCapabilities[0]

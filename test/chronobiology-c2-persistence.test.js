@@ -97,7 +97,7 @@ test('C2-PERS-02 exact consumed photic duplicate is idempotent and conflict fail
   });
 });
 
-test('C2-PERS-03 pre-photic schema-v1 checkpoint upgrades deterministically without reroll', () => {
+test('C2-PERS-03 additive schema-v2 defaults upgrade deterministically without reroll', () => {
   const original = genesis();
   const legacy = structuredClone(original);
   delete legacy.continuity.photic_route_configured;

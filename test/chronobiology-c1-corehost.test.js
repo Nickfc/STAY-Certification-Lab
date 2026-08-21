@@ -52,7 +52,7 @@ function pulse(sequence, trustedTimeUs) {
 
 test('CHR-C1-HOST-01 manifest is neutral, bounded, production-ineligible signalling resident', () => {
   assert.equal(manifest.coreId, 'chronobiology');
-  assert.equal(manifest.stateSchema, 1);
+  assert.equal(manifest.stateSchema, 2);
   assert.equal(manifest.productionEligible, false);
   assert.deepEqual(manifest.inputs, [
     'runtime.organism.binding',
@@ -117,15 +117,42 @@ test('CHR-C1-HOST-03 replay from same committed checkpoint is byte-identical', a
   assert.equal(stableStringify(await left.snapshot()), stableStringify(await right.snapshot()));
 });
 
-test('CHR-C1-HOST-04 only schema-1 identity migration is permitted', async () => {
+test('C2-PERS-08 schema-v1 representation migrates forward without changing biology', async () => {
   const core = await createCore();
   await core.handle(binding());
   await core.handle(pulse(1, 1_000_000));
   const checkpoint = await core.snapshot();
   assert.equal(stableStringify(await migrateState({
-    state: checkpoint, fromSchema: 1, toSchema: 1,
+    state: checkpoint, fromSchema: 2, toSchema: 2,
   })), stableStringify(checkpoint));
+  const legacy = structuredClone(checkpoint);
+  legacy.schema = 'chronobiology.state/v1';
+  legacy.continuity.state_schema_version = 1;
+  delete legacy.continuity.representation_migrations;
+  delete legacy.continuity.deferred_trusted_time_evidence;
+  delete legacy.acquired.aggregate_phase_history;
+  const before = stableStringify(legacy);
+  const migrated = await migrateState({ state: legacy, fromSchema: 1, toSchema: 2 });
+  assert.equal(stableStringify(legacy), before);
+  assert.equal(migrated.schema, 'chronobiology.state/v2');
+  assert.equal(migrated.genesis.phenotype_hash, checkpoint.genesis.phenotype_hash);
+  assert.equal(stableStringify(migrated.phenotype), stableStringify(checkpoint.phenotype));
+  assert.equal(stableStringify(migrated.acquired.oscillators),
+    stableStringify(checkpoint.acquired.oscillators));
+  assert.equal(migrated.continuity.committed_through_us,
+    checkpoint.continuity.committed_through_us);
+  assert.equal(migrated.continuity.representation_migrations[0].migration_id,
+    'chronobiology-state-v1-to-v2');
+});
+
+test('C2-PERS-09 rollback to older schema refuses without mutating committed state', async () => {
+  const core = await createCore();
+  await core.handle(binding());
+  await core.handle(pulse(1, 1_000_000));
+  const checkpoint = await core.snapshot();
+  const before = stableStringify(checkpoint);
   await assert.rejects(() => migrateState({
-    state: checkpoint, fromSchema: 1, toSchema: 2,
+    state: checkpoint, fromSchema: 2, toSchema: 1,
   }), { code: 'CHRONOBIOLOGY_MIGRATION_UNSUPPORTED' });
+  assert.equal(stableStringify(checkpoint), before);
 });

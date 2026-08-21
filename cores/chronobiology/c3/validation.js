@@ -17,7 +17,7 @@ const {
   sha256,
 } = require('./founder');
 
-const STATE_SCHEMA = 'chronobiology.state/v1';
+const STATE_SCHEMA = 'chronobiology.state/v2';
 const HASH = /^sha256:[0-9a-f]{64}$/;
 
 function fail(message, code = 'CHRONOBIOLOGY_STATE_INVALID') {
@@ -229,7 +229,20 @@ function validateContinuity(state) {
     text(evidence.event_id, 'recent photic event id');
     if (!HASH.test(evidence.evidence_hash)) fail('recent photic evidence hash is invalid');
   }
-  if (continuity.state_schema_version !== 1) {
+  if (!Array.isArray(continuity.representation_migrations)
+    || continuity.representation_migrations.length > 64) {
+    fail('representation migration history exceeds its bound');
+  }
+  for (const migration of continuity.representation_migrations) {
+    object(migration, 'representation migration');
+    text(migration.migration_id, 'representation migration id');
+    integer(migration.from_schema, 'representation source schema', 1);
+    integer(migration.to_schema, 'representation target schema', migration.from_schema + 1);
+    integer(migration.applied_at_us, 'representation migration frontier', 0,
+      continuity.committed_through_us);
+    if (!HASH.test(migration.input_state_hash)) fail('migration input hash is invalid');
+  }
+  if (continuity.state_schema_version !== 2) {
     fail('state schema is unsupported', 'CHRONOBIOLOGY_VERSION_UNSUPPORTED');
   }
   if (continuity.committed_through_us < state.genesis.chronobiology_origin_time_us) {

@@ -46,6 +46,7 @@ function normalizeState(input) {
     candidate.continuity.last_summary_emitted_us ??= null;
     candidate.continuity.last_summary_payload_hash ??= null;
     candidate.continuity.deferred_trusted_time_evidence ??= null;
+    candidate.continuity.representation_migrations ??= [];
   }
   validateState(candidate);
   return freeze(candidate);
