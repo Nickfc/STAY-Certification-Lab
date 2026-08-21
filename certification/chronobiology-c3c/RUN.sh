@@ -102,10 +102,17 @@ node <<'NODE'
 const fs = require('node:fs');
 const net = require('node:net');
 const path = '/var/tmp/stay-chronobiology-c3c-socket-preflight.sock';
-try { fs.unlinkSync(path); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+function unlinkIfPresent(target) {
+  try {
+    fs.unlinkSync(target);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+unlinkIfPresent(path);
 const server = net.createServer();
 server.once('error', error => { throw error; });
-server.listen(path, () => server.close(() => fs.unlinkSync(path)));
+server.listen(path, () => server.close(() => unlinkIfPresent(path)));
 NODE
 
 sentinel "${EVIDENCE_DIR}/live-before.txt"

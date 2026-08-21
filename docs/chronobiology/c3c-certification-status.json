@@ -103,7 +103,7 @@
       "docs/chronobiology/c0-implementation-audit.md": "0e29961211417bdd28e1d18dc25478c293bd4701451c8d3cb03597696bcc8219",
       "test/chronobiology-c1-genesis.test.js": "92d069df1a23d7c6c89c57a3f892e093d948e513d14e4922461ec6ab531c0757",
       "test/chronobiology-hostile-certification.test.js": "4ed96d2776dd2c7f9836251a6a2b99b1aa7f144ef8a59a1472a6d2f21927770e",
-      "certification/chronobiology-c3c/RUN.sh": "b71457648dea9e1faf7d308989a28f99646073f03711ebe581b09848f9d1417e",
+      "certification/chronobiology-c3c/RUN.sh": "1f2ddabe37e0915ecdadc2f729c8f23d48c7fd78923cf47cddb9140ba8739be9",
       "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29"
     },
     "sntss_source_modified": false
