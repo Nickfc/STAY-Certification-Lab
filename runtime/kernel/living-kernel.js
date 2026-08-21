@@ -15,7 +15,7 @@ const { stableStringify } = require('./canonical-json');
 const {
   ResidentManager,
   L0_SNTSS_CONTRACT,
-  CHRONOBIOLOGY_C1_CONTRACT,
+  CHRONOBIOLOGY_RESIDENT_CONTRACT,
 } = require('./resident-manager');
 const { loadAndVerifyResidentPromotion } = require('./resident-promotion-authority');
 
@@ -158,7 +158,7 @@ class LivingKernel {
         contracts:
           [
             L0_SNTSS_CONTRACT,
-            CHRONOBIOLOGY_C1_CONTRACT
+            CHRONOBIOLOGY_RESIDENT_CONTRACT
           ]
       });
 

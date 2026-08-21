@@ -102,8 +102,7 @@ function canonicalEdge(left, right, weightQ30, kind) {
   });
 }
 
-function createCouplingGraph(prng) {
-  const count = PROFILE.oscillatorCount;
+function createCouplingGraph(prng, count = PROFILE.oscillatorCount) {
   const edges = [];
   const seen = new Set();
 
@@ -120,7 +119,9 @@ function createCouplingGraph(prng) {
     add(unit, (unit + 2) % count, PROFILE.localEdgeWeightQ30, 'local-2');
   }
 
-  const offsets = [7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31];
+  const offsets = [7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31]
+    .filter(offset => offset < count / 2);
+  if (offsets.length === 0) fail('laboratory resolution cannot form long-range edges');
   const chordOffset = offsets[prng.range(offsets.length)];
   for (let unit = 0; unit < count; unit += 1) {
     add(
@@ -143,36 +144,49 @@ function createCouplingGraph(prng) {
   });
 }
 
-function expandPhenotype(seedHex) {
+function expandPhenotype(seedHex, { oscillatorCount = PROFILE.oscillatorCount } = {}) {
+  if (!Number.isSafeInteger(oscillatorCount) || oscillatorCount < 16
+    || oscillatorCount > 256 || oscillatorCount % 2 !== 0) {
+    fail('oscillator resolution is outside the bounded laboratory range');
+  }
   const prng = createPrng(seedHex);
   const oscillators = [];
 
-  for (let unitId = 0; unitId < PROFILE.oscillatorCount; unitId += 1) {
-    oscillators.push(Object.freeze({
-      unit_id: unitId,
-      intrinsic_period_us: PROFILE.intrinsicPeriodMeanUs
-        + prng.signed(PROFILE.intrinsicPeriodHalfRangeUs),
-      baseline_amplitude_q: PROFILE.baselineAmplitudeMinimumQ31
-        + prng.range(PROFILE.baselineAmplitudeRangeQ31 + 1),
-      amplitude_recovery_q: PROFILE.amplitudeRecoveryMinimumQ31
-        + prng.range(PROFILE.amplitudeRecoveryRangeQ31 + 1),
-      coupling_sensitivity_q: PROFILE.couplingSensitivityMinimumQ30
-        + prng.range(PROFILE.couplingSensitivityRangeQ30 + 1),
-      photic_sensitivity_q: PROFILE.photicSensitivityMinimumQ30
-        + prng.range(PROFILE.photicSensitivityRangeQ30 + 1),
-      initial_phase_q: wrapPhase(prng.signed(PROFILE.initialPhaseHalfRangeQ)),
-      prc_profile: Object.freeze({
-        id: 'continuous-harmonic-prc-v1',
-        primary_q30: Q30_ONE,
-        secondary_q30: Q30_ONE >> 2,
-      }),
-    }));
+  for (let pair = 0; pair < oscillatorCount / 2; pair += 1) {
+    const periodDelta = prng.range(PROFILE.intrinsicPeriodHalfRangeUs + 1);
+    const baselineAmplitude = PROFILE.baselineAmplitudeMinimumQ31
+      + prng.range(PROFILE.baselineAmplitudeRangeQ31 + 1);
+    const amplitudeRecovery = PROFILE.amplitudeRecoveryMinimumQ31
+      + prng.range(PROFILE.amplitudeRecoveryRangeQ31 + 1);
+    const couplingSensitivity = PROFILE.couplingSensitivityMinimumQ30
+      + prng.range(PROFILE.couplingSensitivityRangeQ30 + 1);
+    const photicSensitivity = PROFILE.photicSensitivityMinimumQ30
+      + prng.range(PROFILE.photicSensitivityRangeQ30 + 1);
+    const phaseDelta = prng.range(PROFILE.initialPhaseHalfRangeQ + 1);
+
+    for (const sign of [-1, 1]) {
+      const unitId = oscillators.length;
+      oscillators.push(Object.freeze({
+        unit_id: unitId,
+        intrinsic_period_us: PROFILE.intrinsicPeriodMeanUs + sign * periodDelta,
+        baseline_amplitude_q: baselineAmplitude,
+        amplitude_recovery_q: amplitudeRecovery,
+        coupling_sensitivity_q: couplingSensitivity,
+        photic_sensitivity_q: photicSensitivity,
+        initial_phase_q: wrapPhase(sign * phaseDelta),
+        prc_profile: Object.freeze({
+          id: 'continuous-harmonic-prc-v1',
+          primary_q30: Q30_ONE,
+          secondary_q30: Q30_ONE >> 2,
+        }),
+      }));
+    }
   }
 
   const phenotype = Object.freeze({
-    oscillator_count: PROFILE.oscillatorCount,
+    oscillator_count: oscillatorCount,
     oscillators: Object.freeze(oscillators),
-    coupling_graph: createCouplingGraph(prng),
+    coupling_graph: createCouplingGraph(prng, oscillatorCount),
     numerical_engine_version: ENGINE_VERSION,
     trig_table_hash: TRIG_TABLE_HASH,
     calibration_profile_id: PROFILE.id,
@@ -260,6 +274,7 @@ module.exports = {
   LINEAGE_ID,
   SPECIES_TEMPLATE_ID,
   createFounderState,
+  createCouplingGraph,
   createPrng,
   deriveFounderSeed,
   expandPhenotype,

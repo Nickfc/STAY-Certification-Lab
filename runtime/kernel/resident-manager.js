@@ -71,7 +71,7 @@ const L0_SNTSS_CONTRACT =
   });
 
 
-const CHRONOBIOLOGY_C1_CONTRACT =
+const CHRONOBIOLOGY_RESIDENT_CONTRACT =
   Object.freeze({
     residencyId:
       'resident:chronobiology',
@@ -83,13 +83,13 @@ const CHRONOBIOLOGY_C1_CONTRACT =
       'chronobiology',
 
     version:
-      '0.1.0-c1',
+      '0.2.0-c2a',
 
     stateSchema:
       1,
 
     stage:
-      'c1-neutral-deterministic-foundation',
+      'c2a-deterministic-oscillator',
 
     priority:
       'optional',
@@ -109,7 +109,7 @@ const CHRONOBIOLOGY_C1_CONTRACT =
       ]),
 
     packagePolicyHash:
-      'sha256:9c38a17462f6e22471659faf9713cdd6fedc5ac5c5c1b607bba0c2cb0cd3fddb',
+      'sha256:8541212a1ae85c4cec073f5c190872065209de9b8afecf1746ff3e983f66ca63',
 
     signalling:
       'LAB_SHADOW_ONLY',
@@ -3303,7 +3303,7 @@ class ResidentManager {
 module.exports = {
   ResidentManager,
   L0_SNTSS_CONTRACT,
-  CHRONOBIOLOGY_C1_CONTRACT,
+  CHRONOBIOLOGY_RESIDENT_CONTRACT,
   RESIDENT_SIGNALLING,
   normalizeResidentContract,
   createResidentContractRegistry,

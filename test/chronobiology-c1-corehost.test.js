@@ -12,7 +12,7 @@ const { manifest, createCore, migrateState } = require('../cores/chronobiology/c
 const {
   ResidentManager,
   L0_SNTSS_CONTRACT,
-  CHRONOBIOLOGY_C1_CONTRACT,
+  CHRONOBIOLOGY_RESIDENT_CONTRACT,
 } = require('../runtime/kernel/resident-manager');
 
 function binding() {
@@ -93,7 +93,7 @@ test('CHR-C1-HOST-02B real package satisfies the additive resident contract', as
     stateStore: {},
     fabric: { subscribeAll: () => () => {} },
     identity: { lineage: 'STAY/Genesis' },
-    contracts: [L0_SNTSS_CONTRACT, CHRONOBIOLOGY_C1_CONTRACT],
+    contracts: [L0_SNTSS_CONTRACT, CHRONOBIOLOGY_RESIDENT_CONTRACT],
   });
   t.after(() => manager.shutdown());
   const inspected = await manager.inspect('cores/chronobiology/c3/index.js');

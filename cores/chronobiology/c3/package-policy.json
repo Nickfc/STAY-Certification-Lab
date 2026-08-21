@@ -22,10 +22,10 @@
   "files": {
     "../../../runtime/kernel/canonical-json.js": "sha256:aafdc03899a23b00ff6a0ec2930399a0d88ffc767e0cf903d9a69f5cbf93fe9e",
     "aggregate.js": "sha256:c3357cff254d2c6694b7739b20ac30ebe6546b7bacaf1b44f9a416160821ff8f",
-    "calibration-profile.js": "sha256:5ae61175402cbd88ec7b3360e9a706bb40dd56672ec02bb28e94a75c86d3f531",
+    "calibration-profile.js": "sha256:21d181273e9b2eeb049683f5bdf23f0ffb4d316c5374628242b6e78ad70ca755",
     "fixed-point.js": "sha256:2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
-    "founder.js": "sha256:2bca6236bf0e6e9d7714f3f8a214108cb4c2b012d293e2818b324acaddca590c",
-    "index.js": "sha256:2cff6e8bf3aefa31d0933204c94f82972dcee2a5c548dcc20727bcd44ad8ec2b",
+    "founder.js": "sha256:a7d59bb4cab45454ce2637fc416e7fba056cfc8e366d86bf35040aa922819613",
+    "index.js": "sha256:396b182f7284116e6753639b8f774f9eec764c4992d82712ff5feab2dba62323",
     "oscillator.js": "sha256:740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
     "schemas/phase-summary.schema.json": "sha256:e312e15ac800a9b2635540db049f785f2e51c502090e62843c4db9bc974f7b42",
     "schemas/state.schema.json": "sha256:4234e38bc33dfde950cf94be0b06099e2200eafa77e08e98d5bf2e401bb6fa9a",
@@ -77,5 +77,5 @@
     "pendingRequests": 128,
     "productionOutputs": 0
   },
-  "policyHash": "sha256:9c38a17462f6e22471659faf9713cdd6fedc5ac5c5c1b607bba0c2cb0cd3fddb"
+  "policyHash": "sha256:8541212a1ae85c4cec073f5c190872065209de9b8afecf1746ff3e983f66ca63"
 }

@@ -11,12 +11,12 @@ const {
 
 const manifest = Object.freeze({
   coreId: 'chronobiology',
-  version: '0.1.0-c1',
+  version: '0.2.0-c2a',
   protocol: 'stay-chronobiology-v1',
   stateSchema: 1,
   hotSwap: true,
   priority: 'optional',
-  stage: 'c1-neutral-deterministic-foundation',
+  stage: 'c2a-deterministic-oscillator',
   productionEligible: false,
   inputs: Object.freeze([
     'runtime.organism.binding',
