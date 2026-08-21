@@ -12,7 +12,11 @@ const { RuntimeRegistry } = require('./registry');
 const { UpgradeManager } = require('./upgrades');
 const { ComputeFabric } = require('../compute/compute-fabric');
 const { stableStringify } = require('./canonical-json');
-const { ResidentManager } = require('./resident-manager');
+const {
+  ResidentManager,
+  L0_SNTSS_CONTRACT,
+  CHRONOBIOLOGY_C1_CONTRACT,
+} = require('./resident-manager');
 const { loadAndVerifyResidentPromotion } = require('./resident-promotion-authority');
 
 const KERNEL_VERSION = '0.8.11.3';
@@ -149,7 +153,13 @@ class LivingKernel {
           this.logger,
 
         clock:
-          this.clock
+          this.clock,
+
+        contracts:
+          [
+            L0_SNTSS_CONTRACT,
+            CHRONOBIOLOGY_C1_CONTRACT
+          ]
       });
 
     return this.residentManager;

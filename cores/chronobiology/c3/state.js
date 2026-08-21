@@ -1,0 +1,194 @@
+'use strict';
+
+const {
+  stableStringify,
+} = require('../../../runtime/kernel/canonical-json');
+
+const { createFounderState, sha256 } = require('./founder');
+const { integratePopulation } = require('./oscillator');
+const { STATE_SCHEMA, fail, validateState } = require('./validation');
+
+const TRUSTED_TIME_TOPIC = 'runtime.trusted-organism-time.pulse';
+
+function freeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) freeze(child);
+  return Object.freeze(value);
+}
+
+function emptyState() {
+  return freeze({
+    schema: STATE_SCHEMA,
+    mode: 'NEUTRAL',
+    binding: null,
+    genesis: null,
+    phenotype: null,
+    acquired: null,
+    continuity: null,
+  });
+}
+
+function normalizeState(input) {
+  const candidate = input && Object.keys(input).length > 0
+    ? structuredClone(input)
+    : emptyState();
+  validateState(candidate);
+  return freeze(candidate);
+}
+
+function normalizeBindingEvent(event) {
+  const payload = event?.payload;
+  if (event?.topic !== 'runtime.organism.binding'
+    || !payload || typeof payload !== 'object' || Array.isArray(payload)
+    || payload.bindingVersion !== 1
+    || typeof payload.identitySha256 !== 'string'
+    || !/^sha256:[0-9a-f]{64}$/.test(payload.identitySha256)
+    || payload.organismLineage !== 'STAY/Genesis'
+    || !Number.isSafeInteger(payload.runtimeRevision) || payload.runtimeRevision < 1
+    || !Number.isSafeInteger(payload.authorityEpoch) || payload.authorityEpoch < 1
+    || typeof payload.kernelVersion !== 'string' || !payload.kernelVersion
+    || event.meta?.sourceCore !== 'living-kernel'
+    || event.meta?.authorityEpoch !== payload.authorityEpoch) {
+    fail('organism binding is not Kernel-authenticated', 'CHRONOBIOLOGY_BINDING_INVALID');
+  }
+  return freeze({
+    organism_id: payload.identitySha256,
+    organism_lineage: payload.organismLineage,
+    runtime_revision: payload.runtimeRevision,
+    kernel_authority_epoch: payload.authorityEpoch,
+    kernel_version: payload.kernelVersion,
+    binding_event_id: String(event.id),
+  });
+}
+
+function bindState(state, event) {
+  const current = normalizeState(state);
+  const binding = normalizeBindingEvent(event);
+  if (current.binding) {
+    if (current.binding.organism_id !== binding.organism_id
+      || current.binding.organism_lineage !== binding.organism_lineage
+      || current.binding.kernel_authority_epoch !== binding.kernel_authority_epoch) {
+      fail('organism binding changed after acceptance', 'CHRONOBIOLOGY_BINDING_MISMATCH');
+    }
+    return current;
+  }
+  return normalizeState({ ...current, binding });
+}
+
+function normalizeTrustedTimeEvent(event) {
+  const payload = event?.payload;
+  if (event?.topic !== TRUSTED_TIME_TOPIC
+    || !payload || typeof payload !== 'object' || Array.isArray(payload)
+    || !Number.isSafeInteger(payload.runtimeRevision) || payload.runtimeRevision < 1
+    || !Number.isSafeInteger(payload.pulseSequence) || payload.pulseSequence < 1
+    || !['TRUSTED', 'TRUSTED_TIME_UNCERTAIN', 'TRUSTED_TIME_UNAVAILABLE'].includes(payload.status)
+    || event.meta?.sourceCore !== 'living-kernel') {
+    fail('trusted organism-time evidence is invalid', 'CHRONOBIOLOGY_TIME_INVALID');
+  }
+
+  if (payload.status === 'TRUSTED') {
+    if (!Number.isSafeInteger(payload.trustedTimeUs) || payload.trustedTimeUs < 0
+      || !Number.isSafeInteger(payload.continuityEpoch) || payload.continuityEpoch < 1
+      || payload.reasonCode !== null) {
+      fail('trusted organism-time evidence is incomplete', 'CHRONOBIOLOGY_TIME_INVALID');
+    }
+  } else if (payload.trustedTimeUs !== null || payload.continuityEpoch !== null
+    || typeof payload.reasonCode !== 'string' || !payload.reasonCode) {
+    fail('uncertain organism-time evidence invented a frontier', 'CHRONOBIOLOGY_TIME_INVALID');
+  }
+
+  return freeze({
+    runtime_revision: payload.runtimeRevision,
+    pulse_sequence: payload.pulseSequence,
+    status: payload.status,
+    trusted_time_us: payload.trustedTimeUs,
+    continuity_epoch: payload.continuityEpoch,
+    reason_code: payload.reasonCode,
+  });
+}
+
+function evidenceHash(evidence) {
+  return sha256(stableStringify(evidence));
+}
+
+function initializeGenesis(state, evidence, founderSeedHex) {
+  const current = normalizeState(state);
+  if (current.genesis !== null) {
+    fail('canonical Chronobiology genesis already exists', 'CHRONOBIOLOGY_SECOND_GENESIS');
+  }
+  if (!current.binding || evidence.status !== 'TRUSTED') {
+    fail('canonical genesis requires binding and trusted organism time', 'CHRONOBIOLOGY_GENESIS_UNTRUSTED');
+  }
+
+  const founder = createFounderState({
+    organismId: current.binding.organism_id,
+    trustedTimeUs: evidence.trusted_time_us,
+    runtimeRevision: evidence.runtime_revision,
+    pulseSequence: evidence.pulse_sequence,
+    continuityEpoch: evidence.continuity_epoch,
+    ...(founderSeedHex === undefined ? {} : { founderSeedHex }),
+  });
+  const next = {
+    ...current,
+    ...founder,
+    continuity: {
+      ...founder.continuity,
+      last_trusted_evidence_hash: evidenceHash(evidence),
+    },
+  };
+  return normalizeState(next);
+}
+
+function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
+  const current = normalizeState(state);
+  const evidence = normalizeTrustedTimeEvent(event);
+  if (evidence.status !== 'TRUSTED') return current;
+  if (!current.binding) return current;
+  if (!current.genesis) return initializeGenesis(current, evidence, founderSeedHex);
+
+  const continuity = current.continuity;
+  const hash = evidenceHash(evidence);
+  if (evidence.runtime_revision < continuity.last_runtime_revision) {
+    fail('runtime revision rewound', 'CHRONOBIOLOGY_TIME_REWIND');
+  }
+  if (evidence.runtime_revision === continuity.last_runtime_revision) {
+    if (evidence.pulse_sequence === continuity.last_trusted_pulse_sequence) {
+      if (hash === continuity.last_trusted_evidence_hash) return current;
+      fail('trusted pulse identity conflicts with committed evidence', 'CHRONOBIOLOGY_TIME_CONFLICT');
+    }
+    if (evidence.pulse_sequence < continuity.last_trusted_pulse_sequence) {
+      fail('trusted pulse sequence rewound', 'CHRONOBIOLOGY_TIME_REWIND');
+    }
+  }
+  if (evidence.continuity_epoch < continuity.trusted_time_continuity_epoch
+    || evidence.trusted_time_us < continuity.committed_through_us) {
+    fail('trusted organism time rewound', 'CHRONOBIOLOGY_TIME_REWIND');
+  }
+
+  const integrated = integratePopulation(current, evidence.trusted_time_us);
+  return normalizeState({
+    ...current,
+    acquired: integrated.acquired,
+    continuity: {
+      ...continuity,
+      committed_through_us: evidence.trusted_time_us,
+      last_trusted_pulse_sequence: evidence.pulse_sequence,
+      last_runtime_revision: evidence.runtime_revision,
+      trusted_time_continuity_epoch: evidence.continuity_epoch,
+      last_trusted_evidence_hash: hash,
+    },
+  });
+}
+
+module.exports = {
+  TRUSTED_TIME_TOPIC,
+  advanceTrustedTime,
+  bindState,
+  emptyState,
+  evidenceHash,
+  freeze,
+  initializeGenesis,
+  normalizeBindingEvent,
+  normalizeState,
+  normalizeTrustedTimeEvent,
+};

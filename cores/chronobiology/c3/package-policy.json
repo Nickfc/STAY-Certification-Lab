@@ -1,0 +1,81 @@
+{
+  "formatVersion": 1,
+  "coreId": "chronobiology",
+  "entrypoint": "index.js",
+  "allowedBuiltins": [
+    "node:crypto"
+  ],
+  "ambientCapabilities": {
+    "filesystemWrite": false,
+    "network": false,
+    "processSpawn": false
+  },
+  "diagnostics": false,
+  "environmentAllowlist": [
+    "LANG",
+    "LC_ALL",
+    "NODE_ENV",
+    "PATH",
+    "STAY_COREHOST",
+    "TZ"
+  ],
+  "files": {
+    "../../../runtime/kernel/canonical-json.js": "sha256:aafdc03899a23b00ff6a0ec2930399a0d88ffc767e0cf903d9a69f5cbf93fe9e",
+    "aggregate.js": "sha256:c3357cff254d2c6694b7739b20ac30ebe6546b7bacaf1b44f9a416160821ff8f",
+    "calibration-profile.js": "sha256:5ae61175402cbd88ec7b3360e9a706bb40dd56672ec02bb28e94a75c86d3f531",
+    "fixed-point.js": "sha256:2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
+    "founder.js": "sha256:2bca6236bf0e6e9d7714f3f8a214108cb4c2b012d293e2818b324acaddca590c",
+    "index.js": "sha256:2cff6e8bf3aefa31d0933204c94f82972dcee2a5c548dcc20727bcd44ad8ec2b",
+    "oscillator.js": "sha256:740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
+    "schemas/phase-summary.schema.json": "sha256:e312e15ac800a9b2635540db049f785f2e51c502090e62843c4db9bc974f7b42",
+    "schemas/state.schema.json": "sha256:4234e38bc33dfde950cf94be0b06099e2200eafa77e08e98d5bf2e401bb6fa9a",
+    "state.js": "sha256:2055c76ac82382ce82a566c9f306445f6e142531be4bd5061ef80bce988f8859",
+    "trig-table.js": "sha256:2e360df71cf652ae926fbb82861b362b438cf6794cd6751e541968571ce37668",
+    "validation.js": "sha256:2797f0d37eace7d782a89e543b2795d9fb082853d8ada160ab9ad3ad1a277a49"
+  },
+  "resourceContract": {
+    "cgroupV2": {
+      "distribution": "stay-cores",
+      "leaf": "chronobiology-c3-<instance>",
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "kernelGovernorOwned": true,
+      "memoryHighBytes": 67108864,
+      "memoryMaxBytes": 100663296,
+      "pidsMax": 16,
+      "cpuMax": "20000 100000"
+    },
+    "manifestResources": {
+      "softRamMiB": 64,
+      "hardRamMiB": 96,
+      "softCpuPercent": 5,
+      "hardCpuPercent": 20,
+      "pidsMax": 16,
+      "queueCapacity": 256,
+      "handlerTimeoutMs": 250,
+      "healthTimeoutMs": 1000,
+      "outputCapacity": 128,
+      "outputLimitPerEvent": 16,
+      "outputBytesPerEvent": 65536,
+      "storageMiB": 4,
+      "maxRestarts": 4,
+      "restartWindowMs": 60000,
+      "restartBackoffMs": 250
+    },
+    "requiredOnProductionHost": true
+  },
+  "bounds": {
+    "checkpointBytes": 1048576,
+    "auditRecords": 64,
+    "auditRecordBytes": 4096,
+    "migrationRecords": 64,
+    "migrationWorkItems": 1,
+    "shutdownMs": 2000,
+    "pendingRequests": 128,
+    "productionOutputs": 0
+  },
+  "policyHash": "sha256:9c38a17462f6e22471659faf9713cdd6fedc5ac5c5c1b607bba0c2cb0cd3fddb"
+}

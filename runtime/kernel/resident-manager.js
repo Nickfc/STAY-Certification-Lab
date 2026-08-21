@@ -71,6 +71,57 @@ const L0_SNTSS_CONTRACT =
   });
 
 
+const CHRONOBIOLOGY_C1_CONTRACT =
+  Object.freeze({
+    residencyId:
+      'resident:chronobiology',
+
+    coreId:
+      'chronobiology',
+
+    role:
+      'chronobiology',
+
+    version:
+      '0.1.0-c1',
+
+    stateSchema:
+      1,
+
+    stage:
+      'c1-neutral-deterministic-foundation',
+
+    priority:
+      'optional',
+
+    productionEligible:
+      false,
+
+    inputs:
+      Object.freeze([
+        'runtime.organism.binding',
+        'runtime.trusted-organism-time.pulse'
+      ]),
+
+    outputs:
+      Object.freeze([
+        'chronobiology.phase.summary'
+      ]),
+
+    packagePolicyHash:
+      'sha256:9c38a17462f6e22471659faf9713cdd6fedc5ac5c5c1b607bba0c2cb0cd3fddb',
+
+    signalling:
+      'LAB_SHADOW_ONLY',
+
+    producerEpoch:
+      1,
+
+    authorityMode:
+      'lab'
+  });
+
+
 const RESIDENT_SIGNALLING =
   Object.freeze({
     FORBIDDEN:
@@ -3252,6 +3303,7 @@ class ResidentManager {
 module.exports = {
   ResidentManager,
   L0_SNTSS_CONTRACT,
+  CHRONOBIOLOGY_C1_CONTRACT,
   RESIDENT_SIGNALLING,
   normalizeResidentContract,
   createResidentContractRegistry,
