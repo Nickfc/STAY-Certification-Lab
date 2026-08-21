@@ -65,7 +65,7 @@ test('CHR-C1-HOST-01 manifest is neutral, bounded, production-ineligible signall
   assert.equal(manifest.resources.queueCapacity, 256);
 });
 
-test('CHR-C1-HOST-02 CoreHost lifecycle persists exact founder and emits nothing in C1', async () => {
+test('CHR-C1-HOST-02 CoreHost lifecycle persists exact founder through later shadow surface', async () => {
   const core = await createCore();
   await core.start();
   assert.equal(await core.handle(binding()), undefined);
@@ -82,7 +82,7 @@ test('CHR-C1-HOST-02 CoreHost lifecycle persists exact founder and emits nothing
 
 test('CHR-C1-HOST-02A package is hash-bound and resource policy matches its manifest', () => {
   const record = enforcePackagePolicy(require.resolve('../cores/chronobiology/c3'));
-  assert.equal(record.attestedFiles, 19);
+  assert.equal(record.attestedFiles, 20);
   assert.doesNotThrow(() => verifyManifestAgainstPackagePolicy(record, manifest));
   assert.equal(record.policy.ambientCapabilities.network, false);
   assert.equal(record.policy.bounds.productionOutputs, 0);
@@ -99,7 +99,7 @@ test('CHR-C1-HOST-02B real package satisfies the additive resident contract', as
   t.after(() => manager.shutdown());
   const inspected = await manager.inspect('cores/chronobiology/c3/index.js');
   assert.equal(inspected.contract.residencyId, 'resident:chronobiology');
-  assert.equal(inspected.contract.authorityMode, 'lab');
+  assert.equal(inspected.contract.authorityMode, 'shadow');
   assert.equal(inspected.contract.productionEligible, false);
 });
 

@@ -58,11 +58,20 @@ function deriveAggregate(state) {
     effective_period_us: effectivePeriodUs,
     oscillator_coherence_q: coherenceQ31,
     rhythm_amplitude_q: rhythmAmplitudeQ31,
-    entrainment_strength_q: 0,
+    entrainment_strength_q: state.acquired.phase_lock_summary.strength_q,
     cue_coverage_q: state.acquired.cue_coverage_q,
     alignment_stability_q: state.acquired.alignment_summary.stability_q,
     phase_velocity_q: null,
-    evidence_quality: 'UNCERTAIN',
+    evidence_quality: state.continuity
+      ? !state.continuity.photic_route_configured
+        ? 'UNCERTAIN'
+        : state.acquired.evidence_gap_summary.gap_count > 0
+          || state.acquired.cue_coverage_q === 0
+          ? 'DEGRADED'
+          : 'TRUSTED'
+      : state.acquired.cue_coverage_q > 0
+        ? 'TRUSTED'
+        : 'UNCERTAIN',
     model_version: state.phenotype.model_version,
     calibration_profile_id: state.phenotype.calibration_profile_id,
   });

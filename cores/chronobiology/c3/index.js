@@ -9,16 +9,18 @@ const {
   emptyState,
   normalizeState,
   queuePhoticEvidence,
+  recordSummaryEmission,
 } = require('./state');
+const { buildPhaseSummary, shouldEmitPhaseSummary } = require('./summary');
 
 const manifest = Object.freeze({
   coreId: 'chronobiology',
-  version: '0.5.0-c3a',
+  version: '0.6.0-c3b',
   protocol: 'stay-chronobiology-v1',
   stateSchema: 1,
   hotSwap: true,
   priority: 'optional',
-  stage: 'c3a-containment',
+  stage: 'c3b-shadow-integration',
   productionEligible: false,
   inputs: Object.freeze([
     'runtime.organism.binding',
@@ -28,6 +30,21 @@ const manifest = Object.freeze({
   outputs: Object.freeze([
     'chronobiology.phase.summary',
   ]),
+  biology: Object.freeze({
+    protocol: 'stay-biological-signalling-fabric-v1',
+    producerCapabilities: Object.freeze([Object.freeze({
+      id: 'chronobiology-phase-summary-shadow',
+      topic: 'chronobiology.phase.summary',
+      signalClass: 'CHRONOBIOLOGICAL_CONTEXT',
+      schemaVersions: Object.freeze([1]),
+      producerStreamIds: Object.freeze(['core:chronobiology:outputs']),
+      maxRate: Object.freeze({ events: 96, intervalUs: 86_400_000_000 }),
+      maxPayloadBytes: 4096,
+      maxValidityUs: 7_200_000_000,
+      allowedAuthorityModes: Object.freeze(['shadow']),
+    })]),
+    consumerRouteLeases: Object.freeze([]),
+  }),
   resources: Object.freeze({
     softRamMiB: 64,
     hardRamMiB: 96,
@@ -47,7 +64,11 @@ const manifest = Object.freeze({
   }),
 });
 
-async function createCore({ manifest: activeManifest = manifest, initialState } = {}) {
+async function createCore({
+  manifest: activeManifest = manifest,
+  initialState,
+  emit = async () => null,
+} = {}) {
   if (activeManifest.coreId !== manifest.coreId
     || activeManifest.version !== manifest.version
     || activeManifest.stateSchema !== manifest.stateSchema) {
@@ -67,7 +88,15 @@ async function createCore({ manifest: activeManifest = manifest, initialState } 
       if (event?.topic === 'runtime.organism.binding') {
         state = bindState(state, event);
       } else if (event?.topic === TRUSTED_TIME_TOPIC) {
-        state = advanceTrustedTime(state, event);
+        const candidate = advanceTrustedTime(state, event);
+        if (candidate !== state && shouldEmitPhaseSummary(candidate)) {
+          const payload = buildPhaseSummary(candidate);
+          const committed = recordSummaryEmission(candidate, payload);
+          await emit('chronobiology.phase.summary', payload, { eventClass: 'durable' });
+          state = committed;
+        } else {
+          state = candidate;
+        }
       } else if (event?.topic === PHOTIC_TOPIC) {
         state = queuePhoticEvidence(state, event);
       }
@@ -88,6 +117,7 @@ async function createCore({ manifest: activeManifest = manifest, initialState } 
         genesisEstablished: current.genesis !== null,
         committedThroughUs: current.continuity?.committed_through_us ?? null,
         aggregate: current.genesis ? deriveAggregate(current) : null,
+        lastSummaryEmittedUs: current.continuity?.last_summary_emitted_us ?? null,
       });
     },
 

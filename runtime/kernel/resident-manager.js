@@ -83,13 +83,13 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       'chronobiology',
 
     version:
-      '0.5.0-c3a',
+      '0.6.0-c3b',
 
     stateSchema:
       1,
 
     stage:
-      'c3a-containment',
+      'c3b-shadow-integration',
 
     priority:
       'optional',
@@ -110,7 +110,7 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       ]),
 
     packagePolicyHash:
-      'sha256:8bd8abe0f8dc79d9ea06a09589c81dd7c4778b0061e8cf44f1dc46c376f07746',
+      'sha256:53b4a31c9e700def3edc36ce54418930ec8cbf767adb941df05f5df4f3a38fa1',
 
     signalling:
       'LAB_SHADOW_ONLY',
@@ -119,7 +119,7 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       1,
 
     authorityMode:
-      'lab'
+      'shadow'
   });
 
 
@@ -1350,6 +1350,17 @@ class ResidentManager {
           );
         }
       }
+
+      /*
+       * A resident may have committed its checkpoint + input ACK + output
+       * obligation immediately before manager loss. No input replay debt is
+       * required for that already-committed transition, so recovery must also
+       * attempt the shared durable outbox independently. Publication failure
+       * remains non-fatal here: the immutable obligation stays pending.
+       */
+      await this.tryDrainResidentOutbox(
+        unit
+      );
 
       this.stateStore
         .setResidentStatus(

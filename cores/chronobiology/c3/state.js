@@ -41,6 +41,8 @@ function normalizeState(input) {
     candidate.continuity.photic_route_configured ??= false;
     candidate.continuity.pending_photic_evidence ??= [];
     candidate.continuity.recent_photic_evidence ??= [];
+    candidate.continuity.last_summary_emitted_us ??= null;
+    candidate.continuity.last_summary_payload_hash ??= null;
   }
   validateState(candidate);
   return freeze(candidate);
@@ -189,9 +191,33 @@ function initializeGenesis(state, evidence, founderSeedHex) {
       photic_route_configured: false,
       pending_photic_evidence: Object.freeze([]),
       recent_photic_evidence: Object.freeze([]),
+      last_summary_emitted_us: null,
+      last_summary_payload_hash: null,
     },
   };
   return normalizeState(next);
+}
+
+function recordSummaryEmission(state, payload) {
+  const current = normalizeState(state);
+  if (!current.genesis || !current.continuity) {
+    fail('phase summary cannot precede genesis', 'CHRONOBIOLOGY_SUMMARY_BEFORE_GENESIS');
+  }
+  const emittedAtUs = current.continuity.committed_through_us;
+  const payloadHash = evidenceHash(payload);
+  if (current.continuity.last_summary_emitted_us === emittedAtUs) {
+    if (current.continuity.last_summary_payload_hash === payloadHash) return current;
+    fail('phase summary identity conflicts at one biological frontier',
+      'CHRONOBIOLOGY_SUMMARY_CONFLICT');
+  }
+  return normalizeState({
+    ...current,
+    continuity: {
+      ...current.continuity,
+      last_summary_emitted_us: emittedAtUs,
+      last_summary_payload_hash: payloadHash,
+    },
+  });
 }
 
 function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
@@ -272,4 +298,5 @@ module.exports = {
   normalizeState,
   normalizeTrustedTimeEvent,
   queuePhoticEvidence,
+  recordSummaryEmission,
 };

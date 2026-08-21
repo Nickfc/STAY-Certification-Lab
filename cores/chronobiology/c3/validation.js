@@ -165,6 +165,15 @@ function validateContinuity(state) {
   }
   object(continuity.consumed_stream_cursors, 'consumed stream cursors');
   object(continuity.input_route_states, 'input route states');
+  const summaryTime = continuity.last_summary_emitted_us;
+  const summaryHash = continuity.last_summary_payload_hash;
+  if ((summaryTime === null) !== (summaryHash === null)) {
+    fail('summary continuity fields are incomplete');
+  }
+  if (summaryTime !== null) {
+    integer(summaryTime, 'last summary frontier', 0, continuity.committed_through_us);
+    if (!HASH.test(summaryHash)) fail('last summary payload hash is invalid');
+  }
   if (typeof continuity.photic_route_configured !== 'boolean'
     || !Array.isArray(continuity.pending_photic_evidence)
     || continuity.pending_photic_evidence.length > PHOTIC_PROFILE.evidenceCapacity

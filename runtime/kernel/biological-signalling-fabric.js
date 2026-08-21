@@ -451,6 +451,35 @@ function topicSelector(
 }
 
 
+function canonicalSelectorInput(
+  selector,
+  label
+) {
+  exactFields(
+    selector,
+    new Set([
+      'type',
+      'value'
+    ]),
+    `${label}.selector`
+  );
+
+  if (
+    selector.type !== 'EXACT' &&
+    selector.type !== 'PREFIX'
+  ) {
+    fail(
+      `${label}.selector.type is invalid`,
+      'BIOLOGICAL_BSF_MANIFEST'
+    );
+  }
+
+  return selector.type === 'EXACT'
+    ? { topic: selector.value }
+    : { topicPrefix: selector.value };
+}
+
+
 function selectorMatches(
   selector,
   topic
@@ -581,6 +610,56 @@ function normalizeProducerCapability(
 ) {
   const label =
     `biology.producerCapabilities[${index}]`;
+
+  if (
+    value &&
+    (value.coreId != null || value.selector != null)
+  ) {
+    exactFields(
+      value,
+      new Set([
+        'id',
+        'coreId',
+        'selector',
+        'signalClass',
+        'schemaVersions',
+        'producerStreamIds',
+        'maxRate',
+        'maxPayloadBytes',
+        'maxValidityUs',
+        'allowedAuthorityModes'
+      ]),
+      label
+    );
+
+    if (
+      boundedText(
+        value.coreId,
+        `${label}.coreId`,
+        128
+      ) !== coreId
+    ) {
+      fail(
+        `${label}.coreId differs from manifest coreId`,
+        'BIOLOGICAL_BSF_MANIFEST'
+      );
+    }
+
+    value = {
+      id: value.id,
+      ...canonicalSelectorInput(
+        value.selector,
+        label
+      ),
+      signalClass: value.signalClass,
+      schemaVersions: value.schemaVersions,
+      producerStreamIds: value.producerStreamIds,
+      maxRate: value.maxRate,
+      maxPayloadBytes: value.maxPayloadBytes,
+      maxValidityUs: value.maxValidityUs,
+      allowedAuthorityModes: value.allowedAuthorityModes
+    };
+  }
 
   exactFields(
     value,
@@ -724,6 +803,50 @@ function normalizeRouteLease(
 ) {
   const label =
     `biology.consumerRouteLeases[${index}]`;
+
+  if (
+    value &&
+    value.selector != null
+  ) {
+    exactFields(
+      value,
+      new Set([
+        'id',
+        'consumerCoreId',
+        'acceptedProducerCoreIds',
+        'producerStreamIds',
+        'selector',
+        'signalClass',
+        'schemaVersions',
+        'requiredDurability',
+        'requiredOrdering',
+        'evidenceRole',
+        'lagBudgetUs',
+        'activeAuthorityEpochRange',
+        'required'
+      ]),
+      label
+    );
+
+    value = {
+      id: value.id,
+      consumerCoreId: value.consumerCoreId,
+      acceptedProducerCoreIds: value.acceptedProducerCoreIds,
+      producerStreamIds: value.producerStreamIds,
+      ...canonicalSelectorInput(
+        value.selector,
+        label
+      ),
+      signalClass: value.signalClass,
+      schemaVersions: value.schemaVersions,
+      requiredDurability: value.requiredDurability,
+      requiredOrdering: value.requiredOrdering,
+      evidenceRole: value.evidenceRole,
+      lagBudgetUs: value.lagBudgetUs,
+      activeAuthorityEpochRange: value.activeAuthorityEpochRange,
+      required: value.required
+    };
+  }
 
   exactFields(
     value,

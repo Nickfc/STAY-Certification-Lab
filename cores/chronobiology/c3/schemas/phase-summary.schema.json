@@ -3,7 +3,7 @@
   "$id": "stay://chronobiology/phase-summary/v1",
   "title": "STAY Chronobiology non-authoritative phase summary v1",
   "type": "object",
-  "required": ["schema", "mode", "central_phase_q", "phase_resolvability_q", "effective_period_us", "oscillator_coherence_q", "rhythm_amplitude_q", "evidence_quality", "model_version", "calibration_profile_id"],
+  "required": ["schema", "mode", "central_phase_q", "phase_resolvability_q", "effective_period_us", "oscillator_coherence_q", "rhythm_amplitude_q", "entrainment_strength_q", "cue_coverage_q", "alignment_stability_q", "phase_velocity_q", "evidence_quality", "model_version", "calibration_profile_id"],
   "additionalProperties": false,
   "properties": {
     "schema": { "const": "chronobiology.phase-summary/v1" },
@@ -13,6 +13,10 @@
     "effective_period_us": { "type": ["integer", "null"], "minimum": 1 },
     "oscillator_coherence_q": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
     "rhythm_amplitude_q": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "entrainment_strength_q": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "cue_coverage_q": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "alignment_stability_q": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "phase_velocity_q": { "type": ["integer", "null"] },
     "evidence_quality": { "enum": ["TRUSTED", "DEGRADED", "UNCERTAIN"] },
     "model_version": { "type": "string", "minLength": 1 },
     "calibration_profile_id": { "type": "string", "minLength": 1 }
