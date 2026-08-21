@@ -254,6 +254,7 @@ function createFounderState({
       phase_lock_summary: Object.freeze({ status: 'UNKNOWN', strength_q: 0 }),
       alignment_summary: Object.freeze({ status: 'UNKNOWN', stability_q: 0 }),
       bounded_entrainment_history: Object.freeze([]),
+      aggregate_phase_history: Object.freeze([]),
       evidence_gap_summary: Object.freeze({ gap_count: 0, unknown_duration_us: 0 }),
     }),
     continuity: Object.freeze({

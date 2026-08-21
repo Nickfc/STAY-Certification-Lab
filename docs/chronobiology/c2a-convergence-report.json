@@ -12,7 +12,12 @@
     "trig_table_resolution": 4096,
     "trig_table_hash": "sha256:6cea39fb0d4de3e45718a9ab4fc0b6b894f3469ba647752b84007e82204d1992",
     "integration_quantum_us": 60000000,
-    "phase_resolvability_minimum_q31": 214748365
+    "phase_resolvability_enter_q31": 257698038,
+    "phase_resolvability_exit_q31": 171798692,
+    "aggregate_history_capacity": 64,
+    "aggregate_estimator_minimum_observations": 3,
+    "aggregate_estimator_maximum_interval_us": 43200000000,
+    "phase_velocity_units": "wrapped uint32 phase-Q units per trusted organism day"
   },
   "selected_founder_profile": {
     "production_oscillator_count": 64,
@@ -34,19 +39,19 @@
       "resolutions": {
         "32": {
           "central_phase_q": 3227516928,
-          "effective_period_us": 87120000000,
+          "effective_period_us": null,
           "oscillator_coherence_q": 2117585575,
           "rhythm_amplitude_q": 1856045832
         },
         "64": {
           "central_phase_q": 3231711232,
-          "effective_period_us": 87120000000,
+          "effective_period_us": null,
           "oscillator_coherence_q": 2117449030,
           "rhythm_amplitude_q": 1928456713
         },
         "128": {
           "central_phase_q": 3236954112,
-          "effective_period_us": 87120000000,
+          "effective_period_us": null,
           "oscillator_coherence_q": 2111217813,
           "rhythm_amplitude_q": 1897123592
         }
@@ -102,12 +107,13 @@
     }
   },
   "source_sha256": {
-    "cores/chronobiology/c3/calibration-profile.js": "21d181273e9b2eeb049683f5bdf23f0ffb4d316c5374628242b6e78ad70ca755",
+    "cores/chronobiology/c3/calibration-profile.js": "e758ac1956b53cb02d0ab0d95bff67be948525127185295eb05f280838519ff3",
+    "cores/chronobiology/c3/aggregate.js": "5e3b783ebe6a2f83c12442631a4f66240636d0bc18c7ede1fe17c3b5b0aa990a",
     "cores/chronobiology/c3/fixed-point.js": "2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
     "cores/chronobiology/c3/trig-table.js": "2e360df71cf652ae926fbb82861b362b438cf6794cd6751e541968571ce37668",
-    "cores/chronobiology/c3/founder.js": "a7d59bb4cab45454ce2637fc416e7fba056cfc8e366d86bf35040aa922819613",
+    "cores/chronobiology/c3/founder.js": "1cf3b5b1a683b56773476d6305393eb395f023492da3373a16d310e1aa42491b",
     "cores/chronobiology/c3/oscillator.js": "740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
-    "tools/chronobiology-convergence-lab.js": "98bd2a569308fb7e0c81eceef099677fdc6d430032a3381a74c0ea4097834122",
-    "test/chronobiology-c2-oscillator.test.js": "b240636a2ef2a6e1d280feda3c17e4a37b7c0238775c0648182c40bf69a7b950"
+    "tools/chronobiology-convergence-lab.js": "6a650077ae5755a071c116d3e8e8d1b512199fcf1a13cd205071e7cc2db51a92",
+    "test/chronobiology-c2-oscillator.test.js": "da3b4c6f017832bac030644dddc6bedf03d354dc321e4884acf85a6001195811"
   }
 }

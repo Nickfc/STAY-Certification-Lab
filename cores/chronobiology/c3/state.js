@@ -5,6 +5,7 @@ const {
 } = require('../../../runtime/kernel/canonical-json');
 
 const { createFounderState, sha256 } = require('./founder');
+const { appendAggregateObservation } = require('./aggregate');
 const { integrateEvidencePlan } = require('./entrainment');
 const { MAX_INTEGRATION_STEPS } = require('./oscillator');
 const { PROFILE } = require('./calibration-profile');
@@ -38,6 +39,7 @@ function normalizeState(input) {
     ? structuredClone(input)
     : emptyState();
   if (candidate.genesis && candidate.continuity) {
+    candidate.acquired.aggregate_phase_history ??= [];
     candidate.continuity.photic_route_configured ??= false;
     candidate.continuity.pending_photic_evidence ??= [];
     candidate.continuity.recent_photic_evidence ??= [];
@@ -182,7 +184,7 @@ function initializeGenesis(state, evidence, founderSeedHex) {
     continuityEpoch: evidence.continuity_epoch,
     ...(founderSeedHex === undefined ? {} : { founderSeedHex }),
   });
-  const next = {
+  const next = appendAggregateObservation({
     ...current,
     ...founder,
     continuity: {
@@ -194,7 +196,7 @@ function initializeGenesis(state, evidence, founderSeedHex) {
       last_summary_emitted_us: null,
       last_summary_payload_hash: null,
     },
-  };
+  }, evidence.trusted_time_us);
   return normalizeState(next);
 }
 
@@ -265,7 +267,7 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
       event_id: entry.event_id,
       evidence_hash: entry.evidence_hash,
     }));
-  return normalizeState({
+  const advanced = appendAggregateObservation({
     ...current,
     acquired: integrated.acquired,
     continuity: {
@@ -282,7 +284,8 @@ function advanceTrustedTime(state, event, { founderSeedHex } = {}) {
         ...consumedEvidence,
       ].slice(-PROFILE.entrainmentHistoryCapacity),
     },
-  });
+  }, evidence.trusted_time_us);
+  return normalizeState(advanced);
 }
 
 module.exports = {

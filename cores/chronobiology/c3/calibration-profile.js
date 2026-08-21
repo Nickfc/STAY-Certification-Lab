@@ -24,7 +24,17 @@ const PROFILE = Object.freeze({
   longRangeEdgeWeightMinimumQ30: 67_108_864,
   longRangeEdgeWeightRangeQ30: 67_108_864,
   couplingResponseLimitQ30: 67_108_864,
-  phaseResolvableMinimumQ31: 214_748_365,
+  // Macro phase becomes available only above the enter threshold and remains
+  // available until it falls below the lower exit threshold. This prevents a
+  // noisy aggregate vector from flickering across the public phase boundary.
+  phaseResolvableEnterQ31: 257_698_038,
+  phaseResolvableExitQ31: 171_798_692,
+  // Compatibility name retained for laboratories that assert the unresolved
+  // side of the calibrated band.
+  phaseResolvableMinimumQ31: 257_698_038,
+  aggregateHistoryCapacity: 64,
+  aggregateEstimatorMinimumObservations: 3,
+  aggregateEstimatorMaximumIntervalUs: 43_200_000_000,
   trigTableResolution: 4096,
   entrainmentHistoryCapacity: 64,
   resolutionConvergencePhaseToleranceQ: 47_721_859,

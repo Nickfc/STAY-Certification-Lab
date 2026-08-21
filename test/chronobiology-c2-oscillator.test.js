@@ -4,7 +4,11 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { stableStringify } = require('../runtime/kernel/canonical-json');
-const { deriveAggregate } = require('../cores/chronobiology/c3/aggregate');
+const {
+  appendAggregateObservation,
+  deriveAggregate,
+  phaseEstimator,
+} = require('../cores/chronobiology/c3/aggregate');
 const { PROFILE } = require('../cores/chronobiology/c3/calibration-profile');
 const {
   Q31_ONE,
@@ -218,4 +222,50 @@ test('C2-OSC-07 one accelerated year remains bounded and phase-resolvable', () =
   }
   assert.notEqual(aggregate.central_phase_q, null);
   assert.ok(aggregate.oscillator_coherence_q > PROFILE.phaseResolvableMinimumQ31);
+});
+
+test('C2-OSC-08 wrap-aware history derives period and phase velocity from trusted time', () => {
+  const estimate = phaseEstimator([
+    { trusted_time_us: 0, central_phase_q: 0xc0000000, resolved: true },
+    { trusted_time_us: 21_600_000_000, central_phase_q: 0, resolved: true },
+    { trusted_time_us: 43_200_000_000, central_phase_q: 0x40000000, resolved: true },
+  ]);
+  assert.equal(estimate.effectivePeriodUs, DAY_US);
+  assert.equal(estimate.phaseVelocityQ, 0x100000000);
+});
+
+test('C2-OSC-09 phase resolvability uses distinct enter and exit thresholds', () => {
+  const midpoint = Math.floor(
+    (PROFILE.phaseResolvableEnterQ31 + PROFILE.phaseResolvableExitQ31) / 2,
+  );
+  const state = structuredClone(createLaboratoryState());
+  state.acquired.oscillators = state.acquired.oscillators.map(unit => ({
+    ...unit, phase_q: 0, amplitude_q: midpoint,
+  }));
+  state.acquired.aggregate_phase_history = [{
+    trusted_time_us: 1,
+    central_phase_q: null,
+    phase_resolvability_q: PROFILE.phaseResolvableExitQ31 - 1,
+    resolved: false,
+  }];
+  assert.equal(deriveAggregate(state).central_phase_q, null);
+  state.acquired.aggregate_phase_history = [{
+    trusted_time_us: 1,
+    central_phase_q: 0,
+    phase_resolvability_q: PROFILE.phaseResolvableEnterQ31,
+    resolved: true,
+  }];
+  assert.equal(deriveAggregate(state).central_phase_q, 0);
+});
+
+test('C2-OSC-10 trusted aggregate observation history is bounded and monotonic', () => {
+  let state = createLaboratoryState();
+  for (let time = 1; time <= PROFILE.aggregateHistoryCapacity + 3; time += 1) {
+    state = appendAggregateObservation(state, time);
+  }
+  assert.equal(state.acquired.aggregate_phase_history.length, PROFILE.aggregateHistoryCapacity);
+  assert.equal(state.acquired.aggregate_phase_history[0].trusted_time_us, 4);
+  assert.throws(() => appendAggregateObservation(state, 3), {
+    code: 'CHRONOBIOLOGY_AGGREGATE_REWIND',
+  });
 });

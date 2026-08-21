@@ -151,6 +151,24 @@ function validatePhenotype(state) {
     || acquired.bounded_entrainment_history.length > PROFILE.entrainmentHistoryCapacity) {
     fail('entrainment history exceeds its bound');
   }
+  if (!Array.isArray(acquired.aggregate_phase_history)
+    || acquired.aggregate_phase_history.length > PROFILE.aggregateHistoryCapacity) {
+    fail('aggregate phase history exceeds its bound');
+  }
+  let previousAggregateTime = -1;
+  for (const observation of acquired.aggregate_phase_history) {
+    object(observation, 'aggregate phase observation');
+    integer(observation.trusted_time_us, 'aggregate observation time', previousAggregateTime + 1);
+    integer(observation.phase_resolvability_q, 'aggregate phase resolvability', 0, Q31_ONE);
+    if (typeof observation.resolved !== 'boolean'
+      || (observation.central_phase_q === null) !== !observation.resolved) {
+      fail('aggregate phase observation resolution is inconsistent');
+    }
+    if (observation.central_phase_q !== null) {
+      integer(observation.central_phase_q, 'aggregate central phase', 0, 0xffffffff);
+    }
+    previousAggregateTime = observation.trusted_time_us;
+  }
   object(acquired.evidence_gap_summary, 'evidence gap summary');
 }
 

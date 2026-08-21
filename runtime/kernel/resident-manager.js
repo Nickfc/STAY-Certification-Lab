@@ -110,7 +110,7 @@ const CHRONOBIOLOGY_RESIDENT_CONTRACT =
       ]),
 
     packagePolicyHash:
-      'sha256:da13abcb0e7c6e3ff9584bd80710e3fca4a6622c198ba974350f4d6dcd5cd03d',
+      'sha256:6322b24987ee672541bb2dc472df0d52ab59ad8ffcfc17fb06c38582d2256ca0',
 
     signalling:
       'LAB_SHADOW_ONLY',
