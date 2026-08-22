@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const test = require('node:test');
 
 const evidence = require('../certification/chronobiology-c3c/split-evidence');
@@ -227,17 +228,83 @@ test('C3-C-SPLIT-09 sterile legacy fixture is canonical, ephemeral and never use
   assert.match(builder, /STAY_LEGACY_0_6_SOURCE_TAR_GZ_GPG/);
   assert.match(builder, /STAY_LEGACY_0_6_FIXTURE_PASSPHRASE/);
   assert.match(builder, /'--passphrase-fd', '0'/);
-  assert.match(builder, /legacy\/0\.6\.0\/SOURCE_ARCHIVE_SHA256/);
   assert.match(builder, /SOURCE_FILES/);
-  assert.match(builder, /sha256\(fs\.readFileSync\(archivePath\)\) !== expectedArchiveDigest/);
+  assert.match(builder, /legacy-fixture-transport\.py/);
+  assert.doesNotMatch(builder, /SOURCE_ARCHIVE_SHA256|expectedArchiveDigest/);
   assert.match(builder, /fs\.chmodSync\(target, 0o444\)/);
   assert.match(builder, /fs\.rmSync\(work, \{ recursive: true, force: true \}\)/);
   assert.doesNotMatch(builder, /\/var\/lib\/stay|\/opt\/stay\/current|stay\.service/);
 
   const preparation = fs.readFileSync(path.join(root,
     'certification/chronobiology-c3c/compute/PREPARE_ENCRYPTED_FIXTURE.sh'), 'utf8');
-  assert.match(preparation, /SOURCE_ARCHIVE_SHA256/);
+  assert.match(preparation, /STAY_0\.6_to_0\.7_Hibernation_Migration|MIGRATION_ZIP/);
+  assert.match(preparation, /EXPECTED_MIGRATION_SHA256="b2582a4a8f4fc5d82f5241c6a2309426709c8906be76c572fe44f1d305d9f12b"/);
+  assert.match(preparation, /legacy-fixture-transport\.py.*build/s);
+  assert.match(preparation, /SOURCE_FILES/);
   assert.match(preparation, /--symmetric --cipher-algo AES256/);
   assert.match(preparation, /\/opt\/stay\/\*\|\/var\/lib\/stay\/\*/);
   assert.doesNotMatch(preparation, /cat .*SOURCE_ARCHIVE|echo .*PASSPHRASE/);
+
+  const transport = fs.readFileSync(path.join(root,
+    'certification/chronobiology-c3c/compute/legacy-fixture-transport.py'), 'utf8');
+  assert.match(transport, /PREFIX = "source\/0\.6\.0\/"/);
+  assert.match(transport, /len\(inventory\) != 8/);
+  assert.match(transport, /never\n\s+# read, extract, hash, or copy them into the transport/);
+  assert.match(transport, /decrypted archive contains material outside SOURCE_FILES/);
+  assert.match(transport, /migration ZIP contains a symbolic link/);
+  assert.match(transport, /mtime=NORMALIZED_MTIME/);
+  assert.match(transport, /decrypted SOURCE_FILES hash mismatch/);
+  assert.doesNotMatch(transport, /\/opt\/stay|\/var\/lib\/stay/);
+});
+
+test('C3-C-SPLIT-10 migration packaging is deterministic and transport inventory is exact', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'stay-c3c-transport-'));
+  const inventory = Object.fromEntries([
+    'server.js', 'world-core.js', 'package.json', 'public/client.js',
+    'public/cognitive-core.js', 'public/index.html', 'public/style.css',
+    'public/worker.js',
+  ].map((relative, index) => {
+    const bytes = Buffer.from(`fixture-${index}\n`);
+    return [relative, crypto.createHash('sha256').update(bytes).digest('hex')];
+  }));
+  const inventoryFile = path.join(directory, 'inventory.json');
+  const migration = path.join(directory, 'migration.zip');
+  const first = path.join(directory, 'first.tar.gz');
+  const second = path.join(directory, 'second.tar.gz');
+  const extracted = path.join(directory, 'extracted');
+  fs.writeFileSync(inventoryFile, JSON.stringify(inventory));
+  const zipScript = [
+    'import json,sys,zipfile',
+    'inventory=json.load(open(sys.argv[1]))',
+    "z=zipfile.ZipFile(sys.argv[2],'w')",
+    "[z.writestr('source/0.6.0/'+name,('fixture-%d\\n'%i).encode()) for i,name in enumerate(inventory)]",
+    "z.writestr('source/0.6.0/historical-test.js',b'ignored')",
+    "z.writestr('state/legacy-0.6.0/genesis-state.json',b'never-used')",
+    'z.close()',
+  ].join(';');
+  assert.equal(spawnSync('python3', ['-c', zipScript, inventoryFile, migration]).status, 0);
+
+  const helper = path.join(root,
+    'certification/chronobiology-c3c/compute/legacy-fixture-transport.py');
+  const build = (output) => spawnSync('python3', [helper, 'build',
+    '--inventory', inventoryFile, '--input', migration, '--output', output],
+  { encoding: 'utf8' });
+  const firstBuild = build(first);
+  const secondBuild = build(second);
+  assert.equal(firstBuild.status, 0, firstBuild.stderr);
+  assert.equal(secondBuild.status, 0, secondBuild.stderr);
+  assert.equal(firstBuild.stdout, secondBuild.stdout);
+  assert.deepEqual(fs.readFileSync(first), fs.readFileSync(second));
+
+  const verify = spawnSync('python3', [helper, 'verify-extract',
+    '--inventory', inventoryFile, '--input', first, '--output', extracted],
+  { encoding: 'utf8' });
+  assert.equal(verify.status, 0, verify.stderr);
+  const extractedFiles = fs.readdirSync(extracted, { recursive: true, withFileTypes: true })
+    .filter(entry => entry.isFile()).map(entry => path.join(entry.parentPath, entry.name)
+      .slice(extracted.length + 1).replaceAll(path.sep, '/')).sort();
+  assert.deepEqual(extractedFiles, Object.keys(inventory).sort());
+  assert.equal(fs.existsSync(path.join(extracted, 'historical-test.js')), false);
+  assert.equal(fs.existsSync(path.join(extracted, 'genesis-state.json')), false);
+  fs.rmSync(directory, { recursive: true, force: true });
 });

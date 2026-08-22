@@ -24,9 +24,18 @@ uploads only COMPUTE_RESULT.sanitized.json and never uploads the private raw
 directory.
 
 PREPARE_ENCRYPTED_FIXTURE.sh is the offline material-preparation gate. It accepts
-only the canonical hash-bound source.tar.gz, explicitly refuses paths under
-/opt/stay and /var/lib/stay, and writes AES-256 GPG ciphertext for the public Lab
-fixture path. The plaintext archive is never committed.
+the known non-live STAY_0.6_to_0.7_Hibernation_Migration.zip, reads only its
+source/0.6.0 tree, and verifies exactly the eight frozen SOURCE_FILES hashes.
+State and all other migration content are ignored. Missing, additional, linked,
+unsafe or hash-mismatched source material is rejected. Paths under /opt/stay and
+/var/lib/stay are refused. The known migration ZIP digest is pinned as input
+integrity, so any injected or altered ignored content rejects the entire input;
+it does not become the canonical identity of legacy 0.6.
+
+The gate writes a normalized deterministic source.tar.gz transport and encrypts
+it as AES-256 GPG ciphertext for the public Lab fixture path. The deterministic
+archive SHA-256 is transport integrity only; SOURCE_FILES remains the canonical
+legacy-fixture identity. The plaintext archive is never committed.
 
 Preconditions:
 
@@ -45,11 +54,11 @@ The frozen 250 ms one-year catch-up gate is measured independently and is also
 exercised by the direct containment suite.
 
 The fixture builder passes the secret to GPG over stdin, never a process
-argument. It verifies the decrypted archive against the SHA-256 committed in
-legacy/0.6.0/SOURCE_ARCHIVE_SHA256, extracts in a private temporary directory,
-verifies all eight files against SOURCE_FILES, and creates only a read-only
-ephemeral fixture. The passphrase and material-path variables are unset before
-tests start. No live-organism state or data is used.
+argument. It decrypts in a private temporary directory, rejects unsafe members
+or any material outside the exact normalized eight-file transport, verifies all
+eight files against SOURCE_FILES again, and creates only a read-only ephemeral
+fixture. The passphrase and material-path variables are unset before tests
+start. No live-organism state or data is used.
 
 Raw TAP, stack traces, process inventories, source tree and environment captures
 remain mode-0700/0600 under RUNNER_TEMP while the runner is active. They and the
