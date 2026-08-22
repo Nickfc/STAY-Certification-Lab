@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CONTROLLER_COMMIT: fc298b9e9e84bb50a08685ea3f95d7641e5776cd
+  CONTROLLER_COMMIT: 99060abe3ec9b74bd569f7ab98e55a83511fa5e1
   EXACT_CANDIDATE_SHA: 7d040592ccf1f149f0f0a170f79cf76bb5f05d92
   EXACT_CANDIDATE_TREE: 450cc22f70b7abf3b5733fe882049d88cd52de74
   EXACT_COMPUTE_RECORD_SHA256: sha256:384f3f2e27232b555fe52185c775562d31cf7fac349dfb95ae93968225c83ec1
@@ -53,7 +53,7 @@ jobs:
           ROLLBACK_AUTHORIZATION: ${{ inputs.rollback_a_authorization }}
         run: |
           set -euo pipefail
-          [[ "$CONTROLLER_COMMIT" == "fc298b9e9e84bb50a08685ea3f95d7641e5776cd" ]]
+          [[ "$CONTROLLER_COMMIT" == "99060abe3ec9b74bd569f7ab98e55a83511fa5e1" ]]
           case "$REQUESTED_OPERATION" in
             preflight)
               [[ -z "$SURGERY_AUTHORIZATION" && -z "$ROLLBACK_AUTHORIZATION" ]]
@@ -80,7 +80,7 @@ jobs:
       - name: Checkout controller revision without credentials
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: fc298b9e9e84bb50a08685ea3f95d7641e5776cd
+          ref: 99060abe3ec9b74bd569f7ab98e55a83511fa5e1
           fetch-depth: 0
           persist-credentials: false
           path: controller-source
