@@ -153,7 +153,8 @@ test('C3-REL-06 C0 audit is closed and the server bundle cannot claim a seal', (
     'utf8',
   );
   assert.match(audit, /IMPLEMENTATION CLOSED; C3-C SEAL BLOCKED/);
-  assert.match(audit, /C3-REL-02.*SERVER GATE/);
+  assert.match(audit, /C3-REL-02.*COMPUTE GATE/);
+  assert.match(audit, /C3-REL-04.*ACTUAL-HOST GATE/);
   assert.match(audit, /C3-REL-05.*BLOCKED/);
 
   const bundleRoot = path.join(root, 'certification/chronobiology-c3c');
@@ -171,4 +172,16 @@ test('C3-REL-06 C0 audit is closed and the server bundle cannot claim a seal', (
   assert.match(runner, /require_zero_tap TARGETED/);
   assert.match(runner, /require_zero_tap FULL/);
   assert.match(runner, /cmp -s .*live-before\.txt.*live-after\.txt/);
+
+  for (const file of [
+    'split-evidence.js', 'VERIFY_SPLIT_EVIDENCE.js', 'SPLIT_HOST_README.txt',
+    'compute/RUN.sh', 'compute/WATCH.sh', 'compute/README.txt',
+    'live/RUN.sh', 'live/README.txt',
+  ]) assert.equal(fs.existsSync(path.join(bundleRoot, file)), true, file);
+
+  const binder = fs.readFileSync(path.join(bundleRoot, 'split-evidence.js'), 'utf8');
+  assert.match(binder, /CANDIDATE_CERTIFIED_UNSEALED/);
+  assert.match(binder, /compute\.candidate\.tree !== live\.candidate\.tree/);
+  assert.match(binder, /compute\.record_sha256 !== live\.compute_record_sha256/);
+  assert.doesNotMatch(binder, /release_sealed:\s*true/);
 });

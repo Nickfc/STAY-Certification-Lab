@@ -1,4 +1,26 @@
-Run on the authorized development server as staydeploy:
+Split-host certification now governs the final candidate. The former combined
+actual-host run below remains diagnostic only and cannot create seal evidence.
+
+Compute lane in private Nickfc/STAY-Certification-Lab orchestration:
+
+  bash certification/chronobiology-c3c/compute/RUN.sh \
+    --candidate-sha "$CANDIDATE_SHA" \
+    --output-root "$RUNNER_TEMP/stay-chronobiology-c3c" \
+    --lab-repository Nickfc/STAY-Certification-Lab
+
+Then copy only COMPUTE_RESULT.sanitized.json to the actual Lightsail host and
+run the read-only sentinel lane from the exact same SHA/tree as staydeploy:
+
+  bash certification/chronobiology-c3c/live/RUN.sh \
+    --candidate-sha "$CANDIDATE_SHA" \
+    --candidate-tree "$CANDIDATE_TREE" \
+    --compute-result "$COMPUTE_RESULT" \
+    --output-root /var/tmp/stay-chronobiology-c3c-live
+
+Bind only the two sanitized records with VERIFY_SPLIT_EVIDENCE.js. It must
+report CANDIDATE_CERTIFIED_UNSEALED before an explicit later seal review.
+
+Legacy combined diagnostic on the authorized development server:
 
   cd /home/staydeploy/STAY-Genesis-I1A
   git fetch origin feature/chronobiology

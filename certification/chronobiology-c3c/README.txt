@@ -1,6 +1,10 @@
 STAY Chronobiology C3-C server certification candidate
 =======================================================
 
+NOTE: The split-host contract in SPLIT_HOST_README.txt now governs final-candidate
+acceptance. This combined actual-host runner remains a diagnostic and cannot by
+itself satisfy the final C3-C seal gate.
+
 This bundle certifies the exact GitHub-visible feature/chronobiology HEAD in the
 proper server environment. It never deploys, restarts stay.service, switches
 /opt/stay/current, mutates live StateStore, merges main, or enables authority.

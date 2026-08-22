@@ -1,6 +1,6 @@
 {
-  "schema": "stay.chronobiology.c3c-certification-status/v2",
-  "result": "FINAL_CANDIDATE_UNSEALED",
+  "schema": "stay.chronobiology.c3c-certification-status/v3",
+  "result": "SPLIT_HOST_EVIDENCE_PENDING",
   "release_sealed": false,
   "candidate": {
     "version": "1.0.0-c3rc.1",
@@ -14,23 +14,23 @@
   },
   "local_certification": {
     "chronobiology_direct": {
-      "tests": 79,
-      "passed": 79,
+      "tests": 86,
+      "passed": 86,
       "failed": 0,
       "skipped": 0,
       "todo": 0,
       "cancelled": 0,
-      "duration_ms": 190111.615323,
+      "duration_ms": 165733.582075,
       "result": "PASS"
     },
     "targeted_residency_bsf_corehost_sntss": {
-      "tests": 303,
-      "passed": 302,
+      "tests": 524,
+      "passed": 523,
       "failed": 0,
       "skipped": 1,
       "todo": 0,
       "cancelled": 0,
-      "duration_ms": 47630.525715,
+      "duration_ms": 46674.376362,
       "result": "ENVIRONMENT_FIXTURE_REQUIRED",
       "skip": {
         "test": "I1-C",
@@ -61,13 +61,28 @@
     },
     "leaked_node_processes_after_suite": 0
   },
-  "server_certification": {
-    "bundle": "certification/chronobiology-c3c",
-    "required_result": "CANDIDATE_CERTIFIED_UNSEALED",
-    "required_test_result": "ZERO_FAILURE_ZERO_SKIP_ZERO_TODO_ZERO_CANCELLED",
-    "required_live_sentinel": "BYTE_IDENTICAL_BEFORE_AFTER",
-    "required_new_node_processes": 0,
-    "result": "NOT_RUN"
+  "split_host_certification": {
+    "topology": "stay.chronobiology.c3c-split-host/v1",
+    "compute": {
+      "entrypoint": "certification/chronobiology-c3c/compute/RUN.sh",
+      "repository": "Nickfc/STAY-Certification-Lab",
+      "required_result": "PASS",
+      "required_test_result": "ZERO_FAILURE_ZERO_SKIP_ZERO_TODO_ZERO_CANCELLED",
+      "required_new_node_processes": 0,
+      "result": "NOT_RUN"
+    },
+    "live_sentinel": {
+      "entrypoint": "certification/chronobiology-c3c/live/RUN.sh",
+      "host": "ACTUAL_LIGHTSAIL_ONLY",
+      "required_result": "PASS",
+      "required_live_sentinel": "BYTE_IDENTICAL_BEFORE_AFTER",
+      "result": "NOT_RUN"
+    },
+    "binding": {
+      "entrypoint": "certification/chronobiology-c3c/VERIFY_SPLIT_EVIDENCE.js",
+      "required_identity": "EXACT_SAME_CANDIDATE_SHA_TREE_AND_COMPUTE_RECORD_DIGEST",
+      "result": "NOT_RUN"
+    }
   },
   "integrity": {
     "package_policy_hash": "sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820",
@@ -100,11 +115,18 @@
       "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4"
     },
     "closure_evidence_sha256": {
-      "docs/chronobiology/c0-implementation-audit.md": "0e29961211417bdd28e1d18dc25478c293bd4701451c8d3cb03597696bcc8219",
+      "docs/chronobiology/c0-implementation-audit.md": "e6fdc4071e2571181637146a0cb0c7674d8845ca6b1ffe0110ee6aa7fe9d740e",
       "test/chronobiology-c1-genesis.test.js": "92d069df1a23d7c6c89c57a3f892e093d948e513d14e4922461ec6ab531c0757",
-      "test/chronobiology-hostile-certification.test.js": "4ed96d2776dd2c7f9836251a6a2b99b1aa7f144ef8a59a1472a6d2f21927770e",
+      "test/chronobiology-hostile-certification.test.js": "2195c13928109d8e9fda89dbd85bdfdeb1998cb426cad7330e972c3a6f5e3956",
+      "test/chronobiology-c3c-split-certification.test.js": "cfa55efc3e3ca7ea2775fdd221889eddcb46a482ac66d2d53171b595151b0939",
       "certification/chronobiology-c3c/RUN.sh": "1f2ddabe37e0915ecdadc2f729c8f23d48c7fd78923cf47cddb9140ba8739be9",
-      "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29"
+      "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29",
+      "certification/chronobiology-c3c/compute/RUN.sh": "3b2f632780b79c614ddd41b87669475422ee4383c45a4746dcd3cbf5ec93edcb",
+      "certification/chronobiology-c3c/compute/WATCH.sh": "2ca4f6d288fee010e77e4d0650a96797e01b078a1227e28b5d2f5b00b023fa8d",
+      "certification/chronobiology-c3c/compute/performance-probe.js": "e099e2df47f650a94dda600c9f69e848c116ec1dbe84d5125ab394a6cd03fc95",
+      "certification/chronobiology-c3c/live/RUN.sh": "42cadf17126c027a41d001fec6b51837076723d91e337e6c77dfff2fc68a9aa4",
+      "certification/chronobiology-c3c/VERIFY_SPLIT_EVIDENCE.js": "061cec6805ab49a906c9623a5bb79eb12ddc38cb4378f2068bc59aa33fb44264",
+      "certification/chronobiology-c3c/split-evidence.js": "fe81d95a123423227ccc8e1e8c1e0089a5530e3846aee924d28b428abe4fdea5"
     },
     "sntss_source_modified": false
   },
@@ -117,5 +139,5 @@
     "authoritative_effects_enabled": false,
     "final_seal_created": false
   },
-  "next_gate": "Run certification/chronobiology-c3c/RUN.sh on the authorized server. Bind and review its zero-failure/zero-skip hashes, leaked-process proof, and unchanged live sentinels before any final C3-C seal."
+  "next_gate": "Run the private compute lane at an exact detached candidate in Nickfc/STAY-Certification-Lab, run the read-only live-sentinel lane on the actual Lightsail host, and bind both sanitized records to the exact same candidate SHA/tree before any final C3-C seal."
 }
