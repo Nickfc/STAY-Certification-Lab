@@ -163,7 +163,10 @@ jobs:
             "EXACT_CANDIDATE_TREE=$EXACT_CANDIDATE_TREE" \
             "EXACT_COMPUTE_RECORD_SHA256=$EXACT_COMPUTE_RECORD_SHA256" \
             "CONTROLLER_COMMIT=$CONTROLLER_COMMIT" > "$BUNDLE/P1_ACTIONS_BUNDLE.identity"
-          sha256sum "$BUNDLE/P1_ACTIONS_BUNDLE.identity" >> "$BUNDLE/P1_ACTIONS_BUNDLE.sha256"
+          (
+            cd "$BUNDLE"
+            sha256sum P1_ACTIONS_BUNDLE.identity >> P1_ACTIONS_BUNDLE.sha256
+          )
 
       - name: Upload sealed bridge artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
