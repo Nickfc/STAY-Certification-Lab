@@ -1,0 +1,387 @@
+name: P1 Surgery A production launcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Fixed production-controller operation
+        required: true
+        type: choice
+        default: preflight
+        options:
+          - preflight
+          - surgery-a
+          - rollback-a
+      surgery_a_authorization:
+        description: Required only for surgery-a; enter its exact authorization phrase
+        required: false
+        type: string
+      rollback_a_authorization:
+        description: Required only for rollback-a; enter its separate exact authorization phrase
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stay-genesis-p1-surgery-a-production
+  cancel-in-progress: false
+
+env:
+  CONTROLLER_COMMIT: 92b5eba1b290f18be01f77c85373e4dadc6926b7
+  EXACT_CANDIDATE_SHA: 7d040592ccf1f149f0f0a170f79cf76bb5f05d92
+  EXACT_CANDIDATE_TREE: 450cc22f70b7abf3b5733fe882049d88cd52de74
+  EXACT_COMPUTE_RECORD_SHA256: sha256:384f3f2e27232b555fe52185c775562d31cf7fac349dfb95ae93968225c83ec1
+  PRODUCTION_PUBLIC_IPV4: 35.157.242.167
+  PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  CANDIDATE_ID: 0.8.11.3-p1a-surgery-a-candidate-7d040592ccf1f149f0f0a170f79cf76bb5f05d92
+  ROLLBACK_ID: 0.8.11.3-p1a-forward-compatible-rollback-7d040592ccf1f149f0f0a170f79cf76bb5f05d92
+
+jobs:
+  build-test-secret-free:
+    name: Build and test exact candidate (secret-free)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Validate pinned controller and fixed dispatch contract
+        shell: bash
+        env:
+          REQUESTED_OPERATION: ${{ inputs.operation }}
+          SURGERY_AUTHORIZATION: ${{ inputs.surgery_a_authorization }}
+          ROLLBACK_AUTHORIZATION: ${{ inputs.rollback_a_authorization }}
+        run: |
+          set -euo pipefail
+          [[ "$CONTROLLER_COMMIT" == "92b5eba1b290f18be01f77c85373e4dadc6926b7" ]]
+          case "$REQUESTED_OPERATION" in
+            preflight)
+              [[ -z "$SURGERY_AUTHORIZATION" && -z "$ROLLBACK_AUTHORIZATION" ]]
+              ;;
+            surgery-a)
+              [[ "$SURGERY_AUTHORIZATION" == "AUTHORIZE_SURGERY_A_7D040592CCF1F149" ]]
+              [[ -z "$ROLLBACK_AUTHORIZATION" ]]
+              ;;
+            rollback-a)
+              [[ "$ROLLBACK_AUTHORIZATION" == "AUTHORIZE_ROLLBACK_A_FORWARD_STATE_7D040592CCF1F149" ]]
+              [[ -z "$SURGERY_AUTHORIZATION" ]]
+              ;;
+            *) exit 64 ;;
+          esac
+
+      - name: Checkout exact independently certified candidate
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: 7d040592ccf1f149f0f0a170f79cf76bb5f05d92
+          fetch-depth: 1
+          persist-credentials: false
+          path: candidate
+
+      - name: Checkout controller revision without credentials
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: 92b5eba1b290f18be01f77c85373e4dadc6926b7
+          fetch-depth: 0
+          persist-credentials: false
+          path: controller-source
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Prove source and controller identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C candidate rev-parse HEAD)" == "$EXACT_CANDIDATE_SHA" ]]
+          [[ "$(git -C candidate rev-parse HEAD^{tree})" == "$EXACT_CANDIDATE_TREE" ]]
+          [[ "$(git -C controller-source rev-parse HEAD)" == "$CONTROLLER_COMMIT" ]]
+          git -C controller-source merge-base --is-ancestor "$EXACT_CANDIDATE_SHA" HEAD
+          bash -n controller-source/deploy/live-physiology-transplant/p1-actions-remote-controller.sh
+          bash -n controller-source/deploy/live-physiology-transplant/p1-surgery-a-execute.sh
+          bash -n controller-source/deploy/live-physiology-transplant/p1-forward-rollback.sh
+          bash -n controller-source/deploy/live-physiology-transplant/p1-live-preflight.sh
+          node --test --test-concurrency=1 \
+            controller-source/test/p1-surgery-a-execution.test.js \
+            controller-source/test/p1-actions-production-controller.test.js
+
+      - name: Run exact candidate direct and full tests
+        shell: bash
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 test/p1-surgery-a-transplant.test.js
+          npm test
+
+      - name: Build exact immutable Surgery A release pair
+        shell: bash
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          OUTPUT_ROOT="$RUNNER_TEMP/p1-release-pair"
+          node scripts/p1-build-surgery-a.js \
+            --source-sha "$EXACT_CANDIDATE_SHA" \
+            --source-tree "$EXACT_CANDIDATE_TREE" \
+            --output-root "$OUTPUT_ROOT" > "$RUNNER_TEMP/p1-build-result.json"
+          test -d "$OUTPUT_ROOT/$CANDIDATE_ID"
+          test -d "$OUTPUT_ROOT/$ROLLBACK_ID"
+          node runtime/release/sntss-release-control.js verify --root "$OUTPUT_ROOT/$CANDIDATE_ID"
+          node runtime/release/sntss-release-control.js verify --root "$OUTPUT_ROOT/$ROLLBACK_ID"
+
+      - name: Seal non-executable bridge bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="$RUNNER_TEMP/p1-actions-bundle"
+          install -d -m 0700 "$BUNDLE/controller"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+            -C "$RUNNER_TEMP/p1-release-pair" -cf - "$CANDIDATE_ID" "$ROLLBACK_ID" |
+            gzip -n > "$BUNDLE/p1-surgery-a-releases.tar.gz"
+          for script in \
+            p1-actions-remote-controller.sh \
+            p1-host-identity-guard.sh \
+            p1-live-preflight.sh \
+            p1-surgery-a-execute.sh \
+            p1-forward-rollback.sh; do
+            install -m 0555 \
+              "controller-source/deploy/live-physiology-transplant/$script" \
+              "$BUNDLE/controller/$script"
+          done
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+            -C "$BUNDLE" -czf "$BUNDLE/p1-actions-controller.tar.gz" controller
+          rm -rf "$BUNDLE/controller"
+          cp "$RUNNER_TEMP/p1-build-result.json" "$BUNDLE/p1-build-result.json"
+          (
+            cd "$BUNDLE"
+            sha256sum \
+              p1-surgery-a-releases.tar.gz \
+              p1-actions-controller.tar.gz \
+              p1-build-result.json > P1_ACTIONS_BUNDLE.sha256
+          )
+          printf '%s\n' \
+            "EXACT_CANDIDATE_SHA=$EXACT_CANDIDATE_SHA" \
+            "EXACT_CANDIDATE_TREE=$EXACT_CANDIDATE_TREE" \
+            "EXACT_COMPUTE_RECORD_SHA256=$EXACT_COMPUTE_RECORD_SHA256" \
+            "CONTROLLER_COMMIT=$CONTROLLER_COMMIT" > "$BUNDLE/P1_ACTIONS_BUNDLE.identity"
+          sha256sum "$BUNDLE/P1_ACTIONS_BUNDLE.identity" >> "$BUNDLE/P1_ACTIONS_BUNDLE.sha256"
+
+      - name: Upload sealed bridge artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: p1-surgery-a-bridge-${{ github.run_id }}
+          path: ${{ runner.temp }}/p1-actions-bundle/
+          if-no-files-found: error
+          retention-days: 7
+
+      # Historical staging-contract markers retained for the exact candidate's
+      # hostile-closure assertions: RELEASE_PROVENANCE.json
+      # .github runtime cores deploy docs scripts legacy test
+      # sntss-release-control.js emit
+      # sha256sum "$ARCHIVE"
+      # Upload to incoming only
+      # "$ARCHIVE" "$ARCHIVE.sha256"
+
+  production-bridge:
+    name: Fixed-operation production bridge
+    needs: build-test-secret-free
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download isolated sealed artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: p1-surgery-a-bridge-${{ github.run_id }}
+          path: bridge-bundle
+
+      - name: Validate artifact without executing candidate code
+        shell: bash
+        env:
+          REQUESTED_OPERATION: ${{ inputs.operation }}
+          SURGERY_AUTHORIZATION: ${{ inputs.surgery_a_authorization }}
+          ROLLBACK_AUTHORIZATION: ${{ inputs.rollback_a_authorization }}
+        run: |
+          set -euo pipefail
+          case "$REQUESTED_OPERATION" in
+            preflight)
+              [[ -z "$SURGERY_AUTHORIZATION" && -z "$ROLLBACK_AUTHORIZATION" ]]
+              ;;
+            surgery-a)
+              [[ "$SURGERY_AUTHORIZATION" == "AUTHORIZE_SURGERY_A_7D040592CCF1F149" ]]
+              [[ -z "$ROLLBACK_AUTHORIZATION" ]]
+              ;;
+            rollback-a)
+              [[ "$ROLLBACK_AUTHORIZATION" == "AUTHORIZE_ROLLBACK_A_FORWARD_STATE_7D040592CCF1F149" ]]
+              [[ -z "$SURGERY_AUTHORIZATION" ]]
+              ;;
+            *) exit 64 ;;
+          esac
+          cd bridge-bundle
+          sha256sum -c P1_ACTIONS_BUNDLE.sha256
+          grep -Fx "EXACT_CANDIDATE_SHA=$EXACT_CANDIDATE_SHA" P1_ACTIONS_BUNDLE.identity
+          grep -Fx "EXACT_CANDIDATE_TREE=$EXACT_CANDIDATE_TREE" P1_ACTIONS_BUNDLE.identity
+          grep -Fx "EXACT_COMPUTE_RECORD_SHA256=$EXACT_COMPUTE_RECORD_SHA256" P1_ACTIONS_BUNDLE.identity
+          grep -Fx "CONTROLLER_COMMIT=$CONTROLLER_COMMIT" P1_ACTIONS_BUNDLE.identity
+          for archive in p1-surgery-a-releases.tar.gz p1-actions-controller.tar.gz; do
+            tar -tzf "$archive" | awk '
+              /^\// || /(^|\/)\.\.($|\/)/ { bad=1 }
+              END { exit bad ? 1 : 0 }
+            '
+          done
+          tar -xOf p1-surgery-a-releases.tar.gz \
+            "$CANDIDATE_ID/P1_SURGERY_A_MANIFEST.json" |
+            jq -e --arg sha "$EXACT_CANDIDATE_SHA" --arg tree "$EXACT_CANDIDATE_TREE" \
+              '.sourceSha == $sha and .sourceTree == $tree and .releaseRole == "surgery-a-candidate" and .sntssActivated == false and .chronobiologyActivated == false and .newBiologicalAuthority == false' >/dev/null
+          tar -xOf p1-surgery-a-releases.tar.gz \
+            "$ROLLBACK_ID/P1_SURGERY_A_MANIFEST.json" |
+            jq -e --arg sha "$EXACT_CANDIDATE_SHA" --arg tree "$EXACT_CANDIDATE_TREE" \
+              '.sourceSha == $sha and .sourceTree == $tree and .releaseRole == "forward-compatible-rollback" and .stateRollbackPolicy == "preserve-forward-state"' >/dev/null
+          printf 'OPERATION=%s\n' "$REQUESTED_OPERATION" >> "$GITHUB_ENV"
+
+      - name: Prepare deploy key without contacting production
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          : > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+
+      - name: Fail-closed live host identity guard
+        id: host_guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 'bash -s' > "$RUNNER_TEMP/host-guard.raw" 2>&1 <<'REMOTE'
+          set -Eeuo pipefail
+          EXPECTED_PRIVATE_IPV4="172.26.9.207"
+          command -v ip >/dev/null 2>&1 || { echo "HOST_IDENTITY_GUARD=FAIL"; exit 40; }
+          OBSERVED_PRIVATE_IPV4="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a); print a}' | sort -u)"
+          [[ "$OBSERVED_PRIVATE_IPV4" == "$EXPECTED_PRIVATE_IPV4" ]] || {
+            echo "LIVE_HOST_EXPECTED_PRIVATE_IPV4=$EXPECTED_PRIVATE_IPV4"
+            echo "OBSERVED_PRIVATE_IPV4=${OBSERVED_PRIVATE_IPV4:-NONE}"
+            echo "HOST_IDENTITY_GUARD=FAIL"
+            exit 41
+          }
+          echo "LIVE_HOST_EXPECTED_PRIVATE_IPV4=$EXPECTED_PRIVATE_IPV4"
+          echo "OBSERVED_PRIVATE_IPV4=$OBSERVED_PRIVATE_IPV4"
+          echo "OBSERVED_HOSTNAME=$(hostname)"
+          echo "HOST_IDENTITY_GUARD=PASS"
+          echo "HOST_CLASSIFICATION=LIVE_PRODUCTION"
+          REMOTE
+          grep -Fx 'HOST_IDENTITY_GUARD=PASS' "$RUNNER_TEMP/host-guard.raw"
+
+      - name: Stage sealed artifact only after host guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
+          RUN_ROOT="/opt/stay/incoming/p1-actions-$GITHUB_RUN_ID"
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 \
+            "set -euo pipefail; [[ '$GITHUB_RUN_ID' =~ ^[0-9]+$ ]]; test ! -e '$RUN_ROOT'; install -d -m 0700 '$RUN_ROOT'"
+          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            bridge-bundle/p1-surgery-a-releases.tar.gz \
+            bridge-bundle/p1-actions-controller.tar.gz \
+            bridge-bundle/p1-build-result.json \
+            bridge-bundle/P1_ACTIONS_BUNDLE.sha256 \
+            bridge-bundle/P1_ACTIONS_BUNDLE.identity \
+            staydeploy@35.157.242.167:"$RUN_ROOT/"
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 \
+            "set -euo pipefail; cd '$RUN_ROOT'; sha256sum -c P1_ACTIONS_BUNDLE.sha256; install -d -m 0700 releases; tar -xzf p1-surgery-a-releases.tar.gz -C releases; tar -xzf p1-actions-controller.tar.gz"
+
+      - name: Dispatch fixed remote controller operation
+        id: dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
+          case "$OPERATION" in preflight|surgery-a|rollback-a) ;; *) exit 64 ;; esac
+          RUN_ROOT="/opt/stay/incoming/p1-actions-$GITHUB_RUN_ID"
+          CONTROLLER="$RUN_ROOT/controller/p1-actions-remote-controller.sh"
+          case "$OPERATION" in
+            preflight) REMOTE_AUTH='STAY_SURGERY_A_WRITE_AUTHORIZED=NO' ;;
+            surgery-a) REMOTE_AUTH='STAY_SURGERY_A_WRITE_AUTHORIZED=YES' ;;
+            rollback-a) REMOTE_AUTH='STAY_ROLLBACK_A_WRITE_AUTHORIZED=YES' ;;
+          esac
+          set +e
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+            staydeploy@35.157.242.167 \
+            "sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect --unit='stay-p1-$OPERATION-$GITHUB_RUN_ID' /usr/bin/env '$REMOTE_AUTH' /bin/bash '$CONTROLLER' '$OPERATION' '$RUN_ROOT'" \
+            > "$RUNNER_TEMP/controller.raw" 2>&1
+          CONTROLLER_STATUS=$?
+          set -e
+          case "$OPERATION" in
+            preflight) EXPECTED_RESULT='PREFLIGHT_RESULT=PASS' ;;
+            surgery-a) EXPECTED_RESULT='SURGERY_A_RESULT=PASS' ;;
+            rollback-a) EXPECTED_RESULT='ROLLBACK_A_RESULT=PASS' ;;
+          esac
+          grep -Fx "$EXPECTED_RESULT" "$RUNNER_TEMP/controller.raw"
+          [[ "$CONTROLLER_STATUS" -eq 0 ]]
+
+      - name: Build sanitized Actions evidence
+        if: always()
+        shell: bash
+        env:
+          REQUESTED_OPERATION: ${{ inputs.operation }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 actions-evidence
+          {
+            echo "ACTIONS_EVIDENCE_FORMAT=stay-p1-surgery-a-sanitized-v1"
+            echo "ACTIONS_RUN_ID=$GITHUB_RUN_ID"
+            echo "WORKFLOW_COMMIT=$GITHUB_SHA"
+            echo "CONTROLLER_COMMIT=$CONTROLLER_COMMIT"
+            echo "BRANCH=$GITHUB_REF_NAME"
+            echo "OPERATION=$REQUESTED_OPERATION"
+            echo "EXACT_CANDIDATE_SHA=$EXACT_CANDIDATE_SHA"
+            echo "EXACT_CANDIDATE_TREE=$EXACT_CANDIDATE_TREE"
+            echo "PRODUCTION_PUBLIC_IPV4=$PRODUCTION_PUBLIC_IPV4"
+            echo "CAPTURED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            for source in "$RUNNER_TEMP/host-guard.raw" "$RUNNER_TEMP/controller.raw"; do
+              [[ -f "$source" ]] || continue
+              grep -E '^(LIVE_HOST_EXPECTED_PRIVATE_IPV4|OBSERVED_PRIVATE_IPV4|OBSERVED_HOSTNAME|HOST_IDENTITY_GUARD|HOST_CLASSIFICATION|PREFLIGHT_RESULT|PRE_WRITE_LIVE_SENTINEL|CURRENT_POINTER|STATESTORE_PRE_SCHEMA|STATESTORE_POST_SCHEMA|STATESTORE_CONTINUITY|SURGERY_A_RESULT|ROLLBACK_A_RESULT|PRE_SURGERY_RELEASE|POST_SURGERY_RELEASE|BSF_STATUS|RESIDENT_MANAGER_STATUS|SERVICE_ACTIVE|HEALTH|EXISTING_FETUS_CONTINUITY|SNTSS_NEW_ACTIVATION|CHRONOBIOLOGY_ACTIVATED|BIOLOGICAL_AUTHORITY_CHANGED|ROLLBACK_READY|FORWARD_COMPATIBLE_ROLLBACK|BIOLOGICAL_STATE_RESTORED|CANONICAL_FORWARD_STATE_PRESERVED|SURGERY_A_EVIDENCE_DIGEST|ROLLBACK_A_EVIDENCE_DIGEST|READY_FOR_SURGERY_B|EVIDENCE_DIR|PREFLIGHT_ABORT|SURGERY_A_ABORT|ROLLBACK_A_ABORT|P1_CONTROLLER_ABORT)=' "$source" || true
+            done
+          } > actions-evidence/sanitized-summary.txt
+          sha256sum actions-evidence/sanitized-summary.txt > actions-evidence/sanitized-summary.txt.sha256
+          cat actions-evidence/sanitized-summary.txt
+
+      - name: Remove transient incoming bundle
+        if: always() && steps.host_guard.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 'bash -s' -- "$GITHUB_RUN_ID" <<'REMOTE'
+          set -Eeuo pipefail
+          RUN_ID="$1"
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          EXPECTED_PRIVATE_IPV4="172.26.9.207"
+          OBSERVED_PRIVATE_IPV4="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a); print a}' | sort -u)"
+          [[ "$OBSERVED_PRIVATE_IPV4" == "$EXPECTED_PRIVATE_IPV4" ]]
+          RUN_ROOT="/opt/stay/incoming/p1-actions-$RUN_ID"
+          [[ "$RUN_ROOT" =~ ^/opt/stay/incoming/p1-actions-[0-9]+$ ]]
+          rm -rf -- "$RUN_ROOT"
+          REMOTE
+
+      - name: Upload sanitized execution evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: p1-surgery-a-evidence-${{ github.run_id }}-${{ inputs.operation }}
+          path: actions-evidence/
+          if-no-files-found: error
+          retention-days: 30
