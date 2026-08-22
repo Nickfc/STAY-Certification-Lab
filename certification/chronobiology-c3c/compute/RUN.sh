@@ -120,9 +120,8 @@ failure_trap() {
 trap failure_trap ERR INT TERM
 
 exec 9>"${OUTPUT_ROOT}/RUN.lock"
-flock -n 9 || { write_status FAILED LOCK; exit 1; }
-
 CURRENT_STAGE=SOURCE
+flock -n 9 || { write_status FAILED "${CURRENT_STAGE}"; exit 1; }
 write_status RUNNING "${CURRENT_STAGE}"
 cd -- "${REPO_DIR}"
 [[ -z "$(git symbolic-ref -q --short HEAD || true)" ]] || {

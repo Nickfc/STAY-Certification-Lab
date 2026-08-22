@@ -9,6 +9,7 @@ const { spawnSync } = require('node:child_process');
 const test = require('node:test');
 
 const evidence = require('../certification/chronobiology-c3c/split-evidence');
+const publicFailure = require('../certification/chronobiology-c3c/compute/public-failure-record');
 
 const root = path.resolve(__dirname, '..');
 const candidateSha = '1'.repeat(40);
@@ -209,6 +210,8 @@ test('C3-C-SPLIT-08 public lab emits only sanitized JSON and destroys raw materi
   assert.match(publicRunner, /exec >"\$\{PRIVATE_DRIVER_LOG\}" 2>&1/);
   assert.match(publicRunner, /rm -rf -- "\$\{PRIVATE_ROOT\}"/);
   assert.match(publicRunner, /cat "\$\{RESULT\}" >&3/);
+  assert.match(publicRunner, /PRIVATE_STATUS_PATH=.*PRIVATE_STATUS/);
+  assert.match(publicRunner, /public-failure-record\.js" >&3/);
   assert.doesNotMatch(publicRunner, /cat .*driver|upload-artifact|tee/);
 
   const workflow = fs.readFileSync(path.join(root,
@@ -219,7 +222,38 @@ test('C3-C-SPLIT-08 public lab emits only sanitized JSON and destroys raw materi
   assert.match(workflow, /source\.tar\.gz\.gpg/);
   assert.match(workflow, /STAY_LEGACY_0_6_FIXTURE_PASSPHRASE/);
   assert.match(workflow, /path: \$\{\{ runner\.temp \}\}\/COMPUTE_RESULT\.sanitized\.json/);
+  assert.match(workflow, /path: \$\{\{ runner\.temp \}\}\/COMPUTE_FAILURE\.sanitized\.json/);
+  assert.match(workflow, /steps\.compute\.outputs\.exit_code != '0'/);
   assert.doesNotMatch(workflow, /path:.*(?:raw|tap|source-tree|processes)/);
+});
+
+test('C3-C-SPLIT-11 public failure record contains only whitelisted status fields', () => {
+  const record = publicFailure.buildFailureRecord({
+    candidateSha: candidateSha,
+    candidateTree: candidateTree,
+    exitCode: 17,
+    privateStatus: {
+      schema: 'stay.chronobiology.c3c-compute-private-status/v1',
+      result: 'FAILED',
+      stage: 'TARGETED',
+      private_path: '/private/source',
+      assertion: 'must never escape',
+    },
+  });
+  assert.deepEqual(record, {
+    candidate_sha: candidateSha,
+    candidate_tree: candidateTree,
+    result: 'FAILED',
+    stage: 'TARGETED',
+    exit_code: 17,
+  });
+  assert.deepEqual(Object.keys(record), [
+    'candidate_sha', 'candidate_tree', 'result', 'stage', 'exit_code',
+  ]);
+  assert.throws(() => publicFailure.buildFailureRecord({
+    candidateSha, candidateTree, exitCode: 1,
+    privateStatus: { result: 'FAILED', stage: 'INFERRED' },
+  }), { code: 'C3C_PUBLIC_FAILURE_RECORD_INVALID' });
 });
 
 test('C3-C-SPLIT-09 sterile legacy fixture is canonical, ephemeral and never uses live data', () => {

@@ -23,6 +23,13 @@ PUBLIC_LAB_WORKFLOW.yml.example is the canonical pinned Actions contract. It
 uploads only COMPUTE_RESULT.sanitized.json and never uploads the private raw
 directory.
 
+If certification fails, PUBLIC_RUN.sh reads the existing PRIVATE_STATUS.json and
+emits only COMPUTE_FAILURE.sanitized.json: candidate SHA/tree, FAILED, the exact
+recorded SOURCE/ENVIRONMENT/PERFORMANCE/DIRECT/TARGETED/FULL/SAFETY/SANITIZE
+stage, and exit code. The workflow uploads that record before preserving the
+failed job outcome. Raw evidence is still destroyed and never printed or
+uploaded.
+
 PREPARE_ENCRYPTED_FIXTURE.sh is the offline material-preparation gate. It accepts
 the known non-live STAY_0.6_to_0.7_Hibernation_Migration.zip, reads only its
 source/0.6.0 tree, and verifies exactly the eight frozen SOURCE_FILES hashes.
