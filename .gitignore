@@ -1,0 +1,15 @@
+# Never commit plaintext or decrypted fixture material
+fixtures/**/source.tar.gz
+fixtures/**/*.plaintext
+fixtures/**/decrypted/**
+
+# Never commit raw/private certification evidence
+raw/
+**/raw/
+*.private.log
+PRIVATE_STATUS.json
+COMPUTE_RESULT.sanitized.json
+
+# Local/editor noise
+.DS_Store
+Thumbs.db
