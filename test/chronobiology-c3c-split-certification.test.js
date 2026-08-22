@@ -82,6 +82,11 @@ test('C3-C-SPLIT-01 compute runner is detached, private, zero-skip and has no li
   assert.match(runner, /cpu-stat-preflight/);
   assert.doesNotMatch(runner, /systemctl|stay\.service|\/opt\/stay\/current/);
   assert.doesNotMatch(runner, /tee .*\.tap|cat .*\.tap/);
+  assert.match(runner, /prepare-legacy-fixture\.js/);
+  assert.match(runner, /unset STAY_LEGACY_0_6_SOURCE_TAR_GZ_GPG/);
+  assert.match(runner, /unset STAY_LEGACY_0_6_FIXTURE_PASSPHRASE/);
+  assert.match(runner, /STAY_I1C_LEGACY_SOURCE_DIR/);
+  assert.doesNotMatch(runner, /\[\[ -d \/opt\/stay\/legacy\/0\.6\.0/);
 });
 
 test('C3-C-SPLIT-02 sanitized compute result contains only allowed fields and binds raw hashes', () => {
@@ -193,4 +198,46 @@ test('C3-C-SPLIT-07 candidate status binds every certification execution path', 
       .update(fs.readFileSync(path.join(root, relative))).digest('hex');
     assert.equal(actual, expected, relative);
   }
+});
+
+test('C3-C-SPLIT-08 public lab emits only sanitized JSON and destroys raw material', () => {
+  const publicRunner = fs.readFileSync(path.join(root,
+    'certification/chronobiology-c3c/compute/PUBLIC_RUN.sh'), 'utf8');
+  assert.match(publicRunner, /Nickfc\/STAY-Certification-Lab/);
+  assert.match(publicRunner, /GITHUB_EVENT_NAME.*workflow_dispatch/);
+  assert.match(publicRunner, /exec >"\$\{PRIVATE_DRIVER_LOG\}" 2>&1/);
+  assert.match(publicRunner, /rm -rf -- "\$\{PRIVATE_ROOT\}"/);
+  assert.match(publicRunner, /cat "\$\{RESULT\}" >&3/);
+  assert.doesNotMatch(publicRunner, /cat .*driver|upload-artifact|tee/);
+
+  const workflow = fs.readFileSync(path.join(root,
+    'certification/chronobiology-c3c/compute/PUBLIC_LAB_WORKFLOW.yml.example'), 'utf8');
+  assert.match(workflow, /repository: Nickfc\/STAY-Genesis/);
+  assert.match(workflow, /ssh-key: \$\{\{ secrets\.STAY_GENESIS_READONLY_DEPLOY_KEY \}\}/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /source\.tar\.gz\.gpg/);
+  assert.match(workflow, /STAY_LEGACY_0_6_FIXTURE_PASSPHRASE/);
+  assert.match(workflow, /path: \$\{\{ runner\.temp \}\}\/COMPUTE_RESULT\.sanitized\.json/);
+  assert.doesNotMatch(workflow, /path:.*(?:raw|tap|source-tree|processes)/);
+});
+
+test('C3-C-SPLIT-09 sterile legacy fixture is canonical, ephemeral and never uses live data', () => {
+  const builder = fs.readFileSync(path.join(root,
+    'certification/chronobiology-c3c/compute/prepare-legacy-fixture.js'), 'utf8');
+  assert.match(builder, /STAY_LEGACY_0_6_SOURCE_TAR_GZ_GPG/);
+  assert.match(builder, /STAY_LEGACY_0_6_FIXTURE_PASSPHRASE/);
+  assert.match(builder, /'--passphrase-fd', '0'/);
+  assert.match(builder, /legacy\/0\.6\.0\/SOURCE_ARCHIVE_SHA256/);
+  assert.match(builder, /SOURCE_FILES/);
+  assert.match(builder, /sha256\(fs\.readFileSync\(archivePath\)\) !== expectedArchiveDigest/);
+  assert.match(builder, /fs\.chmodSync\(target, 0o444\)/);
+  assert.match(builder, /fs\.rmSync\(work, \{ recursive: true, force: true \}\)/);
+  assert.doesNotMatch(builder, /\/var\/lib\/stay|\/opt\/stay\/current|stay\.service/);
+
+  const preparation = fs.readFileSync(path.join(root,
+    'certification/chronobiology-c3c/compute/PREPARE_ENCRYPTED_FIXTURE.sh'), 'utf8');
+  assert.match(preparation, /SOURCE_ARCHIVE_SHA256/);
+  assert.match(preparation, /--symmetric --cipher-algo AES256/);
+  assert.match(preparation, /\/opt\/stay\/\*\|\/var\/lib\/stay\/\*/);
+  assert.doesNotMatch(preparation, /cat .*SOURCE_ARCHIVE|echo .*PASSPHRASE/);
 });

@@ -39,10 +39,26 @@ esac
 
 RAW_ROOT="${OUTPUT_ROOT}/raw"
 LOG_ROOT="${RAW_ROOT}/logs"
+EPHEMERAL_ROOT="${OUTPUT_ROOT}/ephemeral"
 STATUS_FILE="${OUTPUT_ROOT}/PRIVATE_STATUS.json"
 SANITIZED_RESULT="${OUTPUT_ROOT}/COMPUTE_RESULT.sanitized.json"
-mkdir -p -- "${LOG_ROOT}"
-chmod 700 "${OUTPUT_ROOT}" "${RAW_ROOT}" "${LOG_ROOT}"
+mkdir -p -- "${LOG_ROOT}" "${EPHEMERAL_ROOT}"
+chmod 700 "${OUTPUT_ROOT}" "${RAW_ROOT}" "${LOG_ROOT}" "${EPHEMERAL_ROOT}"
+
+destroy_private_material() {
+  PRIVATE_OUTPUT_ROOT="${OUTPUT_ROOT}" PRIVATE_RAW_ROOT="${RAW_ROOT}" \
+    PRIVATE_EPHEMERAL_ROOT="${EPHEMERAL_ROOT}" node <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(process.env.PRIVATE_OUTPUT_ROOT);
+for (const candidate of [process.env.PRIVATE_RAW_ROOT, process.env.PRIVATE_EPHEMERAL_ROOT]) {
+  const target = path.resolve(candidate);
+  if (target === root || !target.startsWith(`${root}${path.sep}`)) process.exit(70);
+  fs.chmodSync(target, 0o700);
+  fs.rmSync(target, { recursive: true, force: true });
+}
+NODE
+}
 
 write_status() {
   RESULT_VALUE="$1" STAGE_VALUE="$2" STATUS_PATH="${STATUS_FILE}" node <<'NODE'
@@ -98,6 +114,7 @@ failure_trap() {
   capture_environment "${RAW_ROOT}/environment-after-failure.txt"
   ps -eo pid=,ppid=,lstart=,args= >"${RAW_ROOT}/processes-after-failure.txt"
   write_status FAILED "${CURRENT_STAGE:-UNKNOWN}"
+  destroy_private_material
   exit "${exit_code}"
 }
 trap failure_trap ERR INT TERM
@@ -117,7 +134,11 @@ cd -- "${REPO_DIR}"
 CANDIDATE_TREE="$(git rev-parse HEAD^{tree})"
 ACTUAL_POLICY_HASH="$(node -e "const p=require('./cores/chronobiology/c3/package-policy.json'); process.stdout.write(p.policyHash)")"
 [[ "${ACTUAL_POLICY_HASH}" == "${EXPECTED_POLICY_HASH}" ]]
-[[ -d /opt/stay/legacy/0.6.0 ]]
+LEGACY_FIXTURE_DIR="${EPHEMERAL_ROOT}/legacy-0.6.0"
+node "${SCRIPT_DIR}/prepare-legacy-fixture.js" "${LEGACY_FIXTURE_DIR}"
+unset STAY_LEGACY_0_6_SOURCE_TAR_GZ_GPG
+unset STAY_LEGACY_0_6_FIXTURE_PASSPHRASE
+export STAY_I1C_LEGACY_SOURCE_DIR="${LEGACY_FIXTURE_DIR}"
 git status --short --branch >"${RAW_ROOT}/source-status.txt"
 git show -s --format=fuller HEAD >>"${RAW_ROOT}/source-status.txt"
 git ls-tree -r HEAD >"${RAW_ROOT}/source-tree.txt"
@@ -214,4 +235,5 @@ NODE
 
 trap - ERR INT TERM
 write_status PASS COMPLETE
+destroy_private_material
 cat "${SANITIZED_RESULT}"

@@ -14,13 +14,13 @@
   },
   "local_certification": {
     "chronobiology_direct": {
-      "tests": 86,
-      "passed": 86,
+      "tests": 88,
+      "passed": 88,
       "failed": 0,
       "skipped": 0,
       "todo": 0,
       "cancelled": 0,
-      "duration_ms": 165733.582075,
+      "duration_ms": 155204.883074,
       "result": "PASS"
     },
     "targeted_residency_bsf_corehost_sntss": {
@@ -66,6 +66,10 @@
     "compute": {
       "entrypoint": "certification/chronobiology-c3c/compute/RUN.sh",
       "repository": "Nickfc/STAY-Certification-Lab",
+      "repository_visibility": "PUBLIC",
+      "private_source_access": "DEDICATED_READ_ONLY_DEPLOY_KEY_ONLY",
+      "legacy_fixture": "EPHEMERAL_GPG_DECRYPTED_HASH_VERIFIED_MATERIAL",
+      "raw_public_disclosure": "NONE",
       "required_result": "PASS",
       "required_test_result": "ZERO_FAILURE_ZERO_SKIP_ZERO_TODO_ZERO_CANCELLED",
       "required_new_node_processes": 0,
@@ -117,11 +121,15 @@
     "closure_evidence_sha256": {
       "docs/chronobiology/c0-implementation-audit.md": "e6fdc4071e2571181637146a0cb0c7674d8845ca6b1ffe0110ee6aa7fe9d740e",
       "test/chronobiology-c1-genesis.test.js": "92d069df1a23d7c6c89c57a3f892e093d948e513d14e4922461ec6ab531c0757",
-      "test/chronobiology-hostile-certification.test.js": "2195c13928109d8e9fda89dbd85bdfdeb1998cb426cad7330e972c3a6f5e3956",
-      "test/chronobiology-c3c-split-certification.test.js": "cfa55efc3e3ca7ea2775fdd221889eddcb46a482ac66d2d53171b595151b0939",
+      "test/chronobiology-hostile-certification.test.js": "507588001500f5ccba7399348570e809c87f4382d94067e6933ddecafb8a7980",
+      "test/chronobiology-c3c-split-certification.test.js": "449ca57bcccceef02f690c87c0022809e604cfc667df2fdd59777d2a31c12f23",
       "certification/chronobiology-c3c/RUN.sh": "1f2ddabe37e0915ecdadc2f729c8f23d48c7fd78923cf47cddb9140ba8739be9",
       "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29",
-      "certification/chronobiology-c3c/compute/RUN.sh": "3b2f632780b79c614ddd41b87669475422ee4383c45a4746dcd3cbf5ec93edcb",
+      "certification/chronobiology-c3c/compute/RUN.sh": "71a8e513004c66accd5fb4450dfb48027d09516daa66b81eaa1d712f7ab3af6c",
+      "certification/chronobiology-c3c/compute/PUBLIC_RUN.sh": "33a4df35f1ea2b71c7dac5e5bbb963f1738a03f09e8b422534cb4a5302a2fd59",
+      "certification/chronobiology-c3c/compute/PUBLIC_LAB_WORKFLOW.yml.example": "b18aa6d0cc711a7eb1b78a90b27a32fb033b03c4942e5510c7e7395db249d8ab",
+      "certification/chronobiology-c3c/compute/PREPARE_ENCRYPTED_FIXTURE.sh": "1dc3ff38c5b01a12bfe03d6d4248cf0508425e61f80e6f719e41facc0153af2e",
+      "certification/chronobiology-c3c/compute/prepare-legacy-fixture.js": "07ec6332f95bad443e0afe821c6c293812a61dfaaf05bafde2bcccb53b9a667b",
       "certification/chronobiology-c3c/compute/WATCH.sh": "2ca4f6d288fee010e77e4d0650a96797e01b078a1227e28b5d2f5b00b023fa8d",
       "certification/chronobiology-c3c/compute/performance-probe.js": "e099e2df47f650a94dda600c9f69e848c116ec1dbe84d5125ab394a6cd03fc95",
       "certification/chronobiology-c3c/live/RUN.sh": "42cadf17126c027a41d001fec6b51837076723d91e337e6c77dfff2fc68a9aa4",
@@ -139,5 +147,5 @@
     "authoritative_effects_enabled": false,
     "final_seal_created": false
   },
-  "next_gate": "Run the private compute lane at an exact detached candidate in Nickfc/STAY-Certification-Lab, run the read-only live-sentinel lane on the actual Lightsail host, and bind both sanitized records to the exact same candidate SHA/tree before any final C3-C seal."
+  "next_gate": "Run the silent public-lab compute lane at an exact detached private-source candidate using the read-only deploy key and ephemeral hash-verified legacy fixture, run the read-only live-sentinel lane on the actual Lightsail host, and bind both sanitized records to the exact same candidate SHA/tree before any final C3-C seal."
 }

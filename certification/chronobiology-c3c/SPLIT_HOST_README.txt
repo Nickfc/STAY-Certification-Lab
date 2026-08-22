@@ -2,8 +2,9 @@ STAY Chronobiology C3-C — Split-host certification topology
 
 The final candidate requires two independent PASS records:
 
-1. Compute record: produced only by compute/RUN.sh in the private
-   Nickfc/STAY-Certification-Lab environment from an exact detached candidate.
+1. Compute record: produced only through compute/PUBLIC_RUN.sh in the PUBLIC
+   Nickfc/STAY-Certification-Lab repository from an exact detached private-source
+   candidate checked out with its dedicated read-only deploy key.
 2. Live record: produced only by live/RUN.sh on the actual Lightsail host after
    validating the compute record and observing the real unchanged live sentinel.
 

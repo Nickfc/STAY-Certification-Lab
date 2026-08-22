@@ -175,7 +175,9 @@ test('C3-REL-06 C0 audit is closed and the server bundle cannot claim a seal', (
 
   for (const file of [
     'split-evidence.js', 'VERIFY_SPLIT_EVIDENCE.js', 'SPLIT_HOST_README.txt',
-    'compute/RUN.sh', 'compute/WATCH.sh', 'compute/README.txt',
+    'compute/RUN.sh', 'compute/PUBLIC_RUN.sh', 'compute/WATCH.sh',
+    'compute/README.txt', 'compute/PUBLIC_LAB_WORKFLOW.yml.example',
+    'compute/PREPARE_ENCRYPTED_FIXTURE.sh', 'compute/prepare-legacy-fixture.js',
     'live/RUN.sh', 'live/README.txt',
   ]) assert.equal(fs.existsSync(path.join(bundleRoot, file)), true, file);
 

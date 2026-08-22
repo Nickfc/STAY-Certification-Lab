@@ -1,12 +1,14 @@
 Split-host certification now governs the final candidate. The former combined
 actual-host run below remains diagnostic only and cannot create seal evidence.
 
-Compute lane in private Nickfc/STAY-Certification-Lab orchestration:
+Compute lane in PUBLIC Nickfc/STAY-Certification-Lab orchestration. The private
+STAY-Genesis checkout must use STAY_GENESIS_READONLY_DEPLOY_KEY. The public Lab
+contains only encrypted fixture material; its decryption secret is
+STAY_LEGACY_0_6_FIXTURE_PASSPHRASE:
 
-  bash certification/chronobiology-c3c/compute/RUN.sh \
-    --candidate-sha "$CANDIDATE_SHA" \
-    --output-root "$RUNNER_TEMP/stay-chronobiology-c3c" \
-    --lab-repository Nickfc/STAY-Certification-Lab
+  bash certification/chronobiology-c3c/compute/PUBLIC_RUN.sh \
+    "$CANDIDATE_SHA" \
+    >"$RUNNER_TEMP/COMPUTE_RESULT.sanitized.json"
 
 Then copy only COMPUTE_RESULT.sanitized.json to the actual Lightsail host and
 run the read-only sentinel lane from the exact same SHA/tree as staydeploy:
