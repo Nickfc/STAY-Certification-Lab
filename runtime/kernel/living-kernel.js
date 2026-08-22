@@ -12,12 +12,6 @@ const { RuntimeRegistry } = require('./registry');
 const { UpgradeManager } = require('./upgrades');
 const { ComputeFabric } = require('../compute/compute-fabric');
 const { stableStringify } = require('./canonical-json');
-const {
-  ResidentManager,
-  L0_SNTSS_CONTRACT,
-  CHRONOBIOLOGY_RESIDENT_CONTRACT,
-} = require('./resident-manager');
-const { loadAndVerifyResidentPromotion } = require('./resident-promotion-authority');
 
 const KERNEL_VERSION = '0.8.11.3';
 
@@ -32,6 +26,8 @@ class LivingKernel {
     snapshotRetention = Number(process.env.STAY_SNAPSHOT_RETENTION || 24),
     releaseRoot = path.resolve(__dirname, '..', '..'),
     trustedOrganismTime = null,
+    durableResidentsDisabled =
+      process.env.STAY_DISABLE_DURABLE_RESIDENTS === '1',
     allowLaboratoryResidentAttachment =
       process.env.STAY_REQUIRE_CORE_PROMOTION_CERT !== '1',
 
@@ -73,6 +69,9 @@ class LivingKernel {
     this.lastBiologicalRetention = null;
     this.trustedOrganismTime =
       trustedOrganismTime;
+
+    this.durableResidentsDisabled =
+      Boolean(durableResidentsDisabled);
 
     if (
       this.trustedOrganismTime !== null &&
@@ -119,6 +118,15 @@ class LivingKernel {
   }
 
   ensureResidentManager() {
+    if (this.durableResidentsDisabled) {
+      throw Object.assign(
+        new Error(
+          'durable residents are disabled by the forward-compatible rollback boundary'
+        ),
+        { code: 'DURABLE_RESIDENTS_DISABLED' }
+      );
+    }
+
     if (this.residentManager) {
       return this.residentManager;
     }
@@ -134,6 +142,19 @@ class LivingKernel {
         }
       );
     }
+
+    /*
+     * Surgery A installs the resident substrate but does not load it merely by
+     * starting the Kernel.  Loading is deferred until durable resident state
+     * already exists or an explicitly authorized attachment is requested.
+     * This also gives the forward-compatible rollback entrypoint a substrate-
+     * only path that never constructs a resident manager or BSF route owner.
+     */
+    const {
+      ResidentManager,
+      L0_SNTSS_CONTRACT,
+      CHRONOBIOLOGY_RESIDENT_CONTRACT
+    } = require('./resident-manager');
 
     this.residentManager =
       new ResidentManager({
@@ -203,10 +224,24 @@ class LivingKernel {
      * Resident-specific recovery failures are
      * contained and MUST NOT fail Kernel start.
      */
+    const durableResidents =
+      this.stateStore.listResidents();
+
     if (
-      this.stateStore
-        .listResidents()
-        .length > 0
+      this.durableResidentsDisabled &&
+      durableResidents.length > 0
+    ) {
+      throw Object.assign(
+        new Error(
+          'forward-compatible rollback refuses to ignore existing durable resident state'
+        ),
+        { code: 'FORWARD_ROLLBACK_RESIDENT_STATE_PRESENT' }
+      );
+    }
+
+    if (
+      !this.durableResidentsDisabled &&
+      durableResidents.length > 0
     ) {
       this.ensureResidentManager();
 
@@ -503,6 +538,9 @@ class LivingKernel {
         moduleRelativePath
       );
 
+    const { loadAndVerifyResidentPromotion } =
+      require('./resident-promotion-authority');
+
     const authorization =
       loadAndVerifyResidentPromotion({
         inspected,
@@ -632,6 +670,15 @@ class LivingKernel {
     residencyId =
       'resident:sntss'
   ) {
+    if (this.durableResidentsDisabled) {
+      throw Object.assign(
+        new Error(
+          'durable residents are disabled by the forward-compatible rollback boundary'
+        ),
+        { code: 'DURABLE_RESIDENTS_DISABLED' }
+      );
+    }
+
     if (!this.residentManager) {
       throw Object.assign(
         new Error(
@@ -726,6 +773,9 @@ class LivingKernel {
       resident,
       inspected
     );
+
+    const { loadAndVerifyResidentPromotion } =
+      require('./resident-promotion-authority');
 
     const authorization =
       loadAndVerifyResidentPromotion({
