@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const net = require('node:net');
+const http = require('node:http');
 const crypto = require('node:crypto');
 const os = require('node:os');
 const fs = require('node:fs/promises');
@@ -75,6 +76,54 @@ async function reserveLoopbackPort() {
   await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   if (!Number.isSafeInteger(port) || port <= 0) throw new Error('failed to reserve loopback port');
   return port;
+}
+
+async function readLegacyState(port) {
+  return await new Promise((resolve, reject) => {
+    const request = http.get({ host: '127.0.0.1', port, path: '/api/state' }, response => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => { body += chunk; });
+      response.once('error', reject);
+      response.once('end', () => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`legacy state returned HTTP ${response.statusCode}`));
+          return;
+        }
+        try { resolve(JSON.parse(body)); }
+        catch (error) { reject(error); }
+      });
+    });
+    request.once('error', reject);
+  });
+}
+
+async function connectLegacyVisitor(port, nodeId, label) {
+  return await new Promise((resolve, reject) => {
+    const request = http.get({
+      host: '127.0.0.1',
+      port,
+      path: `/events?nodeId=${encodeURIComponent(nodeId)}&label=${encodeURIComponent(label)}`
+    });
+    request.once('error', reject);
+    request.once('response', response => {
+      if (response.statusCode !== 200) {
+        response.resume();
+        reject(new Error(`legacy visitor returned HTTP ${response.statusCode}`));
+        return;
+      }
+      response.once('error', reject);
+      response.once('data', () => resolve({ request, response }));
+    });
+  });
+}
+
+async function disconnectLegacyVisitor(visitor) {
+  if (!visitor || visitor.response.destroyed) return;
+  await new Promise(resolve => {
+    visitor.response.once('close', resolve);
+    visitor.response.destroy();
+  });
 }
 
 function captureEnvironment(keys) {
@@ -189,7 +238,9 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
   assert.deepEqual(await fs.readdir(path.join(legacySourceDir, 'data')), []);
 
   let activeKernel = null;
+  let activeVisitor = null;
   t.after(async () => {
+    await disconnectLegacyVisitor(activeVisitor).catch(() => {});
     await activeKernel?.stop().catch(() => {});
     restoreEnvironment(env);
     await fs.rm(dataDir, { recursive: true, force: true });
@@ -220,6 +271,26 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
   ).get().count;
   assert.equal(bindingEventsBefore, 1);
 
+  const visitorId = 'i1c-persistence-visitor';
+  const visitorLabel = 'I1-C continuity visitor';
+  activeVisitor = await connectLegacyVisitor(port, visitorId, visitorLabel);
+  const mutatedState = await waitFor(async () => {
+    const state = await readLegacyState(port);
+    const visitor = state.nodes?.find(node => node.id === visitorId);
+    return visitor?.visits === 1 ? state : null;
+  }, 5000, 25);
+  assert.equal(mutatedState.nodeCount, 1);
+  assert.match(mutatedState.recentEvent, /appeared as a new star/);
+
+  await disconnectLegacyVisitor(activeVisitor);
+  activeVisitor = null;
+  const disconnectedState = await waitFor(async () => {
+    const state = await readLegacyState(port);
+    return state.nodeCount === 0 && /faded from the sky/.test(state.recentEvent)
+      ? state : null;
+  }, 5000, 25);
+  assert.equal(disconnectedState.nodeCount, 0);
+
   await first.stop();
   activeKernel = null;
 
@@ -242,6 +313,15 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
     await fs.readFile(
       restartStatePath
     );
+
+  const persistedState = JSON.parse(restartStateBytes);
+  const persistedVisitor = persistedState.relationships?.find(
+    relationship => relationship.id === visitorId
+  );
+  assert.ok(persistedVisitor, 'visitor mutation must exist in durable 0.6 state');
+  assert.equal(persistedVisitor.visits, 1);
+  assert.ok(Number.isFinite(persistedVisitor.firstSeen));
+  assert.ok(Number.isFinite(persistedVisitor.lastSeen));
 
   const restartStateSha256 =
     crypto
@@ -289,6 +369,17 @@ test('I1-C: fetus and neutral SNTSS coexist, bind, receive trusted time and rema
     'synthetic restart must be bound to the exact persisted fixture state'
   );
   const after = await assertAttached(restarted, secondObserved);
+
+  activeVisitor = await connectLegacyVisitor(port, visitorId, visitorLabel);
+  const restoredState = await waitFor(async () => {
+    const state = await readLegacyState(port);
+    const visitor = state.nodes?.find(node => node.id === visitorId);
+    return visitor?.visits === 2 ? state : null;
+  }, 5000, 25);
+  assert.match(restoredState.recentEvent, /returned to the sky/);
+  assert.equal(restoredState.nodes.find(node => node.id === visitorId).visits, 2);
+  await disconnectLegacyVisitor(activeVisitor);
+  activeVisitor = null;
 
   assert.equal(restarted.identity.organismId, organismId);
   assert.equal(after.state.organismBinding.identitySha256, bindingHash);

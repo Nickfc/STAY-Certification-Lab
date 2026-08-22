@@ -25,18 +25,13 @@
     },
     "targeted_residency_bsf_corehost_sntss": {
       "tests": 524,
-      "passed": 523,
+      "passed": 524,
       "failed": 0,
-      "skipped": 1,
+      "skipped": 0,
       "todo": 0,
       "cancelled": 0,
-      "duration_ms": 46674.376362,
-      "result": "ENVIRONMENT_FIXTURE_REQUIRED",
-      "skip": {
-        "test": "I1-C",
-        "classification": "ENVIRONMENT_FIXTURE_UNAVAILABLE",
-        "cause": "The sealed legacy 0.6 source is unavailable at /opt/stay/legacy/0.6.0 in this workspace."
-      }
+      "duration_ms": 59887.319705,
+      "result": "PASS"
     },
     "fresh_repository_suite": {
       "tests": 690,
