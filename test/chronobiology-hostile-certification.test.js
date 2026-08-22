@@ -147,15 +147,31 @@ test('C3-REL-05 every tranche evidence record is present and passed', () => {
   }
 });
 
-test('C3-REL-06 C0 audit is closed and the server bundle cannot claim a seal', () => {
+test('C3-REL-06 explicit review seals SHADOW release while the bundle remains unable to self-seal', () => {
   const audit = fs.readFileSync(
     path.join(root, 'docs/chronobiology/c0-implementation-audit.md'),
     'utf8',
   );
-  assert.match(audit, /IMPLEMENTATION CLOSED; C3-C SEAL BLOCKED/);
+  assert.match(audit, /IMPLEMENTATION CLOSED; C3-C SHADOW RELEASE SEALED/);
   assert.match(audit, /C3-REL-02.*COMPUTE GATE/);
   assert.match(audit, /C3-REL-04.*ACTUAL-HOST GATE/);
-  assert.match(audit, /C3-REL-05.*BLOCKED/);
+  assert.match(audit, /C3-REL-05.*SEALED/);
+
+  const seal = JSON.parse(fs.readFileSync(
+    path.join(root, 'docs/chronobiology/c3c-final-seal.json'),
+    'utf8',
+  ));
+  assert.equal(seal.result, 'C3C_SHADOW_RELEASE_SEALED');
+  assert.equal(seal.release_sealed, true);
+  assert.equal(seal.sealed_candidate.sha,
+    'cf23389c1faa6d58cbb4e0960dab02fe38648f59');
+  assert.equal(seal.sealed_candidate.tree,
+    '94625cc5c832e6716b7142c4af267f9713bbc1c1');
+  assert.equal(seal.authority.operating_mode, 'SHADOW');
+  assert.equal(seal.authority.physiological_authority, 'NONE');
+  assert.equal(seal.authority.production_eligible, false);
+  assert.equal(seal.frozen_boundaries.sntss_behavior_changed, false);
+  assert.equal(seal.certification_non_operations.live_deployment_performed, false);
 
   const bundleRoot = path.join(root, 'certification/chronobiology-c3c');
   for (const file of ['RUN.sh', 'WATCH.sh', 'README.txt', 'HANDOVER.txt', 'STATUS.json']) {

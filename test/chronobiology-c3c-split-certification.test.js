@@ -190,8 +190,18 @@ test('C3-C-SPLIT-06 changed live sentinel and record tampering fail closed', () 
 test('C3-C-SPLIT-07 candidate status binds every certification execution path', () => {
   const status = JSON.parse(fs.readFileSync(path.join(root,
     'docs/chronobiology/c3c-certification-status.json'), 'utf8'));
-  assert.equal(status.result, 'SPLIT_HOST_EVIDENCE_PENDING');
-  assert.equal(status.release_sealed, false);
+  assert.equal(status.result, 'C3C_SHADOW_RELEASE_SEALED');
+  assert.equal(status.release_sealed, true);
+  assert.equal(status.candidate.sealed_candidate_sha,
+    'cf23389c1faa6d58cbb4e0960dab02fe38648f59');
+  assert.equal(status.candidate.sealed_candidate_tree,
+    '94625cc5c832e6716b7142c4af267f9713bbc1c1');
+  assert.equal(status.split_host_certification.compute.result, 'PASS');
+  assert.equal(status.split_host_certification.live_sentinel.result, 'PASS');
+  assert.equal(status.split_host_certification.binding.result,
+    'CANDIDATE_CERTIFIED_UNSEALED');
+  assert.equal(status.split_host_certification.explicit_final_review.result,
+    'C3C_SHADOW_RELEASE_SEALED');
   assert.equal(status.split_host_certification.binding.required_identity,
     'EXACT_SAME_CANDIDATE_SHA_TREE_AND_COMPUTE_RECORD_DIGEST');
   for (const [relative, expected] of Object.entries(

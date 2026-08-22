@@ -1,7 +1,7 @@
 {
   "schema": "stay.chronobiology.c3c-certification-status/v3",
-  "result": "SPLIT_HOST_EVIDENCE_PENDING",
-  "release_sealed": false,
+  "result": "C3C_SHADOW_RELEASE_SEALED",
+  "release_sealed": true,
   "candidate": {
     "version": "1.0.0-c3rc.1",
     "stage": "c3-shadow-release-candidate",
@@ -10,7 +10,9 @@
     "production_eligible": false,
     "authority_mode": "shadow",
     "c0_document_audit": "IMPLEMENTATION_CLOSED",
-    "server_release_gates": "PENDING"
+    "server_release_gates": "CLOSED",
+    "sealed_candidate_sha": "cf23389c1faa6d58cbb4e0960dab02fe38648f59",
+    "sealed_candidate_tree": "94625cc5c832e6716b7142c4af267f9713bbc1c1"
   },
   "local_certification": {
     "chronobiology_direct": {
@@ -20,7 +22,7 @@
       "skipped": 0,
       "todo": 0,
       "cancelled": 0,
-      "duration_ms": 196386.203727,
+      "duration_ms": 237755.957918,
       "result": "PASS"
     },
     "targeted_residency_bsf_corehost_sntss": {
@@ -70,19 +72,27 @@
       "required_result": "PASS",
       "required_test_result": "ZERO_FAILURE_ZERO_SKIP_ZERO_TODO_ZERO_CANCELLED",
       "required_new_node_processes": 0,
-      "result": "NOT_RUN"
+      "record_sha256": "sha256:1ce64f2e798c8092f7aa7ec72811fb834e04e09a5eeedaee7e9afd99d722c99a",
+      "result": "PASS"
     },
     "live_sentinel": {
       "entrypoint": "certification/chronobiology-c3c/live/RUN.sh",
       "host": "ACTUAL_LIGHTSAIL_ONLY",
       "required_result": "PASS",
       "required_live_sentinel": "BYTE_IDENTICAL_BEFORE_AFTER",
-      "result": "NOT_RUN"
+      "record_sha256": "sha256:7c16070894630c34fb8fc5fd6cd248298333708359bdf2cbdf547d644c8abf86",
+      "before_after_byte_identical": true,
+      "result": "PASS"
     },
     "binding": {
       "entrypoint": "certification/chronobiology-c3c/VERIFY_SPLIT_EVIDENCE.js",
       "required_identity": "EXACT_SAME_CANDIDATE_SHA_TREE_AND_COMPUTE_RECORD_DIGEST",
-      "result": "NOT_RUN"
+      "result": "CANDIDATE_CERTIFIED_UNSEALED"
+    },
+    "explicit_final_review": {
+      "record": "docs/chronobiology/c3c-final-seal.json",
+      "result": "C3C_SHADOW_RELEASE_SEALED",
+      "release_sealed": true
     }
   },
   "integrity": {
@@ -116,10 +126,11 @@
       "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4"
     },
     "closure_evidence_sha256": {
-      "docs/chronobiology/c0-implementation-audit.md": "e6fdc4071e2571181637146a0cb0c7674d8845ca6b1ffe0110ee6aa7fe9d740e",
+      "docs/chronobiology/c0-implementation-audit.md": "12acb4e52585cf3f741a9b19a60d3f08855fdab3f807d0e4356b68e4defb70bc",
+      "docs/chronobiology/c3c-final-seal.json": "af3b44612c96ff613e2d403c78b5c47af75327e4dd6364e24a8cc1903df8bf95",
       "test/chronobiology-c1-genesis.test.js": "92d069df1a23d7c6c89c57a3f892e093d948e513d14e4922461ec6ab531c0757",
-      "test/chronobiology-hostile-certification.test.js": "507588001500f5ccba7399348570e809c87f4382d94067e6933ddecafb8a7980",
-      "test/chronobiology-c3c-split-certification.test.js": "798ef697d3e213ff465c16f9f886d5a47bcabbe6f6f4637113a3eb4941731aba",
+      "test/chronobiology-hostile-certification.test.js": "5a58bda11f6966361ab2b1d3688a883529ebaf50071725acf80a9cd267631534",
+      "test/chronobiology-c3c-split-certification.test.js": "0684f0fa7b45ce8194b620312f6025a68c5d7e671f2c5ca70b6f944967c623f1",
       "certification/chronobiology-c3c/RUN.sh": "1f2ddabe37e0915ecdadc2f729c8f23d48c7fd78923cf47cddb9140ba8739be9",
       "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29",
       "certification/chronobiology-c3c/compute/RUN.sh": "472f2f557871f6b2d939cfdb262a45274cec3d8c1892a60a81948f3bc9ebd1db",
@@ -146,7 +157,7 @@
     "live_current_switched": false,
     "main_merged": false,
     "authoritative_effects_enabled": false,
-    "final_seal_created": false
+    "final_seal_created": true
   },
-  "next_gate": "Run the silent public-lab compute lane at an exact detached private-source candidate using the read-only deploy key and ephemeral hash-verified legacy fixture, run the read-only live-sentinel lane on the actual Lightsail host, and bind both sanitized records to the exact same candidate SHA/tree before any final C3-C seal."
+  "next_gate": "No deployment is authorized by this seal. Any live Chronobiology deployment, biological authority, SNTSS physiological coupling, C-AUTH grant or main merge requires a separate explicit authorization and certification gate."
 }

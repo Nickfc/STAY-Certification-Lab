@@ -1,6 +1,6 @@
 # STAY Chronobiology C0 v1.1 implementation audit
 
-Status: **IMPLEMENTATION CLOSED; C3-C SEAL BLOCKED**
+Status: **IMPLEMENTATION CLOSED; C3-C SHADOW RELEASE SEALED**
 
 This audit covers every normative section and appendix in *STAY Chronobiology C0 Design & Production Specification v1.1*. It does not grant live authority. Chronobiology remains `LABORATORY/SHADOW`, `productionEligible=false`, and has no live route or direct SNTSS mutation surface.
 
@@ -37,16 +37,16 @@ The source candidate is based on `feature/chronobiology`. The exact final-candid
 | 25 C2-C laboratory | CLOSED | Restart, duplicate, long gap, corruption fallback, finalized replay, migration and rollback; report in `c2c-persistence-report.json`. |
 | 26 C3-A containment | CLOSED (source); SERVER RECHECK REQUIRED | Eight direct containment gates plus shared CoreHost/cgroup/resource tests. Exact production-host enforcement is part of C3-C server certification. |
 | 27 C3-B shadow | CLOSED | SHADOW context, cadence, deterministic replay, transactional output, authority isolation, prior-checkpoint recovery and no SNTSS mutation. |
-| 28 C3-C evidence/seal | PARTIAL / SEAL BLOCKED | Split-host compute and actual-Lightsail sentinel lanes are produced. Zero-failure/zero-skip compute evidence and byte-identical real live sentinels must bind the exact same candidate SHA/tree before a seal. |
+| 28 C3-C evidence/seal | CLOSED / SHADOW SEALED | Split-host compute passed with zero failures/skips, the actual-Lightsail sentinel was byte-identical before/after, and both records bind candidate `cf23389c…` / tree `94625cc…`. The immutable result is `c3c-final-seal.json`. |
 | 29 calibration | CLOSED | Versioned machine profiles and human-readable C2 reports bind provisional/frozen values and convergence tolerances. |
 | 30 repository layout | CLOSED | Modular Chronobiology package, schemas, reports, tools and tests; shared Kernel mechanisms generalized only where required. |
 | 31 tranche workflow | CLOSED | Meaningful green commits pushed to one branch. Read-only watchable server certification bundle supplied. |
 | 32 hostile matrix | CLOSED except server gates | Direct and targeted matrices are executable; full-host items are deliberately delegated to the exact server bundle. |
 | 33 decision register | CLOSED | C0 frozen choices preserved; calibration choices versioned; real photic producer/live route and all future peripheral clocks remain deferred. |
 | 34 rejected shortcuts | CLOSED | No wall clock, scalar timer, phase setter, hidden reroll, direct core shortcut, private chronology, per-unit repair or live-authority relabeling. |
-| 35 definition of done / C-AUTH | IMPLEMENTATION CLOSED; RELEASE BLOCKED | C1–C3 source is complete. C-AUTH and final seal remain blocked pending the exact server result and separate future approval. |
+| 35 definition of done / C-AUTH | C3-C SHADOW RELEASE SEALED; C-AUTH BLOCKED | C1–C3 source and SHADOW certification are complete. C-AUTH, live deployment and physiological authority remain separately blocked. |
 | Appendices A–C | CLOSED | State/wire schemas and numerical/state invariants are represented in schemas, validation and hostile tests. |
-| Appendix D | CLOSED except release-host gates | Detailed mapping below. |
+| Appendix D | CLOSED for SHADOW release | Detailed mapping below; compute and actual-host release gates are bound by the final seal. |
 | Appendices E–G | CLOSED | Source capture performed; bootstrap/change policy followed; this audit records the changed implementation basis. |
 
 ## C0 constitutional-law evidence
@@ -91,11 +91,11 @@ The source candidate is based on `feature/chronobiology`. The exact final-candid
 | C3-REL-02 | **COMPUTE GATE:** detached exact candidate direct, targeted and fresh full suites must be zero fail/skip/todo/cancelled in the private sustained-CPU lab. |
 | C3-REL-03 | **COMPUTE GATE:** frozen 250 ms performance gate, environment record and before/after leaked-process check. |
 | C3-REL-04 | **ACTUAL-HOST GATE:** before/after real `stay.service` and `/opt/stay/current` sentinels must match; they may not be emulated. |
-| C3-REL-05 | **BLOCKED:** final seal only after compute and actual-host records bind the exact same candidate SHA/tree and compute-record digest. |
+| C3-REL-05 | **SEALED:** compute and actual-host records bind exact candidate `cf23389c…`, tree `94625cc…`, and the compute-record digest; `c3c-final-seal.json` records the explicit review. |
 
 ## Explicit deferred and blocked items
 
 - A real-world photic producer, sensor trust model and live route are explicitly deferred by C0 §33.3.
-- Live Chronobiology authority, production eligibility, SNTSS physiological coupling and C-AUTH remain unauthorized.
+- Live Chronobiology authority, production eligibility, SNTSS physiological coupling and C-AUTH remain unauthorized after the SHADOW seal.
 - The local sandbox full suite is not a seal result: Unix-socket creation is denied and the sealed legacy 0.6 fixture is absent.
-- No final seal commit may be created until the private compute record reports zero failures/skips/todos/cancellations, the frozen performance and leaked-process gates pass, the actual Lightsail sentinel remains unchanged, and both sanitized records bind the exact same candidate SHA/tree.
+- The final SHADOW seal was created only after the private compute record reported zero failures/skips/todos/cancellations, the frozen performance and leaked-process gates passed, the actual Lightsail sentinel remained unchanged, and both sanitized records bound the exact same candidate SHA/tree.
