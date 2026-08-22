@@ -29,11 +29,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CONTROLLER_COMMIT: 12d240b10a131fea5af0087ff73eeb7eba3b1541
+  CONTROLLER_COMMIT: d2ac5f8e6c469ebf9d81b17e6ccab78ef503692e
   EXACT_CANDIDATE_SHA: 7d040592ccf1f149f0f0a170f79cf76bb5f05d92
   EXACT_CANDIDATE_TREE: 450cc22f70b7abf3b5733fe882049d88cd52de74
   EXACT_COMPUTE_RECORD_SHA256: sha256:384f3f2e27232b555fe52185c775562d31cf7fac349dfb95ae93968225c83ec1
-  CONTROLLER_SOURCE_IDENTITY: sha256:a546d3647c686584af0f2d2e78ac463e0e82c9d3730bb718a4ee7e1f483b8aba
+  CONTROLLER_SOURCE_IDENTITY: sha256:e4fc203215ce05abc43690bde11a8b353d5abcf5c3d4c15bf46dd95c43ab78e1
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   CANDIDATE_ID: 0.8.11.3-p1a-surgery-a-candidate-7d040592ccf1f149f0f0a170f79cf76bb5f05d92
@@ -53,7 +53,7 @@ jobs:
           ROLLBACK_AUTHORIZATION: ${{ inputs.rollback_a_authorization }}
         run: |
           set -euo pipefail
-          [[ "$CONTROLLER_COMMIT" == "12d240b10a131fea5af0087ff73eeb7eba3b1541" ]]
+          [[ "$CONTROLLER_COMMIT" == "d2ac5f8e6c469ebf9d81b17e6ccab78ef503692e" ]]
           case "$REQUESTED_OPERATION" in
             preflight)
               [[ -z "$SURGERY_AUTHORIZATION" && -z "$ROLLBACK_AUTHORIZATION" ]]
@@ -80,7 +80,7 @@ jobs:
       - name: Checkout controller revision without credentials
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: 12d240b10a131fea5af0087ff73eeb7eba3b1541
+          ref: d2ac5f8e6c469ebf9d81b17e6ccab78ef503692e
           fetch-depth: 0
           persist-credentials: false
           path: controller-source
