@@ -3,7 +3,6 @@
 
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const releaseControl = require('../runtime/release/sntss-release-control');
@@ -32,6 +31,24 @@ function included(source) {
     !relative.startsWith('release-output/');
 }
 
+async function copySourceTree(source, destination) {
+  await fsp.mkdir(destination, { recursive: true, mode: 0o700 });
+  const entries = await fsp.readdir(source, { withFileTypes: true });
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const from = path.join(source, entry.name);
+    if (!included(from)) continue;
+    const to = path.join(destination, entry.name);
+    if (entry.isDirectory()) await copySourceTree(from, to);
+    else if (entry.isFile()) await fsp.copyFile(from, to);
+    else {
+      throw Object.assign(new Error(`release source contains unsupported link or special file: ${from}`), {
+        code: 'P1_RELEASE_SOURCE_TYPE'
+      });
+    }
+  }
+}
+
 async function makeRelease(outputRoot, metadata, releaseRole) {
   const manifest = surgery.createManifest({ ...metadata, releaseRole });
   const destination = path.join(outputRoot, manifest.releaseId);
@@ -40,17 +57,15 @@ async function makeRelease(outputRoot, metadata, releaseRole) {
       code: 'P1_RELEASE_EXISTS'
     });
   }
-  const stagingParent = await fsp.mkdtemp(path.join(os.tmpdir(), 'stay-p1-build-'));
+  const stagingParent = await fsp.mkdtemp(path.join(outputRoot, '.p1-stage-'));
   const staging = path.join(stagingParent, manifest.releaseId);
   try {
     /*
-     * Always stage outside SOURCE_ROOT.  fs.cp rejects source-to-descendant
-     * copies before its filter can exclude release-output.
+     * The explicit filtered copier can stage beneath release-output without
+     * recursively copying that output back into itself.  Staging beside the
+     * destination also guarantees that final rename stays on one filesystem.
      */
-    await fsp.cp(SOURCE_ROOT, staging, {
-      recursive: true,
-      filter: included
-    });
+    await copySourceTree(SOURCE_ROOT, staging);
     await fsp.writeFile(
       path.join(staging, 'P1_SURGERY_A_MANIFEST.json'),
       `${JSON.stringify(manifest, null, 2)}\n`,

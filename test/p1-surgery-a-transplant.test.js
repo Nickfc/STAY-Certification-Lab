@@ -104,7 +104,9 @@ test('P1-A-05 the database inspector is read-only and detects forbidden physiolo
 });
 
 test('P1-A-06 immutable build and install/start/stop/forward-rollback rehearsal pass off-live', async t => {
-  const output = await fsp.mkdtemp(path.join(os.tmpdir(), 'stay-p1-build-'));
+  const output = path.join(ROOT, 'release-output',
+    `p1-test-${process.pid}-${Date.now()}`);
+  await fsp.mkdir(output, { recursive: true });
   t.after(() => removeImmutableTree(output));
   const tree = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
   const sourceSha = 'a'.repeat(40);
