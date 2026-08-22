@@ -3,6 +3,7 @@
 
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const releaseControl = require('../runtime/release/sntss-release-control');
@@ -39,44 +40,55 @@ async function makeRelease(outputRoot, metadata, releaseRole) {
       code: 'P1_RELEASE_EXISTS'
     });
   }
-  await fsp.cp(SOURCE_ROOT, destination, {
-    recursive: true,
-    filter: included
-  });
-  await fsp.writeFile(
-    path.join(destination, 'P1_SURGERY_A_MANIFEST.json'),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    { mode: 0o600 }
-  );
-  const documents = await releaseControl.writeReleaseDocuments(destination, {
-    commit: metadata.sourceSha,
-    branch: surgery.IDENTITIES.branch,
-    builder: 'p1-surgery-a-builder',
-    productionEligible: true
-  });
-  surgery.verifyAnchors(destination, { verifyGitTrees: false });
-  await releaseControl.verifyReleaseDocuments(destination);
+  const stagingParent = await fsp.mkdtemp(path.join(os.tmpdir(), 'stay-p1-build-'));
+  const staging = path.join(stagingParent, manifest.releaseId);
+  try {
+    /*
+     * Always stage outside SOURCE_ROOT.  fs.cp rejects source-to-descendant
+     * copies before its filter can exclude release-output.
+     */
+    await fsp.cp(SOURCE_ROOT, staging, {
+      recursive: true,
+      filter: included
+    });
+    await fsp.writeFile(
+      path.join(staging, 'P1_SURGERY_A_MANIFEST.json'),
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      { mode: 0o600 }
+    );
+    const documents = await releaseControl.writeReleaseDocuments(staging, {
+      commit: metadata.sourceSha,
+      branch: surgery.IDENTITIES.branch,
+      builder: 'p1-surgery-a-builder',
+      productionEligible: true
+    });
+    surgery.verifyAnchors(staging, { verifyGitTrees: false });
+    await releaseControl.verifyReleaseDocuments(staging);
 
-  const entries = await fsp.readdir(destination, { recursive: true, withFileTypes: true });
-  const directories = [destination];
-  for (const entry of entries) {
-    const absolute = path.join(entry.parentPath || entry.path, entry.name);
-    if (entry.isDirectory()) directories.push(absolute);
-    else if (entry.isFile()) await fsp.chmod(absolute, 0o444);
+    await fsp.rename(staging, destination);
+    const entries = await fsp.readdir(destination, { recursive: true, withFileTypes: true });
+    const directories = [destination];
+    for (const entry of entries) {
+      const absolute = path.join(entry.parentPath || entry.path, entry.name);
+      if (entry.isDirectory()) directories.push(absolute);
+      else if (entry.isFile()) await fsp.chmod(absolute, 0o444);
+    }
+    directories.sort((a, b) => b.length - a.length);
+    for (const directory of directories) await fsp.chmod(directory, 0o555);
+
+    return Object.freeze({
+      releaseRole,
+      releaseId: manifest.releaseId,
+      path: destination,
+      sourceSha: metadata.sourceSha,
+      sourceTree: metadata.sourceTree,
+      manifestHash: manifest.manifestHash,
+      inventoryHash: documents.inventory.inventoryHash,
+      provenanceHash: documents.provenance.provenanceHash
+    });
+  } finally {
+    await fsp.rm(stagingParent, { recursive: true, force: true });
   }
-  directories.sort((a, b) => b.length - a.length);
-  for (const directory of directories) await fsp.chmod(directory, 0o555);
-
-  return Object.freeze({
-    releaseRole,
-    releaseId: manifest.releaseId,
-    path: destination,
-    sourceSha: metadata.sourceSha,
-    sourceTree: metadata.sourceTree,
-    manifestHash: manifest.manifestHash,
-    inventoryHash: documents.inventory.inventoryHash,
-    provenanceHash: documents.provenance.provenanceHash
-  });
 }
 
 async function main(argv = process.argv.slice(2)) {
