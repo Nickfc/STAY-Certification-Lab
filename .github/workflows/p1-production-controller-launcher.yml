@@ -29,10 +29,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CONTROLLER_COMMIT: 92b5eba1b290f18be01f77c85373e4dadc6926b7
+  CONTROLLER_COMMIT: fc298b9e9e84bb50a08685ea3f95d7641e5776cd
   EXACT_CANDIDATE_SHA: 7d040592ccf1f149f0f0a170f79cf76bb5f05d92
   EXACT_CANDIDATE_TREE: 450cc22f70b7abf3b5733fe882049d88cd52de74
   EXACT_COMPUTE_RECORD_SHA256: sha256:384f3f2e27232b555fe52185c775562d31cf7fac349dfb95ae93968225c83ec1
+  CONTROLLER_SOURCE_IDENTITY: sha256:921ae12c27477660bd8e816e8c23f812247672d2ecac9aa4ee9df53db1cc6c43
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   CANDIDATE_ID: 0.8.11.3-p1a-surgery-a-candidate-7d040592ccf1f149f0f0a170f79cf76bb5f05d92
@@ -52,7 +53,7 @@ jobs:
           ROLLBACK_AUTHORIZATION: ${{ inputs.rollback_a_authorization }}
         run: |
           set -euo pipefail
-          [[ "$CONTROLLER_COMMIT" == "92b5eba1b290f18be01f77c85373e4dadc6926b7" ]]
+          [[ "$CONTROLLER_COMMIT" == "fc298b9e9e84bb50a08685ea3f95d7641e5776cd" ]]
           case "$REQUESTED_OPERATION" in
             preflight)
               [[ -z "$SURGERY_AUTHORIZATION" && -z "$ROLLBACK_AUTHORIZATION" ]]
@@ -79,7 +80,7 @@ jobs:
       - name: Checkout controller revision without credentials
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: 92b5eba1b290f18be01f77c85373e4dadc6926b7
+          ref: fc298b9e9e84bb50a08685ea3f95d7641e5776cd
           fetch-depth: 0
           persist-credentials: false
           path: controller-source
@@ -101,9 +102,12 @@ jobs:
           bash -n controller-source/deploy/live-physiology-transplant/p1-surgery-a-execute.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-forward-rollback.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-live-preflight.sh
+          bash -n controller-source/deploy/live-physiology-transplant/stay-p1-production-controller
+          bash -n controller-source/deploy/live-physiology-transplant/install-p1-production-controller.sh
           node --test --test-concurrency=1 \
             controller-source/test/p1-surgery-a-execution.test.js \
-            controller-source/test/p1-actions-production-controller.test.js
+            controller-source/test/p1-actions-production-controller.test.js \
+            controller-source/test/p1-privileged-bridge.test.js
 
       - name: Run exact candidate direct and full tests
         shell: bash
@@ -162,6 +166,7 @@ jobs:
             "EXACT_CANDIDATE_SHA=$EXACT_CANDIDATE_SHA" \
             "EXACT_CANDIDATE_TREE=$EXACT_CANDIDATE_TREE" \
             "EXACT_COMPUTE_RECORD_SHA256=$EXACT_COMPUTE_RECORD_SHA256" \
+            "CONTROLLER_SOURCE_IDENTITY=$CONTROLLER_SOURCE_IDENTITY" \
             "CONTROLLER_COMMIT=$CONTROLLER_COMMIT" > "$BUNDLE/P1_ACTIONS_BUNDLE.identity"
           (
             cd "$BUNDLE"
@@ -223,6 +228,7 @@ jobs:
           grep -Fx "EXACT_CANDIDATE_SHA=$EXACT_CANDIDATE_SHA" P1_ACTIONS_BUNDLE.identity
           grep -Fx "EXACT_CANDIDATE_TREE=$EXACT_CANDIDATE_TREE" P1_ACTIONS_BUNDLE.identity
           grep -Fx "EXACT_COMPUTE_RECORD_SHA256=$EXACT_COMPUTE_RECORD_SHA256" P1_ACTIONS_BUNDLE.identity
+          grep -Fx "CONTROLLER_SOURCE_IDENTITY=$CONTROLLER_SOURCE_IDENTITY" P1_ACTIONS_BUNDLE.identity
           grep -Fx "CONTROLLER_COMMIT=$CONTROLLER_COMMIT" P1_ACTIONS_BUNDLE.identity
           for archive in p1-surgery-a-releases.tar.gz p1-actions-controller.tar.gz; do
             tar -tzf "$archive" | awk '
@@ -310,28 +316,43 @@ jobs:
           [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
           case "$OPERATION" in preflight|surgery-a|rollback-a) ;; *) exit 64 ;; esac
           RUN_ROOT="/opt/stay/incoming/p1-actions-$GITHUB_RUN_ID"
-          CONTROLLER="$RUN_ROOT/controller/p1-actions-remote-controller.sh"
           case "$OPERATION" in
-            preflight) REMOTE_AUTH='STAY_SURGERY_A_WRITE_AUTHORIZED=NO' ;;
-            surgery-a) REMOTE_AUTH='STAY_SURGERY_A_WRITE_AUTHORIZED=YES' ;;
-            rollback-a) REMOTE_AUTH='STAY_ROLLBACK_A_WRITE_AUTHORIZED=YES' ;;
+            preflight) AUTHORIZATION_ARGUMENT='NO_AUTHORIZATION' ;;
+            surgery-a) AUTHORIZATION_ARGUMENT='AUTHORIZE_SURGERY_A_7D040592CCF1F149' ;;
+            rollback-a) AUTHORIZATION_ARGUMENT='AUTHORIZE_ROLLBACK_A_FORWARD_STATE_7D040592CCF1F149' ;;
           esac
           set +e
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
             staydeploy@35.157.242.167 \
-            "sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect --unit='stay-p1-$OPERATION-$GITHUB_RUN_ID' /usr/bin/env '$REMOTE_AUTH' /bin/bash '$CONTROLLER' '$OPERATION' '$RUN_ROOT'" \
+            "sudo -n /usr/local/sbin/stay-p1-production-controller '$OPERATION' '$RUN_ROOT' '$AUTHORIZATION_ARGUMENT'" \
             > "$RUNNER_TEMP/controller.raw" 2>&1
           CONTROLLER_STATUS=$?
           set -e
+          CONTROLLER_FAILURE_CLASS='NONE'
+          if [[ "$CONTROLLER_STATUS" -ne 0 ]]; then
+            CONTROLLER_FAILURE_CLASS='PRIVILEGED_DISPATCH_FAILED'
+            WRAPPER_CLASS="$(grep -E '^CONTROLLER_FAILURE_CLASS=(PRIVILEGE_DENIED|HOST_IDENTITY_FAILED|AUTHORIZATION_FAILED|OPERATION_REJECTED|PATH_VALIDATION_FAILED|TRUSTED_RUNTIME_FAILED|STAGED_IDENTITY_FAILED|REMOTE_CONTROLLER_FAILED|RESULT_MARKER_MISSING|PREFLIGHT_MUTATION_DETECTED|CLEANUP_FAILED|PRIVILEGED_CONTROLLER_FAILED)$' "$RUNNER_TEMP/controller.raw" | tail -n 1 | cut -d= -f2 || true)"
+            if [[ -n "$WRAPPER_CLASS" ]]; then
+              CONTROLLER_FAILURE_CLASS="$WRAPPER_CLASS"
+            elif grep -Eqi '(not allowed to execute|a password is required|no tty present|sudoers)' "$RUNNER_TEMP/controller.raw"; then
+              CONTROLLER_FAILURE_CLASS='PRIVILEGE_DENIED'
+            elif grep -Eqi '(command not found|No such file or directory).*stay-p1-production-controller|stay-p1-production-controller.*(command not found|No such file or directory)' "$RUNNER_TEMP/controller.raw"; then
+              CONTROLLER_FAILURE_CLASS='PRIVILEGED_WRAPPER_UNAVAILABLE'
+            elif [[ "$CONTROLLER_STATUS" -eq 255 ]]; then
+              CONTROLLER_FAILURE_CLASS='SSH_TRANSPORT_FAILED'
+            fi
+          fi
+          printf 'CONTROLLER_DISPATCH_STATUS=%s\nCONTROLLER_FAILURE_CLASS=%s\n' \
+            "$CONTROLLER_STATUS" "$CONTROLLER_FAILURE_CLASS" > "$RUNNER_TEMP/controller-classification.env"
           case "$OPERATION" in
             preflight) EXPECTED_RESULT='PREFLIGHT_RESULT=PASS' ;;
             surgery-a) EXPECTED_RESULT='SURGERY_A_RESULT=PASS' ;;
             rollback-a) EXPECTED_RESULT='ROLLBACK_A_RESULT=PASS' ;;
           esac
-          grep -Fx "$EXPECTED_RESULT" "$RUNNER_TEMP/controller.raw"
           [[ "$CONTROLLER_STATUS" -eq 0 ]]
+          grep -Fx "$EXPECTED_RESULT" "$RUNNER_TEMP/controller.raw"
 
       - name: Build sanitized Actions evidence
         if: always()
@@ -352,33 +373,13 @@ jobs:
             echo "EXACT_CANDIDATE_TREE=$EXACT_CANDIDATE_TREE"
             echo "PRODUCTION_PUBLIC_IPV4=$PRODUCTION_PUBLIC_IPV4"
             echo "CAPTURED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            for source in "$RUNNER_TEMP/host-guard.raw" "$RUNNER_TEMP/controller.raw"; do
+            for source in "$RUNNER_TEMP/host-guard.raw" "$RUNNER_TEMP/controller-classification.env" "$RUNNER_TEMP/controller.raw"; do
               [[ -f "$source" ]] || continue
-              grep -E '^(LIVE_HOST_EXPECTED_PRIVATE_IPV4|OBSERVED_PRIVATE_IPV4|OBSERVED_HOSTNAME|HOST_IDENTITY_GUARD|HOST_CLASSIFICATION|PREFLIGHT_RESULT|PRE_WRITE_LIVE_SENTINEL|CURRENT_POINTER|STATESTORE_PRE_SCHEMA|STATESTORE_POST_SCHEMA|STATESTORE_CONTINUITY|SURGERY_A_RESULT|ROLLBACK_A_RESULT|PRE_SURGERY_RELEASE|POST_SURGERY_RELEASE|BSF_STATUS|RESIDENT_MANAGER_STATUS|SERVICE_ACTIVE|HEALTH|EXISTING_FETUS_CONTINUITY|SNTSS_NEW_ACTIVATION|CHRONOBIOLOGY_ACTIVATED|BIOLOGICAL_AUTHORITY_CHANGED|ROLLBACK_READY|FORWARD_COMPATIBLE_ROLLBACK|BIOLOGICAL_STATE_RESTORED|CANONICAL_FORWARD_STATE_PRESERVED|SURGERY_A_EVIDENCE_DIGEST|ROLLBACK_A_EVIDENCE_DIGEST|READY_FOR_SURGERY_B|EVIDENCE_DIR|PREFLIGHT_ABORT|SURGERY_A_ABORT|ROLLBACK_A_ABORT|P1_CONTROLLER_ABORT)=' "$source" || true
+              grep -E '^(LIVE_HOST_EXPECTED_PRIVATE_IPV4|OBSERVED_PRIVATE_IPV4|OBSERVED_HOSTNAME|HOST_IDENTITY_GUARD|HOST_CLASSIFICATION|PREFLIGHT_RESULT|PRE_WRITE_LIVE_SENTINEL|CURRENT_POINTER|STATESTORE_PRE_SCHEMA|STATESTORE_POST_SCHEMA|STATESTORE_CONTINUITY|SURGERY_A_RESULT|ROLLBACK_A_RESULT|PRE_SURGERY_RELEASE|POST_SURGERY_RELEASE|BSF_STATUS|RESIDENT_MANAGER_STATUS|SERVICE_ACTIVE|HEALTH|EXISTING_FETUS_CONTINUITY|SNTSS_NEW_ACTIVATION|CHRONOBIOLOGY_ACTIVATED|BIOLOGICAL_AUTHORITY_CHANGED|ROLLBACK_READY|FORWARD_COMPATIBLE_ROLLBACK|BIOLOGICAL_STATE_RESTORED|CANONICAL_FORWARD_STATE_PRESERVED|SURGERY_A_EVIDENCE_DIGEST|ROLLBACK_A_EVIDENCE_DIGEST|READY_FOR_SURGERY_B|EVIDENCE_DIR|PREFLIGHT_ABORT|SURGERY_A_ABORT|ROLLBACK_A_ABORT|P1_CONTROLLER_ABORT|CONTROLLER_DISPATCH_STATUS|CONTROLLER_FAILURE_CLASS|CONTROLLER_CLEANUP_STATUS|SERVICE_OPERATION|CURRENT_POINTER_CHANGE|STATESTORE_WRITE|RESIDENT_OPERATION|AUTHORITY_CHANGE)=' "$source" || true
             done
           } > actions-evidence/sanitized-summary.txt
           sha256sum actions-evidence/sanitized-summary.txt > actions-evidence/sanitized-summary.txt.sha256
           cat actions-evidence/sanitized-summary.txt
-
-      - name: Remove transient incoming bundle
-        if: always() && steps.host_guard.outcome == 'success'
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@35.157.242.167 'bash -s' -- "$GITHUB_RUN_ID" <<'REMOTE'
-          set -Eeuo pipefail
-          RUN_ID="$1"
-          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
-          EXPECTED_PRIVATE_IPV4="172.26.9.207"
-          OBSERVED_PRIVATE_IPV4="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a); print a}' | sort -u)"
-          [[ "$OBSERVED_PRIVATE_IPV4" == "$EXPECTED_PRIVATE_IPV4" ]]
-          RUN_ROOT="/opt/stay/incoming/p1-actions-$RUN_ID"
-          [[ "$RUN_ROOT" =~ ^/opt/stay/incoming/p1-actions-[0-9]+$ ]]
-          rm -rf -- "$RUN_ROOT"
-          REMOTE
 
       - name: Upload sanitized execution evidence
         if: always()
