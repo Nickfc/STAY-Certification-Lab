@@ -14,13 +14,13 @@
   },
   "local_certification": {
     "chronobiology_direct": {
-      "tests": 88,
-      "passed": 88,
+      "tests": 94,
+      "passed": 94,
       "failed": 0,
       "skipped": 0,
       "todo": 0,
       "cancelled": 0,
-      "duration_ms": 155204.883074,
+      "duration_ms": 196386.203727,
       "result": "PASS"
     },
     "targeted_residency_bsf_corehost_sntss": {
@@ -30,29 +30,24 @@
       "skipped": 0,
       "todo": 0,
       "cancelled": 0,
-      "duration_ms": 59887.319705,
+      "duration_ms": 59491.852363,
       "result": "PASS"
     },
     "fresh_repository_suite": {
-      "tests": 690,
-      "passed": 685,
+      "tests": 705,
+      "passed": 701,
       "failed": 4,
-      "skipped": 1,
+      "skipped": 0,
       "todo": 0,
       "cancelled": 0,
-      "duration_ms": 229708.862406,
+      "duration_ms": 276721.506254,
       "result": "ENVIRONMENT_BLOCKED",
-      "log_sha256": "sha256:cc1818cbc51b62f9672f1852c8925a7f40d8dd5a258400adf8115fa1fe45bdf3",
+      "log_sha256": "sha256:d084e96f7c28efc9d07f2949b46398bc74ae791c7d5978ffedb06597cca060ce",
       "failures": [{
         "tests": ["R11-M03-01", "R11-M03-02", "R11-M03-03", "R11-M03-06"],
         "classification": "ENVIRONMENT_FAILURE",
         "cause": "The workspace sandbox denies Unix-domain socket listen with EPERM; no Chronobiology execution path is implicated."
-      }],
-      "skip": {
-        "test": "I1-C",
-        "classification": "ENVIRONMENT_FIXTURE_UNAVAILABLE",
-        "cause": "The sealed legacy 0.6 source is unavailable at /opt/stay/legacy/0.6.0 in this workspace."
-      }
+      }]
     },
     "leaked_node_processes_after_suite": 0
   },
@@ -127,7 +122,8 @@
       "test/chronobiology-c3c-split-certification.test.js": "798ef697d3e213ff465c16f9f886d5a47bcabbe6f6f4637113a3eb4941731aba",
       "certification/chronobiology-c3c/RUN.sh": "1f2ddabe37e0915ecdadc2f729c8f23d48c7fd78923cf47cddb9140ba8739be9",
       "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29",
-      "certification/chronobiology-c3c/compute/RUN.sh": "327312a38c415c97df5db75433dd397eac5b651fabe09b9362df2e6615cee5b1",
+      "certification/chronobiology-c3c/compute/RUN.sh": "472f2f557871f6b2d939cfdb262a45274cec3d8c1892a60a81948f3bc9ebd1db",
+      "certification/chronobiology-c3c/compute/private-material-cleanup.js": "9508abda05fd876ea9a7368729fbd5d4218658839406a7a00ea8aeaf19beec21",
       "certification/chronobiology-c3c/compute/PUBLIC_RUN.sh": "cfbe7867c164d72ba70b655ba175594178ffa900a9512067fa67e1759a251c41",
       "certification/chronobiology-c3c/compute/PUBLIC_LAB_WORKFLOW.yml.example": "4da9e4a524fad5a2e993b9cad3ead5cc074b705f1cf077667280fbbd7fed2eae",
       "certification/chronobiology-c3c/compute/public-failure-record.js": "03769dced8eb634274eaf3783b24bd1792a05b5c54529a3d9eb8be335f306343",
@@ -138,7 +134,8 @@
       "certification/chronobiology-c3c/compute/performance-probe.js": "e099e2df47f650a94dda600c9f69e848c116ec1dbe84d5125ab394a6cd03fc95",
       "certification/chronobiology-c3c/live/RUN.sh": "42cadf17126c027a41d001fec6b51837076723d91e337e6c77dfff2fc68a9aa4",
       "certification/chronobiology-c3c/VERIFY_SPLIT_EVIDENCE.js": "061cec6805ab49a906c9623a5bb79eb12ddc38cb4378f2068bc59aa33fb44264",
-      "certification/chronobiology-c3c/split-evidence.js": "fe81d95a123423227ccc8e1e8c1e0089a5530e3846aee924d28b428abe4fdea5"
+      "certification/chronobiology-c3c/split-evidence.js": "fe81d95a123423227ccc8e1e8c1e0089a5530e3846aee924d28b428abe4fdea5",
+      "test/chronobiology-c3c-cleanup.test.js": "2d9abe07f06227d186ac588f93cdc637a22afb2e1dd22f6a20f61d528fff2c3e"
     },
     "sntss_source_modified": false
   },

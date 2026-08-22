@@ -47,17 +47,8 @@ chmod 700 "${OUTPUT_ROOT}" "${RAW_ROOT}" "${LOG_ROOT}" "${EPHEMERAL_ROOT}"
 
 destroy_private_material() {
   PRIVATE_OUTPUT_ROOT="${OUTPUT_ROOT}" PRIVATE_RAW_ROOT="${RAW_ROOT}" \
-    PRIVATE_EPHEMERAL_ROOT="${EPHEMERAL_ROOT}" node <<'NODE'
-const fs = require('node:fs');
-const path = require('node:path');
-const root = path.resolve(process.env.PRIVATE_OUTPUT_ROOT);
-for (const candidate of [process.env.PRIVATE_RAW_ROOT, process.env.PRIVATE_EPHEMERAL_ROOT]) {
-  const target = path.resolve(candidate);
-  if (target === root || !target.startsWith(`${root}${path.sep}`)) process.exit(70);
-  fs.chmodSync(target, 0o700);
-  fs.rmSync(target, { recursive: true, force: true });
-}
-NODE
+    PRIVATE_EPHEMERAL_ROOT="${EPHEMERAL_ROOT}" \
+    node "${SCRIPT_DIR}/private-material-cleanup.js"
 }
 
 write_status() {
@@ -232,7 +223,7 @@ const record = evidence.buildComputeResult({
 evidence.writePrivateJson(process.env.RESULT_PATH, record);
 NODE
 
-trap - ERR INT TERM
-write_status PASS COMPLETE
 destroy_private_material
 cat "${SANITIZED_RESULT}"
+write_status PASS COMPLETE
+trap - ERR INT TERM
