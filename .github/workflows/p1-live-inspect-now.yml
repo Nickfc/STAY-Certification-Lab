@@ -1,0 +1,85 @@
+name: Capture live SNTSS inspector failure now
+run-name: Capture live SNTSS inspector failure now
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/p1-live-inspect-now.launch]
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate trigger and prepare key
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          grep -Fx 'P1_LIVE_INSPECT_NOW=AUTHORIZED' .github/p1-live-inspect-now.launch
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          : > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+      - name: Run exact read-only inspection as staydeploy
+        id: inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 'bash -s' \
+            > "$RUNNER_TEMP/inspect.raw" 2>&1 <<'REMOTE'
+          set -Eeuo pipefail
+          observed_ip="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a); print a}' | sort -u)"
+          [[ "$observed_ip" == 172.26.9.207 ]]
+          ROOT='/opt/stay/current'
+          [[ "$(readlink -f "$ROOT")" == /opt/stay/releases/0.8.11.3-p1a1-resident-control-7d040592ccf1f149 ]]
+          env -i \
+            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            NODE_ENV=production \
+            STAY_REQUIRE_OS_CORE_SANDBOX=1 \
+            STAY_BWRAP=/usr/bin/bwrap \
+            STAY_REQUIRE_CORE_PACKAGE_POLICY=1 \
+            STAY_REQUIRE_CORE_PROMOTION_CERT=1 \
+            STAY_CORE_PROMOTION_PUBLIC_KEY=/etc/stay/release-authority.pub \
+            STAY_RESIDENT_PROMOTION_CERT_DIR=/etc/stay/resident-promotions \
+            node "$ROOT/deploy/live-physiology-transplant/p1-b0-live-user-probe.js" \
+              "$ROOT" /var/lib/stay/data/continuity.sqlite3 \
+              /etc/stay/release-authority.pub /etc/stay/resident-promotions
+          REMOTE
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          grep -E '^(LIVE_USER_|ERROR_CODE|ERROR_MESSAGE|LABORATORY_BYPASS|CERTIFICATE_ID|AUTHORIZATION_CLASS)=' "$RUNNER_TEMP/inspect.raw" || true
+      - name: Publish exact inspector result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/result.env"
+          {
+            echo 'P1_LIVE_INSPECT_RESULT_FORMAT=stay-p1-live-inspect-v1'
+            echo "ACTIONS_RUN_ID=$GITHUB_RUN_ID"
+            echo "INSPECT_STATUS=${{ steps.inspect.outputs.status }}"
+            grep -E '^(LIVE_USER_|ERROR_CODE|ERROR_MESSAGE|LABORATORY_BYPASS|CERTIFICATE_ID|AUTHORIZATION_CLASS)=' "$RUNNER_TEMP/inspect.raw" || true
+          } > "$result"
+          content="$(base64 -w0 "$result")"
+          path_name='ops/p1-live-inspect-now-result.env'
+          old="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path_name?ref=main" --jq .sha 2>/dev/null || true)"
+          args=(--method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" -f message='Record exact live inspector result' -f content="$content" -f branch=main)
+          [[ -z "$old" ]] || args+=(-f sha="$old")
+          gh api "${args[@]}" >/dev/null
