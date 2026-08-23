@@ -1,0 +1,278 @@
+name: Finish Surgery B now
+run-name: Finish Surgery B now
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/p1-surgery-b-finish-now.launch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stay-genesis-p1-surgery-b-finish-now
+  cancel-in-progress: false
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact launch revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate one-use authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx 'P1_SURGERY_B_FINISH_NOW=AUTHORIZED' .github/p1-surgery-b-finish-now.launch
+          grep -Fx 'OPERATION=surgery-b' .github/p1-surgery-b-finish-now.launch
+          grep -Fx 'RESIDENCY_ID=resident:sntss' .github/p1-surgery-b-finish-now.launch
+
+      - name: Prepare deploy key
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          : > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+
+      - name: Guard host and complete neutral SNTSS attachment
+        id: surgery
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=8 \
+            staydeploy@35.157.242.167 'bash -s' \
+            > "$RUNNER_TEMP/surgery-b-finish.raw" 2>&1 <<'REMOTE'
+          set -Eeuo pipefail
+          EXPECTED_PRIVATE_IPV4='172.26.9.207'
+          EXPECTED_RELEASE='/opt/stay/releases/0.8.11.3-p1a1-resident-control-7d040592ccf1f149'
+          SOCKET='/run/stay/resident-control.sock'
+          DATABASE='/var/lib/stay/data/continuity.sqlite3'
+
+          observed_ip="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a); print a}' | sort -u)"
+          [[ "$observed_ip" == "$EXPECTED_PRIVATE_IPV4" ]]
+          pointer="$(readlink -f /opt/stay/current)"
+          [[ "$pointer" == "$EXPECTED_RELEASE" ]]
+          [[ -S "$SOCKET" && -r "$SOCKET" && -w "$SOCKET" ]]
+
+          echo 'HOST_IDENTITY_GUARD=PASS'
+          echo "OBSERVED_PRIVATE_IPV4=$observed_ip"
+          echo "CURRENT_RELEASE=$pointer"
+
+          control() {
+            node - "$1" "$2" <<'NODE'
+          'use strict';
+          const net = require('node:net');
+          const operation = process.argv[2];
+          const residencyId = process.argv[3];
+          const socket = net.createConnection('/run/stay/resident-control.sock');
+          socket.setEncoding('utf8');
+          let body = '';
+          let settled = false;
+          let keepalive = null;
+          const deadline = setTimeout(() => {
+            const error = Object.assign(new Error('absolute deadline'), { code: 'RESIDENT_CONTROL_DEADLINE' });
+            socket.destroy(error);
+          }, 120000);
+          function finish(error) {
+            if (settled) return;
+            settled = true;
+            clearTimeout(deadline);
+            if (keepalive) clearInterval(keepalive);
+            if (error) {
+              console.error('RESIDENT_CONTROL_CLIENT_ABORT=' + String(error.code || 'FAILED'));
+              process.exitCode = 1;
+              return;
+            }
+            try {
+              const response = JSON.parse(body);
+              if (response.ok !== true) {
+                throw Object.assign(new Error('operation denied'), {
+                  code: response.code || 'RESIDENT_CONTROL_DENIED'
+                });
+              }
+              process.stdout.write(JSON.stringify(response) + '\n');
+            } catch (parseError) {
+              console.error('RESIDENT_CONTROL_CLIENT_ABORT=' + String(parseError.code || 'RESIDENT_CONTROL_RESPONSE'));
+              process.exitCode = 1;
+            }
+          }
+          socket.once('connect', () => {
+            socket.write(JSON.stringify({
+              format: 'stay-resident-control-v1', operation, residencyId
+            }) + '\n');
+            keepalive = setInterval(() => {
+              if (!socket.destroyed && socket.writable) socket.write(' ');
+            }, 750);
+          });
+          socket.on('data', chunk => {
+            body += chunk;
+            if (keepalive) { clearInterval(keepalive); keepalive = null; }
+            if (Buffer.byteLength(body, 'utf8') > 65536) {
+              socket.destroy(Object.assign(new Error('response too large'), { code: 'RESIDENT_CONTROL_RESPONSE' }));
+            }
+          });
+          socket.once('end', () => finish());
+          socket.once('error', finish);
+          NODE
+          }
+
+          field() {
+            node -e 'const v=process.argv[2].split(".").reduce((o,k)=>o?.[k],JSON.parse(process.argv[1]));process.stdout.write(String(v??""))' "$1" "$2"
+          }
+
+          pre_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
+          [[ "$(field "$pre_health" ok)" == true ]]
+          [[ "$(field "$pre_health" version)" == 0.8.11.3 ]]
+          pre_revision="$(field "$pre_health" revision)"
+          (( pre_revision >= 56 ))
+          pre_pid="$(systemctl show stay.service -p MainPID --value)"
+          pre_restarts="$(systemctl show stay.service -p NRestarts --value)"
+          [[ "$pre_pid" =~ ^[1-9][0-9]*$ ]]
+
+          sntss="$(control status resident:sntss)"
+          present="$(field "$sntss" resident.present)"
+          if [[ "$present" == false ]]; then
+            attach="$(control attach resident:sntss)"
+            [[ "$(field "$attach" resident.residencyId)" == resident:sntss ]]
+            echo 'ATTACH_DISPOSITION=ATTACHED_NOW'
+            sntss="$attach"
+          elif [[ "$present" == true ]]; then
+            echo 'ATTACH_DISPOSITION=ALREADY_PRESENT_PRESERVED'
+          else
+            echo 'SURGERY_B_ABORT=invalid-resident-status'
+            exit 70
+          fi
+
+          initial_generation="$(field "$sntss" resident.checkpointGeneration)"
+          initial_events="$(field "$sntss" resident.handledEvents)"
+          for _ in $(seq 1 240); do
+            sntss="$(control status resident:sntss)"
+            generation="$(field "$sntss" resident.checkpointGeneration)"
+            handled="$(field "$sntss" resident.handledEvents)"
+            if [[ "$(field "$sntss" resident.running)" == true ]] &&
+               (( generation >= initial_generation + 3 )) &&
+               (( handled >= initial_events + 3 )); then
+              break
+            fi
+            sleep 1
+          done
+
+          [[ "$(field "$sntss" resident.residencyId)" == resident:sntss ]]
+          [[ "$(field "$sntss" resident.version)" == 0.4.0-i3d3 ]]
+          [[ "$(field "$sntss" resident.stateSchema)" == 4 ]]
+          [[ "$(field "$sntss" resident.status)" == RUNNING ]]
+          [[ "$(field "$sntss" resident.running)" == true ]]
+          [[ "$(field "$sntss" resident.signalling)" == FORBIDDEN ]]
+          [[ "$(field "$sntss" resident.productionEligible)" == false ]]
+          [[ "$(field "$sntss" resident.declaredOutputs)" == 0 ]]
+          [[ "$(field "$sntss" resident.observedOutputs)" == 0 ]]
+          [[ "$(field "$sntss" resident.authorityOwned)" == false ]]
+          [[ "$(field "$sntss" resident.health.ok)" == true ]]
+          (( $(field "$sntss" resident.checkpointGeneration) >= initial_generation + 3 ))
+          (( $(field "$sntss" resident.handledEvents) >= initial_events + 3 ))
+
+          chrono="$(control status resident:chronobiology)"
+          [[ "$(field "$chrono" resident.present)" == false ]]
+          [[ "$(field "$chrono" resident.authorityOwned)" == false ]]
+
+          db_check="$(node - "$DATABASE" <<'NODE'
+          'use strict';
+          const { DatabaseSync } = require('node:sqlite');
+          const db = new DatabaseSync(process.argv[2], { readOnly: true });
+          db.exec('PRAGMA query_only=ON');
+          const authority = db.prepare("SELECT COUNT(*) AS n FROM authority WHERE core_id IN ('sntss','chronobiology')").get();
+          const resident = db.prepare("SELECT COUNT(*) AS n FROM resident_instances WHERE residency_id='resident:sntss' AND core_id='sntss' AND version='0.4.0-i3d3' AND state_schema=4 AND status='RUNNING'").get();
+          console.log(JSON.stringify({ authority: Number(authority.n), resident: Number(resident.n) }));
+          db.close();
+          NODE
+          )"
+          [[ "$(field "$db_check" authority)" == 0 ]]
+          [[ "$(field "$db_check" resident)" == 1 ]]
+
+          meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          fetus="$(node -e 'const m=JSON.parse(process.argv[1]);const f=m.cores?.find(x=>x.id==="fetus-legacy");process.stdout.write(JSON.stringify(f||null))' "$meta")"
+          [[ "$(field "$fetus" ok)" == true ]]
+          [[ "$(field "$fetus" version)" == 0.6.0 ]]
+
+          post_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
+          [[ "$(field "$post_health" ok)" == true ]]
+          [[ "$(readlink -f /opt/stay/current)" == "$pointer" ]]
+          [[ "$(systemctl show stay.service -p MainPID --value)" == "$pre_pid" ]]
+          [[ "$(systemctl show stay.service -p NRestarts --value)" == "$pre_restarts" ]]
+
+          echo 'SURGERY_B_RESULT=PASS'
+          echo "RUNTIME_REVISION_BEFORE=$pre_revision"
+          echo "RUNTIME_REVISION_AFTER=$(field "$post_health" revision)"
+          echo 'SNTSS_RESIDENCY_ID=resident:sntss'
+          echo 'SNTSS_VERSION=0.4.0-i3d3'
+          echo 'SNTSS_STATE_SCHEMA=4'
+          echo 'SNTSS_STATUS=ACTIVE_NEUTRAL_RESIDENT'
+          echo 'SNTSS_OUTPUT_COUNT=0'
+          echo 'SNTSS_SIGNALLING=FORBIDDEN'
+          echo 'SNTSS_AUTHORITY=NONE'
+          echo 'SNTSS_PRODUCTION_ELIGIBLE=NO'
+          echo "CHECKPOINT_GENERATION=$(field "$sntss" resident.checkpointGeneration)"
+          echo "HANDLED_EVENTS=$(field "$sntss" resident.handledEvents)"
+          echo 'FETUS_CONTINUITY=PASS'
+          echo 'CHRONOBIOLOGY_ACTIVATED=NO'
+          echo 'BIOLOGICAL_AUTHORITY_CHANGED=NO'
+          echo 'SERVICE_RESTARTED=NO'
+          echo 'CURRENT_POINTER_CHANGE=NO'
+          REMOTE
+          remote_status=$?
+          set -e
+          echo "remote_status=$remote_status" >> "$GITHUB_OUTPUT"
+          grep -E '^(HOST_IDENTITY_GUARD|OBSERVED_PRIVATE_IPV4|CURRENT_RELEASE|ATTACH_DISPOSITION|RESIDENT_CONTROL_CLIENT_ABORT|SURGERY_B_ABORT|SURGERY_B_RESULT|RUNTIME_REVISION_BEFORE|RUNTIME_REVISION_AFTER|SNTSS_RESIDENCY_ID|SNTSS_VERSION|SNTSS_STATE_SCHEMA|SNTSS_STATUS|SNTSS_OUTPUT_COUNT|SNTSS_SIGNALLING|SNTSS_AUTHORITY|SNTSS_PRODUCTION_ELIGIBLE|CHECKPOINT_GENERATION|HANDLED_EVENTS|FETUS_CONTINUITY|CHRONOBIOLOGY_ACTIVATED|BIOLOGICAL_AUTHORITY_CHANGED|SERVICE_RESTARTED|CURRENT_POINTER_CHANGE)=' "$RUNNER_TEMP/surgery-b-finish.raw" || true
+
+      - name: Publish final transplant result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/p1-surgery-b-finish-now-result.env"
+          {
+            echo 'P1_SURGERY_B_FINISH_RESULT_FORMAT=stay-p1-surgery-b-finish-v1'
+            echo "ACTIONS_RUN_ID=$GITHUB_RUN_ID"
+            echo "REMOTE_STATUS=${{ steps.surgery.outputs.remote_status }}"
+            if [[ -f "$RUNNER_TEMP/surgery-b-finish.raw" ]]; then
+              grep -E '^(HOST_IDENTITY_GUARD|OBSERVED_PRIVATE_IPV4|CURRENT_RELEASE|ATTACH_DISPOSITION|RESIDENT_CONTROL_CLIENT_ABORT|SURGERY_B_ABORT|SURGERY_B_RESULT|RUNTIME_REVISION_BEFORE|RUNTIME_REVISION_AFTER|SNTSS_RESIDENCY_ID|SNTSS_VERSION|SNTSS_STATE_SCHEMA|SNTSS_STATUS|SNTSS_OUTPUT_COUNT|SNTSS_SIGNALLING|SNTSS_AUTHORITY|SNTSS_PRODUCTION_ELIGIBLE|CHECKPOINT_GENERATION|HANDLED_EVENTS|FETUS_CONTINUITY|CHRONOBIOLOGY_ACTIVATED|BIOLOGICAL_AUTHORITY_CHANGED|SERVICE_RESTARTED|CURRENT_POINTER_CHANGE)=' "$RUNNER_TEMP/surgery-b-finish.raw" || true
+            fi
+          } > "$result"
+          content="$(base64 -w0 "$result")"
+          path_name='ops/p1-surgery-b-finish-now-result.env'
+          existing_sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path_name?ref=main" --jq .sha 2>/dev/null || true)"
+          if [[ -n "$existing_sha" ]]; then
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" \
+              -f message='Record final Surgery B transplant result' \
+              -f content="$content" -f branch=main -f sha="$existing_sha" >/dev/null
+          else
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" \
+              -f message='Record final Surgery B transplant result' \
+              -f content="$content" -f branch=main >/dev/null
+          fi
+
+      - name: Require completed transplant
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ steps.surgery.outputs.remote_status }}" == 0 ]]
+          grep -Fx 'SURGERY_B_RESULT=PASS' "$RUNNER_TEMP/surgery-b-finish.raw"
