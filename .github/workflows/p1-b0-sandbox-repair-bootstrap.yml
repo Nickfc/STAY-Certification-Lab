@@ -198,7 +198,7 @@ jobs:
           set -Eeuo pipefail
           ROOT="$1"; EXPECTED_WRAPPER="$2"; EXPECTED_INSTALLER="$3"
           [[ "$ROOT" =~ ^/opt/stay/incoming/p1-bootstrap-[0-9]+$ && -d "$ROOT" && ! -L "$ROOT" ]]
-          [[ "$(stat -Lc '%U:%G:%a:%h' "$ROOT")" == staydeploy:staydeploy:700:1 ]]
+          [[ "$(stat -Lc '%U:%G:%a' "$ROOT")" == staydeploy:staydeploy:700 ]]
           [[ -f "$ROOT/stay-p1-production-controller" && ! -L "$ROOT/stay-p1-production-controller" ]]
           [[ -f "$ROOT/install-p1-production-controller.sh" && ! -L "$ROOT/install-p1-production-controller.sh" ]]
           [[ "$(stat -Lc '%U:%G:%a:%h' "$ROOT/stay-p1-production-controller")" == staydeploy:staydeploy:555:1 ]]
