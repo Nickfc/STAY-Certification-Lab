@@ -19,8 +19,14 @@ ZERO_CAP_HEX='0000000000000000'
 WORK="$(mktemp -d /run/stay-p1-final-transplant.XXXXXX)"
 DROPIN_CHANGED=0
 ATTACH_STARTED=0
+ABORT_REPORTED=0
+STEP='initialization'
 
-abort() { echo "FINAL_TRANSPLANT_ABORT=$1" >&2; exit "${2:-1}"; }
+abort() {
+  ABORT_REPORTED=1
+  echo "FINAL_TRANSPLANT_ABORT=$1" >&2
+  exit "${2:-1}"
+}
 field() {
   node -e 'const v=process.argv[2].split(".").reduce((o,k)=>o?.[k],JSON.parse(process.argv[1]));process.stdout.write(String(v??""))' "$1" "$2"
 }
@@ -37,8 +43,11 @@ NODE
 }
 restore_pre_attach() {
   local status=$?
-  trap - ERR EXIT
+  trap - EXIT
   set +e
+  if [[ "$status" -ne 0 && "$ABORT_REPORTED" -eq 0 ]]; then
+    echo "FINAL_TRANSPLANT_ABORT=unclassified-step-$STEP status=$status" >&2
+  fi
   if [[ "$status" -ne 0 && "$DROPIN_CHANGED" -eq 1 && "$ATTACH_STARTED" -eq 0 && "$(resident_count 2>/dev/null)" == 0 ]]; then
     install -o root -g root -m 0644 "$WORK/dropin.before" "$DROPIN"
     systemctl daemon-reload
@@ -49,7 +58,7 @@ restore_pre_attach() {
   rm -rf --one-file-system -- "$WORK"
   exit "$status"
 }
-trap restore_pre_attach ERR EXIT
+trap restore_pre_attach EXIT
 
 [[ "$EUID" -eq 0 ]] || abort root-required 101
 observed_ip="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a); print a}' | sort -u)"
@@ -168,6 +177,7 @@ install -o root -g root -m 0644 "$WORK/dropin.next" "$DROPIN"
 DROPIN_CHANGED=1
 dropin_hash="$(sha256sum "$DROPIN" | awk '{print $1}')"
 
+STEP='service-restart-with-seccomp-wrapper'
 systemctl daemon-reload
 systemctl restart stay.service
 for _ in $(seq 1 90); do
@@ -188,6 +198,7 @@ done
 [[ "$(status_value "$post_pid" CapBnd)" == "$CAP_BOUND_HEX" && "$(status_value "$post_pid" NoNewPrivs)" == 0 ]] || abort repaired-capability-envelope 119
 [[ "$(readlink -f /opt/stay/current)" == "$pre_pointer" ]] || abort pointer-changed-during-repair 120
 
+STEP='live-user-core-inspection'
 probe="$(runuser -u staydeploy -- env -i \
   PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP="$HELPER" \
@@ -208,6 +219,7 @@ NODE
 grep -Fx 'LIVE_USER_CORE_INSPECT=PASS' <<<"$probe" >/dev/null || abort setuid-bwrap-probe-marker 122
 grep -Fx 'VERSION=0.4.0-i3d3' <<<"$probe" >/dev/null || abort setuid-bwrap-probe-version 123
 
+STEP='payload-userns-seccomp-verification'
 set +e
 userns_probe="$(runuser -u staydeploy -- "$HELPER" \
   --die-with-parent --new-session --unshare-all --unshare-user \
@@ -262,6 +274,7 @@ before_chrono="$(control status resident:chronobiology)" || abort chronobiology-
 [[ "$(field "$before_sntss" resident.present)" == false && "$(field "$before_chrono" resident.present)" == false ]] || abort resident-precondition-changed 126
 
 ATTACH_STARTED=1
+STEP='resident-sntss-attach'
 attach="$(control attach resident:sntss)" || abort attach-failed 127
 [[ "$(field "$attach" resident.residencyId)" == resident:sntss ]] || abort attach-residency 128
 initial_generation="$(field "$attach" resident.checkpointGeneration)"
