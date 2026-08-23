@@ -170,6 +170,9 @@ cat > "$WORK/dropin.next" <<EOF
 [Service]
 NoNewPrivileges=false
 CapabilityBoundingSet=$CAPABILITIES
+MemoryHigh=671088640
+MemoryMax=805306368
+TasksMax=512
 Environment=STAY_REQUIRE_OS_CORE_SANDBOX=1
 Environment=STAY_BWRAP=$HELPER
 Environment=STAY_REQUIRE_CORE_PACKAGE_POLICY=1
@@ -199,7 +202,9 @@ post_pid="$(systemctl show stay.service -p MainPID --value)"
 [[ "$(systemctl show stay.service -p ActiveState --value)" == active &&
    "$(systemctl show stay.service -p SubState --value)" == running &&
    "$(systemctl show stay.service -p NRestarts --value)" == 0 &&
-   "$(systemctl show stay.service -p NoNewPrivileges --value)" == no ]] || abort repaired-service-contract 117
+   "$(systemctl show stay.service -p NoNewPrivileges --value)" == no &&
+   "$(systemctl show stay.service -p MemoryMax --value)" == 805306368 &&
+   "$(systemctl show stay.service -p TasksMax --value)" == 512 ]] || abort repaired-service-contract 117
 for capability_field in CapPrm CapEff CapAmb; do
   [[ "$(status_value "$post_pid" "$capability_field")" == "$ZERO_CAP_HEX" ]] || abort "service-${capability_field}-not-empty" 118
 done
@@ -343,6 +348,8 @@ SETUID_BWRAP_SHA256=$bwrap_hash
 USERNS_FILTER=$USERNS_FILTER
 USERNS_FILTER_SHA256=$filter_hash
 CGROUP_MODE=TEMPORARY_BYPASS_BROKEN_TWO_PROCESS_ACCOUNTING
+SERVICE_MEMORY_MAX_BYTES=805306368
+SERVICE_TASKS_MAX=512
 DROPIN_SHA256=$dropin_hash
 SERVICE_MAIN_PID=$post_pid
 RUNTIME_REVISION=$(field "$final_health" revision)
@@ -373,6 +380,8 @@ BWRAP_HELPER_SHA256=sha256:$helper_hash
 SETUID_BWRAP_SHA256=sha256:$bwrap_hash
 USERNS_FILTER_SHA256=sha256:$filter_hash
 CGROUP_MODE=TEMPORARY_BYPASS_BROKEN_TWO_PROCESS_ACCOUNTING
+SERVICE_MEMORY_MAX_BYTES=805306368
+SERVICE_TASKS_MAX=512
 SERVICE_RESTARTED=YES_SANDBOX_REPAIR_ONLY
 CURRENT_POINTER_CHANGE=NO
 SNTSS_RESIDENCY_ID=resident:sntss
