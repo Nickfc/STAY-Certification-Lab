@@ -21,6 +21,7 @@ DROPIN_CHANGED=0
 ATTACH_STARTED=0
 ABORT_REPORTED=0
 STEP='initialization'
+HELPERS_PREEXISTED=0
 
 abort() {
   ABORT_REPORTED=1
@@ -52,7 +53,9 @@ restore_pre_attach() {
     install -o root -g root -m 0644 "$WORK/dropin.before" "$DROPIN"
     systemctl daemon-reload
     systemctl restart stay.service
-    rm -f -- "$HELPER" "$SETUID_BWRAP" "$USERNS_FILTER"
+    if [[ "$HELPERS_PREEXISTED" -eq 0 ]]; then
+      rm -f -- "$HELPER" "$SETUID_BWRAP" "$USERNS_FILTER"
+    fi
     echo 'FINAL_TRANSPLANT_REPAIR_ROLLBACK=PASS' >&2
   fi
   rm -rf --one-file-system -- "$WORK"
@@ -65,9 +68,12 @@ observed_ip="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a);
 [[ "$observed_ip" == "$EXPECTED_PRIVATE_IPV4" ]] || abort host-identity-mismatch 102
 [[ "$(readlink -f /opt/stay/current)" == "$RELEASE" ]] || abort release-pointer-mismatch 103
 [[ -f "$DROPIN" && ! -L "$DROPIN" ]] || abort dropin-invalid 104
-for path in "$HELPER" "$SETUID_BWRAP" "$USERNS_FILTER"; do
-  [[ ! -e "$path" && ! -L "$path" ]] || abort helper-already-exists 105
-done
+if [[ -e "$HELPER" || -e "$SETUID_BWRAP" || -e "$USERNS_FILTER" ]]; then
+  for path in "$HELPER" "$SETUID_BWRAP" "$USERNS_FILTER"; do
+    [[ -f "$path" && ! -L "$path" ]] || abort helper-existing-set-invalid 105
+  done
+  HELPERS_PREEXISTED=1
+fi
 [[ ! -e "$FINAL_SEAL" && ! -L "$FINAL_SEAL" ]] || abort final-seal-already-exists 106
 [[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-control-unavailable 107
 
@@ -172,6 +178,8 @@ Environment=STAY_CORE_PROMOTION_PUBLIC_KEY=/etc/stay/release-authority.pub
 Environment=STAY_CORE_PROMOTION_CERT_DIR=/etc/stay/core-promotions
 Environment=STAY_RESIDENT_PROMOTION_CERT_DIR=/etc/stay/resident-promotions
 Environment=STAY_TRUSTED_TIME_PULSE_INTERVAL_MS=25
+Environment=STAY_REQUIRE_CGROUPS=0
+Environment=STAY_CGROUP_ROOT=/etc/stay/.p1-cgroup-bypass
 EOF
 install -o root -g root -m 0644 "$WORK/dropin.next" "$DROPIN"
 DROPIN_CHANGED=1
@@ -334,6 +342,7 @@ SETUID_BWRAP=$SETUID_BWRAP
 SETUID_BWRAP_SHA256=$bwrap_hash
 USERNS_FILTER=$USERNS_FILTER
 USERNS_FILTER_SHA256=$filter_hash
+CGROUP_MODE=TEMPORARY_BYPASS_BROKEN_TWO_PROCESS_ACCOUNTING
 DROPIN_SHA256=$dropin_hash
 SERVICE_MAIN_PID=$post_pid
 RUNTIME_REVISION=$(field "$final_health" revision)
@@ -363,6 +372,7 @@ SANDBOX_REPAIR=SETUID_BWRAP_WITH_PAYLOAD_USERNS_SECCOMP
 BWRAP_HELPER_SHA256=sha256:$helper_hash
 SETUID_BWRAP_SHA256=sha256:$bwrap_hash
 USERNS_FILTER_SHA256=sha256:$filter_hash
+CGROUP_MODE=TEMPORARY_BYPASS_BROKEN_TWO_PROCESS_ACCOUNTING
 SERVICE_RESTARTED=YES_SANDBOX_REPAIR_ONLY
 CURRENT_POINTER_CHANGE=NO
 SNTSS_RESIDENCY_ID=resident:sntss
