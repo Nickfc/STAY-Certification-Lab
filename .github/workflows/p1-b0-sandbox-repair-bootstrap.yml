@@ -22,9 +22,9 @@ concurrency:
 
 env:
   CONTROLLER_COMMIT: 41b4ee07ab9c4d83ff025a7524ebc54539790963
-  CONTROLLER_SOURCE_IDENTITY: sha256:9127b9f6ed8985a41ec3f8ed372f40076644c98fb55c5b9dbc8322b55a72c20a
-  WRAPPER_SHA256: fe14b51dea86ec5fe10ee301803c18bba45e04ba6b321cdfa8f97e65d504e850
-  INSTALLER_SHA256: 732517c88045315ec5c1245aa79da2bc626c0f64cc569619038134391c6b9431
+  CONTROLLER_SOURCE_IDENTITY: sha256:1ae75d99d3e0bc7e7d3a07ea0cff734a6555684e304b0ae1aba102becbe1d89b
+  WRAPPER_SHA256: 5ce61d3d8e3f55f56ac0fee43f6a95f1d861f0fed7bf84a2867580af87f710b5
+  INSTALLER_SHA256: 90329ea483a72be61cdd7a2388acdbe872263ad4a3f0eee6a428bea3e847d139
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
 
@@ -205,7 +205,9 @@ jobs:
           set -Eeuo pipefail
           ROOT="$1"; EXPECTED_WRAPPER="$2"; EXPECTED_INSTALLER="$3"
           [[ "$ROOT" =~ ^/opt/stay/incoming/p1-bootstrap-[0-9]+$ && -d "$ROOT" && ! -L "$ROOT" ]]
-          [[ "$(stat -Lc '%U:%G:%a' "$ROOT")" == staydeploy:staydeploy:700 ]]
+          ROOT_MODE="$(stat -Lc '%a' "$ROOT")"
+          [[ "$(stat -Lc '%U:%G' "$ROOT")" == staydeploy:staydeploy &&
+             ( "$ROOT_MODE" == 700 || "$ROOT_MODE" == 2700 ) ]]
           [[ -f "$ROOT/stay-p1-production-controller" && ! -L "$ROOT/stay-p1-production-controller" ]]
           [[ -f "$ROOT/install-p1-production-controller.sh" && ! -L "$ROOT/install-p1-production-controller.sh" ]]
           [[ "$(stat -Lc '%U:%G:%a:%h' "$ROOT/stay-p1-production-controller")" == staydeploy:staydeploy:555:1 ]]

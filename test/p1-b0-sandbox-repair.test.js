@@ -84,10 +84,17 @@ test('P1-B0-R6 forward completion seals the exact revision-56 repair without ano
   const remote = read('deploy/live-physiology-transplant/p1-actions-remote-controller.sh');
   const wrapper = read('deploy/live-physiology-transplant/stay-p1-production-controller');
   const launcher = read('.github/workflows/p1-production-controller-launcher.yml');
+  const bootstrap = read('.github/workflows/p1-b0-sandbox-repair-bootstrap.yml');
 
   assert.match(completion, /EXPECTED_PID="82673"/);
   assert.match(completion, /EXPECTED_REVISION="56"/);
   assert.match(completion, /EXPECTED_DROPIN_SHA256="6225ba2a5b89031cf73fa12ff7fd959a798c3e8518db3c5be9c970983f29f71f"/);
+  assert.match(completion, /stat -Lc '%U:%G' "\$EVIDENCE_DIR"/);
+  assert.match(completion, /EVIDENCE_DIR_MODE" == 700 \|\| "\$EVIDENCE_DIR_MODE" == 2700/);
+  assert.match(completion, /-d "\$EVIDENCE_DIR" && ! -L "\$EVIDENCE_DIR"/);
+  assert.doesNotMatch(completion, /stat -Lc '%U:%G:%a:%h' "\$EVIDENCE_DIR"/);
+  assert.match(completion, /EXPECTED_INITIAL_FILES=/);
+  assert.match(completion, /root_regular "\$EVIDENCE_DIR\/\$file"/);
   assert.match(completion, /CAP_INH_HEX="0000000000200000"/);
   assert.match(completion, /CAP_BOUND_HEX="00000000002c10c0"/);
   assert.match(completion, /NoNewPrivs/);
@@ -106,4 +113,5 @@ test('P1-B0-R6 forward completion seals the exact revision-56 repair without ano
   assert.match(wrapper, /AUTHORIZE_B0_SANDBOX_REPAIR_COMPLETION_7D040592CCF1F149/);
   assert.match(wrapper, /B0_SANDBOX_REPAIR_COMPLETION_RESULT=PASS/);
   assert.match(launcher, /complete-b0-sandbox-repair/);
+  assert.match(bootstrap, /ROOT_MODE" == 700 \|\| "\$ROOT_MODE" == 2700/);
 });

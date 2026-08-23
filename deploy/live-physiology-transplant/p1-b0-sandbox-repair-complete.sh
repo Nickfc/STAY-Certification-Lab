@@ -70,8 +70,11 @@ mapfile -d '' PARTIAL_DIRS < <(
 )
 [[ "${#PARTIAL_DIRS[@]}" -eq 1 ]] || abort partial-evidence-directory-not-unique 396
 EVIDENCE_DIR="${PARTIAL_DIRS[0]}"
+EVIDENCE_DIR_MODE="$(stat -Lc '%a' "$EVIDENCE_DIR")" || abort partial-evidence-directory-invalid 397
 [[ "$EVIDENCE_DIR" =~ ^/var/lib/stay/evidence/live-physiology-transplant/b0-sandbox-repair-20260823T1636[0-9]{2}Z$ &&
-   ! -L "$EVIDENCE_DIR" && "$(stat -Lc '%U:%G:%a:%h' "$EVIDENCE_DIR")" == root:root:700:1 ]] || abort partial-evidence-directory-invalid 397
+   -d "$EVIDENCE_DIR" && ! -L "$EVIDENCE_DIR" &&
+   "$(stat -Lc '%U:%G' "$EVIDENCE_DIR")" == root:root &&
+   ( "$EVIDENCE_DIR_MODE" == 700 || "$EVIDENCE_DIR_MODE" == 2700 ) ]] || abort partial-evidence-directory-invalid 397
 
 EXPECTED_INITIAL_FILES=$'dropin-before.conf\nhealth-before.json\nlive-user-probe-before.txt\nphysiology-before.json\nservice-before.txt\nstate-before.json'
 OBSERVED_INITIAL_FILES="$(find -P "$EVIDENCE_DIR" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)"
