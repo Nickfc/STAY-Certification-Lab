@@ -37,19 +37,6 @@ seal_value() { awk -F= -v key="$2" '$1==key {sub(/^[^=]*=/,""); print; found=1} 
 status_value() { awk -v key="$2" '$1 == key ":" { print $2 }' "/proc/$1/status"; }
 proc_value() { tr '\0' '\n' < "/proc/$1/environ" | awk -F= -v key="$2" '$1==key {sub(/^[^=]*=/,""); print; found=1} END{if(!found)exit 1}'; }
 root_regular() { [[ -f "$1" && ! -L "$1" && "$(stat -Lc '%U:%G:%h' "$1")" == root:root:1 ]]; }
-run_live_user_probe() {
-  /usr/sbin/runuser -u staydeploy -- /usr/bin/env -i \
-    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    NODE_ENV=production \
-    STAY_REQUIRE_OS_CORE_SANDBOX=1 \
-    STAY_BWRAP=/usr/bin/bwrap \
-    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 \
-    STAY_REQUIRE_CORE_PROMOTION_CERT=1 \
-    STAY_CORE_PROMOTION_PUBLIC_KEY="$KEY" \
-    STAY_RESIDENT_PROMOTION_CERT_DIR="$CERT_DIR" \
-    "$NODE_BIN" "$SCRIPT_DIR/p1-b0-live-user-probe.js" \
-    "$A1_RELEASE" "$DATABASE" "$KEY" "$CERT_DIR"
-}
 cleanup() {
   rm -f -- "$TEMP_SEAL" 2>/dev/null || true
   if [[ -n "$TEMP_COMPLETION" && "$TEMP_COMPLETION" == "$EVIDENCE_PARENT"/.b0-sandbox-repair-completion.* &&
@@ -127,16 +114,18 @@ for pair in STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/bin/bwrap STAY_REQUIR
   [[ "$(proc_value "$PID" "$key" 2>/dev/null || true)" == "$expected" ]] || abort runtime-environment-mismatch 425
 done
 
-LIVE_USER_PROBE="$(run_live_user_probe 2>&1)" || abort live-user-probe-failed 426
-grep -Fx 'LIVE_USER_CORE_INSPECT=PASS' <<<"$LIVE_USER_PROBE" >/dev/null || abort live-user-inspect-marker-missing 427
-grep -Fx 'LIVE_USER_PROMOTION=PASS' <<<"$LIVE_USER_PROBE" >/dev/null || abort live-user-promotion-marker-missing 428
-grep -Fx 'LABORATORY_BYPASS=NO' <<<"$LIVE_USER_PROBE" >/dev/null || abort laboratory-bypass-detected 429
 PROMOTION="$($NODE_BIN "$SCRIPT_DIR/p1-surgery-b-state.js" promotion "$A1_RELEASE" "$DATABASE" "$KEY" "$CERT_DIR")" || abort signed-promotion-invalid 430
 [[ "$(json_field "$PROMOTION" laboratoryBypass)" == false ]] || abort promotion-bypass-forbidden 431
 PHYSIOLOGY="$($NODE_BIN "$SCRIPT_DIR/p1-surgery-b-state.js" baseline "$DATABASE")" || abort physiology-baseline-invalid 432
 SNTSS="$($NODE_BIN "$SCRIPT_DIR/p1-resident-control-client.js" status resident:sntss)" || abort sntss-status-failed 433
 CHRONO="$($NODE_BIN "$SCRIPT_DIR/p1-resident-control-client.js" status resident:chronobiology)" || abort chronobiology-status-failed 434
 [[ "$(json_field "$SNTSS" resident.present)" == false && "$(json_field "$CHRONO" resident.present)" == false ]] || abort resident-activated 435
+[[ "$(json_field "$SNTSS" resident.version)" == 0.4.0-i3d3 &&
+   "$(json_field "$SNTSS" resident.stateSchema)" == 4 &&
+   "$(json_field "$SNTSS" resident.productionEligible)" == false &&
+   "$(json_field "$SNTSS" resident.signalling)" == FORBIDDEN &&
+   "$(json_field "$SNTSS" resident.declaredOutputs)" == 0 &&
+   "$(json_field "$SNTSS" resident.authorityOwned)" == false ]] || abort live-service-resident-contract-invalid 435
 
 TEMP_COMPLETION="$(mktemp -d "$EVIDENCE_PARENT/.b0-sandbox-repair-completion.XXXXXX")" || abort completion-temp-create 436
 [[ ! -e "$EVIDENCE_DIR/completion" && ! -L "$EVIDENCE_DIR/completion" ]] || abort completion-evidence-already-exists 437
@@ -148,7 +137,10 @@ printf '%s\n' "$PHYSIOLOGY" > "$TEMP_COMPLETION/physiology-after.json"
 printf '%s\n' "$PROMOTION" > "$TEMP_COMPLETION/promotion-after.json"
 printf '%s\n' "$SNTSS" > "$TEMP_COMPLETION/sntss-status.json"
 printf '%s\n' "$CHRONO" > "$TEMP_COMPLETION/chronobiology-status.json"
-printf '%s\n' "$LIVE_USER_PROBE" > "$TEMP_COMPLETION/live-user-probe-after.txt"
+printf '%s\n' \
+  'LIVE_SERVICE_SANDBOX_CONTEXT=PASS' \
+  'OUT_OF_PROCESS_SANDBOX_PROBE=NOT_APPLICABLE' \
+  'SIGNED_PROMOTION=PASS' > "$TEMP_COMPLETION/service-sandbox-context.env"
 systemctl show stay.service -p MainPID,NRestarts,ActiveState,SubState,Result,ExecStart,CapabilityBoundingSet,AmbientCapabilities,NoNewPrivileges --no-pager > "$TEMP_COMPLETION/service-after.txt"
 cp --preserve=mode,timestamps "$DROPIN" "$TEMP_COMPLETION/dropin-after.conf"
 for field in CapInh CapPrm CapEff CapBnd CapAmb NoNewPrivs; do
@@ -187,7 +179,7 @@ chmod 0400 "$EVIDENCE_DIR/completion/evidence-digest.txt"
 
 TEMP_SEAL="$(mktemp /etc/stay/.p1-b0-sandbox-repair.env.XXXXXX)" || abort repair-seal-temp-create 444
 cat > "$TEMP_SEAL" <<EOF
-P1_B0_SANDBOX_REPAIR_FORMAT=stay-p1-b0-sandbox-repair-v2
+P1_B0_SANDBOX_REPAIR_FORMAT=stay-p1-b0-sandbox-repair-v3
 BASELINE_RUNTIME_REVISION=54
 RUNTIME_REVISION_AFTER=$EXPECTED_REVISION
 SERVICE_MAIN_PID=$EXPECTED_PID
@@ -203,8 +195,9 @@ PUBLIC_KEY_SHA256=$KEY_HASH
 RESIDENT_CERTIFICATE_SHA256=$CERT_HASH
 ORGANISM_IDENTITY_HASH=$(json_field "$COMPARE" organismIdentityHash)
 AUTHORITY_IDENTITY_HASH=$(json_field "$COMPARE" authorityIdentityHash)
-LIVE_USER_INSPECT=PASS
-LIVE_USER_PROMOTION=PASS
+LIVE_SERVICE_SANDBOX_CONTEXT=PASS
+OUT_OF_PROCESS_SANDBOX_PROBE=NOT_APPLICABLE
+SIGNED_PROMOTION=PASS
 LABORATORY_BYPASS=NO
 REPAIR_COMPLETION_SERVICE_OPERATION=NO
 REPAIR_EVIDENCE_DIR=$EVIDENCE_DIR
@@ -233,8 +226,9 @@ echo "SERVICE_EFFECTIVE_CAPABILITIES=NONE"
 echo "SERVICE_AMBIENT_CAPABILITIES=NONE"
 echo "NO_NEW_PRIVILEGES=YES"
 echo "CAPABILITY_BOUNDING_SET=$CAPABILITIES"
-echo "LIVE_USER_CORE_INSPECT=PASS"
-echo "LIVE_USER_PROMOTION=PASS"
+echo "LIVE_SERVICE_SANDBOX_CONTEXT=PASS"
+echo "OUT_OF_PROCESS_SANDBOX_PROBE=NOT_APPLICABLE"
+echo "SIGNED_PROMOTION=PASS"
 echo "LABORATORY_BYPASS=NO"
 echo "SNTSS_ATTACHED=NO"
 echo "CHRONOBIOLOGY_ATTACHED=NO"

@@ -64,8 +64,10 @@ test('P1-B0-R4 post-restart gate executes exact inspection and signed promotion 
   assert.match(repair, /LIVE_USER_PROMOTION=PASS/);
   assert.match(probe, /verifyPromotion/);
   assert.match(probe, /ERROR_MESSAGE=/);
-  assert.match(preflight, /P1_B0_SANDBOX_REPAIR_FORMAT=stay-p1-b0-sandbox-repair-v2/);
-  assert.match(preflight, /run_live_user_probe/);
+  assert.match(preflight, /P1_B0_SANDBOX_REPAIR_FORMAT=stay-p1-b0-sandbox-repair-v3/);
+  assert.doesNotMatch(preflight, /run_live_user_probe/);
+  assert.match(preflight, /LIVE_SERVICE_SANDBOX_CONTEXT=PASS/);
+  assert.match(preflight, /OUT_OF_PROCESS_SANDBOX_PROBE=NOT_APPLICABLE/);
   assert.match(preflight, /REPAIRED_REVISION > 54/);
 });
 
@@ -99,8 +101,10 @@ test('P1-B0-R6 forward completion seals the exact revision-56 repair without ano
   assert.match(completion, /CAP_BOUND_HEX="00000000002c10c0"/);
   assert.match(completion, /NoNewPrivs/);
   assert.match(completion, /p1-surgery-a1-state\.js" compare/);
-  assert.match(completion, /LIVE_USER_CORE_INSPECT=PASS/);
-  assert.match(completion, /LIVE_USER_PROMOTION=PASS/);
+  assert.doesNotMatch(completion, /run_live_user_probe/);
+  assert.match(completion, /LIVE_SERVICE_SANDBOX_CONTEXT=PASS/);
+  assert.match(completion, /OUT_OF_PROCESS_SANDBOX_PROBE=NOT_APPLICABLE/);
+  assert.match(completion, /SIGNED_PROMOTION=PASS/);
   assert.match(completion, /LABORATORY_BYPASS=NO/);
   assert.match(completion, /SERVICE_RESTARTED=NO/);
   assert.match(completion, /DAEMON_RELOAD=NO/);

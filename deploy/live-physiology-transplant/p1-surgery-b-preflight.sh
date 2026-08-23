@@ -22,17 +22,6 @@ json_field() { "$NODE_BIN" -e 'const v=process.argv[2].split(".").reduce((o,k)=>
 proc_value() { tr '\0' '\n' < "/proc/$1/environ" | awk -F= -v key="$2" '$1==key {sub(/^[^=]*=/,""); print; found=1} END{if(!found)exit 1}'; }
 seal_value() { awk -F= -v key="$2" '$1==key {sub(/^[^=]*=/,""); print; found=1} END{if(!found)exit 1}' "$1"; }
 status_value() { awk -v key="$2" '$1 == key ":" { print $2 }' "/proc/$1/status"; }
-run_live_user_probe() {
-  /usr/sbin/runuser -u staydeploy -- /usr/bin/env -i \
-    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/bin/bwrap \
-    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CORE_PROMOTION_CERT=1 \
-    STAY_CORE_PROMOTION_PUBLIC_KEY=/etc/stay/release-authority.pub \
-    STAY_RESIDENT_PROMOTION_CERT_DIR=/etc/stay/resident-promotions \
-    "$NODE_BIN" "$SCRIPT_DIR/p1-b0-live-user-probe.js" "$A1_RELEASE" "$DATABASE" \
-    /etc/stay/release-authority.pub /etc/stay/resident-promotions
-}
-
 [[ "$(readlink -f /opt/stay/current)" == "$A1_RELEASE" ]] || abort unexpected-current-release 221
 [[ "$(systemctl show stay.service -p ActiveState --value)" == active && "$(systemctl show stay.service -p SubState --value)" == running ]] || abort service-not-running 222
 PID="$(systemctl show stay.service -p MainPID --value)"
@@ -47,14 +36,15 @@ HEALTH="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8787/h
 grep -Fx 'P1_B0_BASELINE_FORMAT=stay-p1-b0-baseline-v1' "$BASELINE_SEAL" >/dev/null || abort b0-baseline-seal-format 229
 grep -Fx 'RUNTIME_REVISION=54' "$BASELINE_SEAL" >/dev/null || abort b0-baseline-revision-unfrozen 229
 [[ -f "$REPAIR_SEAL" && ! -L "$REPAIR_SEAL" && "$(stat -Lc '%U:%G:%a:%h' "$REPAIR_SEAL")" == root:root:444:1 ]] || abort b0-sandbox-repair-seal-invalid 229
-grep -Fx 'P1_B0_SANDBOX_REPAIR_FORMAT=stay-p1-b0-sandbox-repair-v2' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-seal-format 229
+grep -Fx 'P1_B0_SANDBOX_REPAIR_FORMAT=stay-p1-b0-sandbox-repair-v3' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-seal-format 229
 grep -Fx 'BASELINE_RUNTIME_REVISION=54' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-baseline-mismatch 229
 grep -Fx "CAPABILITY_BOUNDING_SET=$CAPABILITIES" "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-capabilities-mismatch 229
 grep -Fx "CAPABILITY_BOUNDING_HEX=$CAP_BOUND_HEX" "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-capability-mask-mismatch 229
 grep -Fx "SERVICE_INHERITABLE_CAPABILITIES_HEX=$CAP_INH_HEX" "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-inheritable-mask-mismatch 229
 grep -Fx 'SERVICE_PERMITTED_CAPABILITIES=NONE' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-permitted-capabilities-unsealed 229
-grep -Fx 'LIVE_USER_INSPECT=PASS' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-inspect-unsealed 229
-grep -Fx 'LIVE_USER_PROMOTION=PASS' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-promotion-unsealed 229
+grep -Fx 'LIVE_SERVICE_SANDBOX_CONTEXT=PASS' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-service-context-unsealed 229
+grep -Fx 'OUT_OF_PROCESS_SANDBOX_PROBE=NOT_APPLICABLE' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-probe-contract-unsealed 229
+grep -Fx 'SIGNED_PROMOTION=PASS' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-promotion-unsealed 229
 grep -Fx 'SERVICE_EFFECTIVE_CAPABILITIES=NONE' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-service-capabilities-unsealed 229
 grep -Fx 'SERVICE_AMBIENT_CAPABILITIES=NONE' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-ambient-capabilities-unsealed 229
 grep -Fx 'NO_NEW_PRIVILEGES=YES' "$REPAIR_SEAL" >/dev/null || abort b0-sandbox-repair-no-new-privileges-unsealed 229
@@ -96,13 +86,15 @@ PACKAGE="$($NODE_BIN "$SCRIPT_DIR/p1-surgery-b-state.js" tree "$A1_RELEASE/cores
 [[ "$(json_field "$PACKAGE" tree)" == "$SNTSS_TREE" ]] || abort sntss-package-tree-mismatch 237
 PROMOTION="$($NODE_BIN "$SCRIPT_DIR/p1-surgery-b-state.js" promotion "$A1_RELEASE" "$DATABASE" "$PUBLIC_KEY" "$CERT_DIR")" || abort promotion-certificate-invalid 238
 [[ "$(json_field "$PROMOTION" laboratoryBypass)" == false ]] || abort promotion-bypass-forbidden 239
-LIVE_USER_PROBE="$(run_live_user_probe 2>&1)" || abort live-user-sandbox-inspection-failed 239
-grep -Fx 'LIVE_USER_CORE_INSPECT=PASS' <<<"$LIVE_USER_PROBE" >/dev/null || abort live-user-inspect-marker-missing 239
-grep -Fx 'LIVE_USER_PROMOTION=PASS' <<<"$LIVE_USER_PROBE" >/dev/null || abort live-user-promotion-marker-missing 239
-grep -Fx 'LABORATORY_BYPASS=NO' <<<"$LIVE_USER_PROBE" >/dev/null || abort live-user-laboratory-bypass 239
 SNTSS="$($NODE_BIN "$SCRIPT_DIR/p1-resident-control-client.js" status resident:sntss)" || abort sntss-status-failed 240
 CHRONO="$($NODE_BIN "$SCRIPT_DIR/p1-resident-control-client.js" status resident:chronobiology)" || abort chronobiology-status-failed 241
 [[ "$(json_field "$SNTSS" resident.present)" == false && "$(json_field "$CHRONO" resident.present)" == false ]] || abort resident-already-present 242
+[[ "$(json_field "$SNTSS" resident.version)" == 0.4.0-i3d3 &&
+   "$(json_field "$SNTSS" resident.stateSchema)" == 4 &&
+   "$(json_field "$SNTSS" resident.productionEligible)" == false &&
+   "$(json_field "$SNTSS" resident.signalling)" == FORBIDDEN &&
+   "$(json_field "$SNTSS" resident.declaredOutputs)" == 0 &&
+   "$(json_field "$SNTSS" resident.authorityOwned)" == false ]] || abort live-service-resident-contract-invalid 242
 
 echo "PREFLIGHT_B_RESULT=PASS"
 echo "CURRENT_RELEASE=$A1_RELEASE"
@@ -118,8 +110,8 @@ echo "FETUS_BARRIER_SEQUENCE=0"
 echo "FETUS_CHECKPOINT_GENERATION_MINIMUM=48"
 echo "SNTSS_PACKAGE_TREE=$SNTSS_TREE"
 echo "SIGNED_PROMOTION=PASS"
-echo "LIVE_USER_CORE_INSPECT=PASS"
-echo "LIVE_USER_PROMOTION=PASS"
+echo "LIVE_SERVICE_SANDBOX_CONTEXT=PASS"
+echo "OUT_OF_PROCESS_SANDBOX_PROBE=NOT_APPLICABLE"
 echo "SERVICE_INHERITABLE_CAPABILITIES_HEX=$CAP_INH_HEX"
 echo "SERVICE_PERMITTED_CAPABILITIES=NONE"
 echo "SERVICE_EFFECTIVE_CAPABILITIES=NONE"

@@ -38,7 +38,10 @@ test('P1-B-01 fixed scripts are socket-only, guarded, and rollback preserves for
   assert.match(preflight, /STAY_REQUIRE_CORE_PROMOTION_CERT/);
   assert.match(preflight, /STAY_TRUSTED_TIME_PULSE_INTERVAL_MS/);
   assert.match(preflight, /p1-b0-sandbox-repair\.env/);
-  assert.match(preflight, /LIVE_USER_CORE_INSPECT=PASS/);
+  assert.doesNotMatch(preflight, /run_live_user_probe/);
+  assert.match(preflight, /LIVE_SERVICE_SANDBOX_CONTEXT=PASS/);
+  assert.match(preflight, /OUT_OF_PROCESS_SANDBOX_PROBE=NOT_APPLICABLE/);
+  assert.match(preflight, /live-service-resident-contract-invalid/);
   assert.match(preflight, /SERVICE_INHERITABLE_CAPABILITIES_HEX/);
   assert.match(preflight, /SERVICE_PERMITTED_CAPABILITIES=NONE/);
   assert.match(preflight, /SERVICE_EFFECTIVE_CAPABILITIES=NONE/);
