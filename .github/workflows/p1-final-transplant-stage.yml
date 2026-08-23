@@ -1,0 +1,108 @@
+name: Stage and observe final transplant
+run-name: Stage and observe final transplant
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/p1-final-transplant-stage.launch]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stay-genesis-p1-final-transplant-stage
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SCRIPT_SHA256: fcb1ce0bda84ba940754f11e79cafe72a587c906294cef8d7c276df07c775fed
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Validate exact root operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx 'P1_FINAL_TRANSPLANT_STAGE=AUTHORIZED' .github/p1-final-transplant-stage.launch
+          script='deploy/live-physiology-transplant/p1-finish-transplant-root.sh'
+          bash -n "$script"
+          [[ "$(sha256sum "$script" | awk '{print $1}')" == "$SCRIPT_SHA256" ]]
+      - name: Prepare deploy key
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          : > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+      - name: Host guard and stage exact script
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_root="/opt/stay/incoming/p1-final-transplant-$GITHUB_RUN_ID"
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 \
+            "set -euo pipefail; observed=\$(ip -o -4 addr show scope global | awk '{a=\$4; sub(/\\/.*/, \"\", a); print a}' | sort -u); [[ \"\$observed\" == 172.26.9.207 ]]; test ! -e '$run_root'; test ! -e /var/lib/stay/evidence/live-physiology-transplant/p1-final-transplant-result.env; install -d -m 0700 '$run_root'"
+          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            deploy/live-physiology-transplant/p1-finish-transplant-root.sh \
+            staydeploy@35.157.242.167:"$run_root/p1-finish-transplant-root.sh"
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 \
+            "set -euo pipefail; chmod 0400 '$run_root/p1-finish-transplant-root.sh'; [[ \"\$(sha256sum '$run_root/p1-finish-transplant-root.sh' | awk '{print \$1}')\" == '$SCRIPT_SHA256' ]]; [[ \"\$(stat -Lc '%U:%G:%a:%h' '$run_root/p1-finish-transplant-root.sh')\" == staydeploy:staydeploy:400:1 ]]"
+      - name: Publish root bridge identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/root-bridge.env"
+          {
+            echo 'P1_FINAL_ROOT_BRIDGE_FORMAT=stay-p1-final-root-bridge-v1'
+            echo "ACTIONS_RUN_ID=$GITHUB_RUN_ID"
+            echo "SEALED_RUN_ROOT=/opt/stay/incoming/p1-final-transplant-$GITHUB_RUN_ID"
+            echo 'SCRIPT_NAME=p1-finish-transplant-root.sh'
+            echo "SCRIPT_SHA256=$SCRIPT_SHA256"
+            echo 'ROOT_BRIDGE_STATUS=AWAITING_SINGLE_COMMAND'
+          } > "$result"
+          content="$(base64 -w0 "$result")"
+          path_name='ops/p1-final-root-bridge.env'
+          old="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path_name?ref=main" --jq .sha 2>/dev/null || true)"
+          args=(--method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" -f message='Publish final root bridge identity' -f content="$content" -f branch=main)
+          [[ -z "$old" ]] || args+=(-f sha="$old")
+          gh api "${args[@]}" >/dev/null
+      - name: Wait for and publish completed transplant
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_result='/var/lib/stay/evidence/live-physiology-transplant/p1-final-transplant-result.env'
+          for _ in $(seq 1 300); do
+            if ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              staydeploy@35.157.242.167 "test -r '$remote_result'"; then
+              break
+            fi
+            sleep 5
+          done
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 "cat '$remote_result'" > "$RUNNER_TEMP/final-result.env"
+          grep -Fx 'FINAL_TRANSPLANT_RESULT=PASS' "$RUNNER_TEMP/final-result.env"
+          grep -Fx 'SURGERY_B_RESULT=PASS' "$RUNNER_TEMP/final-result.env"
+          content="$(base64 -w0 "$RUNNER_TEMP/final-result.env")"
+          path_name='ops/p1-final-transplant-result.env'
+          old="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path_name?ref=main" --jq .sha 2>/dev/null || true)"
+          args=(--method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" -f message='Record completed physiology transplant' -f content="$content" -f branch=main)
+          [[ -z "$old" ]] || args+=(-f sha="$old")
+          gh api "${args[@]}" >/dev/null
+          cat "$RUNNER_TEMP/final-result.env"
