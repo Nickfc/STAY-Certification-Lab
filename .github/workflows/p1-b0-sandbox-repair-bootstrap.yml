@@ -2,11 +2,15 @@ name: One-shot B.0 sandbox repair bootstrap
 run-name: One-shot B.0 sandbox repair bootstrap
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/p1-b0-sandbox-repair.launch
+  workflow_dispatch:
+    inputs:
+      execution_authorization:
+        description: Authorize the exact completion, preflight, and neutral SNTSS sequence
+        required: true
+        type: choice
+        options:
+          - NO
+          - AUTHORIZE_B0_SANDBOX_REPAIR_COMPLETION_SEQUENCE_7D040592CCF1F149
 
 permissions:
   actions: write
@@ -18,16 +22,15 @@ concurrency:
 
 env:
   CONTROLLER_COMMIT: eddce8012e65599db5993d0bb979dfa3f033ce52
-  CONTROLLER_SOURCE_IDENTITY: sha256:bf225628e7d19be8aa10478c95211296d570f278817ecfbef417e0e8a3cafb2e
-  WRAPPER_SHA256: 95dc153aa81d14ed9cef9e5d2450ed41822b11b14e2ef1e440d319c7096b79cd
-  INSTALLER_SHA256: 0a06f8be407d856bd2cba0f38713904c3b70c57c9832b3178ebc7b7d2f9c8df1
+  CONTROLLER_SOURCE_IDENTITY: sha256:9127b9f6ed8985a41ec3f8ed372f40076644c98fb55c5b9dbc8322b55a72c20a
+  WRAPPER_SHA256: fe14b51dea86ec5fe10ee301803c18bba45e04ba6b321cdfa8f97e65d504e850
+  INSTALLER_SHA256: 732517c88045315ec5c1245aa79da2bc626c0f64cc569619038134391c6b9431
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
 
 jobs:
   build-test-secret-free:
     name: Validate and seal exact repair controller
-    if: github.event.head_commit.message == 'Bootstrap and launch controlled B.0 sandbox repair'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -49,13 +52,16 @@ jobs:
 
       - name: Validate one-shot launch and controller identities
         shell: bash
+        env:
+          EXECUTION_AUTHORIZATION: ${{ inputs.execution_authorization }}
         run: |
           set -euo pipefail
+          [[ "$EXECUTION_AUTHORIZATION" == 'AUTHORIZE_B0_SANDBOX_REPAIR_COMPLETION_SEQUENCE_7D040592CCF1F149' ]]
           [[ "$(git -C launcher-source rev-parse HEAD)" == "$GITHUB_SHA" ]]
           [[ "$(git -C controller-source rev-parse HEAD)" == "$CONTROLLER_COMMIT" ]]
           grep -Fx 'P1_B0_SANDBOX_REPAIR_LAUNCH=AUTHORIZED' launcher-source/.github/p1-b0-sandbox-repair.launch
           grep -Fx "FEATURE_COMMIT=$CONTROLLER_COMMIT" launcher-source/.github/p1-b0-sandbox-repair.launch
-          grep -Fx 'SEQUENCE=repair-b0-sandbox,preflight-b,surgery-b' launcher-source/.github/p1-b0-sandbox-repair.launch
+          grep -Fx 'SEQUENCE=complete-b0-sandbox-repair,preflight-b,surgery-b' launcher-source/.github/p1-b0-sandbox-repair.launch
           grep -Fx "  CONTROLLER_COMMIT: $CONTROLLER_COMMIT" launcher-source/.github/workflows/p1-production-controller-launcher.yml
           grep -Fx "  CONTROLLER_SOURCE_IDENTITY: $CONTROLLER_SOURCE_IDENTITY" launcher-source/.github/workflows/p1-production-controller-launcher.yml
           grep -Fq 'staydeploy@"$PRODUCTION_PUBLIC_IPV4"' launcher-source/.github/workflows/p1-b0-sandbox-repair-bootstrap.yml
@@ -65,6 +71,7 @@ jobs:
           bash -n controller-source/deploy/live-physiology-transplant/stay-p1-production-controller
           bash -n controller-source/deploy/live-physiology-transplant/install-p1-production-controller.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-b0-sandbox-repair.sh
+          bash -n controller-source/deploy/live-physiology-transplant/p1-b0-sandbox-repair-complete.sh
           node --check controller-source/deploy/live-physiology-transplant/p1-b0-live-user-probe.js
           [[ "$(sha256sum controller-source/deploy/live-physiology-transplant/stay-p1-production-controller | awk '{print $1}')" == "$WRAPPER_SHA256" ]]
           [[ "$(sha256sum controller-source/deploy/live-physiology-transplant/install-p1-production-controller.sh | awk '{print $1}')" == "$INSTALLER_SHA256" ]]
@@ -217,7 +224,7 @@ jobs:
           echo "B0_SANDBOX_REPAIR_CONTROLLER_BOOTSTRAP=PASS"
           REMOTE
 
-      - name: Dispatch and wait for repair, preflight, and Surgery B
+      - name: Dispatch and wait for repair completion, preflight, and Surgery B
         id: sequence
         if: steps.bootstrap.outcome == 'success'
         continue-on-error: true
@@ -258,8 +265,8 @@ jobs:
             gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --interval 10 --exit-status
             [[ "$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" == success ]]
           }
-          dispatch_and_wait repair-b0-sandbox \
-            b0_sandbox_repair_authorization AUTHORIZE_B0_SANDBOX_REPAIR_7D040592CCF1F149
+          dispatch_and_wait complete-b0-sandbox-repair \
+            b0_sandbox_repair_completion_authorization AUTHORIZE_B0_SANDBOX_REPAIR_COMPLETION_7D040592CCF1F149
           dispatch_and_wait preflight-b
           dispatch_and_wait surgery-b \
             surgery_b_authorization AUTHORIZE_SURGERY_B_SNTSS_NEUTRAL_7D040592CCF1F149

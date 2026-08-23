@@ -1,0 +1,637 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+EXPECTED_PRIVATE_IPV4="172.26.9.207"
+INCOMING_ROOT="/opt/stay/incoming"
+EXPECTED_CANDIDATE_SHA="7d040592ccf1f149f0f0a170f79cf76bb5f05d92"
+EXPECTED_CANDIDATE_TREE="450cc22f70b7abf3b5733fe882049d88cd52de74"
+EXPECTED_COMPUTE_RECORD_SHA256="sha256:384f3f2e27232b555fe52185c775562d31cf7fac349dfb95ae93968225c83ec1"
+EXPECTED_CONTROLLER_SOURCE_IDENTITY="sha256:9127b9f6ed8985a41ec3f8ed372f40076644c98fb55c5b9dbc8322b55a72c20a"
+EXPECTED_CANDIDATE_ID="0.8.11.3-p1a-surgery-a-candidate-${EXPECTED_CANDIDATE_SHA}"
+EXPECTED_ROLLBACK_ID="0.8.11.3-p1a-forward-compatible-rollback-${EXPECTED_CANDIDATE_SHA}"
+EXPECTED_A1_ID="0.8.11.3-p1a1-resident-control-7d040592ccf1f149"
+EXPECTED_CANDIDATE_MANIFEST_SHA256="218c9eae44bb68d78b874cb3d22c7e7a503cc294bb7b5485fa2f326ffff3a8e7"
+EXPECTED_ROLLBACK_MANIFEST_SHA256="f64ef28f5f3ea52b3688f18620a56888bcb106eb942b35036010ee7d1bcb715f"
+EXPECTED_A1_MANIFEST_SHA256="2560288aeb764d093383378437c74937fb3d9a47922bb9afbde658e82f3e7904"
+EXPECTED_A1_INVENTORY_SHA256="2f4e51d998bd5c5294641e727e6673608b8c5137944f4acbf3ac55e6a1ead282"
+EXPECTED_A1_PROVENANCE_SHA256="ac7978f83f14d8614818e8f736f3ec452c40b4900a44cb1601e5fad5cdb4a0ee"
+
+declare -Ar CONTROLLER_HASHES=(
+  [p1-actions-remote-controller.sh]="160eab82e246fc3a9eeaccdd84cd213a4ae8bb01a64c6b183e2a1ad8c0d9af19"
+  [p1-host-identity-guard.sh]="e9ec646c1b7c93f6d351d7a6512769faf812a0aa7d573877fd64610097ac39a1"
+  [p1-live-preflight.sh]="c18cf73d130c51dae72f5ce2335158a1d0caaef951ecd715d5b4dee0f82b2ac6"
+  [p1-surgery-a-execute.sh]="ea57a9bd8c1886d4f5ce5b97320692d25ab7c3edf7df14b9643444a4ba21e8ce"
+  [p1-forward-rollback.sh]="8de3a7b4b4dbfc0a2a88c17bd803ff871aeb21e1053e094897293f561a60762e"
+  [p1-surgery-a1-state.js]="03ba7583202b69fd427ce43844018e0a79b7e72c6746e99d7d223a1169c09c74"
+  [p1-resident-control-client.js]="0f57a2d578989b3546e5708d81ff90a67a974e363a07ce61d945d88ec8268bf0"
+  [p1-surgery-a1-preflight.sh]="88db1146a074dcde3d95ac243e449e4adabf23becf81a383afc5d5955a86fec5"
+  [p1-surgery-a1-execute.sh]="438e43b585f029e51d849ab6706aa5d7506dc8b844283bdef2a2bd3c5770a1e7"
+  [p1-surgery-a1-rollback.sh]="e5bfce96f2cf13776c315ae96ea3a0124b714c1453c113cb58b974ff26fd0cff"
+  [p1-a1-entrypoint-preflight.sh]="37fe8569ea7900c7de1d2d1b8e3baed7b4ee281b1a98d4fa58d4529d90a329ad"
+  [p1-a1-entrypoint-correct.sh]="9a84410e34d7e9d8488d967fa1522fa15e4b6c00cd107d3fdaf62f9848affa73"
+  [p1-a1-entrypoint-rollback.sh]="a0efa93bfcbb14376032ebe617ba400ffc277ad752acbfa4fd66fb8d16296b1b"
+  [p1-b0-state.js]="aca5ecaf2794da33419871af839f4b05343723aec754ca10d387402f3aae9481"
+  [p1-b0-runtime-ready.js]="001e37057eb67fdee6dbfe836927c29b7e9a4683065225f0d6ef94dd8cfa2583"
+  [p1-b0-preflight.sh]="00b5532767286a97dbc288f48e8962c935df91d27bfcbeb9ed70f066bec4a201"
+  [p1-b0-configure.sh]="ea1aa52ff0df0585a68655de66830c87907cec4bce1504a449a49d48a5830e39"
+  [p1-b0-complete.sh]="acf6a994866586d9db4c279c43e0e4ac8361a197ba1b6784c0e5b67d6b0cc8da"
+  [p1-b0-live-user-probe.js]="9c60f4492bba5c6c254f2f76415b51f052f98aa97b1f556508f55dd1d5a9b578"
+  [p1-b0-sandbox-repair.sh]="e144f3cd811c4b6a812500f7a56be02eded98a41888bd30c101c704d47d9ee01"
+  [p1-b0-sandbox-repair-complete.sh]="5b0234a7e33214bebf9464f0f5a4efa483ce26ab2a86a29bbc9df1a978982aec"
+  [p1-b0-rollback.sh]="93521510dbba1c1fbc853b8f6e86d752f16887616a5d2b55e93298de7597cb36"
+  [p1-surgery-b-state.js]="625ad2a42b1b97b99bf184e1e37a0c8ae269600b4e242fc815dae00e4ad663f7"
+  [p1-surgery-b-preflight.sh]="3aeacb0445803ebef5c803569919a48021641fbcd29d1adb3c8fb8136da90a6a"
+  [p1-surgery-b-execute.sh]="c35e364e1e081ddfabcebb58970177d00c44edb600be2af5784e41bda3a37a73"
+  [p1-surgery-b-rollback.sh]="2435f4858511939a0221803dfe339dffcb4c7de63fbd8191f987ffdf8ffd0009"
+)
+
+declare -Ar ANCHOR_HASHES=(
+  [runtime/kernel/biological-signalling-fabric.js]="9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a"
+  [runtime/kernel/resident-manager.js]="2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf"
+  [runtime/kernel/state-store.js]="218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4"
+)
+
+RUN_ROOT=""
+CLEANUP_ARMED=0
+CONTROLLER_STATUS=0
+CONTROLLER_FAILURE_CLASS="NONE"
+CLEANUP_STATUS="NOT_REQUIRED"
+
+abort_controller() {
+  local code="$1" classification="$2" reason="$3"
+  CONTROLLER_STATUS="$code"
+  CONTROLLER_FAILURE_CLASS="$classification"
+  echo "P1_CONTROLLER_ABORT=$reason" >&2
+  exit "$code"
+}
+
+trusted_root_executable() {
+  local candidate="$1" mode
+  [[ -f "$candidate" && -x "$candidate" && ! -L "$candidate" ]] || return 1
+  [[ "$(stat -Lc '%U:%G' "$candidate")" == "root:root" ]] || return 1
+  mode="$(stat -Lc '%a' "$candidate")" || return 1
+  (( (8#$mode & 8#022) == 0 ))
+}
+
+select_trusted_node() {
+  local candidate=""
+  if [[ -x /usr/local/bin/node ]]; then
+    candidate="$(readlink -f /usr/local/bin/node)"
+  elif [[ -x /usr/bin/node ]]; then
+    candidate="$(readlink -f /usr/bin/node)"
+  else
+    return 1
+  fi
+  trusted_root_executable "$candidate" || return 1
+  printf '%s\n' "$candidate"
+}
+
+observed_private_ipv4() {
+  command -v ip >/dev/null 2>&1 || return 1
+  ip -o -4 addr show scope global |
+    awk '{address=$4; sub(/\/.*/, "", address); print address}' |
+    sort -u
+}
+
+validate_run_root() {
+  local candidate="$1" prefix="$2" prefix_real parent_real
+  [[ ! -L "$prefix" && -d "$prefix" ]] || return 1
+  prefix_real="$(readlink -f -- "$prefix")" || return 1
+  [[ ! -L "$candidate" ]] || return 1
+  parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
+  [[ "$parent_real" == "$prefix_real" ]] || return 1
+  [[ "$(basename -- "$candidate")" =~ ^p1-actions-[0-9]+$ ]] || return 1
+}
+
+validate_plain_tree() {
+  local root="$1" entry bad=0
+  [[ -d "$root" && ! -L "$root" ]] || return 1
+  while IFS= read -r -d '' entry; do
+    if [[ -L "$entry" || ( ! -d "$entry" && ! -f "$entry" ) ]]; then
+      bad=1
+      break
+    fi
+  done < <(find -P "$root" -xdev -print0)
+  [[ "$bad" -eq 0 ]] || return 1
+  [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
+}
+
+safe_cleanup() {
+  local candidate="$1" prefix="$2"
+  if ! validate_run_root "$candidate" "$prefix"; then
+    return 91
+  fi
+  if [[ ! -e "$candidate" ]]; then
+    return 0
+  fi
+  validate_plain_tree "$candidate" || return 92
+  find -P "$candidate" -xdev -type d -exec chmod u+rwx {} + || return 93
+  find -P "$candidate" -xdev -type f -exec chmod u+rw {} + || return 94
+  rm -rf --one-file-system -- "$candidate" || return 95
+  [[ ! -e "$candidate" ]]
+}
+
+finish_controller() {
+  local original_status=$? cleanup_code=0
+  trap - EXIT
+  set +e
+  if [[ "$CLEANUP_ARMED" -eq 1 ]]; then
+    safe_cleanup "$RUN_ROOT" "$INCOMING_ROOT"
+    cleanup_code=$?
+    if [[ "$cleanup_code" -eq 0 ]]; then
+      CLEANUP_STATUS="PASS"
+    else
+      CLEANUP_STATUS="FAIL_${cleanup_code}"
+    fi
+  fi
+  set -e
+
+  if [[ "$original_status" -ne 0 && "$CONTROLLER_STATUS" -eq 0 ]]; then
+    CONTROLLER_STATUS="$original_status"
+    CONTROLLER_FAILURE_CLASS="PRIVILEGED_CONTROLLER_FAILED"
+  fi
+  if [[ "$original_status" -eq 0 && "$cleanup_code" -ne 0 ]]; then
+    CONTROLLER_STATUS=96
+    CONTROLLER_FAILURE_CLASS="CLEANUP_FAILED"
+  fi
+  echo "CONTROLLER_DISPATCH_STATUS=$CONTROLLER_STATUS"
+  echo "CONTROLLER_FAILURE_CLASS=$CONTROLLER_FAILURE_CLASS"
+  echo "CONTROLLER_CLEANUP_STATUS=$CLEANUP_STATUS"
+
+  if [[ "$original_status" -ne 0 ]]; then
+    exit "$original_status"
+  fi
+  if [[ "$cleanup_code" -ne 0 ]]; then
+    exit 96
+  fi
+  exit 0
+}
+
+verify_hash() {
+  local file="$1" expected="$2"
+  [[ -f "$file" && ! -L "$file" ]] || return 1
+  [[ "$(sha256sum "$file" | awk '{print $1}')" == "$expected" ]]
+}
+
+verify_bundle_checksum_manifest() {
+  local checksum_file="$RUN_ROOT/P1_ACTIONS_BUNDLE.sha256"
+  local expected actual
+  [[ -f "$checksum_file" && ! -L "$checksum_file" ]] || return 1
+  expected=$'P1_ACTIONS_BUNDLE.identity\np1-actions-controller.tar.gz\np1-build-result.json\np1-surgery-a-releases.tar.gz'
+  actual="$(awk '
+    NF != 2 || length($1) != 64 || $1 !~ /^[0-9a-f]+$/ || $2 !~ /^[A-Za-z0-9._-]+$/ { bad=1 }
+    { print $2 }
+    END { if (bad || NR != 4) exit 1 }
+  ' "$checksum_file" | LC_ALL=C sort)" || return 1
+  [[ "$actual" == "$expected" ]]
+}
+
+json_field() {
+  local manifest="$1" field="$2"
+  "$NODE_BIN" -e '
+    const fs = require("fs");
+    const value = process.argv[2].split(".").reduce((v, key) => v?.[key],
+      JSON.parse(fs.readFileSync(process.argv[1], "utf8")));
+    process.stdout.write(String(value ?? ""));
+  ' "$manifest" "$field"
+}
+
+verify_release_identity() {
+  local root="$1" role="$2" expected_id="$3" expected_manifest_hash="$4" manifest
+  [[ -d "$root" && ! -L "$root" ]] || return 1
+  manifest="$root/P1_SURGERY_A_MANIFEST.json"
+  verify_hash "$manifest" "$expected_manifest_hash" || return 1
+  [[ "$(json_field "$manifest" sourceSha)" == "$EXPECTED_CANDIDATE_SHA" ]] || return 1
+  [[ "$(json_field "$manifest" sourceTree)" == "$EXPECTED_CANDIDATE_TREE" ]] || return 1
+  [[ "$(json_field "$manifest" releaseId)" == "$expected_id" ]] || return 1
+  [[ "$(json_field "$manifest" releaseRole)" == "$role" ]] || return 1
+  [[ "$(json_field "$manifest" sharedInfrastructureOnly)" == "true" ]] || return 1
+  [[ "$(json_field "$manifest" sntssActivated)" == "false" ]] || return 1
+  [[ "$(json_field "$manifest" chronobiologyActivated)" == "false" ]] || return 1
+  [[ "$(json_field "$manifest" newBiologicalAuthority)" == "false" ]] || return 1
+  local relative
+  for relative in "${!ANCHOR_HASHES[@]}"; do
+    verify_hash "$root/$relative" "${ANCHOR_HASHES[$relative]}" || return 1
+  done
+}
+
+verify_a1_release_identity() {
+  local root="$1" manifest="$1/P1_SURGERY_A1_MANIFEST.json"
+  [[ -d "$root" && ! -L "$root" ]] || return 1
+  verify_hash "$manifest" "$EXPECTED_A1_MANIFEST_SHA256" || return 1
+  verify_hash "$root/RELEASE_INVENTORY.json" "$EXPECTED_A1_INVENTORY_SHA256" || return 1
+  verify_hash "$root/RELEASE_PROVENANCE.json" "$EXPECTED_A1_PROVENANCE_SHA256" || return 1
+  [[ "$(json_field "$manifest" releaseId)" == "$EXPECTED_A1_ID" ]] || return 1
+  [[ "$(json_field "$manifest" releaseRole)" == "resident-control-plane-enablement" ]] || return 1
+  [[ "$(json_field "$manifest" baseSourceSha)" == "$EXPECTED_CANDIDATE_SHA" ]] || return 1
+  [[ "$(json_field "$manifest" baseSourceTree)" == "$EXPECTED_CANDIDATE_TREE" ]] || return 1
+  [[ "$(json_field "$manifest" physiologyActivated)" == "false" ]] || return 1
+  [[ "$(json_field "$manifest" stateStoreSchemaChanged)" == "false" ]] || return 1
+  [[ "$(json_field "$manifest" authorityOwnershipChanged)" == "false" ]] || return 1
+  [[ "$(json_field "$manifest" socketPath)" == "/run/stay/resident-control.sock" ]] || return 1
+  "$NODE_BIN" - "$root" <<'NODE' || return 1
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const root = path.resolve(process.argv[2]);
+const inventory = JSON.parse(fs.readFileSync(path.join(root, 'RELEASE_INVENTORY.json'), 'utf8'));
+if (inventory.format !== 'stay-release-inventory-v1' || !Array.isArray(inventory.entries)) process.exit(1);
+const placeholderPath = 'data/.gitkeep';
+const placeholderAbsolute = path.resolve(root, placeholderPath);
+if (!placeholderAbsolute.startsWith(root + path.sep)) process.exit(1);
+const placeholderStat = fs.lstatSync(placeholderAbsolute);
+if (!placeholderStat.isFile() || placeholderStat.isSymbolicLink() || placeholderStat.nlink !== 1 || placeholderStat.size !== 0) process.exit(1);
+const placeholderBytes = fs.readFileSync(placeholderAbsolute);
+if (placeholderBytes.length !== 0 || crypto.createHash('sha256').update(placeholderBytes).digest('hex') !== 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855') process.exit(1);
+const expected = new Set(['RELEASE_INVENTORY.json', 'RELEASE_PROVENANCE.json', placeholderPath]);
+for (const entry of inventory.entries) {
+  if (!entry || typeof entry.path !== 'string' || path.posix.isAbsolute(entry.path) || entry.path.split('/').includes('..')) process.exit(1);
+  const absolute = path.resolve(root, entry.path);
+  if (!absolute.startsWith(root + path.sep)) process.exit(1);
+  const stat = fs.lstatSync(absolute);
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.nlink !== 1) process.exit(1);
+  const bytes = fs.readFileSync(absolute);
+  if (bytes.length !== Number(entry.bytes) || `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}` !== entry.sha256) process.exit(1);
+  if (expected.has(entry.path)) process.exit(1);
+  expected.add(entry.path);
+}
+const actual = [];
+function walk(directory) {
+  for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
+    const absolute = path.join(directory, item.name);
+    if (item.isSymbolicLink()) process.exit(1);
+    if (item.isDirectory()) walk(absolute);
+    else if (item.isFile()) {
+      if (fs.lstatSync(absolute).nlink !== 1) process.exit(1);
+      actual.push(path.relative(root, absolute).split(path.sep).join('/'));
+    }
+    else process.exit(1);
+  }
+}
+walk(root);
+if (actual.length !== expected.size || actual.some(file => !expected.has(file))) process.exit(1);
+NODE
+  for relative in "${!ANCHOR_HASHES[@]}"; do
+    verify_hash "$root/$relative" "${ANCHOR_HASHES[$relative]}" || return 1
+  done
+}
+
+verify_staged_identity() {
+  local controller_dir="$RUN_ROOT/controller"
+  local candidate_root="$RUN_ROOT/releases/$EXPECTED_CANDIDATE_ID"
+  local rollback_root="$RUN_ROOT/releases/$EXPECTED_ROLLBACK_ID"
+  local a1_root="$RUN_ROOT/releases/$EXPECTED_A1_ID"
+  local name
+
+  validate_plain_tree "$RUN_ROOT" || return 1
+  [[ "$(stat -c '%U' "$RUN_ROOT")" == "staydeploy" ]] || return 1
+  verify_bundle_checksum_manifest || return 1
+  (
+    cd "$RUN_ROOT"
+    sha256sum -c P1_ACTIONS_BUNDLE.sha256 >/dev/null
+  ) || return 1
+  grep -Fx "EXACT_CANDIDATE_SHA=$EXPECTED_CANDIDATE_SHA" "$RUN_ROOT/P1_ACTIONS_BUNDLE.identity" >/dev/null || return 1
+  grep -Fx "EXACT_CANDIDATE_TREE=$EXPECTED_CANDIDATE_TREE" "$RUN_ROOT/P1_ACTIONS_BUNDLE.identity" >/dev/null || return 1
+  grep -Fx "EXACT_COMPUTE_RECORD_SHA256=$EXPECTED_COMPUTE_RECORD_SHA256" "$RUN_ROOT/P1_ACTIONS_BUNDLE.identity" >/dev/null || return 1
+  grep -Fx "CONTROLLER_SOURCE_IDENTITY=$EXPECTED_CONTROLLER_SOURCE_IDENTITY" "$RUN_ROOT/P1_ACTIONS_BUNDLE.identity" >/dev/null || return 1
+
+  for name in "${!CONTROLLER_HASHES[@]}"; do
+    verify_hash "$controller_dir/$name" "${CONTROLLER_HASHES[$name]}" || return 1
+  done
+  verify_release_identity "$candidate_root" "surgery-a-candidate" \
+    "$EXPECTED_CANDIDATE_ID" "$EXPECTED_CANDIDATE_MANIFEST_SHA256" || return 1
+  verify_release_identity "$rollback_root" "forward-compatible-rollback" \
+    "$EXPECTED_ROLLBACK_ID" "$EXPECTED_ROLLBACK_MANIFEST_SHA256" || return 1
+  verify_a1_release_identity "$a1_root" || return 1
+}
+
+biological_sentinel() {
+  "$NODE_BIN" - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
+const { DatabaseSync } = require('node:sqlite');
+const db = new DatabaseSync(process.argv[2], { readOnly: true });
+db.exec('PRAGMA query_only=ON');
+const has = name => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
+const all = (name, sql) => has(name) ? db.prepare(sql).all() : [];
+const one = (name, sql) => has(name) ? db.prepare(sql).get() : null;
+const result = {
+  quickCheck: db.prepare('PRAGMA quick_check').get()?.quick_check || null,
+  schema: Number(one('schema_versions', "SELECT version FROM schema_versions WHERE name='continuity'")?.version || 0),
+  identity: one('metadata', "SELECT sha256 FROM metadata WHERE key='life:identity'")?.sha256 || null,
+  authority: all('authority', 'SELECT core_id, instance_id, version, epoch, barrier_sequence FROM authority ORDER BY core_id'),
+  residents: all('resident_instances', 'SELECT residency_id, core_id, version, state_schema, status FROM resident_instances ORDER BY residency_id')
+};
+db.close();
+process.stdout.write(JSON.stringify(result));
+NODE
+}
+
+classify_remote_controller_failure() {
+  local output_file="$1" stage normalized
+  stage="$(sed -n -E \
+    's/^SURGERY_A_ABORT=release-install-(destination-precheck|copy|chown|chmod-dirs|chmod-files|atomic-publish|existing-release-verify)$/\1/p' \
+    "$output_file" | tail -n 1)"
+  [[ -n "$stage" ]] || return 1
+  normalized="${stage^^}"
+  normalized="${normalized//-/_}"
+  printf 'RELEASE_INSTALL_%s_FAILED\n' "$normalized"
+}
+
+main() {
+  local operation="${1:-}" requested_root="${2:-}" authorization="${3:-}"
+  local observed controller_script output_file expected_marker
+  local pre_service="" pre_pointer="" pre_biology=""
+  local child_status=0
+
+  [[ "${EUID}" -eq 0 && "${SUDO_USER:-}" == "staydeploy" ]] ||
+    abort_controller 70 "PRIVILEGE_DENIED" "privileged-sudo-context-required"
+  observed="$(observed_private_ipv4)" ||
+    abort_controller 71 "HOST_IDENTITY_FAILED" "private-ip-observation-failed"
+  [[ "$observed" == "$EXPECTED_PRIVATE_IPV4" ]] ||
+    abort_controller 72 "HOST_IDENTITY_FAILED" "private-ip-mismatch"
+  case "$operation" in
+    preflight)
+      [[ "$authorization" == "NO_AUTHORIZATION" ]] ||
+        abort_controller 73 "AUTHORIZATION_FAILED" "preflight-authorization-argument-invalid"
+      ;;
+    surgery-a)
+      [[ "$authorization" == "AUTHORIZE_SURGERY_A_7D040592CCF1F149" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "surgery-authorization-missing"
+      ;;
+    rollback-a)
+      [[ "$authorization" == "AUTHORIZE_ROLLBACK_A_FORWARD_STATE_7D040592CCF1F149" ]] ||
+        abort_controller 75 "AUTHORIZATION_FAILED" "rollback-authorization-missing"
+      ;;
+    preflight-a1)
+      [[ "$authorization" == "NO_AUTHORIZATION" ]] ||
+        abort_controller 73 "AUTHORIZATION_FAILED" "preflight-a1-authorization-argument-invalid"
+      ;;
+    surgery-a1)
+      [[ "$authorization" == "AUTHORIZE_SURGERY_A1_RESIDENT_CONTROL_7D040592CCF1F149" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "surgery-a1-authorization-missing"
+      ;;
+    rollback-a1)
+      [[ "$authorization" == "AUTHORIZE_ROLLBACK_A1_FORWARD_STATE_7D040592CCF1F149" ]] ||
+        abort_controller 75 "AUTHORIZATION_FAILED" "rollback-a1-authorization-missing"
+      ;;
+    preflight-a1-entrypoint)
+      [[ "$authorization" == "NO_AUTHORIZATION" ]] ||
+        abort_controller 73 "AUTHORIZATION_FAILED" "preflight-a1-entrypoint-authorization-argument-invalid"
+      ;;
+    correct-a1-entrypoint)
+      [[ "$authorization" == "AUTHORIZE_A1_ENTRYPOINT_CORRECTION_7D040592CCF1F149" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "a1-entrypoint-authorization-missing"
+      ;;
+    rollback-a1-entrypoint)
+      [[ "$authorization" == "AUTHORIZE_A1_ENTRYPOINT_ROLLBACK_NO_STATE_7D040592CCF1F149" ]] ||
+        abort_controller 75 "AUTHORIZATION_FAILED" "a1-entrypoint-rollback-authorization-missing"
+      ;;
+    preflight-b0)
+      [[ "$authorization" == "NO_AUTHORIZATION" ]] ||
+        abort_controller 73 "AUTHORIZATION_FAILED" "preflight-b0-authorization-argument-invalid"
+      ;;
+    configure-b0)
+      [[ "$authorization" == "AUTHORIZE_B0_TRUST_RUNTIME_7D040592CCF1F149" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "b0-configure-authorization-missing"
+      ;;
+    complete-b0)
+      [[ "$authorization" == "AUTHORIZE_B0_COMPLETE_EXISTING_RUNTIME_7D040592CCF1F149" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "b0-completion-authorization-missing"
+      ;;
+    repair-b0-sandbox)
+      [[ "$authorization" == "AUTHORIZE_B0_SANDBOX_REPAIR_7D040592CCF1F149" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "b0-sandbox-repair-authorization-missing"
+      ;;
+    complete-b0-sandbox-repair)
+      [[ "$authorization" == "AUTHORIZE_B0_SANDBOX_REPAIR_COMPLETION_7D040592CCF1F149" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "b0-sandbox-repair-completion-authorization-missing"
+      ;;
+    rollback-b0)
+      [[ "$authorization" == "AUTHORIZE_ROLLBACK_B0_FORWARD_STATE_7D040592CCF1F149" ]] ||
+        abort_controller 75 "AUTHORIZATION_FAILED" "b0-rollback-authorization-missing"
+      ;;
+    preflight-b)
+      [[ "$authorization" == "NO_AUTHORIZATION" ]] ||
+        abort_controller 73 "AUTHORIZATION_FAILED" "preflight-b-authorization-argument-invalid"
+      ;;
+    surgery-b)
+      [[ "$authorization" == "AUTHORIZE_SURGERY_B_SNTSS_NEUTRAL_7D040592CCF1F149" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "surgery-b-authorization-missing"
+      ;;
+    rollback-b)
+      [[ "$authorization" == "AUTHORIZE_ROLLBACK_B_PRESERVE_STATE_7D040592CCF1F149" ]] ||
+        abort_controller 75 "AUTHORIZATION_FAILED" "rollback-b-authorization-missing"
+      ;;
+    *) abort_controller 76 "OPERATION_REJECTED" "unsupported-operation" ;;
+  esac
+  [[ "$requested_root" =~ ^/opt/stay/incoming/p1-actions-[0-9]+$ ]] ||
+    abort_controller 77 "PATH_VALIDATION_FAILED" "invalid-run-root-pattern"
+  validate_run_root "$requested_root" "$INCOMING_ROOT" ||
+    abort_controller 77 "PATH_VALIDATION_FAILED" "invalid-run-root"
+  [[ -d "$requested_root" ]] ||
+    abort_controller 78 "PATH_VALIDATION_FAILED" "run-root-missing"
+  RUN_ROOT="$requested_root"
+  CLEANUP_ARMED=1
+  trap finish_controller EXIT
+
+  NODE_BIN="$(select_trusted_node)" ||
+    abort_controller 79 "TRUSTED_RUNTIME_FAILED" "trusted-node-missing"
+  verify_staged_identity ||
+    abort_controller 80 "STAGED_IDENTITY_FAILED" "staged-identity-verification-failed"
+
+  controller_script="$RUN_ROOT/controller/p1-actions-remote-controller.sh"
+  output_file="$(mktemp /run/stay-p1-controller-output.XXXXXX)"
+
+  if [[ "$operation" == "preflight" || "$operation" == "preflight-a1" || "$operation" == "preflight-a1-entrypoint" || "$operation" == "preflight-b0" || "$operation" == "complete-b0" || "$operation" == "complete-b0-sandbox-repair" || "$operation" == "preflight-b" ]]; then
+    pre_service="$(systemctl show stay.service --property=MainPID,NRestarts,ActiveState,SubState --no-pager)"
+    pre_pointer="$(readlink -f /opt/stay/current)"
+    pre_biology="$(biological_sentinel)"
+  fi
+
+  set +e
+  case "$operation" in
+    preflight)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_SURGERY_A_WRITE_AUTHORIZED=NO \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="PREFLIGHT_RESULT=PASS"
+      ;;
+    surgery-a)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_SURGERY_A_WRITE_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="SURGERY_A_RESULT=PASS"
+      ;;
+    rollback-a)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_ROLLBACK_A_WRITE_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="ROLLBACK_A_RESULT=PASS"
+      ;;
+    preflight-a1)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_SURGERY_A1_WRITE_AUTHORIZED=NO \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="PREFLIGHT_A1_RESULT=PASS"
+      ;;
+    surgery-a1)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_SURGERY_A1_WRITE_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="A1_RESULT=PASS"
+      ;;
+    rollback-a1)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_ROLLBACK_A1_WRITE_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="ROLLBACK_A1_RESULT=PASS"
+      ;;
+    preflight-a1-entrypoint)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_A1_ENTRYPOINT_WRITE_AUTHORIZED=NO \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="PREFLIGHT_A1_ENTRYPOINT_RESULT=PASS"
+      ;;
+    correct-a1-entrypoint)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_A1_ENTRYPOINT_WRITE_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="A1_ENTRYPOINT_RESULT=PASS"
+      ;;
+    rollback-a1-entrypoint)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_A1_ENTRYPOINT_ROLLBACK_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="ROLLBACK_A1_ENTRYPOINT_RESULT=PASS"
+      ;;
+    preflight-b0)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_B0_CONFIGURE_AUTHORIZED=NO \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="PREFLIGHT_B0_RESULT=PASS"
+      ;;
+    configure-b0)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_B0_CONFIGURE_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="B0_RESULT=PASS"
+      ;;
+    complete-b0)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_B0_COMPLETE_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="B0_COMPLETION_RESULT=PASS"
+      ;;
+    repair-b0-sandbox)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_B0_SANDBOX_REPAIR_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="B0_SANDBOX_REPAIR_RESULT=PASS"
+      ;;
+    complete-b0-sandbox-repair)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_B0_SANDBOX_REPAIR_COMPLETE_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="B0_SANDBOX_REPAIR_COMPLETION_RESULT=PASS"
+      ;;
+    rollback-b0)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_B0_ROLLBACK_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="ROLLBACK_B0_RESULT=PASS"
+      ;;
+    preflight-b)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_SURGERY_B_AUTHORIZED=NO \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="PREFLIGHT_B_RESULT=PASS"
+      ;;
+    surgery-b)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_SURGERY_B_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="SURGERY_B_RESULT=PASS"
+      ;;
+    rollback-b)
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        STAY_ROLLBACK_B_AUTHORIZED=YES \
+        /bin/bash "$controller_script" "$operation" "$RUN_ROOT" 2>&1 |
+        tee "$output_file"
+      child_status=${PIPESTATUS[0]}
+      expected_marker="ROLLBACK_B_RESULT=PASS"
+      ;;
+  esac
+  set -e
+
+  if [[ "$child_status" -ne 0 ]]; then
+    CONTROLLER_STATUS="$child_status"
+    CONTROLLER_FAILURE_CLASS="$(classify_remote_controller_failure "$output_file" ||
+      printf 'REMOTE_CONTROLLER_FAILED\n')"
+    rm -f -- "$output_file"
+    exit "$child_status"
+  fi
+  grep -Fx "$expected_marker" "$output_file" >/dev/null || {
+    CONTROLLER_STATUS=81
+    CONTROLLER_FAILURE_CLASS="RESULT_MARKER_MISSING"
+    rm -f -- "$output_file"
+    exit 81
+  }
+
+  if [[ "$operation" == "preflight" || "$operation" == "preflight-a1" || "$operation" == "preflight-a1-entrypoint" || "$operation" == "preflight-b0" || "$operation" == "complete-b0" || "$operation" == "complete-b0-sandbox-repair" || "$operation" == "preflight-b" ]]; then
+    [[ "$(systemctl show stay.service --property=MainPID,NRestarts,ActiveState,SubState --no-pager)" == "$pre_service" ]] ||
+      abort_controller 82 "PREFLIGHT_MUTATION_DETECTED" "service-sentinel-changed"
+    [[ "$(readlink -f /opt/stay/current)" == "$pre_pointer" ]] ||
+      abort_controller 83 "PREFLIGHT_MUTATION_DETECTED" "current-pointer-changed"
+    [[ "$(biological_sentinel)" == "$pre_biology" ]] ||
+      abort_controller 84 "PREFLIGHT_MUTATION_DETECTED" "biological-sentinel-changed"
+    echo "SERVICE_OPERATION=NO"
+    echo "CURRENT_POINTER_CHANGE=NO"
+    echo "STATESTORE_WRITE=NO"
+    echo "RESIDENT_OPERATION=NO"
+    echo "AUTHORITY_CHANGE=NO"
+  fi
+
+  rm -f -- "$output_file"
+  CONTROLLER_STATUS=0
+  CONTROLLER_FAILURE_CLASS="NONE"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
