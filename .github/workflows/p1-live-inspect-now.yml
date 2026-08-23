@@ -48,11 +48,31 @@ jobs:
           [[ "$observed_ip" == 172.26.9.207 ]]
           ROOT='/opt/stay/current'
           [[ "$(readlink -f "$ROOT")" == /opt/stay/releases/0.8.11.3-p1a1-resident-control-7d040592ccf1f149 ]]
+          WRAPPER="$(mktemp /var/lib/stay/data/.stay-bwrap-netns-probe.XXXXXX)"
+          cleanup() { rm -f -- "$WRAPPER"; }
+          trap cleanup EXIT
+          cat > "$WRAPPER" <<'WRAPPER'
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+          declare -a args=()
+          seen_unshare_all=0
+          for arg in "$@"; do
+            args+=("$arg")
+            if [[ "$arg" == --unshare-all ]]; then
+              args+=(--share-net)
+              seen_unshare_all=1
+            fi
+          done
+          [[ "$seen_unshare_all" -eq 1 ]]
+          exec /usr/bin/unshare --user --map-root-user --net -- \
+            /usr/bin/bwrap "${args[@]}"
+          WRAPPER
+          chmod 0700 "$WRAPPER"
           env -i \
             PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             NODE_ENV=production \
             STAY_REQUIRE_OS_CORE_SANDBOX=1 \
-            STAY_BWRAP=/usr/bin/bwrap \
+            STAY_BWRAP="$WRAPPER" \
             STAY_REQUIRE_CORE_PACKAGE_POLICY=1 \
             STAY_REQUIRE_CORE_PROMOTION_CERT=1 \
             STAY_CORE_PROMOTION_PUBLIC_KEY=/etc/stay/release-authority.pub \
