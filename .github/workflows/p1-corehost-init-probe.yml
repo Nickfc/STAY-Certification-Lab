@@ -87,7 +87,7 @@ jobs:
           {
             echo 'P1_COREHOST_INIT_PROBE_FORMAT=stay-p1-corehost-init-probe-v1'
             echo "SSH_STATUS=${{ steps.probe.outputs.status }}"
-            grep -E '^(COREHOST_|ERROR_CODE|ERROR_MESSAGE|PROBE_FATAL)=' "$RUNNER_TEMP/probe.raw" || true
+            grep -E '^(COREHOST_[A-Z_]+|ERROR_CODE|ERROR_MESSAGE|PROBE_FATAL)=' "$RUNNER_TEMP/probe.raw" || true
           } > "$result"
           content="$(base64 -w0 "$result")"
           path_name='ops/p1-corehost-init-probe-result.env'
