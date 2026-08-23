@@ -79,6 +79,17 @@ jobs:
           stat -Lc 'BWRAP_SOURCE_STAT=%U:%G:%a:%h' "$bwrap_source"
           sha256sum "$bwrap_source" | awk '{print "BWRAP_SOURCE_SHA256=sha256:" $1}'
           [[ -S /run/stay/resident-control.sock ]] && echo 'RESIDENT_CONTROL_SOCKET=PASS' || echo 'RESIDENT_CONTROL_SOCKET=FAIL'
+          cgroup_relative="$(awk -F: '$1 == "0" { print $3 }' "/proc/$pid/cgroup")"
+          cgroup_kernel="/sys/fs/cgroup${cgroup_relative}"
+          cgroup_unit="$(dirname "$cgroup_kernel")"
+          cgroup_cores="$cgroup_unit/stay-cores"
+          echo "CGROUP_KERNEL=$cgroup_kernel"
+          for pair in "UNIT:$cgroup_unit" "CORES:$cgroup_cores" "KERNEL:$cgroup_kernel"; do
+            name="${pair%%:*}"; directory="${pair#*:}"
+            if [[ -r "$directory/memory.events" ]]; then
+              while read -r key value; do echo "CGROUP_${name}_MEMORY_${key^^}=$value"; done < "$directory/memory.events"
+            fi
+          done
           node <<'NODE'
           'use strict';
           const net = require('node:net');
