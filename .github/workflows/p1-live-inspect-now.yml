@@ -48,9 +48,39 @@ jobs:
           [[ "$observed_ip" == 172.26.9.207 ]]
           ROOT='/opt/stay/current'
           [[ "$(readlink -f "$ROOT")" == /opt/stay/releases/0.8.11.3-p1a1-resident-control-7d040592ccf1f149 ]]
-          WRAPPER="$(mktemp /var/lib/stay/data/.stay-bwrap-netns-probe.XXXXXX)"
-          cleanup() { rm -f -- "$WRAPPER"; }
+          WRAPPER="$(mktemp /var/lib/stay/data/.stay-bwrap-seccomp-probe.XXXXXX)"
+          FILTER="$WRAPPER.bpf"
+          cleanup() { rm -f -- "$WRAPPER" "$FILTER"; }
           trap cleanup EXIT
+          node - "$FILTER" <<'FILTER_NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const output = process.argv[2];
+          if (process.arch !== 'x64') throw new Error('x64 host required');
+          const instructions = [];
+          const emit = (code, jt, jf, k) => instructions.push({ code, jt, jf, k });
+          emit(0x20, 0, 0, 4);
+          emit(0x15, 1, 0, 0xc000003e);
+          emit(0x06, 0, 0, 0x80000000);
+          emit(0x20, 0, 0, 0);
+          for (const syscall of [
+            41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55,
+            288, 299, 307, 321, 425, 426, 427
+          ]) {
+            emit(0x15, 0, 1, syscall);
+            emit(0x06, 0, 0, 0x00050001);
+          }
+          emit(0x06, 0, 0, 0x7fff0000);
+          const bytes = Buffer.alloc(instructions.length * 8);
+          instructions.forEach((insn, index) => {
+            const offset = index * 8;
+            bytes.writeUInt16LE(insn.code, offset);
+            bytes.writeUInt8(insn.jt, offset + 2);
+            bytes.writeUInt8(insn.jf, offset + 3);
+            bytes.writeUInt32LE(insn.k >>> 0, offset + 4);
+          });
+          fs.writeFileSync(output, bytes, { mode: 0o400 });
+          FILTER_NODE
           cat > "$WRAPPER" <<'WRAPPER'
           #!/usr/bin/env bash
           set -Eeuo pipefail
@@ -60,12 +90,13 @@ jobs:
             args+=("$arg")
             if [[ "$arg" == --unshare-all ]]; then
               args+=(--share-net)
+              args+=(--seccomp 3)
               seen_unshare_all=1
             fi
           done
           [[ "$seen_unshare_all" -eq 1 ]]
-          exec /usr/bin/unshare --user --map-root-user --net -- \
-            /usr/bin/bwrap "${args[@]}"
+          exec 3<"$0.bpf"
+          exec /usr/bin/bwrap "${args[@]}"
           WRAPPER
           chmod 0700 "$WRAPPER"
           env -i \
@@ -97,11 +128,25 @@ jobs:
               process.exitCode = 1;
             });
           NODE
+          network_result="$($WRAPPER \
+            --die-with-parent --new-session --unshare-all --unshare-user \
+            --disable-userns --cap-drop ALL --proc /proc --dev /dev --dir /tmp \
+            --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib \
+            --symlink usr/lib64 /lib64 --symlink usr/sbin /sbin \
+            --clearenv /usr/bin/node -e '
+              const net = require("node:net");
+              const s = net.createConnection({host:"127.0.0.1",port:8787});
+              s.once("connect",()=>process.exit(90));
+              s.once("error",e=>{console.log(e.code);process.exit(e.code==="EPERM"?0:91)});
+              setTimeout(()=>process.exit(92),2000);
+            ')"
+          [[ "$network_result" == EPERM ]]
+          echo 'NETWORK_SYSCALL_DENY=PASS'
           REMOTE
           status=$?
           set -e
           echo "status=$status" >> "$GITHUB_OUTPUT"
-          grep -E '^(LIVE_USER_|ERROR_CODE|ERROR_MESSAGE|LABORATORY_BYPASS|CERTIFICATE_ID|AUTHORIZATION_CLASS)=' "$RUNNER_TEMP/inspect.raw" || true
+          grep -E '^(LIVE_USER_|ERROR_CODE|ERROR_MESSAGE|NETWORK_SYSCALL_DENY|LABORATORY_BYPASS|CERTIFICATE_ID|AUTHORIZATION_CLASS)=' "$RUNNER_TEMP/inspect.raw" || true
       - name: Publish exact inspector result
         if: always()
         shell: bash
@@ -112,7 +157,7 @@ jobs:
             echo 'P1_LIVE_INSPECT_RESULT_FORMAT=stay-p1-live-inspect-v1'
             echo "ACTIONS_RUN_ID=$GITHUB_RUN_ID"
             echo "INSPECT_STATUS=${{ steps.inspect.outputs.status }}"
-            grep -E '^(LIVE_USER_|ERROR_CODE|ERROR_MESSAGE|LABORATORY_BYPASS|CERTIFICATE_ID|AUTHORIZATION_CLASS)=' "$RUNNER_TEMP/inspect.raw" || true
+            grep -E '^(LIVE_USER_|ERROR_CODE|ERROR_MESSAGE|NETWORK_SYSCALL_DENY|LABORATORY_BYPASS|CERTIFICATE_ID|AUTHORIZATION_CLASS)=' "$RUNNER_TEMP/inspect.raw" || true
           } > "$result"
           content="$(base64 -w0 "$result")"
           path_name='ops/p1-live-inspect-now-result.env'
