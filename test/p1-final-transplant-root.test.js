@@ -38,3 +38,11 @@ test('pre-attach rollback removes every privileged sandbox artifact', () => {
   assert.match(script, /ATTACH_STARTED=0/);
   assert.match(script, /ATTACH_STARTED=1\s+STEP='resident-sntss-attach'\s+attach=/s);
 });
+
+test('forced transplant bypasses only the broken per-core cgroup path', () => {
+  assert.match(script, /Environment=STAY_REQUIRE_CGROUPS=0/);
+  assert.match(script, /Environment=STAY_CGROUP_ROOT=\/etc\/stay\/\.p1-cgroup-bypass/);
+  assert.match(script, /CGROUP_MODE=TEMPORARY_BYPASS_BROKEN_TWO_PROCESS_ACCOUNTING/);
+  assert.match(script, /STAY_REQUIRE_OS_CORE_SANDBOX=1/);
+  assert.match(script, /STAY_REQUIRE_CORE_PACKAGE_POLICY=1/);
+});
