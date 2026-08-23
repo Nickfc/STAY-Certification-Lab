@@ -1,0 +1,169 @@
+name: P1 B.0 forward repair forensics
+run-name: P1 B.0 forward repair forensics
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/p1-b0-forward-forensics.launch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stay-genesis-p1-b0-forward-forensics
+  cancel-in-progress: false
+
+jobs:
+  read-only-forward-capture:
+    if: github.event.head_commit.message == 'Launch read-only B.0 forward forensics'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Prepare deployment key
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          : > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+
+      - name: Capture exact live forward state without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 'bash -s' > "$RUNNER_TEMP/forward-forensics.env" <<'REMOTE'
+          set -Eeuo pipefail
+          EXPECTED_PRIVATE_IPV4='172.26.9.207'
+          OBSERVED_PRIVATE_IPV4="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a); print a}' | sort -u)"
+          [[ "$OBSERVED_PRIVATE_IPV4" == "$EXPECTED_PRIVATE_IPV4" ]]
+          echo 'FORWARD_FORENSICS_FORMAT=stay-p1-b0-forward-forensics-v1'
+          echo 'HOST_IDENTITY_GUARD=PASS'
+          echo "OBSERVED_PRIVATE_IPV4=$OBSERVED_PRIVATE_IPV4"
+          echo "CURRENT_RELEASE=$(readlink -f /opt/stay/current)"
+          echo "LIVE_HEALTH=$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
+          PID="$(systemctl show stay.service -p MainPID --value)"
+          echo "MAIN_PID=$PID"
+          systemctl show stay.service \
+            -p ActiveState -p SubState -p Result -p NRestarts -p ExecStart \
+            -p CapabilityBoundingSet -p AmbientCapabilities -p NoNewPrivileges \
+            -p FragmentPath -p DropInPaths --no-pager
+          grep -E '^(CapInh|CapPrm|CapEff|CapBnd|CapAmb|NoNewPrivs):' "/proc/$PID/status"
+          DROPIN='/etc/systemd/system/stay.service.d/p1-b0-resident-runtime.conf'
+          echo "RUNTIME_DROPIN_STAT=$(stat -Lc '%U:%G:%a:%h' "$DROPIN")"
+          echo "RUNTIME_DROPIN_SHA256=$(sha256sum "$DROPIN" | awk '{print $1}')"
+          sed -n '1,80p' "$DROPIN"
+          if [[ -f /etc/stay/p1-b0-sandbox-repair.env && ! -L /etc/stay/p1-b0-sandbox-repair.env ]]; then
+            echo 'REPAIR_SEAL_PRESENT=YES'
+            echo "REPAIR_SEAL_SHA256=$(sha256sum /etc/stay/p1-b0-sandbox-repair.env | awk '{print $1}')"
+          else
+            echo 'REPAIR_SEAL_PRESENT=NO'
+          fi
+          node <<'NODE'
+          'use strict';
+          const net = require('node:net');
+          const { DatabaseSync } = require('node:sqlite');
+
+          function socketStatus(residencyId) {
+            return new Promise((resolve, reject) => {
+              const socket = net.createConnection('/run/stay/resident-control.sock');
+              let body = '';
+              socket.setEncoding('utf8');
+              socket.on('connect', () => socket.write(JSON.stringify({
+                format: 'stay-resident-control-v1',
+                operation: 'status',
+                residencyId
+              }) + '\n'));
+              socket.on('data', chunk => { body += chunk; });
+              socket.on('end', () => resolve(JSON.parse(body)));
+              socket.on('error', reject);
+            });
+          }
+
+          (async () => {
+            const sntss = await socketStatus('resident:sntss');
+            const chrono = await socketStatus('resident:chronobiology');
+            console.log('SNTSS_STATUS=' + JSON.stringify(sntss));
+            console.log('CHRONOBIOLOGY_STATUS=' + JSON.stringify(chrono));
+
+            const db = new DatabaseSync('/var/lib/stay/data/continuity.sqlite3', { readOnly: true });
+            db.exec('PRAGMA query_only=ON');
+            const identity = JSON.parse(db.prepare(
+              "SELECT json FROM metadata WHERE key='life:identity'"
+            ).get().json);
+            const residents = db.prepare(
+              'SELECT residency_id, core_id, status, checkpoint_generation FROM resident_instances ORDER BY residency_id'
+            ).all();
+            const authority = db.prepare(
+              "SELECT core_id, version, epoch FROM authority WHERE core_id IN ('sntss','chronobiology') ORDER BY core_id"
+            ).all();
+            db.close();
+            console.log('RESIDENT_INSTANCES=' + JSON.stringify(residents));
+            console.log('PHYSIOLOGY_AUTHORITY=' + JSON.stringify(authority));
+
+            const ROOT = '/opt/stay/current';
+            const MODULE = 'cores/sntss/i3d/index.js';
+            const { inspectCoreModule } = require(ROOT + '/runtime/kernel/core-loader.js');
+            const { canonicalHash, L0_SNTSS_CONTRACT } = require(
+              ROOT + '/runtime/kernel/resident-manager.js'
+            );
+            const definition = await inspectCoreModule(ROOT + '/' + MODULE);
+            console.log('LIVE_USER_CORE_INSPECT=PASS');
+            const { loadAndVerifyResidentPromotion } = require(
+              ROOT + '/runtime/kernel/resident-promotion-authority.js'
+            );
+            const promotion = loadAndVerifyResidentPromotion({
+              inspected: {
+                definition,
+                manifestHash: canonicalHash(definition.manifest),
+                moduleRelativePath: MODULE
+              },
+              action: 'attach-resident',
+              identity,
+              contract: L0_SNTSS_CONTRACT,
+              required: true,
+              publicKeyPath: '/etc/stay/release-authority.pub',
+              certificateDir: '/etc/stay/resident-promotions'
+            });
+            console.log('LIVE_USER_PROMOTION=PASS');
+            console.log('LABORATORY_BYPASS=' + (promotion.laboratoryBypass === true ? 'YES' : 'NO'));
+          })().catch(error => {
+            console.log('LIVE_USER_DIAGNOSTIC=FAIL');
+            console.log('ERROR_CODE=' + String(error?.code || 'UNKNOWN').replace(/\r?\n/g, ' | '));
+            console.log('ERROR_MESSAGE=' + String(error?.message || error).replace(/\r?\n/g, ' | ').slice(0, 2048));
+            process.exitCode = 1;
+          });
+          NODE
+          echo 'FORWARD_FORENSICS_RESULT=PASS'
+          REMOTE
+
+      - name: Publish sanitized forward-state capture
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SOURCE="$RUNNER_TEMP/forward-forensics.env"
+          [[ -f "$SOURCE" ]]
+          CONTENT="$(base64 -w0 "$SOURCE")"
+          PATH_NAME='ops/p1-b0-forward-forensics.env'
+          EXISTING_SHA="$(gh api "repos/$GITHUB_REPOSITORY/contents/$PATH_NAME?ref=main" --jq .sha 2>/dev/null || true)"
+          if [[ -n "$EXISTING_SHA" ]]; then
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$PATH_NAME" \
+              -f message='Record read-only B.0 forward forensics' \
+              -f content="$CONTENT" -f branch=main -f sha="$EXISTING_SHA" >/dev/null
+          else
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$PATH_NAME" \
+              -f message='Record read-only B.0 forward forensics' \
+              -f content="$CONTENT" -f branch=main >/dev/null
+          fi
+
