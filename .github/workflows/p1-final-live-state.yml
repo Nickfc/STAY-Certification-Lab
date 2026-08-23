@@ -61,6 +61,24 @@ jobs:
             echo 'BWRAP_HELPER_PRESENT=NO'
           fi
           [[ -e /etc/stay/p1-b0-sandbox-final.env ]] && echo 'FINAL_SANDBOX_SEAL_PRESENT=YES' || echo 'FINAL_SANDBOX_SEAL_PRESENT=NO'
+          stage='/opt/stay/incoming/p1-final-transplant-32661174982'
+          if [[ -d "$stage" && ! -L "$stage" ]]; then
+            echo 'STAGED_ROOT_PRESENT=YES'
+            stat -Lc 'STAGED_ROOT_STAT=%U:%G:%a:%h' "$stage"
+            if [[ -f "$stage/p1-finish-transplant-root.sh" && ! -L "$stage/p1-finish-transplant-root.sh" ]]; then
+              stat -Lc 'STAGED_SCRIPT_STAT=%U:%G:%a:%h' "$stage/p1-finish-transplant-root.sh"
+              sha256sum "$stage/p1-finish-transplant-root.sh" | awk '{print "STAGED_SCRIPT_SHA256=" $1}'
+            else
+              echo 'STAGED_SCRIPT_PRESENT=NO'
+            fi
+          else
+            echo 'STAGED_ROOT_PRESENT=NO'
+          fi
+          bwrap_source="$(readlink -f /usr/bin/bwrap)"
+          echo "BWRAP_SOURCE=$bwrap_source"
+          stat -Lc 'BWRAP_SOURCE_STAT=%U:%G:%a:%h' "$bwrap_source"
+          sha256sum "$bwrap_source" | awk '{print "BWRAP_SOURCE_SHA256=sha256:" $1}'
+          [[ -S /run/stay/resident-control.sock ]] && echo 'RESIDENT_CONTROL_SOCKET=PASS' || echo 'RESIDENT_CONTROL_SOCKET=FAIL'
           node <<'NODE'
           'use strict';
           const net = require('node:net');
