@@ -170,6 +170,15 @@ cat > "$WORK/dropin.next" <<EOF
 [Service]
 NoNewPrivileges=false
 CapabilityBoundingSet=$CAPABILITIES
+PrivateTmp=false
+PrivateDevices=false
+ProtectClock=false
+ProtectKernelModules=false
+ProtectProc=default
+RestrictSUIDSGID=false
+LockPersonality=false
+ProtectHome=false
+ProtectSystem=false
 MemoryHigh=671088640
 MemoryMax=805306368
 TasksMax=512
@@ -203,6 +212,10 @@ post_pid="$(systemctl show stay.service -p MainPID --value)"
    "$(systemctl show stay.service -p SubState --value)" == running &&
    "$(systemctl show stay.service -p NRestarts --value)" == 0 &&
    "$(systemctl show stay.service -p NoNewPrivileges --value)" == no &&
+   "$(systemctl show stay.service -p PrivateTmp --value)" == no &&
+   "$(systemctl show stay.service -p PrivateDevices --value)" == no &&
+   "$(systemctl show stay.service -p ProtectProc --value)" == default &&
+   "$(systemctl show stay.service -p RestrictSUIDSGID --value)" == no &&
    "$(systemctl show stay.service -p MemoryMax --value)" == 805306368 &&
    "$(systemctl show stay.service -p TasksMax --value)" == 512 ]] || abort repaired-service-contract 117
 for capability_field in CapPrm CapEff CapAmb; do
@@ -376,6 +389,7 @@ SURGERY_B_RESULT=PASS
 RUNTIME_REVISION_BEFORE=$pre_revision
 RUNTIME_REVISION_AFTER=$(field "$final_health" revision)
 SANDBOX_REPAIR=SETUID_BWRAP_WITH_PAYLOAD_USERNS_SECCOMP
+OUTER_SYSTEMD_NAMESPACE=RELAXED_FOR_NESTED_BWRAP
 BWRAP_HELPER_SHA256=sha256:$helper_hash
 SETUID_BWRAP_SHA256=sha256:$bwrap_hash
 USERNS_FILTER_SHA256=sha256:$filter_hash
