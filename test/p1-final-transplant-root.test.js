@@ -36,6 +36,5 @@ test('payload seccomp replaces the failing nested-userns sysctl operation', () =
 test('pre-attach rollback removes every privileged sandbox artifact', () => {
   assert.match(script, /rm -f -- "\$HELPER" "\$SETUID_BWRAP" "\$USERNS_FILTER"/);
   assert.match(script, /ATTACH_STARTED=0/);
-  assert.match(script, /ATTACH_STARTED=1\s+attach=/s);
+  assert.match(script, /ATTACH_STARTED=1\s+STEP='resident-sntss-attach'\s+attach=/s);
 });
-
