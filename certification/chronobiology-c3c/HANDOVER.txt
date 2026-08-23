@@ -1,0 +1,56 @@
+Split-host certification now governs the final candidate. The former combined
+actual-host run below remains diagnostic only and cannot create seal evidence.
+
+Compute lane in PUBLIC Nickfc/STAY-Certification-Lab orchestration. The private
+STAY-Genesis checkout must use STAY_GENESIS_READONLY_DEPLOY_KEY. The public Lab
+contains only encrypted fixture material; its decryption secret is
+STAY_LEGACY_0_6_FIXTURE_PASSPHRASE:
+
+  bash certification/chronobiology-c3c/compute/PUBLIC_RUN.sh \
+    "$CANDIDATE_SHA" \
+    >"$RUNNER_TEMP/COMPUTE_RESULT.sanitized.json"
+
+Then copy only COMPUTE_RESULT.sanitized.json to the actual Lightsail host and
+run the read-only sentinel lane from the exact same SHA/tree as staydeploy:
+
+  bash certification/chronobiology-c3c/live/RUN.sh \
+    --candidate-sha "$CANDIDATE_SHA" \
+    --candidate-tree "$CANDIDATE_TREE" \
+    --compute-result "$COMPUTE_RESULT" \
+    --output-root /var/tmp/stay-chronobiology-c3c-live
+
+Bind only the two sanitized records with VERIFY_SPLIT_EVIDENCE.js. It must
+report CANDIDATE_CERTIFIED_UNSEALED before an explicit later seal review.
+
+Legacy combined diagnostic on the authorized development server:
+
+  cd /home/staydeploy/STAY-Genesis-I1A
+  git fetch origin feature/chronobiology
+  git switch feature/chronobiology
+  git pull --ff-only origin feature/chronobiology
+  test -z "$(git status --porcelain=v1)"
+  bash certification/chronobiology-c3c/RUN.sh
+
+Read-only progress from another shell:
+
+  cd /home/staydeploy/STAY-Genesis-I1A
+  bash certification/chronobiology-c3c/WATCH.sh
+
+On success, return these files without altering the repository:
+
+  /var/tmp/stay-chronobiology-c3c/STATUS.json
+  /var/tmp/stay-chronobiology-c3c/SHA256SUMS.txt
+  /var/tmp/stay-chronobiology-c3c/logs/direct.tap
+  /var/tmp/stay-chronobiology-c3c/logs/targeted.tap
+  /var/tmp/stay-chronobiology-c3c/logs/full.tap
+  /var/tmp/stay-chronobiology-c3c/evidence/live-before.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/live-after.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/node-pids-before.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/node-pids-after.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/new-node-pids.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/source-before.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/source-tree.txt
+  /var/tmp/stay-chronobiology-c3c/evidence/candidate-source-sha256.txt
+
+Do not create a seal, deploy, restart stay.service, switch /opt/stay/current,
+merge main, or enable Chronobiology authority after this run.

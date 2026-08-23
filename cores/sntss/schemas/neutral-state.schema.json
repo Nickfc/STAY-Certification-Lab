@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://sntss/neutral-state.schema.json",
+  "title": "STAY SNTSS neutral state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formatVersion", "stateSchema", "protocol", "coreVersion", "stage", "organismBinding", "transmitters", "receptors", "migrations"],
+  "properties": {
+    "formatVersion": { "const": 1 },
+    "stateSchema": { "const": 1 },
+    "protocol": { "const": "stay-sntss-v1" },
+    "coreVersion": { "type": "string", "minLength": 1 },
+    "stage": { "const": "neutral" },
+    "organismBinding": { "anyOf": [{ "type": "null" }, { "$ref": "runtime-organism-binding.schema.json" }] },
+    "transmitters": { "type": "object", "maxProperties": 0 },
+    "receptors": { "type": "object", "maxProperties": 0 },
+    "migrations": { "type": "array", "maxItems": 64, "items": { "type": "string" } }
+  }
+}

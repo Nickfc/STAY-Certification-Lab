@@ -1,0 +1,23 @@
+{
+  "format": "stay-hardware-evidence-v1",
+  "durationMs": 0,
+  "runId": null,
+  "startedAt": null,
+  "completedAt": null,
+  "nodes": [
+    { "id": "main-ryzen", "kind": "ryzen-desktop", "samples": [{ "at": null, "cpuDuty": null, "rssBytes": null }] },
+    { "id": "main-gpu", "kind": "desktop-gpu", "samples": [{ "at": null, "requestedDuty": null, "measuredDuty30s": null, "bufferBytes": null }] },
+    { "id": "second-gpu", "kind": "second-gpu", "samples": [{ "at": null, "requestedDuty": null, "measuredDuty30s": null, "bufferBytes": null }] },
+    { "id": "cpu-browser", "kind": "cpu-only", "samples": [{ "at": null, "requestedDuty": null, "measuredDuty": null, "longTaskMs": null }] },
+    { "id": "phone", "kind": "mobile", "samples": [{ "at": null, "effectiveDuty": null, "freezeMs": null, "heapBytes": null }] }
+  ],
+  "checks": {
+    "gpuDutyTolerance": false,
+    "cpuQuietRyzen": false,
+    "viewerFreezeBackoff": false,
+    "memoryStable": false,
+    "reconnects": false,
+    "faultRecovery": false
+  },
+  "notes": []
+}

@@ -1,0 +1,79 @@
+{
+  "report_schema": "chronobiology.c3a-containment-report/v1",
+  "result": "PASS",
+  "core_version": "1.0.0-c3rc.1",
+  "package_policy_hash": "sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820",
+  "authority": {
+    "production_eligible": false,
+    "operating_scope": [
+      "LABORATORY",
+      "SHADOW"
+    ],
+    "live_deployment_performed": false,
+    "sntss_source_modified": false
+  },
+  "resource_contract": {
+    "memory_high_bytes": 67108864,
+    "memory_max_bytes": 100663296,
+    "cpu_max": "20000 100000",
+    "pids_max": 16,
+    "input_queue": 256,
+    "handler_timeout_ms": 250,
+    "health_timeout_ms": 1000,
+    "output_capacity": 128,
+    "outputs_per_event": 16,
+    "output_bytes_per_event": 65536,
+    "restart_budget": {
+      "restarts": 4,
+      "window_ms": 60000,
+      "backoff_ms": 250
+    }
+  },
+  "observed": {
+    "one_year_handler_ms": 144.907,
+    "checkpoint_bytes_after_64_cues": 68119,
+    "checkpoint_bytes_after_192_cues": 68328,
+    "checkpoint_growth_bytes": 209,
+    "checkpoint_ceiling_bytes": 1048576,
+    "recent_evidence_entries": 64,
+    "entrainment_history_entries": 64,
+    "aggregate_history_entries": 64,
+    "pending_request_rejection_at": 129,
+    "restart_quarantine_after": 5
+  },
+  "containment": {
+    "filesystem_write": false,
+    "network": false,
+    "process_spawn": false,
+    "direct_sntss_access": false,
+    "wall_clock_biological_authority": false,
+    "nondeterministic_random_transition": false,
+    "telemetry_failure_changes_biology": false
+  },
+  "certification": {
+    "direct": {
+      "tests": 8,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    "targeted_containment": {
+      "tests": 62,
+      "passed": 62,
+      "failed": 0,
+      "skipped": 0
+    },
+    "chronobiology_regression": {
+      "tests": 79,
+      "passed": 79,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "source_sha256": {
+    "cores/chronobiology/c3/index.js": "60d15f828a58a0f3dd70a424b2bdb5a7e56c090efa7594c9bb141452439c8a9e",
+    "cores/chronobiology/c3/package-policy.json": "f03b9a2f782edac7c18c8199259a646e5982ea624504906dee0d45a60ad8bcbf",
+    "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
+    "test/chronobiology-c3-containment.test.js": "19d6fca17e4ba168b94a55f70c7bf22f12349c113abc09b625de004da6a7079a"
+  }
+}

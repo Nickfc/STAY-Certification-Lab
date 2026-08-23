@@ -1,0 +1,12 @@
+STAY 0.8 CPU Quiet Governor examples
+
+Low requested shares are constrained by CPU time, concurrency and burst length at once.
+The exact effective share is hardware- and contention-dependent and is reported truthfully.
+
+Requested <= 5%  : peak 1 worker, 4 ms slices, <= 250 ms CPU/second desktop
+Requested <= 10% : peak 2 workers, 4-6 ms slices, <= 350 ms/worker/second desktop
+Requested <= 25% : peak 4 workers, 4-8 ms slices, <= 500 ms/worker/second desktop
+Requested > 25%  : peak 16 workers desktop / 3 mobile, 5-10 ms slices
+
+Interaction, long tasks, >250 ms freezes, mobile limits, GPU latency inflation and
+heap growth reduce effective duty automatically. Requested and effective values remain separate.

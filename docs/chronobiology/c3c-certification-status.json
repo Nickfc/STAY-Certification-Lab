@@ -1,0 +1,163 @@
+{
+  "schema": "stay.chronobiology.c3c-certification-status/v3",
+  "result": "C3C_SHADOW_RELEASE_SEALED",
+  "release_sealed": true,
+  "candidate": {
+    "version": "1.0.0-c3rc.1",
+    "stage": "c3-shadow-release-candidate",
+    "branch": "feature/chronobiology",
+    "implementation_parent_checkpoint": "ce7c06c50052abc189c0764558c91ef409c0e880",
+    "production_eligible": false,
+    "authority_mode": "shadow",
+    "c0_document_audit": "IMPLEMENTATION_CLOSED",
+    "server_release_gates": "CLOSED",
+    "sealed_candidate_sha": "cf23389c1faa6d58cbb4e0960dab02fe38648f59",
+    "sealed_candidate_tree": "94625cc5c832e6716b7142c4af267f9713bbc1c1"
+  },
+  "local_certification": {
+    "chronobiology_direct": {
+      "tests": 94,
+      "passed": 94,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "duration_ms": 237755.957918,
+      "result": "PASS"
+    },
+    "targeted_residency_bsf_corehost_sntss": {
+      "tests": 524,
+      "passed": 524,
+      "failed": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "duration_ms": 59491.852363,
+      "result": "PASS"
+    },
+    "fresh_repository_suite": {
+      "tests": 705,
+      "passed": 701,
+      "failed": 4,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0,
+      "duration_ms": 276721.506254,
+      "result": "ENVIRONMENT_BLOCKED",
+      "log_sha256": "sha256:d084e96f7c28efc9d07f2949b46398bc74ae791c7d5978ffedb06597cca060ce",
+      "failures": [{
+        "tests": ["R11-M03-01", "R11-M03-02", "R11-M03-03", "R11-M03-06"],
+        "classification": "ENVIRONMENT_FAILURE",
+        "cause": "The workspace sandbox denies Unix-domain socket listen with EPERM; no Chronobiology execution path is implicated."
+      }]
+    },
+    "leaked_node_processes_after_suite": 0
+  },
+  "split_host_certification": {
+    "topology": "stay.chronobiology.c3c-split-host/v1",
+    "compute": {
+      "entrypoint": "certification/chronobiology-c3c/compute/RUN.sh",
+      "repository": "Nickfc/STAY-Certification-Lab",
+      "repository_visibility": "PUBLIC",
+      "private_source_access": "DEDICATED_READ_ONLY_DEPLOY_KEY_ONLY",
+      "legacy_fixture": "EPHEMERAL_GPG_DECRYPTED_SOURCE_FILES_SHA256_VERIFIED_MATERIAL",
+      "fixture_identity": "SOURCE_FILES_SHA256",
+      "migration_zip_input_supported": true,
+      "migration_zip_input_sha256": "sha256:b2582a4a8f4fc5d82f5241c6a2309426709c8906be76c572fe44f1d305d9f12b",
+      "migration_source_prefix": "source/0.6.0/",
+      "state_content_used": false,
+      "deterministic_transport_sha256": "sha256:81d21287b863acddc1428871a412b054fffd8b46b0789553a5aa1ae0dbda218f",
+      "raw_public_disclosure": "NONE",
+      "sanitized_failure_record": "CANDIDATE_SHA_TREE_FAILED_PRIVATE_STATUS_STAGE_EXIT_CODE_ONLY",
+      "required_result": "PASS",
+      "required_test_result": "ZERO_FAILURE_ZERO_SKIP_ZERO_TODO_ZERO_CANCELLED",
+      "required_new_node_processes": 0,
+      "record_sha256": "sha256:1ce64f2e798c8092f7aa7ec72811fb834e04e09a5eeedaee7e9afd99d722c99a",
+      "result": "PASS"
+    },
+    "live_sentinel": {
+      "entrypoint": "certification/chronobiology-c3c/live/RUN.sh",
+      "host": "ACTUAL_LIGHTSAIL_ONLY",
+      "required_result": "PASS",
+      "required_live_sentinel": "BYTE_IDENTICAL_BEFORE_AFTER",
+      "record_sha256": "sha256:7c16070894630c34fb8fc5fd6cd248298333708359bdf2cbdf547d644c8abf86",
+      "before_after_byte_identical": true,
+      "result": "PASS"
+    },
+    "binding": {
+      "entrypoint": "certification/chronobiology-c3c/VERIFY_SPLIT_EVIDENCE.js",
+      "required_identity": "EXACT_SAME_CANDIDATE_SHA_TREE_AND_COMPUTE_RECORD_DIGEST",
+      "result": "CANDIDATE_CERTIFIED_UNSEALED"
+    },
+    "explicit_final_review": {
+      "record": "docs/chronobiology/c3c-final-seal.json",
+      "result": "C3C_SHADOW_RELEASE_SEALED",
+      "release_sealed": true
+    }
+  },
+  "integrity": {
+    "package_policy_hash": "sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820",
+    "chronobiology_source_sha256": {
+      "aggregate.js": "5e3b783ebe6a2f83c12442631a4f66240636d0bc18c7ede1fe17c3b5b0aa990a",
+      "calibration-profile.js": "e758ac1956b53cb02d0ab0d95bff67be948525127185295eb05f280838519ff3",
+      "coarse-free-run.js": "13ec141fbca5bea9aac11055ced246a4114de834394d08252c82eca27c41aa6c",
+      "entrainment.js": "62003617ff2c323fb99da02e868d54ef8a40dac97f950a984f680f2b0f49702e",
+      "fixed-point.js": "2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
+      "founder.js": "a8ed1f62a257acb15bf1b966d1e59d77e0613c020f718621a751724f9dea1e33",
+      "index.js": "60d15f828a58a0f3dd70a424b2bdb5a7e56c090efa7594c9bb141452439c8a9e",
+      "long-gap.js": "48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
+      "oscillator.js": "740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
+      "phase-response.js": "b6174a57b5313bf5540b5c7c6093045bd5681bd9b85692b2eee33dc8b1a933d1",
+      "photic-calibration-profile.js": "a4c02de768c486eb836c20ac98e0f03d7f8d363394a6cc6f266f7404f3ca67ab",
+      "photic-transducer.js": "1a87ca4bf5a231988035df60a94bc257edd2ff3241340fd38c64b522a327017a",
+      "state.js": "c51e375c07ebd0108b4619f8d75aa1880d7bdde355c63c1afb6c924282b1ea83",
+      "summary.js": "ddf8a1a129f7d47331e5ec28c1eb1fbc82ebcc55e7bffb145a7cc7f7fc6cba9c",
+      "trig-table.js": "2e360df71cf652ae926fbb82861b362b438cf6794cd6751e541968571ce37668",
+      "validation.js": "7c9bd5f394048a2c41b5de336ff91faaa48db8c7c93b545c21ac013a62879eb6"
+    },
+    "schema_sha256": {
+      "phase-summary.schema.json": "1eb7e4446040b111032d34294fa5edb66ed2863b6da3701be6e7996813d8acf9",
+      "photic-evidence.schema.json": "6054d0e3e5aabe3611130650313f629b1485e6de97e9cc575298345a0126d47e",
+      "state.schema.json": "ddfa9942cce9ee8246b6f2b05048ed46a666ccf7c9f05169f86479e0b0d8f2b8"
+    },
+    "shared_infrastructure_sha256": {
+      "runtime/kernel/biological-signalling-fabric.js": "9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a",
+      "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
+      "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4"
+    },
+    "closure_evidence_sha256": {
+      "docs/chronobiology/c0-implementation-audit.md": "12acb4e52585cf3f741a9b19a60d3f08855fdab3f807d0e4356b68e4defb70bc",
+      "docs/chronobiology/c3c-final-seal.json": "af3b44612c96ff613e2d403c78b5c47af75327e4dd6364e24a8cc1903df8bf95",
+      "test/chronobiology-c1-genesis.test.js": "92d069df1a23d7c6c89c57a3f892e093d948e513d14e4922461ec6ab531c0757",
+      "test/chronobiology-hostile-certification.test.js": "5a58bda11f6966361ab2b1d3688a883529ebaf50071725acf80a9cd267631534",
+      "test/chronobiology-c3c-split-certification.test.js": "0684f0fa7b45ce8194b620312f6025a68c5d7e671f2c5ca70b6f944967c623f1",
+      "certification/chronobiology-c3c/RUN.sh": "1f2ddabe37e0915ecdadc2f729c8f23d48c7fd78923cf47cddb9140ba8739be9",
+      "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29",
+      "certification/chronobiology-c3c/compute/RUN.sh": "472f2f557871f6b2d939cfdb262a45274cec3d8c1892a60a81948f3bc9ebd1db",
+      "certification/chronobiology-c3c/compute/private-material-cleanup.js": "9508abda05fd876ea9a7368729fbd5d4218658839406a7a00ea8aeaf19beec21",
+      "certification/chronobiology-c3c/compute/PUBLIC_RUN.sh": "cfbe7867c164d72ba70b655ba175594178ffa900a9512067fa67e1759a251c41",
+      "certification/chronobiology-c3c/compute/PUBLIC_LAB_WORKFLOW.yml.example": "4da9e4a524fad5a2e993b9cad3ead5cc074b705f1cf077667280fbbd7fed2eae",
+      "certification/chronobiology-c3c/compute/public-failure-record.js": "03769dced8eb634274eaf3783b24bd1792a05b5c54529a3d9eb8be335f306343",
+      "certification/chronobiology-c3c/compute/PREPARE_ENCRYPTED_FIXTURE.sh": "25911b25728d36511f326a05569bd85b13582bc3d6c3260500f1f9c0c4e2fb75",
+      "certification/chronobiology-c3c/compute/prepare-legacy-fixture.js": "c8cdfcbe74edb1175bf37d8d19a8371a31ff1f34889ae80f1672b699267cef65",
+      "certification/chronobiology-c3c/compute/legacy-fixture-transport.py": "8766478e334663f15db5c33e92e661decccf9233ef234d93b88d19bdff35b297",
+      "certification/chronobiology-c3c/compute/WATCH.sh": "2ca4f6d288fee010e77e4d0650a96797e01b078a1227e28b5d2f5b00b023fa8d",
+      "certification/chronobiology-c3c/compute/performance-probe.js": "e099e2df47f650a94dda600c9f69e848c116ec1dbe84d5125ab394a6cd03fc95",
+      "certification/chronobiology-c3c/live/RUN.sh": "42cadf17126c027a41d001fec6b51837076723d91e337e6c77dfff2fc68a9aa4",
+      "certification/chronobiology-c3c/VERIFY_SPLIT_EVIDENCE.js": "061cec6805ab49a906c9623a5bb79eb12ddc38cb4378f2068bc59aa33fb44264",
+      "certification/chronobiology-c3c/split-evidence.js": "fe81d95a123423227ccc8e1e8c1e0089a5530e3846aee924d28b428abe4fdea5",
+      "test/chronobiology-c3c-cleanup.test.js": "2d9abe07f06227d186ac588f93cdc637a22afb2e1dd22f6a20f61d528fff2c3e"
+    },
+    "sntss_source_modified": false
+  },
+  "safety": {
+    "live_operations_performed": false,
+    "live_deployment_performed": false,
+    "live_service_restarted": false,
+    "live_current_switched": false,
+    "main_merged": false,
+    "authoritative_effects_enabled": false,
+    "final_seal_created": true
+  },
+  "next_gate": "No deployment is authorized by this seal. Any live Chronobiology deployment, biological authority, SNTSS physiological coupling, C-AUTH grant or main merge requires a separate explicit authorization and certification gate."
+}

@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://sntss/species-profile.schema.json",
+  "title": "STAY SNTSS R4 Species Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profileVersion", "profileId", "revision", "kineticContractVersion", "fixedPointScale",
+    "integrationQuantumMs", "stage", "productionEligible", "review", "activeFamilies",
+    "dormantFamilies", "families", "interactionPolicy", "profileHash"
+  ],
+  "properties": {
+    "profileVersion": { "const": 1 },
+    "profileId": { "const": "stay-genesis-sntss-family-set" },
+    "revision": { "const": 1 },
+    "kineticContractVersion": { "const": 1 },
+    "fixedPointScale": { "const": 1000000 },
+    "integrationQuantumMs": { "const": 250 },
+    "stage": { "const": "laboratory-r4" },
+    "productionEligible": { "const": false },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "approval", "changeControl"],
+      "properties": {
+        "status": { "const": "candidate-awaiting-independent-review" },
+        "approval": { "const": false },
+        "changeControl": { "const": "profile-hash-invalidates-evidence" }
+      }
+    },
+    "activeFamilies": {
+      "const": ["acetylcholine-like", "dopamine-like", "gaba-like", "glutamate-like", "noradrenaline-like", "serotonin-like"]
+    },
+    "dormantFamilies": { "const": ["endogenous-opioid-like", "oxytocin-like"] },
+    "families": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acetylcholine-like", "dopamine-like", "endogenous-opioid-like", "gaba-like",
+        "glutamate-like", "noradrenaline-like", "oxytocin-like", "serotonin-like"
+      ],
+      "properties": {
+        "acetylcholine-like": { "$ref": "#/$defs/family" },
+        "dopamine-like": { "$ref": "#/$defs/family" },
+        "endogenous-opioid-like": { "$ref": "#/$defs/family" },
+        "gaba-like": { "$ref": "#/$defs/family" },
+        "glutamate-like": { "$ref": "#/$defs/family" },
+        "noradrenaline-like": { "$ref": "#/$defs/family" },
+        "oxytocin-like": { "$ref": "#/$defs/family" },
+        "serotonin-like": { "$ref": "#/$defs/family" }
+      }
+    },
+    "interactionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version", "gabaBrakeStrength", "noradrenalineModerateCeiling",
+        "noradrenalineAttentionSupport", "noradrenalineHighNarrowing",
+        "serotoninExtremeThreshold", "serotoninDampingStrength"
+      ],
+      "properties": {
+        "version": { "const": 1 },
+        "gabaBrakeStrength": { "$ref": "#/$defs/scaled" },
+        "noradrenalineModerateCeiling": { "$ref": "#/$defs/scaled" },
+        "noradrenalineAttentionSupport": { "$ref": "#/$defs/scaled" },
+        "noradrenalineHighNarrowing": { "$ref": "#/$defs/scaled" },
+        "serotoninExtremeThreshold": { "$ref": "#/$defs/scaled" },
+        "serotoninDampingStrength": { "$ref": "#/$defs/scaled" }
+      }
+    },
+    "profileHash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "scaled": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["P", "R", "C", "B", "X", "O", "F"],
+      "properties": {
+        "P": { "$ref": "#/$defs/scaled" }, "R": { "$ref": "#/$defs/scaled" },
+        "C": { "$ref": "#/$defs/scaled" }, "B": { "$ref": "#/$defs/scaled" },
+        "X": { "$ref": "#/$defs/scaled" }, "O": { "$ref": "#/$defs/scaled" },
+        "F": { "$ref": "#/$defs/scaled" }
+      }
+    },
+    "kinetics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "synthCap", "precursorRecovery", "reserveRetention", "maxReleasePerStep",
+        "maxSuppressionPerStep", "concentrationRetention", "exposureAlpha",
+        "exposureRetention", "toleranceStrength", "opponentBuildAlpha", "opponentRetention",
+        "refractoryRecovery", "refractoryRetention", "refractoryCost", "affinity", "hill"
+      ],
+      "properties": {
+        "synthCap": { "$ref": "#/$defs/scaled" },
+        "precursorRecovery": { "$ref": "#/$defs/scaled" },
+        "reserveRetention": { "$ref": "#/$defs/scaled" },
+        "maxReleasePerStep": { "$ref": "#/$defs/scaled" },
+        "maxSuppressionPerStep": { "$ref": "#/$defs/scaled" },
+        "concentrationRetention": { "$ref": "#/$defs/scaled" },
+        "exposureAlpha": { "$ref": "#/$defs/scaled" },
+        "exposureRetention": { "$ref": "#/$defs/scaled" },
+        "toleranceStrength": { "$ref": "#/$defs/scaled" },
+        "opponentBuildAlpha": { "$ref": "#/$defs/scaled" },
+        "opponentRetention": { "$ref": "#/$defs/scaled" },
+        "refractoryRecovery": { "$ref": "#/$defs/scaled" },
+        "refractoryRetention": { "$ref": "#/$defs/scaled" },
+        "refractoryCost": { "$ref": "#/$defs/scaled" },
+        "affinity": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "hill": { "type": "integer", "minimum": 1, "maximum": 4 }
+      }
+    },
+    "family": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileVersion", "family", "status", "modeledRole", "explicitBoundary",
+        "kineticContractVersion", "kinetics", "birthState", "activation", "profileHash"
+      ],
+      "properties": {
+        "profileVersion": { "const": 1 },
+        "family": { "enum": ["acetylcholine-like", "dopamine-like", "endogenous-opioid-like", "gaba-like", "glutamate-like", "noradrenaline-like", "oxytocin-like", "serotonin-like"] },
+        "status": { "enum": ["active-shadow", "dormant"] },
+        "modeledRole": { "type": "string", "minLength": 1 },
+        "explicitBoundary": { "type": "string", "minLength": 1 },
+        "kineticContractVersion": { "const": 1 },
+        "kinetics": { "$ref": "#/$defs/kinetics" },
+        "birthState": { "$ref": "#/$defs/state" },
+        "activation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["laboratoryDriveEnabled", "productionProducerCount", "productionActivationEnabled"],
+          "properties": {
+            "laboratoryDriveEnabled": { "type": "boolean" },
+            "productionProducerCount": { "const": 0 },
+            "productionActivationEnabled": { "const": false }
+          }
+        },
+        "profileHash": { "$ref": "#/$defs/hash" }
+      }
+    }
+  }
+}

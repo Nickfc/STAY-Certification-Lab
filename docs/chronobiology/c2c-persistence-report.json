@@ -1,0 +1,79 @@
+{
+  "report_schema": "chronobiology.c2c-persistence-report/v1",
+  "result": "PASS",
+  "core_version": "1.0.0-c3rc.1",
+  "package_policy_hash": "sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820",
+  "durability": {
+    "founder_reroll": false,
+    "oscillator_local_repair": false,
+    "adaptation_persistent": true,
+    "pending_evidence_capacity": 64,
+    "consumed_evidence_identity_capacity": 64,
+    "legacy_checkpoint_upgrade": "deterministic additive defaults; phenotype unchanged",
+    "newest_corrupt_checkpoint": "forensically quarantined; latest prior exact-identity CoreHost-valid checkpoint selected",
+    "replay_source": "ACKed durable events named by retained shared resident checkpoint input_cursor provenance",
+    "private_replay_ledger": false,
+    "duplicate_replay_output": false,
+    "representation_migration": "schema v1 to v2 only; deterministic receipt at unchanged committed frontier",
+    "rollback_projection": "unsupported; newer state is left byte-identical and refused"
+  },
+  "long_gap": {
+    "canonical_coarse_quantum_us": 43200000000,
+    "certified_minimum_interval_us": 2592000000000,
+    "certified_maximum_interval_us": 63072000000000,
+    "comparison_interval_us": 7776000000000,
+    "exact_60s": {
+      "central_phase_q": 1139802112,
+      "oscillator_coherence_q": 2120624316,
+      "rhythm_amplitude_q": 1813262957
+    },
+    "coarse_12h": {
+      "central_phase_q": 1139802112,
+      "oscillator_coherence_q": 2120624102,
+      "rhythm_amplitude_q": 1813262957
+    },
+    "observed_difference": {
+      "phase_q": 0,
+      "coherence_q": 214,
+      "amplitude_q": 0
+    },
+    "declared_quantum_tolerance": {
+      "phase_q": 5965232,
+      "coherence_q": 10737418,
+      "amplitude_q": 2147484
+    },
+    "result": "PASS"
+  },
+  "direct_certification": {
+    "tests": 13,
+    "passed": 13,
+    "covered": [
+      "checkpoint restart identity",
+      "consumed duplicate idempotency",
+      "legacy checkpoint upgrade",
+      "single-unit corruption rejection",
+      "coarse long-gap convergence",
+      "long-gap replay and bound",
+      "founder corruption quarantine",
+      "corrupt newest checkpoint prior-valid recovery",
+      "no-valid-checkpoint fail-closed behavior",
+      "semantic CoreHost validation fallback",
+      "missing finalized replay evidence rejection",
+      "forward representation migration preserves biology",
+      "rollback refusal preserves committed state"
+    ]
+  },
+  "source_sha256": {
+    "cores/chronobiology/c3/coarse-free-run.js": "13ec141fbca5bea9aac11055ced246a4114de834394d08252c82eca27c41aa6c",
+    "cores/chronobiology/c3/long-gap.js": "48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
+    "cores/chronobiology/c3/index.js": "60d15f828a58a0f3dd70a424b2bdb5a7e56c090efa7594c9bb141452439c8a9e",
+    "cores/chronobiology/c3/state.js": "c51e375c07ebd0108b4619f8d75aa1880d7bdde355c63c1afb6c924282b1ea83",
+    "cores/chronobiology/c3/validation.js": "7c9bd5f394048a2c41b5de336ff91faaa48db8c7c93b545c21ac013a62879eb6",
+    "cores/chronobiology/c3/schemas/state.schema.json": "ddfa9942cce9ee8246b6f2b05048ed46a666ccf7c9f05169f86479e0b0d8f2b8",
+    "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
+    "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4",
+    "test/chronobiology-c2-persistence.test.js": "308d52446f8143fc9b38fd4d1f7f84e2568f1aa0cc200ad6b1665fbad47a2aab",
+    "test/chronobiology-c3-shadow.test.js": "f367dd2a7d1a6efb7faa63e2f9f271b003cf7149280086da3acc3658ec516c1f",
+    "test/chronobiology-c1-corehost.test.js": "0feaaf5dc09e1181a26eab606e4760804cf4f283997f6f697ab4a6ebdd2780d5"
+  }
+}

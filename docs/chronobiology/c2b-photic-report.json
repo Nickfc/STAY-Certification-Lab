@@ -1,0 +1,77 @@
+{
+  "report_schema": "chronobiology.c2b-photic-report/v1",
+  "result": "PASS",
+  "model_version": "chronobiology-model-v1",
+  "calibration_profile_id": "chronobiology-calibration-c2a-v1",
+  "photic_calibration_profile_id": "chronobiology-photic-calibration-c2b-v1",
+  "authority_mode": ["LABORATORY", "SHADOW"],
+  "input_contract": {
+    "topic": "environment.photic.exposure",
+    "schema": "environment.photic.exposure/v1",
+    "maximum_interval_us": 86400000000,
+    "maximum_pending_intervals": 64,
+    "spectral_channels_model_v1": "unsupported and rejected",
+    "missing_evidence": "GAP; free-run with degraded cue confidence",
+    "measured_zero": "COMPLETE zero broadband measurement; valid darkness",
+    "required_route_law": "trusted advance is deferred until the shared route frontier is finalized and all temporally prior durable route evidence is delivered",
+    "late_evidence_law": "accepted late evidence is integrated before deferred trusted advance; evidence behind a genuinely committed finalized frontier fails closed"
+  },
+  "transducer_profile": {
+    "curve": "level/(level+half_saturation)",
+    "half_saturation_q31": 268435456,
+    "adaptation_rate_q31_per_60s": 10737418,
+    "recovery_rate_q31_per_60s": 5368709,
+    "adaptation_maximum_reduction_q31": 1073741824,
+    "maximum_phase_adjustment_q_per_60s": 131072,
+    "quality_law": "source_quality * coverage; PARTIAL adds one-half weight"
+  },
+  "phase_response_profile": {
+    "representation": "continuous two-harmonic lookup PRC",
+    "primary_q30": 1073741824,
+    "secondary_q30": 268435456,
+    "phase_assignment": false,
+    "direct_civil_time_input": false
+  },
+  "summary_profile": {
+    "history_capacity": 64,
+    "phase_lock_window": 16,
+    "entrained_minimum_samples": 7,
+    "entrained_stability_threshold_q31": 1610612735,
+    "gap_status": "CUE_UNCERTAIN"
+  },
+  "direct_certification": {
+    "tests": 16,
+    "passed": 16,
+    "covered": [
+      "phase advance",
+      "phase delay",
+      "weak continuous PRC phase",
+      "saturation",
+      "persistent adaptation",
+      "darkness versus gap",
+      "gap free-run",
+      "stable entrainment",
+      "gradual re-entrainment",
+      "chaotic cue bounds",
+      "invalid evidence rejection",
+      "trusted-time causality",
+      "bounded cue-flood backpressure",
+      "required-route finalization gating",
+      "late-accepted evidence causality",
+      "post-finalization late-evidence rejection"
+    ]
+  },
+  "source_sha256": {
+    "cores/chronobiology/c3/calibration-profile.js": "e758ac1956b53cb02d0ab0d95bff67be948525127185295eb05f280838519ff3",
+    "cores/chronobiology/c3/entrainment.js": "62003617ff2c323fb99da02e868d54ef8a40dac97f950a984f680f2b0f49702e",
+    "cores/chronobiology/c3/phase-response.js": "b6174a57b5313bf5540b5c7c6093045bd5681bd9b85692b2eee33dc8b1a933d1",
+    "cores/chronobiology/c3/photic-calibration-profile.js": "a4c02de768c486eb836c20ac98e0f03d7f8d363394a6cc6f266f7404f3ca67ab",
+    "cores/chronobiology/c3/photic-transducer.js": "1a87ca4bf5a231988035df60a94bc257edd2ff3241340fd38c64b522a327017a",
+    "cores/chronobiology/c3/oscillator.js": "740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
+    "cores/chronobiology/c3/state.js": "c51e375c07ebd0108b4619f8d75aa1880d7bdde355c63c1afb6c924282b1ea83",
+    "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
+    "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4",
+    "test/chronobiology-c2-photic.test.js": "6dc03cf14430db686670d921d6a2fc18299fefaa2bdafa11f6d8228d5ebdcf3e",
+    "test/biological-stream-progress.test.js": "b74a7432f345937f650a56f92e1c01f8336b1309110296f3109c8249afbd96a9"
+  }
+}

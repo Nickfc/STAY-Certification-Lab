@@ -1,0 +1,119 @@
+{
+  "report_schema": "chronobiology.c2a-convergence-report/v1",
+  "result": "PASS",
+  "model_version": "chronobiology-model-v1",
+  "calibration_profile_id": "chronobiology-calibration-c2a-v1",
+  "authoritative_numerics": {
+    "phase": "uint32 wrapped fraction; one turn = 2^32",
+    "bounded_state": "Q0.31",
+    "signed_response": "Q1.30",
+    "time": "integer microseconds",
+    "intermediates": "BigInt with half-away-from-zero integer division",
+    "trig_table_resolution": 4096,
+    "trig_table_hash": "sha256:6cea39fb0d4de3e45718a9ab4fc0b6b894f3469ba647752b84007e82204d1992",
+    "integration_quantum_us": 60000000,
+    "phase_resolvability_enter_q31": 257698038,
+    "phase_resolvability_exit_q31": 171798692,
+    "aggregate_history_capacity": 64,
+    "aggregate_estimator_minimum_observations": 3,
+    "aggregate_estimator_maximum_interval_us": 43200000000,
+    "phase_velocity_units": "wrapped uint32 phase-Q units per trusted organism day"
+  },
+  "selected_founder_profile": {
+    "production_oscillator_count": 64,
+    "intrinsic_period_mean_us": 87120000000,
+    "intrinsic_period_half_range_us": 4500000000,
+    "period_sampling": "deterministic antithetic founder pairs",
+    "coupling_graph": "symmetric ring +/-1,+/-2 plus one founder-derived odd chord",
+    "coupling_sensitivity_minimum_q30": 85899344,
+    "coupling_sensitivity_range_q30": 214748368,
+    "baseline_amplitude_minimum_q31": 1610612735,
+    "baseline_amplitude_range_q31": 536870912,
+    "amplitude_recovery_minimum_q31": 2147484,
+    "amplitude_recovery_range_q31": 4294968
+  },
+  "experiments": {
+    "resolution_convergence": {
+      "duration_us": 2592000000000,
+      "quantum_us": 60000000,
+      "resolutions": {
+        "32": {
+          "central_phase_q": 3227516928,
+          "effective_period_us": null,
+          "oscillator_coherence_q": 2117585575,
+          "rhythm_amplitude_q": 1856045832
+        },
+        "64": {
+          "central_phase_q": 3231711232,
+          "effective_period_us": null,
+          "oscillator_coherence_q": 2117449030,
+          "rhythm_amplitude_q": 1928456713
+        },
+        "128": {
+          "central_phase_q": 3236954112,
+          "effective_period_us": null,
+          "oscillator_coherence_q": 2111217813,
+          "rhythm_amplitude_q": 1897123592
+        }
+      },
+      "declared_tolerance": {
+        "phase_q": 47721859,
+        "coherence_q": 107374182,
+        "amplitude_q": 107374182
+      },
+      "observed_32_64": {
+        "phase_q": 4194304,
+        "coherence_q": 136545,
+        "amplitude_q": 72410881
+      },
+      "observed_64_128": {
+        "phase_q": 5242880,
+        "coherence_q": 6231217,
+        "amplitude_q": 31333121
+      },
+      "result": "PASS"
+    },
+    "quantum_convergence": {
+      "duration_us": 604800000000,
+      "quanta_us": [15000000, 30000000, 60000000],
+      "declared_tolerance": {
+        "phase_q": 5965232,
+        "coherence_q": 10737418,
+        "amplitude_q": 2147484
+      },
+      "observed_15_60": {
+        "phase_q": 0,
+        "coherence_q": 171,
+        "amplitude_q": 0
+      },
+      "observed_30_60": {
+        "phase_q": 0,
+        "coherence_q": 220,
+        "amplitude_q": 0
+      },
+      "result": "PASS"
+    },
+    "accelerated_long_run": {
+      "duration_us": 31536000000000,
+      "quantum_us": 60000000,
+      "population": 64,
+      "assertions": [
+        "all phases remained canonical uint32 values",
+        "all amplitudes remained inside Q0.31",
+        "aggregate phase remained resolvable",
+        "coherence remained above the selected resolvability threshold"
+      ],
+      "result": "PASS"
+    }
+  },
+  "source_sha256": {
+    "cores/chronobiology/c3/calibration-profile.js": "e758ac1956b53cb02d0ab0d95bff67be948525127185295eb05f280838519ff3",
+    "cores/chronobiology/c3/aggregate.js": "5e3b783ebe6a2f83c12442631a4f66240636d0bc18c7ede1fe17c3b5b0aa990a",
+    "cores/chronobiology/c3/fixed-point.js": "2e748de9ac260da60f98a4744227814d7c70943880bdaaac0b015fc2cc87531d",
+    "cores/chronobiology/c3/trig-table.js": "2e360df71cf652ae926fbb82861b362b438cf6794cd6751e541968571ce37668",
+    "cores/chronobiology/c3/founder.js": "a8ed1f62a257acb15bf1b966d1e59d77e0613c020f718621a751724f9dea1e33",
+    "cores/chronobiology/c3/oscillator.js": "740bd124e79679572aea60dc3200efb8ac65d4f8defb24b5c9ca9ff3b0c015ba",
+    "tools/chronobiology-convergence-lab.js": "6a650077ae5755a071c116d3e8e8d1b512199fcf1a13cd205071e7cc2db51a92",
+    "test/chronobiology-c2-oscillator.test.js": "da3b4c6f017832bac030644dddc6bedf03d354dc321e4884acf85a6001195811"
+  }
+}

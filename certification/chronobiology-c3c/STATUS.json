@@ -1,0 +1,7 @@
+{
+  "schema": "stay.chronobiology.c3c-server-status/v1",
+  "result": "NOT_RUN",
+  "stage": "WAITING_FOR_SERVER",
+  "detail": "Run RUN.sh on the authorized development server.",
+  "release_sealed": false
+}

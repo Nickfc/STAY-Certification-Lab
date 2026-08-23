@@ -1,0 +1,103 @@
+{
+  "formatVersion": 1,
+  "coreId": "sntss",
+  "entrypoint": "index.js",
+  "allowedBuiltins": [
+    "node:crypto"
+  ],
+  "ambientCapabilities": {
+    "filesystemWrite": false,
+    "network": false,
+    "processSpawn": false
+  },
+  "diagnostics": false,
+  "environmentAllowlist": [
+    "LANG",
+    "LC_ALL",
+    "NODE_ENV",
+    "PATH",
+    "STAY_COREHOST",
+    "TZ"
+  ],
+  "files": {
+    "causal-validator.js": "sha256:5d34926fa557defce153007ca787de54c82353a0b487c7cb3c099c2ac92da8e0",
+    "circuit-breakers.js": "sha256:4073348cba164a1c1687c134f1e1c78a45c88a44590187f9f6b0c84715b587dd",
+    "containment.js": "sha256:d227063c7e44f0c25edc429630c243e0850b1e8b3b3fe16eff812fd4b9601fe2",
+    "development.js": "sha256:d1847d61b195f95464fb2f182d98620e2410c3329c19924dceb4ccac80aae57e",
+    "families/acetylcholine-like.js": "sha256:da68b683fdda2033ee5f3941049fe4c387e2784c7b4e29335be1bae7ec3f14fd",
+    "families/dopamine-like.js": "sha256:a670d5353b560188623839317b3a9eb5039f3463337d7d1f6fa72e00780c514b",
+    "families/endogenous-opioid-like.js": "sha256:c2dde9fd2165c97ea4154d1535a2795199a2dd711567bbfb1e7b5dc7fcce8afd",
+    "families/gaba-like.js": "sha256:4c220cdbae8d5cbc20f0e7e368e9dc11f9e85a23888eb6a615c198abd6fe72f0",
+    "families/glutamate-like.js": "sha256:95236a67322321112ca120bf3854ce0d3ab26138d5bcdbb683b67eb9ed17a2df",
+    "families/index.js": "sha256:aa2a951cbab14871929e4a2239cf6fe8b5b09a92f210965993e68152d5d81931",
+    "families/noradrenaline-like.js": "sha256:b7cde9578ba572561bc4c179347046b08524d99487cea2bd6b6f54ccfb876237",
+    "families/oxytocin-like.js": "sha256:0a538d6e16520902130c7af091e26b03bebec23513a9286d6df894ec354dd2db",
+    "families/serotonin-like.js": "sha256:bd41a764dc5720a5aa3dfd778050b29134b7558ad90b8629444dcdb009425e16",
+    "fixed-point.js": "sha256:2735868a843abaa31d1b2ff5ea40840f94c148076d1b6c497ddf8093c794f368",
+    "genesis.js": "sha256:14b31c4f4e75ac5303ffd3813e428210c4cc73e82485816990a08c2e179c0c06",
+    "index.js": "sha256:0216b18a2771682d3f05b6c5eb8b5e354e3703b6c34369558daaa7a59eb6ba0f",
+    "inheritance.js": "sha256:40f5c1dc9648a653e9e0e5e1913788164982ae2a739832193695c25a587f7692",
+    "integrator.js": "sha256:95c17069a8d7645cfbc00c0ecc5196764779541625976e6cb24d9dcd856dffab",
+    "interactions.js": "sha256:3b83aacd5b67082fd72cd32a91294b8b598239181af76074c954b37409c6d481",
+    "kinetics.js": "sha256:cea3ca6b7bb5b8130dce5513f67406d765a3b6e9d6c9b16acd1cc27585e0bfb3",
+    "laboratory.js": "sha256:3badf859ae20d22a4419f44df71d0c0fbb4c6971cfbacc0bfed0860b816b3056",
+    "leases.js": "sha256:6213ffc8f527e57a9569727b3fc1ab3bebd458dace15d1d0a179c45a4b056e62",
+    "migrations.js": "sha256:964ae2bf3401892b9dbb98eee02b3240159f1ab3356588b3f3182964a4e8bd4b",
+    "modulation-frames.js": "sha256:4b6511c8f825ca11a0d7bae31df96ba4e62ef3e4110c20952cc79fef4688f49a",
+    "receptor-profiles.js": "sha256:8142325ffa0c9a9b4469bd1dd8449c31df1ecf925710e1749f7a3ffcb8a83f6a",
+    "receptors.js": "sha256:5702cd34953cf68b633fbed2172fc1d39d0b19318b4c835d69d81c9968103f12",
+    "recovery.js": "sha256:8d035610ff2f677321be624ffec4d1a89ac3b0773c07a2d4bf6e0fd81172330e",
+    "semantic-laboratory.js": "sha256:8dae34cc838f16a6fcba94c591ec03cb961e9569923078a5bf51d36fa6280ec3",
+    "source-registry.js": "sha256:ed22ce7745851ef849c8b54b2e24864710e36d52fcace8ee753e4254d62fd59b",
+    "species-profile.js": "sha256:fff2600be16213032d9ab97c82f7674dc9e403011ee85f7450e830db5bbda0e3",
+    "state.js": "sha256:9886d3cfdf4906b6a7c7244e31930a35718300c9488c9cd2a8f16a1dd502958c",
+    "stimuli.js": "sha256:c013c0106cf922e7ecf07b55e8da5cf364bf52e6d7f70f22d63cd7d6d4151e7a",
+    "validation.js": "sha256:466f7286315fc90680dc343812b9b559287e0814b554293244446aba42ca387a",
+    "../../../runtime/kernel/canonical-json.js": "sha256:aafdc03899a23b00ff6a0ec2930399a0d88ffc767e0cf903d9a69f5cbf93fe9e"
+  },
+  "resourceContract": {
+    "cgroupV2": {
+      "distribution": "stay-cores",
+      "leaf": "sntss-<instance>",
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "kernelGovernorOwned": true,
+      "memoryHighBytes": 67108864,
+      "memoryMaxBytes": 100663296,
+      "pidsMax": 16,
+      "cpuMax": "20000 100000"
+    },
+    "manifestResources": {
+      "softRamMiB": 64,
+      "hardRamMiB": 96,
+      "softCpuPercent": 5,
+      "hardCpuPercent": 20,
+      "pidsMax": 16,
+      "queueCapacity": 256,
+      "handlerTimeoutMs": 250,
+      "healthTimeoutMs": 1000,
+      "outputCapacity": 128,
+      "outputLimitPerEvent": 16,
+      "outputBytesPerEvent": 65536,
+      "storageMiB": 4,
+      "maxRestarts": 4,
+      "restartWindowMs": 60000,
+      "restartBackoffMs": 250
+    },
+    "requiredOnProductionHost": true
+  },
+  "bounds": {
+    "checkpointBytes": 1048576,
+    "auditRecords": 128,
+    "auditRecordBytes": 4096,
+    "migrationRecords": 64,
+    "migrationWorkItems": 64,
+    "shutdownMs": 2000,
+    "pendingRequests": 128,
+    "productionOutputs": 0
+  },
+  "policyHash": "sha256:df5a0f8ddf9593b53faf4eeb4a0b2482bdfd510ef675d9524eee12e77402f134"
+}

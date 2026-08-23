@@ -1,0 +1,74 @@
+{
+  "schema": "stay.chronobiology.c3c-final-seal/v1",
+  "result": "C3C_SHADOW_RELEASE_SEALED",
+  "release_sealed": true,
+  "sealed_at_utc": "2026-08-22T11:05:11Z",
+  "sealed_candidate": {
+    "branch": "feature/chronobiology",
+    "sha": "cf23389c1faa6d58cbb4e0960dab02fe38648f59",
+    "tree": "94625cc5c832e6716b7142c4af267f9713bbc1c1",
+    "version": "1.0.0-c3rc.1"
+  },
+  "split_host_binding": {
+    "result": "CANDIDATE_CERTIFIED_UNSEALED",
+    "release_sealed": false,
+    "identity_match": "EXACT_CANDIDATE_SHA_TREE_AND_COMPUTE_RECORD_DIGEST",
+    "compute_record_sha256": "sha256:1ce64f2e798c8092f7aa7ec72811fb834e04e09a5eeedaee7e9afd99d722c99a",
+    "live_record_sha256": "sha256:7c16070894630c34fb8fc5fd6cd248298333708359bdf2cbdf547d644c8abf86",
+    "compute": {
+      "result": "PASS",
+      "zero_failures": true,
+      "zero_skips": true,
+      "frozen_handler_limit_ms": 250,
+      "performance_gate": "PASS",
+      "leaked_node_processes": 0
+    },
+    "actual_lightsail_sentinel": {
+      "result": "PASS",
+      "before_after_byte_identical": true,
+      "emulated": false
+    }
+  },
+  "gate_review": {
+    "c0_frozen_design": "CLOSED",
+    "c1_core_foundation": "CLOSED",
+    "c2a_oscillator_laboratory": "CLOSED",
+    "c2b_entrainment_laboratory": "CLOSED",
+    "c2c_persistence_calibration_recovery": "CLOSED",
+    "c3a_containment": "CLOSED",
+    "c3b_shadow_integration": "CLOSED",
+    "c3c_release_certification": "CLOSED"
+  },
+  "authority": {
+    "operating_mode": "SHADOW",
+    "physiological_authority": "NONE",
+    "production_eligible": false,
+    "authoritative_effects_enabled": false,
+    "c_auth_granted": false
+  },
+  "frozen_boundaries": {
+    "sntss_behavior_changed": false,
+    "sntss_source_changed_from_sealed_baseline": false,
+    "runtime_changed_during_sealing": false,
+    "chronobiology_physiology_changed_during_sealing": false,
+    "handler_limit_changed_during_sealing": false
+  },
+  "certification_non_operations": {
+    "live_deployment_performed": false,
+    "stay_service_restarted": false,
+    "opt_stay_current_switched": false,
+    "live_state_reinitialized": false,
+    "chronobiology_founder_rerolled": false,
+    "main_merged": false
+  },
+  "scope": {
+    "seal_authorizes": "IMMUTABLE_C3C_SHADOW_RELEASE_CANDIDATE_RECORD",
+    "seal_does_not_authorize": [
+      "LIVE_DEPLOYMENT",
+      "BIOLOGICAL_AUTHORITY",
+      "C_AUTH",
+      "SNTSS_PHYSIOLOGICAL_COUPLING",
+      "MAIN_MERGE"
+    ]
+  }
+}

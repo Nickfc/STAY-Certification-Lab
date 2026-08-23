@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://sntss/public-summary.schema.json",
+  "title": "STAY SNTSS bounded public summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "observability", "transitionCount", "acceptedCount", "rejectedCount", "probeCount", "telemetryDropCount"],
+  "properties": {
+    "format": { "const": "stay-sntss-public-summary-v1" },
+    "observability": { "enum": ["ok", "degraded"] },
+    "transitionCount": { "type": "integer", "minimum": 0, "maximum": 999999999 },
+    "acceptedCount": { "type": "integer", "minimum": 0, "maximum": 999999999 },
+    "rejectedCount": { "type": "integer", "minimum": 0, "maximum": 999999999 },
+    "probeCount": { "type": "integer", "minimum": 0, "maximum": 999999999 },
+    "telemetryDropCount": { "type": "integer", "minimum": 0, "maximum": 999999999 }
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "format": "stay-sntss-r9-observability-evidence-v1",
+  "candidateVersion": "0.1.0",
+  "productionEligible": false,
+  "liveMutationPerformed": false,
+  "telemetryControlPathPresent": false,
+  "sourceHashes": {
+    "observability": "sha256:e0949ee81080418f8df83d86caa958cbb0b7a1f9e053f36c5c4dea9a16732623",
+    "test": "sha256:bfff3a9ad2edf91a98c774b491cb9a72da762f0f3f4421f6c4ef3831c0c02f7e",
+    "publicSchema": "sha256:ddf4df49a894f52fa136561c11ddac9f0fec63345da81b3585d200c865ff1f0f",
+    "operatorSchema": "sha256:bb60f60d5ba4266f22c5368f85151c8778f8420ce63871a384d3141939d13be2",
+    "forensicSchema": "sha256:fb7b7305d952b618855f1e431e00c5871861f4aacc8388ea7e83bc642d5eeef5"
+  },
+  "surfaces": {
+    "publicSummary": {
+      "format": "stay-sntss-public-summary-v1",
+      "observability": "degraded",
+      "transitionCount": 4,
+      "acceptedCount": 1,
+      "rejectedCount": 1,
+      "probeCount": 1,
+      "telemetryDropCount": 2
+    },
+    "operatorHealth": {
+      "format": "stay-sntss-operator-health-v1",
+      "ok": false,
+      "transitionCount": 4,
+      "retainedForensicRecords": 4,
+      "rotatedSegments": 0,
+      "telemetryDrops": 1,
+      "sinkFailures": 1,
+      "chainHeadHash": "sha256:1353acae7d3aa2a85e758cd927cfecba8e41eb6fafefa08c9f5abd5c9b2ba36e",
+      "lastStatus": "migration",
+      "lastReasonCode": "SNTSS_MIGRATION_APPLIED",
+      "profileHash": "sha256:2672b11bbc83596f62590c5837d0a80a88d9434e832e782f6bf682d6528f2ac6",
+      "candidateVersion": "0.1.0",
+      "alerts": [
+        "SNTSS_TELEMETRY_DROPPED",
+        "SNTSS_TELEMETRY_SINK_FAILED"
+      ]
+    },
+    "forensicRecordCount": 4,
+    "forensicHeadHash": "sha256:1353acae7d3aa2a85e758cd927cfecba8e41eb6fafefa08c9f5abd5c9b2ba36e",
+    "accessCapability": "sntss.forensic.read"
+  },
+  "privacy": {
+    "privateFieldRejected": true,
+    "publicLeakDetected": false,
+    "operatorLeakDetected": false,
+    "forensicPrivatePayloadLeakDetected": false,
+    "publicContainsEventId": false,
+    "operatorContainsEventId": false
+  },
+  "replay": {
+    "verified": {
+      "ok": true,
+      "headHash": "sha256:1353acae7d3aa2a85e758cd927cfecba8e41eb6fafefa08c9f5abd5c9b2ba36e",
+      "currentRecords": 4,
+      "totalRecords": 4
+    },
+    "deterministicExplanation": {
+      "format": "stay-sntss-transition-explanation-v1",
+      "transitionId": "transition-1",
+      "recordHash": "sha256:08c2b699996097f09b2a18b98a245c77359ee32f98bc5a80a8abad97f2329e9c",
+      "chainHeadHash": "sha256:1353acae7d3aa2a85e758cd927cfecba8e41eb6fafefa08c9f5abd5c9b2ba36e",
+      "input": {
+        "eventId": "evt-1",
+        "sequence": 1,
+        "topic": "presence.changed",
+        "status": "accepted",
+        "reasonCode": "SNTSS_ACCEPTED"
+      },
+      "stateBeforeHash": "sha256:904b449e72687dfcf4882c483c0ccca9bde151758d0c474dd89de2446cd48585",
+      "stateAfterHash": "sha256:a491a7b7a24b52ae6dd7dbcb4ac13b6f5f6ff714d69c021c269b065a6a2e1f3e",
+      "clampIds": [],
+      "circuitChangeIds": [],
+      "migrationIds": [],
+      "emittedFrameIds": [
+        "frame-1"
+      ],
+      "evidenceCursor": 1,
+      "profileHash": "sha256:2672b11bbc83596f62590c5837d0a80a88d9434e832e782f6bf682d6528f2ac6",
+      "candidateVersion": "0.1.0",
+      "checkpointHash": "sha256:38318b73f67a75ba94f70442d94923b22d8fc44b7c4cfa3356bba318d7229162",
+      "auditHeadHash": "sha256:28ba3cc8c7eae6f5c845d66c8a60f51b747532fabaacf40fdd2bf68810a394f3"
+    },
+    "alteration": {
+      "name": "alteration",
+      "detected": true,
+      "code": "SNTSS_FORENSIC_TAMPER"
+    },
+    "omission": {
+      "name": "omission",
+      "detected": true,
+      "code": "SNTSS_FORENSIC_CHAIN"
+    },
+    "reorder": {
+      "name": "reorder",
+      "detected": true,
+      "code": "SNTSS_FORENSIC_CHAIN"
+    },
+    "candidateMismatch": {
+      "name": "candidate-mismatch",
+      "detected": true,
+      "code": "SNTSS_FORENSIC_CANDIDATE"
+    },
+    "profileMismatch": {
+      "name": "profile-mismatch",
+      "detected": true,
+      "code": "SNTSS_FORENSIC_PROFILE"
+    }
+  },
+  "failureIsolation": {
+    "capturesSucceeded": true,
+    "optionalSinkFailuresObserved": 1,
+    "operatorReportsSinkFailure": true,
+    "captureThrewIntoChemistry": false
+  },
+  "status": "PASS",
+  "evidenceHash": "sha256:1266047d3e7abaa2c97b9263949899b986b0f0bf460a47d0d77d886c42e04d64"
+}

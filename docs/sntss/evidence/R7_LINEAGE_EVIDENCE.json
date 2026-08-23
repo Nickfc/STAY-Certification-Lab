@@ -1,0 +1,42 @@
+{
+  "evidenceVersion": 1,
+  "stage": "R7-genesis-inheritance-development-laboratory",
+  "productionGenesisEnabled": false,
+  "lineage": "sha256:efbedc965aa5915a48b0df3641dbc297134de81cfd568aae87d58bf0d35ab902",
+  "identitySha256": "sha256:e11bc46ccbec000a7e11d865ce48f302d979f0bc6af63ab260c2d1b24fa6d553",
+  "genesisTransactionHash": "sha256:10f885cf331b5ee41241febd37db8b1d6d2b78cc0527922eea03ccca30041cc7",
+  "checkpointHash": "sha256:354dbe43210ed8db87e80ddad05505e3bc4c3434840378c83fcf9bae5fafd8ef",
+  "acquiredStateHash": "sha256:202b9e5408de011f3682807c8d7248a60f1e3005b759400e421d3789898daff1",
+  "migrationTransformationHash": "sha256:5ed55bf960caa0b453003a3fb5f9b700e49b3735a8a80e2858be71d68cbebbde",
+  "developmentContractHash": "sha256:bf0a96a38d4c76d5d002dc1ec7ce9702b4a941902b4cb3c7913b49ae02056f32",
+  "lineageFixtureHash": "sha256:50beb3c070cad0c1ad7a9b16458103d94a663548f2cb50ac9ffea9c0de3243db",
+  "outcomes": {
+    "oneLineageBound": true,
+    "noPrebirthStimulusHistory": true,
+    "restartExact": true,
+    "corruptPrimaryRejected": true,
+    "backwardProjectionPreservesBiology": true,
+    "forwardMigrationPreservesBiology": true,
+    "downtimeNoDevelopment": true,
+    "downtimeNoSyntheticHistory": true,
+    "boundedDevelopment": true,
+    "selfAuthorizationRejected": true,
+    "laboratoryImportBlocked": true
+  },
+  "moduleHashes": {
+    "cores/sntss/v0.1.0/state.js": "sha256:9886d3cfdf4906b6a7c7244e31930a35718300c9488c9cd2a8f16a1dd502958c",
+    "cores/sntss/v0.1.0/genesis.js": "sha256:14b31c4f4e75ac5303ffd3813e428210c4cc73e82485816990a08c2e179c0c06",
+    "cores/sntss/v0.1.0/migrations.js": "sha256:964ae2bf3401892b9dbb98eee02b3240159f1ab3356588b3f3182964a4e8bd4b",
+    "cores/sntss/v0.1.0/recovery.js": "sha256:8d035610ff2f677321be624ffec4d1a89ac3b0773c07a2d4bf6e0fd81172330e",
+    "cores/sntss/v0.1.0/inheritance.js": "sha256:40f5c1dc9648a653e9e0e5e1913788164982ae2a739832193695c25a587f7692",
+    "cores/sntss/v0.1.0/development.js": "sha256:d1847d61b195f95464fb2f182d98620e2410c3329c19924dceb4ccac80aae57e",
+    "cores/sntss/schemas/acquired-state.schema.json": "sha256:78d6b041a7eb732dec2576e8dfe2ba075d6df7b99a5c7a9a4bd655b538a09e32"
+  },
+  "coreHostActivation": {
+    "productionGenesis": false,
+    "outputs": [],
+    "chemistryActive": false,
+    "laboratoryImportBlocked": true
+  },
+  "evidenceHash": "sha256:6d44e1929a5c4582d135ece7ba03cc0709f0ac2126a31690c737e4441a2b6e46"
+}

@@ -1,0 +1,85 @@
+name: Chronobiology C3-C compute certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact 40-hex STAY-Genesis candidate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout public certification orchestration
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          show-progress: false
+          path: lab-public
+
+      - name: Checkout exact private STAY-Genesis candidate with read-only deploy key
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: Nickfc/STAY-Genesis
+          ref: ${{ inputs.candidate_sha }}
+          ssh-key: ${{ secrets.STAY_GENESIS_READONLY_DEPLOY_KEY }}
+          persist-credentials: false
+          fetch-depth: 1
+          show-progress: false
+          path: genesis-private
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      - name: Run silent public-lab entrypoint
+        id: compute
+        working-directory: genesis-private
+        env:
+          STAY_LEGACY_0_6_SOURCE_TAR_GZ_GPG: ${{ github.workspace }}/lab-public/fixtures/legacy-0.6.0/source.tar.gz.gpg
+          STAY_LEGACY_0_6_FIXTURE_PASSPHRASE: ${{ secrets.STAY_LEGACY_0_6_FIXTURE_PASSPHRASE }}
+        run: |
+          set +e
+          bash certification/chronobiology-c3c/compute/PUBLIC_RUN.sh \
+            "${{ inputs.candidate_sha }}" \
+            >"$RUNNER_TEMP/COMPUTE_OUTPUT.sanitized.json"
+          compute_exit=$?
+          set -e
+          if [[ "$compute_exit" -eq 0 ]]; then
+            mv "$RUNNER_TEMP/COMPUTE_OUTPUT.sanitized.json" \
+              "$RUNNER_TEMP/COMPUTE_RESULT.sanitized.json"
+          else
+            mv "$RUNNER_TEMP/COMPUTE_OUTPUT.sanitized.json" \
+              "$RUNNER_TEMP/COMPUTE_FAILURE.sanitized.json"
+          fi
+          printf 'exit_code=%s\n' "$compute_exit" >>"$GITHUB_OUTPUT"
+
+      - name: Upload sanitized result only
+        if: steps.compute.outputs.exit_code == '0'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chronobiology-c3c-compute-sanitized
+          path: ${{ runner.temp }}/COMPUTE_RESULT.sanitized.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload sanitized failure only
+        if: steps.compute.outputs.exit_code != '0'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chronobiology-c3c-compute-failure-sanitized
+          path: ${{ runner.temp }}/COMPUTE_FAILURE.sanitized.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve failed certification outcome
+        if: steps.compute.outputs.exit_code != '0'
+        run: exit 1

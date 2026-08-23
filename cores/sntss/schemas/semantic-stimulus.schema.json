@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stay.example/schemas/sntss/semantic-stimulus-v1.json",
+  "title": "STAY SNTSS R5 authoritative semantic stimulus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "sequence", "topic", "class", "payload", "at", "deadlineAt", "meta", "ledger"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "topic": { "enum": ["activity.phase.changed", "dream.affect.generated", "homeostasis.need.changed", "homeostasis.state.changed", "instinct.drive.changed", "instinct.threat.assessed", "memory.familiarity.assessed", "memory.novelty.assessed", "memory.prediction.outcome", "pain.damage.registered", "pain.relief.registered", "presence.state.changed", "sensory.attention.requested", "social.interaction.verified"] },
+    "class": { "enum": ["critical", "durable"] },
+    "payload": { "type": "object" },
+    "at": { "type": "integer", "minimum": 0 },
+    "deadlineAt": { "type": "integer", "minimum": 0 },
+    "meta": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authorityEpoch", "causalParent", "causeSequence", "clockStatus", "deduplicationKey", "dreamOrigin", "eventClass", "evidenceHash", "payloadHash", "provenanceHash", "schemaVersion", "sourceCore", "sourceInstanceId", "sourceVersion"],
+      "properties": {
+        "authorityEpoch": { "type": "integer", "minimum": 1 }, "causalParent": { "type": "string", "minLength": 1 },
+        "causeSequence": { "type": "integer", "minimum": 1 }, "clockStatus": { "const": "trusted" },
+        "deduplicationKey": { "type": "string", "minLength": 1, "maxLength": 256 }, "dreamOrigin": { "type": "boolean" },
+        "eventClass": { "enum": ["critical", "durable"] }, "evidenceHash": { "$ref": "#/$defs/hash" },
+        "outputIndex": { "type": "integer", "minimum": 0 }, "payloadHash": { "$ref": "#/$defs/hash" },
+        "provenanceHash": { "$ref": "#/$defs/hash" }, "schemaVersion": { "const": 1 },
+        "sourceCore": { "type": "string", "minLength": 1 }, "sourceInstanceId": { "type": "string", "minLength": 1 },
+        "sourceVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ledger": {
+      "type": "object", "additionalProperties": false,
+      "required": ["durable", "deduplicated", "envelopeHash", "payloadHash", "provenanceHash"],
+      "properties": {
+        "durable": { "const": true }, "deduplicated": { "type": "boolean" },
+        "envelopeHash": { "$ref": "#/$defs/hash" }, "payloadHash": { "$ref": "#/$defs/hash" }, "provenanceHash": { "$ref": "#/$defs/hash" }
+      }
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "topic": { "const": "presence.state.changed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/presence" } } } },
+    { "if": { "properties": { "topic": { "const": "social.interaction.verified" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/valence" } } } },
+    { "if": { "properties": { "topic": { "const": "activity.phase.changed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/activity" } } } },
+    { "if": { "properties": { "topic": { "const": "homeostasis.state.changed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/homeostasisState" } } } },
+    { "if": { "properties": { "topic": { "const": "homeostasis.need.changed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/need" } } } },
+    { "if": { "properties": { "topic": { "const": "instinct.threat.assessed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/threat" } } } },
+    { "if": { "properties": { "topic": { "const": "instinct.drive.changed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/drive" } } } },
+    { "if": { "properties": { "topic": { "const": "pain.damage.registered" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/damage" } } } },
+    { "if": { "properties": { "topic": { "const": "pain.relief.registered" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/relief" } } } },
+    { "if": { "properties": { "topic": { "enum": ["memory.novelty.assessed", "memory.familiarity.assessed", "sensory.attention.requested"] } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/scalar" } } } },
+    { "if": { "properties": { "topic": { "const": "memory.prediction.outcome" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/valence" } } } },
+    { "if": { "properties": { "topic": { "const": "dream.affect.generated" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/dream" } } } }
+  ],
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "scaled": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "signed": { "type": "integer", "minimum": -1000000, "maximum": 1000000 },
+    "base": { "type": "object", "additionalProperties": false, "required": ["magnitude", "confidence"], "properties": { "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "presence": { "type": "object", "additionalProperties": false, "required": ["state", "magnitude", "confidence"], "properties": { "state": { "enum": ["arrived", "departed"] }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "valence": { "type": "object", "additionalProperties": false, "required": ["valence", "magnitude", "confidence"], "properties": { "valence": { "$ref": "#/$defs/signed" }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "activity": { "type": "object", "additionalProperties": false, "required": ["phase", "magnitude", "confidence"], "properties": { "phase": { "enum": ["rest", "active", "recovery"] }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "homeostasisState": { "type": "object", "additionalProperties": false, "required": ["state", "magnitude", "confidence"], "properties": { "state": { "enum": ["stable", "strained", "recovering"] }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "need": { "type": "object", "additionalProperties": false, "required": ["direction", "needClass", "magnitude", "confidence"], "properties": { "direction": { "enum": ["increased", "decreased"] }, "needClass": { "enum": ["energy", "rest", "thermal", "safety"] }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "threat": { "type": "object", "additionalProperties": false, "required": ["assessment", "magnitude", "confidence"], "properties": { "assessment": { "enum": ["uncertain", "present", "cleared"] }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "drive": { "type": "object", "additionalProperties": false, "required": ["direction", "driveClass", "magnitude", "confidence"], "properties": { "direction": { "enum": ["increased", "decreased"] }, "driveClass": { "enum": ["explore", "protect", "rest", "seek-resource"] }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "damage": { "type": "object", "additionalProperties": false, "required": ["status", "magnitude", "confidence"], "properties": { "status": { "enum": ["new", "worsened", "stable"] }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "relief": { "type": "object", "additionalProperties": false, "required": ["relief", "magnitude", "confidence"], "properties": { "relief": { "enum": ["verified", "partial"] }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "scalar": { "type": "object", "additionalProperties": false, "minProperties": 3, "maxProperties": 3, "required": ["magnitude", "confidence"], "properties": { "novelty": { "$ref": "#/$defs/scaled" }, "familiarity": { "$ref": "#/$defs/scaled" }, "priority": { "$ref": "#/$defs/scaled" }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" } } },
+    "dream": { "type": "object", "additionalProperties": false, "required": ["valence", "magnitude", "confidence", "dreamIdHash"], "properties": { "valence": { "$ref": "#/$defs/signed" }, "magnitude": { "$ref": "#/$defs/scaled" }, "confidence": { "$ref": "#/$defs/scaled" }, "dreamIdHash": { "$ref": "#/$defs/hash" } } }
+  }
+}

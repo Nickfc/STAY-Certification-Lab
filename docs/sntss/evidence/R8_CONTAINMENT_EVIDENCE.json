@@ -1,0 +1,171 @@
+{
+  "evidenceVersion": 1,
+  "stage": "R8-security-containment-resource-laboratory",
+  "productionEligible": false,
+  "activeStatePathTouched": false,
+  "destructiveLiveFaultInjection": false,
+  "packagePolicyHash": "sha256:df5a0f8ddf9593b53faf4eeb4a0b2482bdfd510ef675d9524eee12e77402f134",
+  "attestedFiles": 34,
+  "dependencyAllowlistClosed": true,
+  "environmentSanitized": true,
+  "diagnosticsDisabled": true,
+  "ambientCapabilities": {
+    "filesystemWrite": false,
+    "network": false,
+    "processSpawn": false
+  },
+  "resourceContract": {
+    "normalized": {
+      "priority": "optional",
+      "softRamBytes": 67108864,
+      "hardRamBytes": 100663296,
+      "softCpuDuty": 0.05,
+      "hardCpuDuty": 0.2,
+      "sampleIntervalMs": 2000,
+      "hardConfirmations": 2,
+      "trendSamples": 30,
+      "storageBytes": 4194304,
+      "queueCapacity": 256,
+      "handlerTimeoutMs": 250,
+      "healthTimeoutMs": 1000,
+      "outputCapacity": 128,
+      "outputLimitPerEvent": 16,
+      "outputBytesPerEvent": 65536,
+      "pidsMax": 16,
+      "maxRestarts": 4,
+      "restartWindowMs": 60000,
+      "restartBackoffMs": 250
+    },
+    "cgroupLimits": {
+      "memory.high": "67108864",
+      "memory.max": "100663296",
+      "pids.max": "16",
+      "cpu.max": "20000 100000"
+    },
+    "delegatedLevels": [
+      "stay-cores",
+      "sntss-<instance>"
+    ],
+    "kernelGovernorOwned": true
+  },
+  "bounds": {
+    "checkpointBytes": 1048576,
+    "auditRecords": 128,
+    "auditRecordBytes": 4096,
+    "migrationRecords": 64,
+    "migrationWorkItems": 64,
+    "shutdownMs": 2000,
+    "pendingRequests": 128,
+    "productionOutputs": 0
+  },
+  "modeledFailures": {
+    "hang": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "event-flood": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "oom": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "pids-exhaustion": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "cpu-pressure": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "sigkill": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "invalid-checkpoint": {
+      "contained": true,
+      "mode": "quarantined",
+      "forceTermination": true,
+      "evidenceRetained": true
+    },
+    "output-abuse": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "process-escape": {
+      "contained": true,
+      "mode": "quarantined",
+      "forceTermination": true,
+      "evidenceRetained": true
+    },
+    "audit-flood": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "migration-overrun": {
+      "contained": true,
+      "mode": "degraded",
+      "forceTermination": false,
+      "evidenceRetained": true
+    },
+    "unsafe-shutdown": {
+      "contained": true,
+      "mode": "quarantined",
+      "forceTermination": true,
+      "evidenceRetained": true
+    }
+  },
+  "neutralization": {
+    "failedStatePreserved": true,
+    "chemistryMutation": false,
+    "chemistryFrames": false,
+    "forceTerminationSignal": "SIGKILL",
+    "restartMode": "shadow-only"
+  },
+  "executableEvidence": {
+    "r8Suite": "test/sntss-containment.test.js",
+    "hangQueueEscape": "test/corehost.test.js",
+    "outputAbuseAndCgroupHierarchy": "test/audit-regressions.test.js + test/hostile-closure.test.js",
+    "sustainedHeadroom": "test:smoke",
+    "productionHostCgroupPressureDrillRequired": true
+  },
+  "coreHostActivation": {
+    "inputsChanged": false,
+    "outputs": [],
+    "chemistryActive": false,
+    "productionGenesis": false
+  },
+  "moduleHashes": {
+    "runtime/kernel/package-policy.js": "sha256:d7ea60b0ddd0195410cec767fd6226dd207dd4d952dacd3c5b6564e5ff8eb050",
+    "runtime/kernel/core-loader.js": "sha256:a7cd63cec7c4acac8e33e2cb3639f87f7561bd14e7802c01b0fd572674fa5ac5",
+    "runtime/kernel/core-host-client.js": "sha256:506b0bae26a605e3419a924456ac5b7ff281e2df65d4c43ac056d58cb7d433ae",
+    "runtime/kernel/core-sandbox.js": "sha256:c88dc489e7e96fe73eb38b483a15b38b33e39350675a29fa3cb675a7e451a309",
+    "runtime/core-host/host.js": "sha256:9fececb6f3cee0a3e45752f4c8372abe5ab686007a1ed01a7d49ca007299aa2e",
+    "runtime/core-host/sandbox-host.js": "sha256:f9ca5347a11f2da18acb3af16f9ec4a773f7beb7cee838a1c05fd3433cb94a36",
+    "runtime/core-host/worker.js": "sha256:85edd4bdf3688353e2de005cddb1dfa74eaf06539989c354bbe0caeb787a4eaf",
+    "runtime/kernel/resource-governor.js": "sha256:12ecde5e80f50b46c5ee4c23df992641a29e20931fa748d06009fdf7a97784cc",
+    "runtime/kernel/cgroup-governor.js": "sha256:2909de58bf90a4a6d958ab29c8bce500819eae039ac58e3c3b88731cdb1c52d9",
+    "cores/sntss/v0.1.0/containment.js": "sha256:d227063c7e44f0c25edc429630c243e0850b1e8b3b3fe16eff812fd4b9601fe2",
+    "cores/sntss/v0.1.0/package-policy.json": "sha256:53dcfa0f5132c702457581138dd2a4afa1a04fb3610a24d09b08886e97cd9102",
+    "cores/sntss/schemas/containment-policy.schema.json": "sha256:653922d85332998a29eb792e72dab8a2fb8d73e4eb90175363a9d4daec461377",
+    "test/sntss-containment.test.js": "sha256:aeaa45854ed4b11f6a09653ba8c1127bc30f7d1b443b7995df19e4a7a980d775"
+  },
+  "evidenceHash": "sha256:e248d4d9e4891e07a0c950fb63bc2817690a1c610b997aaa9da3982e3ca8ec90"
+}

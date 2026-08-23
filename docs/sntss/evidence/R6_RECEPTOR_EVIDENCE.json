@@ -1,0 +1,40 @@
+{
+  "evidenceVersion": 1,
+  "stage": "R6-receptor-lease-frame-laboratory",
+  "productionDeliveryEnabled": false,
+  "profileRegistryHash": "sha256:839f9400d81bfdcfb479b664ecab7098157ace0daed924c48c61962416c18291",
+  "profileCount": 2,
+  "goldenFrameHash": "sha256:97e0cd0dddbd04a7e369bf7291909bea838c880fe83f09ec877cab0600b2ee77",
+  "isolationCorpusHash": "sha256:ea66f05e6c393fc638d0d343f5eb490e567fdccbad5c8577e27ff7efbbf4afa5",
+  "outcomes": {
+    "targetValidation": true,
+    "deterministicReplay": true,
+    "distinctConsumerFrameIds": true,
+    "degradedEffectsExactlyZero": true,
+    "recoveryEffectsCapped": true,
+    "alphaBreakerOpened": true,
+    "betaUnaffected": true,
+    "removalPreservedHistory": true,
+    "rollbackRestoredHistory": true,
+    "kernelAuthenticatedSourceAuthority": true
+  },
+  "frameIds": {
+    "receptor-probe-alpha": "sha256:8bf8773c446ee82dd419d6c2d3022fbc970d5b3198b3b8466b99517ee714e7cd",
+    "receptor-probe-beta": "sha256:d318d4068dae23d0db4a7bbdf4fa8a0351c6d4302810f3c9699ba0426521b383"
+  },
+  "moduleHashes": {
+    "cores/sntss/v0.1.0/receptor-profiles.js": "sha256:8142325ffa0c9a9b4469bd1dd8449c31df1ecf925710e1749f7a3ffcb8a83f6a",
+    "cores/sntss/v0.1.0/receptors.js": "sha256:5702cd34953cf68b633fbed2172fc1d39d0b19318b4c835d69d81c9968103f12",
+    "cores/sntss/v0.1.0/leases.js": "sha256:6213ffc8f527e57a9569727b3fc1ab3bebd458dace15d1d0a179c45a4b056e62",
+    "cores/sntss/v0.1.0/modulation-frames.js": "sha256:4b6511c8f825ca11a0d7bae31df96ba4e62ef3e4110c20952cc79fef4688f49a",
+    "cores/sntss/schemas/receptor-profile.schema.json": "sha256:98c72e4649326f28500951e7cafce959b2a08c07f0cdd1c191ea14f20048daa7",
+    "cores/sntss/schemas/modulation-frame.schema.json": "sha256:2eb2f1d08a60c07f0d15791a561972c325b08df89cac93cf3edb84b7f9e513f5"
+  },
+  "coreHostActivation": {
+    "inputsChanged": false,
+    "outputs": [],
+    "chemistryActive": false,
+    "productionReceptorConsumers": 0
+  },
+  "evidenceHash": "sha256:9f44bd90ce36239d9011892122db5ab1b935890f6a53e5bc412a2bd2086a3def"
+}

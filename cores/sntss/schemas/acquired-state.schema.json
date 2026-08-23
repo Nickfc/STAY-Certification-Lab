@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://sntss/acquired-state-v2.schema.json",
+  "title": "STAY SNTSS R7 acquired organism state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formatVersion", "stateSchema", "protocol", "lineage", "organismBinding", "speciesProfileHash", "modelClock", "developmentalClock", "inputCursor", "transmitters", "receptors", "sourceHistory", "habituation", "leases", "circuitBreakers", "migrations", "clampCounters", "auditChainHead"],
+  "properties": {
+    "formatVersion": { "const": 1 }, "stateSchema": { "const": 2 }, "protocol": { "const": "stay-sntss-v1" },
+    "lineage": { "$ref": "#/$defs/hash" }, "organismBinding": { "$ref": "#/$defs/binding" },
+    "speciesProfileHash": { "$ref": "#/$defs/hash" }, "modelClock": { "$ref": "#/$defs/modelClock" },
+    "developmentalClock": { "$ref": "#/$defs/developmentalClock" }, "inputCursor": { "type": "integer", "minimum": 1 },
+    "transmitters": { "$ref": "#/$defs/transmitters" }, "receptors": { "type": "object", "maxProperties": 5 },
+    "sourceHistory": { "type": "object", "minProperties": 1, "maxProperties": 2048 },
+    "habituation": { "type": "object", "maxProperties": 2048 }, "leases": { "type": "object", "maxProperties": 64 },
+    "circuitBreakers": { "type": "object", "maxProperties": 2048 }, "migrations": { "type": "array", "maxItems": 64 },
+    "clampCounters": { "$ref": "#/$defs/clampCounters" }, "auditChainHead": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "scaled": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["bindingVersion", "identitySha256", "organismLineage", "issuedAt", "runtimeRevision", "authorityEpoch", "kernelVersion", "bindingEventId"],
+      "properties": {
+        "bindingVersion": { "const": 1 }, "identitySha256": { "$ref": "#/$defs/hash" }, "organismLineage": { "const": "STAY/Genesis" },
+        "issuedAt": { "type": "integer", "minimum": 0 }, "runtimeRevision": { "type": "integer", "minimum": 1 },
+        "authorityEpoch": { "type": "integer", "minimum": 1 }, "kernelVersion": { "type": "string", "minLength": 1 }, "bindingEventId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "modelClock": {
+      "type": "object", "additionalProperties": false, "required": ["chemicalElapsedMs", "remainderMs", "lastTrustedWallClockMs"],
+      "properties": { "chemicalElapsedMs": { "type": "integer", "minimum": 0 }, "remainderMs": { "type": "integer", "minimum": 0, "maximum": 249 }, "lastTrustedWallClockMs": { "type": "integer", "minimum": 0 } }
+    },
+    "developmentalClock": {
+      "type": "object", "additionalProperties": false, "required": ["experienceMs", "lastTrustedWallClockMs"],
+      "properties": { "experienceMs": { "type": "integer", "minimum": 0 }, "lastTrustedWallClockMs": { "type": "integer", "minimum": 0 } }
+    },
+    "transmitter": {
+      "type": "object", "additionalProperties": false, "required": ["P", "R", "C", "B", "X", "O", "F"],
+      "properties": { "P": { "$ref": "#/$defs/scaled" }, "R": { "$ref": "#/$defs/scaled" }, "C": { "$ref": "#/$defs/scaled" }, "B": { "$ref": "#/$defs/scaled" }, "X": { "$ref": "#/$defs/scaled" }, "O": { "$ref": "#/$defs/scaled" }, "F": { "$ref": "#/$defs/scaled" } }
+    },
+    "transmitters": {
+      "type": "object", "additionalProperties": false,
+      "required": ["acetylcholine-like", "dopamine-like", "endogenous-opioid-like", "gaba-like", "glutamate-like", "noradrenaline-like", "oxytocin-like", "serotonin-like"],
+      "properties": {
+        "acetylcholine-like": { "$ref": "#/$defs/transmitter" }, "dopamine-like": { "$ref": "#/$defs/transmitter" },
+        "endogenous-opioid-like": { "$ref": "#/$defs/transmitter" }, "gaba-like": { "$ref": "#/$defs/transmitter" },
+        "glutamate-like": { "$ref": "#/$defs/transmitter" }, "noradrenaline-like": { "$ref": "#/$defs/transmitter" },
+        "oxytocin-like": { "$ref": "#/$defs/transmitter" }, "serotonin-like": { "$ref": "#/$defs/transmitter" }
+      }
+    },
+    "clampCounters": {
+      "type": "object", "additionalProperties": false,
+      "required": ["acetylcholine-like", "dopamine-like", "endogenous-opioid-like", "gaba-like", "glutamate-like", "noradrenaline-like", "oxytocin-like", "serotonin-like"],
+      "properties": {
+        "acetylcholine-like": { "type": "integer", "minimum": 0 }, "dopamine-like": { "type": "integer", "minimum": 0 },
+        "endogenous-opioid-like": { "type": "integer", "minimum": 0 }, "gaba-like": { "type": "integer", "minimum": 0 },
+        "glutamate-like": { "type": "integer", "minimum": 0 }, "noradrenaline-like": { "type": "integer", "minimum": 0 },
+        "oxytocin-like": { "type": "integer", "minimum": 0 }, "serotonin-like": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

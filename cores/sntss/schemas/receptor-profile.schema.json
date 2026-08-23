@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://sntss/receptor-profile-v1.schema.json",
+  "title": "STAY SNTSS R6 static receptor profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profileVersion", "consumerCoreId", "revision", "stage", "productionEligible", "wildcardAllowed", "frameValidityMs", "holdMs", "queueCapacity", "migration", "receptors", "profileHash"],
+  "properties": {
+    "profileVersion": { "const": 1 },
+    "consumerCoreId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$" },
+    "revision": { "const": 1 },
+    "stage": { "const": "laboratory-r6-probe" },
+    "productionEligible": { "const": false },
+    "wildcardAllowed": { "const": false },
+    "frameValidityMs": { "type": "integer", "minimum": 250, "maximum": 5000 },
+    "holdMs": { "type": "integer", "minimum": 0, "maximum": 1250 },
+    "queueCapacity": { "type": "integer", "minimum": 1, "maximum": 32 },
+    "migration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["compatibleFrom", "removalMode", "rollbackMode"],
+      "properties": {
+        "compatibleFrom": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/hash" }, "uniqueItems": true },
+        "removalMode": { "const": "dormant-preserve-history" },
+        "rollbackMode": { "const": "restore-history" }
+      }
+    },
+    "receptors": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/$defs/receptor" } },
+    "profileHash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "scaled": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "receptor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["receptorVersion", "receptorId", "family", "analogue", "affinity", "hill", "polarity", "efficacy", "densityBirth", "sensitivityBirth", "exposureAlpha", "exposureRetention", "desensitizationStrength", "recoveryRate", "densityAdaptationRate", "permittedFunction", "fallback"],
+      "properties": {
+        "receptorVersion": { "const": 1 }, "receptorId": { "type": "string", "pattern": "^[a-z0-9.-]{3,128}$" },
+        "family": { "enum": ["acetylcholine-like", "dopamine-like", "gaba-like", "glutamate-like", "noradrenaline-like", "serotonin-like"] },
+        "analogue": { "type": "string", "minLength": 1, "maxLength": 100 }, "affinity": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "hill": { "type": "integer", "minimum": 1, "maximum": 4 }, "polarity": { "enum": [-1, 1] },
+        "efficacy": { "type": "integer", "minimum": 0, "maximum": 250000 }, "densityBirth": { "$ref": "#/$defs/scaled" },
+        "sensitivityBirth": { "$ref": "#/$defs/scaled" }, "exposureAlpha": { "$ref": "#/$defs/scaled" },
+        "exposureRetention": { "$ref": "#/$defs/scaled" }, "desensitizationStrength": { "$ref": "#/$defs/scaled" },
+        "recoveryRate": { "$ref": "#/$defs/scaled" }, "densityAdaptationRate": { "$ref": "#/$defs/scaled" },
+        "permittedFunction": { "enum": ["action-vigor", "association-readiness", "attention-gain", "encoding-gain", "inhibition", "interrupt-sensitivity", "learning-sensitivity", "persistence"] },
+        "fallback": { "const": 0 }
+      }
+    }
+  }
+}

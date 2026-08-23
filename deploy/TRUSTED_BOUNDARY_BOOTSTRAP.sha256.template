@@ -1,0 +1,6 @@
+# TEMPLATE ONLY — do not use placeholder values for certification.
+# Generate the real file from the exact frozen candidate with /usr/bin/sha256sum
+# in the order shown in R10_5_TRUST_BOOTSTRAP_CEREMONY.md.
+<sha256-install-trusted-boundary>  deploy/install-trusted-boundary.sh
+<sha256-trusted-release-verifier>  deploy/trusted-release-verifier.js
+<sha256-stay-deploy>  deploy/stay-deploy.sh

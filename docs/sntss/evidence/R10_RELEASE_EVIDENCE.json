@@ -1,0 +1,74 @@
+{
+  "format": "stay-sntss-r10-release-evidence-v1",
+  "candidateVersion": "0.1.0",
+  "candidateCommit": "c6e685363aae2ba95b399086b50ead3040b15c84",
+  "candidateCommitPinned": true,
+  "candidateClosureOnly": true,
+  "productionEligible": false,
+  "liveMutationPerformed": false,
+  "activeReleasePointerTouched": false,
+  "activeStatePathTouched": false,
+  "stateRollbackPolicy": "preserve-forward-state",
+  "package": {
+    "deterministicInventory": true,
+    "inventoryHash": "sha256:528c393424f9d313dc7ffa68ab28105d1f9c6e5da643b38946890c279f972331",
+    "provenanceHash": "sha256:3ef3870cf3c50a56b05bcb611d3b8f1a9d9236b7dd24f0c4fe85b5b426e65f9f",
+    "dependencyInventoryHash": "sha256:af0bd5010f71b7b6f10fd0dbab36864acc5f2ac3601acfe2d1c2b3a29b097829",
+    "packagePolicyHash": "sha256:df5a0f8ddf9593b53faf4eeb4a0b2482bdfd510ef675d9524eee12e77402f134",
+    "speciesProfileHash": "sha256:0b80dcefd6a7862ac357aadee583fb90bf5aea2048c33a92b30ee318798f7001",
+    "sourceRegistryHash": "sha256:b3302a68d46b40cb9f20ef597d20bc51ed8b38fccd80d0a4279cbe85a2e9397f",
+    "receptorProfileRegistryHash": "sha256:839f9400d81bfdcfb479b664ecab7098157ace0daed924c48c61962416c18291",
+    "schemaInventoryHash": "sha256:2378eda29bc28cbeb84ce844ad459d5505c6039e2152f215567d0ee6391c744e",
+    "evidenceInventoryHash": "sha256:2b04718f269037836662a9a29496076d6ffbb85c4a3ce8cae73bf0eb7509d389",
+    "neutralFallback": {
+      "version": "0.0.0-neutral",
+      "stateSchema": 1,
+      "outputs": 0,
+      "sourceHash": "sha256:eab5a87ac96d533cf8372e69ba50d1455f223c2e870e1740328a23116feaf5f7"
+    }
+  },
+  "migration": {
+    "status": "PASS",
+    "beforeInvariantHash": "sha256:fa03aa61d0136a0d1340591a17ed2613d0430ae7eba42ad5b387bad2f0d90418",
+    "forwardInvariantHash": "sha256:fa03aa61d0136a0d1340591a17ed2613d0430ae7eba42ad5b387bad2f0d90418",
+    "backwardProjectionInvariantHash": "sha256:fa03aa61d0136a0d1340591a17ed2613d0430ae7eba42ad5b387bad2f0d90418",
+    "sourceStateRemainsAuthoritative": true,
+    "migrationId": "sntss-acquired-state-1-to-2",
+    "transformationHash": "sha256:5ed55bf960caa0b453003a3fb5f9b700e49b3735a8a80e2858be71d68cbebbde"
+  },
+  "rehearsal": {
+    "preflight": {
+      "status": "PREFLIGHT_REJECTED",
+      "pointerUnchanged": true,
+      "stateUnchanged": true
+    },
+    "rollback": {
+      "status": "ROLLED_BACK",
+      "pointerRestored": true,
+      "identityPreserved": true,
+      "biologyNotRewound": true,
+      "failedStateRetained": true,
+      "safetyBackupRetained": true
+    },
+    "accepted": {
+      "status": "ACCEPTED",
+      "pointerSwitched": true,
+      "identityPreserved": true
+    }
+  },
+  "sourceHashes": {
+    "releaseControl": "sha256:12e9ad39dee0fea5ba3648d7439553cdc67cfe4ddce7510857fe2d811ef089ce",
+    "test": "sha256:0727077d975fc18ddf0da50690b09d3584456cb872c5023bf69474921b1150c2",
+    "deployer": "sha256:8981e5cdc7599e25459d281cf8e909a61293e7b752286220e422b12ca476bca3",
+    "gitBuilder": "sha256:6083f349dc2c948806be8f8d25d49da8b0589370067887f23389187e43843a2a",
+    "workflow": "sha256:c28a1567138f8232cbaef9b5d0a32cbc5c41ad9831876034c8b5047e86f55c68",
+    "windowsBuilder": "sha256:cd2ed98aedcfe28ced6bb3752d35a4f1c2d52be5113f5188cc15496c9ec37b78"
+  },
+  "blockersRemaining": [
+    "R8 formal host-endurance closure",
+    "R9 formal dependency closure",
+    "R10 isolated production-host release rehearsal"
+  ],
+  "status": "CANDIDATE_PASS",
+  "evidenceHash": "sha256:38a440fb7f9fb49027f9898a28e179147b6907e2eda08d5944be8821409aeb0c"
+}

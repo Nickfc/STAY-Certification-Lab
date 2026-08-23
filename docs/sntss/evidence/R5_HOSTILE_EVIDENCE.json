@@ -1,0 +1,78 @@
+{
+  "evidenceVersion": 1,
+  "stage": "R5-authoritative-stimulus-laboratory",
+  "productionTopicsEnabled": false,
+  "registryHash": "sha256:b3302a68d46b40cb9f20ef597d20bc51ed8b38fccd80d0a4279cbe85a2e9397f",
+  "policyCount": 14,
+  "goldenMappingHash": "sha256:4a38aa6af36f5a1027c6744aa9a5113128d58acaab719aa4a34391ecbf0f40ea",
+  "hostileCorpusHash": "sha256:1eb6caa5709996a9a7c139b8490cfd5e0c112d0f9ee019ec86aee3d333c00889",
+  "hostileOutcomes": {
+    "accepted_authoritative_fact": "SNTSS_ACCEPTED",
+    "replayed_sequence": "SNTSS_REPLAY_SEQUENCE",
+    "forged_provenance": "SNTSS_PROVENANCE_FORGED",
+    "stale_authority": "SNTSS_AUTHORITY_STALE",
+    "direct_reward_semantics": "SNTSS_DIRECT_CHEMICAL_COMMAND",
+    "circular_causality": "SNTSS_CAUSAL_CIRCULAR",
+    "sntss_descendant": "SNTSS_CAUSAL_DESCENDANT",
+    "expired_event": "SNTSS_EVENT_EXPIRED"
+  },
+  "degradedAssessment": {
+    "mode": "degraded",
+    "producers": {
+      "activity": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      },
+      "dream": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      },
+      "homeostasis": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      },
+      "primordial-instinct": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      },
+      "memory": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      },
+      "synthetic-pain": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      },
+      "presence": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      },
+      "sensory": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      },
+      "social-identity": {
+        "status": "missing",
+        "lastVerifiedAt": null
+      }
+    },
+    "drives": {},
+    "stateHash": "sha256:95519c9c57605a3c50ece9fe502b0472739937eeb16e52655d565aafae0fa03d"
+  },
+  "moduleHashes": {
+    "cores/sntss/v0.1.0/source-registry.js": "sha256:ed22ce7745851ef849c8b54b2e24864710e36d52fcace8ee753e4254d62fd59b",
+    "cores/sntss/v0.1.0/causal-validator.js": "sha256:5d34926fa557defce153007ca787de54c82353a0b487c7cb3c099c2ac92da8e0",
+    "cores/sntss/v0.1.0/circuit-breakers.js": "sha256:4073348cba164a1c1687c134f1e1c78a45c88a44590187f9f6b0c84715b587dd",
+    "cores/sntss/v0.1.0/stimuli.js": "sha256:c013c0106cf922e7ecf07b55e8da5cf364bf52e6d7f70f22d63cd7d6d4151e7a",
+    "cores/sntss/v0.1.0/semantic-laboratory.js": "sha256:8dae34cc838f16a6fcba94c591ec03cb961e9569923078a5bf51d36fa6280ec3",
+    "cores/sntss/schemas/semantic-stimulus.schema.json": "sha256:7d9a28df48220fd3c78b7541f5aa21b5e0c3e73a54b628cc9b01450de62a6c78"
+  },
+  "automaticBlockersPassed": true,
+  "coreHostActivation": {
+    "inputsChanged": false,
+    "outputs": [],
+    "chemistryActive": false,
+    "productionEligible": false
+  },
+  "evidenceHash": "sha256:ec4e16e72f949d7b596972ba7089a85dca4db213140401e17794ad4a1cb8e063"
+}

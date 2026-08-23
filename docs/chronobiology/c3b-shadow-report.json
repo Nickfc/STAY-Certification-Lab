@@ -1,0 +1,81 @@
+{
+  "report_schema": "chronobiology.c3b-shadow-report/v1",
+  "result": "PASS",
+  "core_version": "1.0.0-c3rc.1",
+  "package_policy_hash": "sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820",
+  "authority": {
+    "mode": "SHADOW",
+    "production_eligible": false,
+    "physiological_authority": false,
+    "producer_epoch": 1,
+    "authoritative_relabeling_accepted": false,
+    "sntss_source_modified": false,
+    "live_deployment_performed": false
+  },
+  "summary_contract": {
+    "topic": "chronobiology.phase.summary",
+    "schema": "chronobiology.phase-summary/v1",
+    "signal_class": "CHRONOBIOLOGICAL_CONTEXT",
+    "producer_stream_id": "core:chronobiology:outputs",
+    "cadence_us": 900000000,
+    "maximum_events_per_day": 96,
+    "maximum_payload_bytes": 4096,
+    "maximum_validity_us": 7200000000,
+    "allowed_authority_modes": [
+      "shadow"
+    ]
+  },
+  "durability": {
+    "checkpoint_ack_outbox_atomic": true,
+    "stable_producer_event_identity": true,
+    "recovery_drains_committed_obligation_without_input_replay": true,
+    "replay_payload_byte_identical": true,
+    "duplicate_trusted_pulse_reemits": false
+  },
+  "boundary": {
+    "payload_contains_foreign_write_command": false,
+    "direct_sntss_import": false,
+    "sntss_consumer_route_installed": false,
+    "kernel_consumer_route_installed": false,
+    "shadow_history_promotable": false
+  },
+  "certification": {
+    "direct_shadow": {
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "chronobiology_regression": {
+      "tests": 79,
+      "passed": 79,
+      "failed": 0,
+      "skipped": 0
+    },
+    "bsf_route_outbox_regression": {
+      "tests": 115,
+      "passed": 115,
+      "failed": 0,
+      "skipped": 0
+    },
+    "resident_corehost_regression": {
+      "tests": 28,
+      "passed": 28,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "source_sha256": {
+    "cores/chronobiology/c3/aggregate.js": "5e3b783ebe6a2f83c12442631a4f66240636d0bc18c7ede1fe17c3b5b0aa990a",
+    "cores/chronobiology/c3/index.js": "60d15f828a58a0f3dd70a424b2bdb5a7e56c090efa7594c9bb141452439c8a9e",
+    "cores/chronobiology/c3/package-policy.json": "f03b9a2f782edac7c18c8199259a646e5982ea624504906dee0d45a60ad8bcbf",
+    "cores/chronobiology/c3/schemas/phase-summary.schema.json": "1eb7e4446040b111032d34294fa5edb66ed2863b6da3701be6e7996813d8acf9",
+    "cores/chronobiology/c3/state.js": "c51e375c07ebd0108b4619f8d75aa1880d7bdde355c63c1afb6c924282b1ea83",
+    "cores/chronobiology/c3/summary.js": "ddf8a1a129f7d47331e5ec28c1eb1fbc82ebcc55e7bffb145a7cc7f7fc6cba9c",
+    "cores/chronobiology/c3/validation.js": "7c9bd5f394048a2c41b5de336ff91faaa48db8c7c93b545c21ac013a62879eb6",
+    "runtime/kernel/biological-signalling-fabric.js": "9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a",
+    "runtime/kernel/resident-manager.js": "2a32726394b9b7177fb8b966cffe3a0b7fec0a2502cb9a4b2a7ccbaf0c33cdaf",
+    "runtime/kernel/state-store.js": "218b61927e4fb33bcab798cfd7d09dd3dc0000c6939b81d5033a4f287d324fb4",
+    "test/chronobiology-c3-shadow.test.js": "f367dd2a7d1a6efb7faa63e2f9f271b003cf7149280086da3acc3658ec516c1f"
+  }
+}

@@ -1,0 +1,55 @@
+[Unit]
+Description=STAY Trusted Forensic Anchor
+After=local-fs.target
+Before=stay.service
+
+[Service]
+Type=simple
+User=stayanchor
+Group=staydeploy
+ExecStart=/usr/bin/env node --disable-sigusr1 /usr/local/lib/stay/trusted-forensic-anchor.js
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=15
+UMask=0077
+StateDirectory=stay-forensic-anchor
+StateDirectoryMode=0700
+RuntimeDirectory=stay-forensic-anchor
+RuntimeDirectoryMode=0750
+LoadCredential=initial-anchor:/etc/stay/forensic-initial-anchor
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+Environment=STAY_FORENSIC_ANCHOR_SOCKET=/run/stay-forensic-anchor/anchor.sock
+Environment=STAY_FORENSIC_ANCHOR_LOG=/var/lib/stay-forensic-anchor/anchors.jsonl
+Environment=STAY_FORENSIC_INITIAL_ANCHOR_FILE=/run/credentials/stay-forensic-anchor.service/initial-anchor
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProcSubset=pid
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/usr/local/lib/stay/trusted-forensic-anchor.js /etc/stay
+ReadWritePaths=/var/lib/stay-forensic-anchor /run/stay-forensic-anchor
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+TasksMax=16
+MemoryMax=64M
+CPUQuota=10%
+
+[Install]
+WantedBy=multi-user.target
