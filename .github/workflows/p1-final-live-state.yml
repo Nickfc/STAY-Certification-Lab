@@ -49,6 +49,7 @@ jobs:
           curl -fsS --max-time 5 http://127.0.0.1:8787/healthz | node -e 'let b="";process.stdin.on("data",c=>b+=c).on("end",()=>{const v=JSON.parse(b);console.log(`HEALTH_OK=${v.ok}\nKERNEL_VERSION=${v.version}\nRUNTIME_REVISION=${v.revision}`)})'
           pid="$(systemctl show stay.service -p MainPID --value)"
           echo "SERVICE_MAIN_PID=$pid"
+          tr '\0' '\n' < "/proc/$pid/environ" | grep -E '^STAY_(REQUIRE_CGROUPS|CGROUP_ROOT)=' | sed 's/^/SERVICE_ENV_/' || true
           systemctl show stay.service -p ActiveState -p SubState -p NRestarts -p NoNewPrivileges --no-pager | sed 's/^/SERVICE_/'
           for key in CapPrm CapEff CapBnd CapAmb NoNewPrivs; do
             awk -v key="$key" '$1 == key ":" { print "PROCESS_" key "=" $2 }' "/proc/$pid/status"
