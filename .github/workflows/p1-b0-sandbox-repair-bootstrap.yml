@@ -198,7 +198,7 @@ jobs:
             bootstrap-artifact/stay-p1-production-controller \
             bootstrap-artifact/install-p1-production-controller.sh \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$RUN_ROOT/"
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+          if ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
             "sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect --unit='$UNIT' --property=Type=oneshot /bin/bash -s -- '$RUN_ROOT' '$WRAPPER_SHA256' '$INSTALLER_SHA256'" <<'REMOTE'
@@ -223,6 +223,24 @@ jobs:
           [[ "$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print $1}')" == "$EXPECTED_WRAPPER" ]]
           echo "B0_SANDBOX_REPAIR_CONTROLLER_BOOTSTRAP=PASS"
           REMOTE
+          then
+            exit 0
+          fi
+
+          echo "B0_SANDBOX_REPAIR_CONTROLLER_BOOTSTRAP=AWAITING_MANUAL_ROOT_BRIDGE"
+          echo "MANUAL_ROOT_BRIDGE_RUN_ROOT=$RUN_ROOT"
+          for _ in $(seq 1 540); do
+            if ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+              "test -f /usr/local/sbin/stay-p1-production-controller && test ! -L /usr/local/sbin/stay-p1-production-controller && test \"\$(stat -Lc '%U:%G:%a:%h' /usr/local/sbin/stay-p1-production-controller)\" = root:root:555:1 && test \"\$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print \$1}')\" = '$WRAPPER_SHA256'"; then
+              echo "B0_SANDBOX_REPAIR_CONTROLLER_BOOTSTRAP=PASS_AFTER_MANUAL_ROOT_BRIDGE"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "B0_SANDBOX_REPAIR_CONTROLLER_BOOTSTRAP=TIMEOUT_WAITING_FOR_MANUAL_ROOT_BRIDGE" >&2
+          exit 74
 
       - name: Dispatch and wait for repair completion, preflight, and Surgery B
         id: sequence
