@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: stay-genesis-p1-final-transplant-stage-v2
+  group: stay-genesis-p1-final-transplant-stage-v3
   cancel-in-progress: false
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
-      SCRIPT_SHA256: 3bc84e4f366b94e9ce7b799a99a13d56c8b0aca3eb7bdc22ce93df912ae1c81e
+      SCRIPT_SHA256: 98463c17371678c3f1c6e5ab8b461ddc6e991ae23be193d69c23e5d8a137ef84
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
