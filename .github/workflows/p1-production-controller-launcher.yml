@@ -20,6 +20,7 @@ on:
           - rollback-a1-entrypoint
           - preflight-b0
           - configure-b0
+          - complete-b0
           - rollback-b0
           - preflight-b
           - surgery-b
@@ -56,6 +57,10 @@ on:
         description: Required only for rollback-b0; enter its separate exact authorization phrase
         required: false
         type: string
+      b0_completion_authorization:
+        description: Required only for complete-b0; enter its distinct exact authorization phrase
+        required: false
+        type: string
       surgery_b_authorization:
         description: Required only for surgery-b; enter its exact authorization phrase
         required: false
@@ -73,11 +78,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CONTROLLER_COMMIT: 3d461079045a36ccc6781c4924c425fddc9856f0
+  CONTROLLER_COMMIT: dae2100e4c2b355baf61245b2c540f3b24d71f51
   EXACT_CANDIDATE_SHA: 7d040592ccf1f149f0f0a170f79cf76bb5f05d92
   EXACT_CANDIDATE_TREE: 450cc22f70b7abf3b5733fe882049d88cd52de74
   EXACT_COMPUTE_RECORD_SHA256: sha256:384f3f2e27232b555fe52185c775562d31cf7fac349dfb95ae93968225c83ec1
-  CONTROLLER_SOURCE_IDENTITY: sha256:a7e08313cb79924e57e93188582aab57d6ed50274a9bd0d0cc663014d0500354
+  CONTROLLER_SOURCE_IDENTITY: sha256:f4c628b0393befb376d385c7f58b40e8bd0644f406ce62cc4b9c814603df62b4
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   CANDIDATE_ID: 0.8.11.3-p1a-surgery-a-candidate-7d040592ccf1f149f0f0a170f79cf76bb5f05d92
@@ -102,11 +107,12 @@ jobs:
           ENTRYPOINT_ROLLBACK_AUTHORIZATION: ${{ inputs.a1_entrypoint_rollback_authorization }}
           B0_CONFIGURE_AUTHORIZATION: ${{ inputs.b0_configure_authorization }}
           B0_ROLLBACK_AUTHORIZATION: ${{ inputs.b0_rollback_authorization }}
+          B0_COMPLETION_AUTHORIZATION: ${{ inputs.b0_completion_authorization }}
           SURGERY_B_AUTHORIZATION: ${{ inputs.surgery_b_authorization }}
           ROLLBACK_B_AUTHORIZATION: ${{ inputs.rollback_b_authorization }}
         run: |
           set -euo pipefail
-          [[ "$CONTROLLER_COMMIT" == "3d461079045a36ccc6781c4924c425fddc9856f0" ]]
+          [[ "$CONTROLLER_COMMIT" == "dae2100e4c2b355baf61245b2c540f3b24d71f51" ]]
           case "$REQUESTED_OPERATION" in
             preflight)
               [[ -z "$SURGERY_AUTHORIZATION" && -z "$ROLLBACK_AUTHORIZATION" && -z "$SURGERY_A1_AUTHORIZATION" && -z "$ROLLBACK_A1_AUTHORIZATION" && -z "$ENTRYPOINT_AUTHORIZATION" && -z "$ENTRYPOINT_ROLLBACK_AUTHORIZATION" ]]
@@ -147,6 +153,10 @@ jobs:
             configure-b0)
               [[ "$B0_CONFIGURE_AUTHORIZATION" == "AUTHORIZE_B0_TRUST_RUNTIME_7D040592CCF1F149" ]]
               [[ -z "$B0_ROLLBACK_AUTHORIZATION" && -z "$SURGERY_B_AUTHORIZATION" && -z "$ROLLBACK_B_AUTHORIZATION" ]]
+              ;;
+            complete-b0)
+              [[ "$B0_COMPLETION_AUTHORIZATION" == "AUTHORIZE_B0_COMPLETE_EXISTING_RUNTIME_7D040592CCF1F149" ]]
+              [[ -z "$SURGERY_AUTHORIZATION" && -z "$ROLLBACK_AUTHORIZATION" && -z "$SURGERY_A1_AUTHORIZATION" && -z "$ROLLBACK_A1_AUTHORIZATION" && -z "$ENTRYPOINT_AUTHORIZATION" && -z "$ENTRYPOINT_ROLLBACK_AUTHORIZATION" && -z "$B0_CONFIGURE_AUTHORIZATION" && -z "$B0_ROLLBACK_AUTHORIZATION" && -z "$SURGERY_B_AUTHORIZATION" && -z "$ROLLBACK_B_AUTHORIZATION" ]]
               ;;
             rollback-b0)
               [[ "$B0_ROLLBACK_AUTHORIZATION" == "AUTHORIZE_ROLLBACK_B0_FORWARD_STATE_7D040592CCF1F149" ]]
@@ -207,8 +217,10 @@ jobs:
           bash -n controller-source/deploy/live-physiology-transplant/p1-a1-entrypoint-rollback.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-b0-preflight.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-b0-configure.sh
+          bash -n controller-source/deploy/live-physiology-transplant/p1-b0-complete.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-b0-rollback.sh
           node --check controller-source/deploy/live-physiology-transplant/p1-b0-state.js
+          node --check controller-source/deploy/live-physiology-transplant/p1-b0-runtime-ready.js
           bash -n controller-source/deploy/live-physiology-transplant/p1-surgery-b-preflight.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-surgery-b-execute.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-surgery-b-rollback.sh
@@ -293,8 +305,10 @@ jobs:
             p1-a1-entrypoint-correct.sh \
             p1-a1-entrypoint-rollback.sh \
             p1-b0-state.js \
+            p1-b0-runtime-ready.js \
             p1-b0-preflight.sh \
             p1-b0-configure.sh \
+            p1-b0-complete.sh \
             p1-b0-rollback.sh \
             p1-surgery-b-state.js \
             p1-surgery-b-preflight.sh \
@@ -366,6 +380,7 @@ jobs:
           ENTRYPOINT_ROLLBACK_AUTHORIZATION: ${{ inputs.a1_entrypoint_rollback_authorization }}
           B0_CONFIGURE_AUTHORIZATION: ${{ inputs.b0_configure_authorization }}
           B0_ROLLBACK_AUTHORIZATION: ${{ inputs.b0_rollback_authorization }}
+          B0_COMPLETION_AUTHORIZATION: ${{ inputs.b0_completion_authorization }}
           SURGERY_B_AUTHORIZATION: ${{ inputs.surgery_b_authorization }}
           ROLLBACK_B_AUTHORIZATION: ${{ inputs.rollback_b_authorization }}
         run: |
@@ -410,6 +425,10 @@ jobs:
             configure-b0)
               [[ "$B0_CONFIGURE_AUTHORIZATION" == "AUTHORIZE_B0_TRUST_RUNTIME_7D040592CCF1F149" ]]
               [[ -z "$B0_ROLLBACK_AUTHORIZATION" && -z "$SURGERY_B_AUTHORIZATION" && -z "$ROLLBACK_B_AUTHORIZATION" ]]
+              ;;
+            complete-b0)
+              [[ "$B0_COMPLETION_AUTHORIZATION" == "AUTHORIZE_B0_COMPLETE_EXISTING_RUNTIME_7D040592CCF1F149" ]]
+              [[ -z "$SURGERY_AUTHORIZATION" && -z "$ROLLBACK_AUTHORIZATION" && -z "$SURGERY_A1_AUTHORIZATION" && -z "$ROLLBACK_A1_AUTHORIZATION" && -z "$ENTRYPOINT_AUTHORIZATION" && -z "$ENTRYPOINT_ROLLBACK_AUTHORIZATION" && -z "$B0_CONFIGURE_AUTHORIZATION" && -z "$B0_ROLLBACK_AUTHORIZATION" && -z "$SURGERY_B_AUTHORIZATION" && -z "$ROLLBACK_B_AUTHORIZATION" ]]
               ;;
             rollback-b0)
               [[ "$B0_ROLLBACK_AUTHORIZATION" == "AUTHORIZE_ROLLBACK_B0_FORWARD_STATE_7D040592CCF1F149" ]]
@@ -518,6 +537,29 @@ jobs:
             staydeploy@35.157.242.167 \
             "set -euo pipefail; cd '$RUN_ROOT'; sha256sum -c P1_ACTIONS_BUNDLE.sha256; install -d -m 0700 releases; tar -xzf p1-surgery-a-releases.tar.gz -C releases; tar -xzf p1-actions-controller.tar.gz"
 
+      - name: Materialize independently authenticated B.0 completion fingerprint
+        if: inputs.operation == 'complete-b0'
+        shell: bash
+        env:
+          INDEPENDENT_FINGERPRINT: ${{ secrets.STAY_B0_RELEASE_AUTHORITY_PUBLIC_KEY_SHA256 }}
+        run: |
+          set -euo pipefail
+          [[ "$INDEPENDENT_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s\n' "$INDEPENDENT_FINGERPRINT" > "$RUNNER_TEMP/b0-completion-fingerprint.txt"
+          chmod 0400 "$RUNNER_TEMP/b0-completion-fingerprint.txt"
+
+      - name: Stage B.0 completion fingerprint into the validated run root
+        if: inputs.operation == 'complete-b0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
+          RUN_ROOT="/opt/stay/incoming/p1-actions-$GITHUB_RUN_ID"
+          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "$RUNNER_TEMP/b0-completion-fingerprint.txt" \
+            staydeploy@35.157.242.167:"$RUN_ROOT/b0-completion-fingerprint.txt"
+
       - name: Authenticate B.0 trust material with system tools
         if: inputs.operation == 'configure-b0'
         shell: bash
@@ -571,7 +613,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
-          case "$OPERATION" in preflight|surgery-a|rollback-a|preflight-a1|surgery-a1|rollback-a1|preflight-a1-entrypoint|correct-a1-entrypoint|rollback-a1-entrypoint|preflight-b0|configure-b0|rollback-b0|preflight-b|surgery-b|rollback-b) ;; *) exit 64 ;; esac
+          case "$OPERATION" in preflight|surgery-a|rollback-a|preflight-a1|surgery-a1|rollback-a1|preflight-a1-entrypoint|correct-a1-entrypoint|rollback-a1-entrypoint|preflight-b0|configure-b0|complete-b0|rollback-b0|preflight-b|surgery-b|rollback-b) ;; *) exit 64 ;; esac
           RUN_ROOT="/opt/stay/incoming/p1-actions-$GITHUB_RUN_ID"
           case "$OPERATION" in
             preflight) AUTHORIZATION_ARGUMENT='NO_AUTHORIZATION' ;;
@@ -585,6 +627,7 @@ jobs:
             rollback-a1-entrypoint) AUTHORIZATION_ARGUMENT='AUTHORIZE_A1_ENTRYPOINT_ROLLBACK_NO_STATE_7D040592CCF1F149' ;;
             preflight-b0) AUTHORIZATION_ARGUMENT='NO_AUTHORIZATION' ;;
             configure-b0) AUTHORIZATION_ARGUMENT='AUTHORIZE_B0_TRUST_RUNTIME_7D040592CCF1F149' ;;
+            complete-b0) AUTHORIZATION_ARGUMENT='AUTHORIZE_B0_COMPLETE_EXISTING_RUNTIME_7D040592CCF1F149' ;;
             rollback-b0) AUTHORIZATION_ARGUMENT='AUTHORIZE_ROLLBACK_B0_FORWARD_STATE_7D040592CCF1F149' ;;
             preflight-b) AUTHORIZATION_ARGUMENT='NO_AUTHORIZATION' ;;
             surgery-b) AUTHORIZATION_ARGUMENT='AUTHORIZE_SURGERY_B_SNTSS_NEUTRAL_7D040592CCF1F149' ;;
@@ -627,6 +670,7 @@ jobs:
             rollback-a1-entrypoint) EXPECTED_RESULT='ROLLBACK_A1_ENTRYPOINT_RESULT=PASS' ;;
             preflight-b0) EXPECTED_RESULT='PREFLIGHT_B0_RESULT=PASS' ;;
             configure-b0) EXPECTED_RESULT='B0_RESULT=PASS' ;;
+            complete-b0) EXPECTED_RESULT='B0_COMPLETION_RESULT=PASS' ;;
             rollback-b0) EXPECTED_RESULT='ROLLBACK_B0_RESULT=PASS' ;;
             preflight-b) EXPECTED_RESULT='PREFLIGHT_B_RESULT=PASS' ;;
             surgery-b) EXPECTED_RESULT='SURGERY_B_RESULT=PASS' ;;
@@ -655,7 +699,7 @@ jobs:
             echo "CAPTURED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             for source in "$RUNNER_TEMP/host-guard.raw" "$RUNNER_TEMP/controller-classification.env" "$RUNNER_TEMP/controller.raw"; do
               [[ -f "$source" ]] || continue
-              grep -E '^(LIVE_HOST_EXPECTED_PRIVATE_IPV4|OBSERVED_PRIVATE_IPV4|OBSERVED_HOSTNAME|HOST_IDENTITY_GUARD|HOST_CLASSIFICATION|PREFLIGHT_RESULT|PREFLIGHT_A1_RESULT|PREFLIGHT_A1_ENTRYPOINT_RESULT|PREFLIGHT_B0_RESULT|PREFLIGHT_B_RESULT|B0_RESULT|ROLLBACK_B0_RESULT|A1_RESULT|A1_ENTRYPOINT_RESULT|ROLLBACK_A1_RESULT|ROLLBACK_A1_ENTRYPOINT_RESULT|SURGERY_B_RESULT|ROLLBACK_B_RESULT|CURRENT_POINTER|CURRENT_RELEASE|STATESTORE_SCHEMA|SERVICE_ACTIVE|HEALTH|ENTRYPOINT|RUNTIME_REVISION|RUNTIME_REVISION_BEFORE|RUNTIME_REVISION_AFTER|SIGNED_PROMOTION_ENFORCED|PACKAGE_POLICY_ENFORCED|OS_SANDBOX_ENFORCED|TRUSTED_TIME_PULSE_INTERVAL_MS|RESIDENT_CERTIFICATE|PRIVATE_KEY_ON_PRODUCTION|RESIDENT_CERTIFICATE_REQUEST|SNTSS_ATTACHED|CHRONOBIOLOGY_ATTACHED|SNTSS_RESIDENT_PRESENT|CHRONOBIOLOGY_RESIDENT_PRESENT|SNTSS_AUTHORITY|CHRONOBIOLOGY_AUTHORITY|FORWARD_RESTART_CONTINUITY|B0_EVIDENCE_DIGEST|CANONICAL_FORWARD_STATE_PRESERVED|BIOLOGICAL_STATE_RESTORED|PREFLIGHT_B0_ABORT|B0_ABORT|ROLLBACK_B0_ABORT|PREFLIGHT_B_ABORT|SURGERY_B_ABORT|ROLLBACK_B_ABORT|P1_CONTROLLER_ABORT|CONTROLLER_DISPATCH_STATUS|CONTROLLER_FAILURE_CLASS|CONTROLLER_CLEANUP_STATUS|SERVICE_OPERATION|CURRENT_POINTER_CHANGE|STATESTORE_WRITE|RESIDENT_OPERATION|AUTHORITY_CHANGE)=' "$source" || true
+              grep -E '^(LIVE_HOST_EXPECTED_PRIVATE_IPV4|OBSERVED_PRIVATE_IPV4|OBSERVED_HOSTNAME|HOST_IDENTITY_GUARD|HOST_CLASSIFICATION|PREFLIGHT_RESULT|PREFLIGHT_A1_RESULT|PREFLIGHT_A1_ENTRYPOINT_RESULT|PREFLIGHT_B0_RESULT|PREFLIGHT_B_RESULT|B0_RESULT|B0_COMPLETION_RESULT|B0_PROVISIONING_ALREADY_LIVE|ROLLBACK_B0_RESULT|A1_RESULT|A1_ENTRYPOINT_RESULT|ROLLBACK_A1_RESULT|ROLLBACK_A1_ENTRYPOINT_RESULT|SURGERY_B_RESULT|ROLLBACK_B_RESULT|CURRENT_POINTER|CURRENT_RELEASE|STATESTORE_SCHEMA|SERVICE_ACTIVE|HEALTH|ENTRYPOINT|RUNTIME_REVISION|RUNTIME_REVISION_BEFORE|RUNTIME_REVISION_AFTER|SIGNED_PROMOTION_ENFORCED|PACKAGE_POLICY_ENFORCED|OS_SANDBOX_ENFORCED|TRUSTED_TIME_PULSE_INTERVAL_MS|RESIDENT_CERTIFICATE|PRIVATE_KEY_ON_PRODUCTION|RESIDENT_CERTIFICATE_REQUEST|SNTSS_ATTACHED|CHRONOBIOLOGY_ATTACHED|SNTSS_RESIDENT_PRESENT|CHRONOBIOLOGY_RESIDENT_PRESENT|SNTSS_AUTHORITY|CHRONOBIOLOGY_AUTHORITY|FORWARD_RESTART_CONTINUITY|B0_BASELINE_SEAL|READY_FOR_SURGERY_B_PREFLIGHT|B0_EVIDENCE_DIGEST|CANONICAL_FORWARD_STATE_PRESERVED|BIOLOGICAL_STATE_RESTORED|PREFLIGHT_B0_ABORT|B0_ABORT|B0_COMPLETION_ABORT|ROLLBACK_B0_ABORT|PREFLIGHT_B_ABORT|SURGERY_B_ABORT|ROLLBACK_B_ABORT|P1_CONTROLLER_ABORT|CONTROLLER_DISPATCH_STATUS|CONTROLLER_FAILURE_CLASS|CONTROLLER_CLEANUP_STATUS|SERVICE_RESTARTED|DAEMON_RELOAD|SERVICE_OPERATION|CURRENT_POINTER_CHANGE|STATESTORE_WRITE|RESIDENT_OPERATION|AUTHORITY_CHANGE)=' "$source" || true
               grep -E '^(PRE_WRITE_LIVE_SENTINEL|POST_A1_RELEASE|STATESTORE_PRE_SCHEMA|STATESTORE_POST_SCHEMA|STATESTORE_CONTINUITY|SURGERY_A_RESULT|ROLLBACK_A_RESULT|PRE_SURGERY_RELEASE|POST_SURGERY_RELEASE|ENTRYPOINT_BEFORE|ENTRYPOINT_AFTER|RESIDENT_CONTROL_SOCKET|DROPIN_REMOVED|DAEMON_RELOAD|SERVICE_RESTARTED|BSF_STATUS|RESIDENT_MANAGER_STATUS|RESIDENT_CONTROL|EXISTING_FETUS_CONTINUITY|EXISTING_FETUS_IDENTITY_CONTINUITY|ORGANISM_IDENTITY_CONTINUITY|CHECKPOINT_FORWARD_ONLY|FETUS_INSTANCE_ID|FETUS_VERSION|FETUS_AUTHORITY_EPOCH|FETUS_BARRIER_SEQUENCE|FETUS_CHECKPOINT_GENERATION|FETUS_CHECKPOINT_HASH|FETUS_CHECKPOINT_HASH_CHANGED|ORGANISM_IDENTITY_HASH|RESIDENT_SNTSS_PRESENT|SNTSS_STATUS|SNTSS_RESIDENCY_ID|SNTSS_VERSION|SNTSS_STATE_SCHEMA|SNTSS_PACKAGE_POLICY_HASH|SNTSS_OUTPUT_COUNT|SNTSS_SIGNALLING|SNTSS_PRODUCTION_ELIGIBLE|INITIAL_CHECKPOINT_HASH|FINAL_SMOKE_CHECKPOINT_HASH|CHECKPOINT_GENERATION|RESIDENT_TRANSITION_SEQUENCE|PULSE_ACK_COUNT|AUTHORITY_BEFORE_HASH|AUTHORITY_AFTER_HASH|SIGNED_PROMOTION|SNTSS_NEW_ACTIVATION|CHRONOBIOLOGY_ACTIVATED|BIOLOGICAL_AUTHORITY_CHANGED|BIOLOGICAL_AUTHORITY_OWNERSHIP_CHANGED|ROLLBACK_READY|FORWARD_COMPATIBLE_ROLLBACK|SURGERY_A_EVIDENCE_DIGEST|ROLLBACK_A_EVIDENCE_DIGEST|A1_EVIDENCE_DIGEST|A1_ENTRYPOINT_EVIDENCE_DIGEST|READY_FOR_SURGERY_B|EVIDENCE_DIR|PREFLIGHT_ABORT|PREFLIGHT_A1_ABORT|PREFLIGHT_A1_ENTRYPOINT_ABORT|SURGERY_A_ABORT|SURGERY_A1_ABORT|A1_ENTRYPOINT_ABORT|ROLLBACK_A_ABORT|ROLLBACK_A1_ABORT|ROLLBACK_A1_ENTRYPOINT_ABORT|RELEASE_INSTALL_STAGE)=' "$source" || true
             done
           } > actions-evidence/sanitized-summary.txt
