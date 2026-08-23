@@ -1,0 +1,97 @@
+name: Probe exact SNTSS CoreHost init
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/p1-corehost-init-probe.launch]
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare deploy key
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          grep -Fx 'P1_COREHOST_INIT_PROBE=AUTHORIZED' .github/p1-corehost-init-probe.launch
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          : > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+      - name: Run exact init without StateStore
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@35.157.242.167 'env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox STAY_REQUIRE_CORE_PACKAGE_POLICY=1 node -' \
+            > "$RUNNER_TEMP/probe.raw" 2>&1 <<'NODE'
+          'use strict';
+          const root = '/opt/stay/current';
+          const modulePath = root + '/cores/sntss/i3d/index.js';
+          const definition = require(modulePath);
+          const { CoreHostClient } = require(root + '/runtime/kernel/core-host-client.js');
+          const safe = value => String(value ?? '').replace(/[\r\n]+/g, ' | ').slice(0, 2048);
+          const logger = {};
+          for (const level of ['log','info','warn','error']) logger[level] = (...args) => console.log('COREHOST_LOG=' + safe(args.join(' ')));
+          (async () => {
+            const client = new CoreHostClient({
+              modulePath,
+              expectedManifest: definition.manifest,
+              mode: 'active',
+              logger,
+              policy: { resources: definition.manifest.resources, priority: definition.manifest.priority }
+            });
+            client.on('fatal', error => console.log('COREHOST_FATAL=' + safe(JSON.stringify(error))));
+            client.on('error', error => console.log('COREHOST_EVENT_ERROR=' + safe(error?.code) + ':' + safe(error?.message)));
+            try {
+              await client.start({}, definition.manifest.stateSchema);
+              console.log('COREHOST_INIT=PASS');
+              const health = await client.health();
+              console.log('COREHOST_HEALTH=' + safe(JSON.stringify(health)));
+            } catch (error) {
+              console.log('COREHOST_INIT=FAIL');
+              console.log('ERROR_CODE=' + safe(error?.code || 'UNKNOWN'));
+              console.log('ERROR_MESSAGE=' + safe(error?.message || error));
+            } finally {
+              await client.stop().catch(error => console.log('COREHOST_STOP_ERROR=' + safe(error?.message || error)));
+            }
+          })().catch(error => { console.log('PROBE_FATAL=' + safe(error?.stack || error)); process.exitCode = 1; });
+          NODE
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/probe.raw"
+      - name: Publish exact init result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/result.env"
+          {
+            echo 'P1_COREHOST_INIT_PROBE_FORMAT=stay-p1-corehost-init-probe-v1'
+            echo "SSH_STATUS=${{ steps.probe.outputs.status }}"
+            grep -E '^(COREHOST_|ERROR_CODE|ERROR_MESSAGE|PROBE_FATAL)=' "$RUNNER_TEMP/probe.raw" || true
+          } > "$result"
+          content="$(base64 -w0 "$result")"
+          path_name='ops/p1-corehost-init-probe-result.env'
+          old="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path_name?ref=main" --jq .sha 2>/dev/null || true)"
+          args=(--method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" -f message='Record exact SNTSS CoreHost init result' -f content="$content" -f branch=main)
+          [[ -z "$old" ]] || args+=(-f sha="$old")
+          gh api "${args[@]}" >/dev/null
