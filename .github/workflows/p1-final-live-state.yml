@@ -89,6 +89,9 @@ jobs:
             if [[ -r "$directory/memory.events" ]]; then
               while read -r key value; do echo "CGROUP_${name}_MEMORY_${key^^}=$value"; done < "$directory/memory.events"
             fi
+            if [[ -r "$directory/pids.events" ]]; then
+              while read -r key value; do echo "CGROUP_${name}_PIDS_${key^^}=$value"; done < "$directory/pids.events"
+            fi
           done
           node <<'NODE'
           'use strict';
