@@ -1,0 +1,301 @@
+name: One-shot B.0 sandbox repair bootstrap
+run-name: One-shot B.0 sandbox repair bootstrap
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/p1-b0-sandbox-repair.launch
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: stay-genesis-p1-b0-sandbox-repair-bootstrap
+  cancel-in-progress: false
+
+env:
+  CONTROLLER_COMMIT: eddce8012e65599db5993d0bb979dfa3f033ce52
+  CONTROLLER_SOURCE_IDENTITY: sha256:bf225628e7d19be8aa10478c95211296d570f278817ecfbef417e0e8a3cafb2e
+  WRAPPER_SHA256: 95dc153aa81d14ed9cef9e5d2450ed41822b11b14e2ef1e440d319c7096b79cd
+  INSTALLER_SHA256: 0a06f8be407d856bd2cba0f38713904c3b70c57c9832b3178ebc7b7d2f9c8df1
+  PRODUCTION_PUBLIC_IPV4: 35.157.242.167
+  PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+
+jobs:
+  build-test-secret-free:
+    name: Validate and seal exact repair controller
+    if: github.event.head_commit.message == 'Bootstrap and launch controlled B.0 sandbox repair'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact launcher revision without credentials
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: launcher-source
+
+      - name: Checkout exact controller revision without credentials
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.CONTROLLER_COMMIT }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: controller-source
+
+      - name: Validate one-shot launch and controller identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C launcher-source rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$(git -C controller-source rev-parse HEAD)" == "$CONTROLLER_COMMIT" ]]
+          grep -Fx 'P1_B0_SANDBOX_REPAIR_LAUNCH=AUTHORIZED' launcher-source/.github/p1-b0-sandbox-repair.launch
+          grep -Fx "FEATURE_COMMIT=$CONTROLLER_COMMIT" launcher-source/.github/p1-b0-sandbox-repair.launch
+          grep -Fx 'SEQUENCE=repair-b0-sandbox,preflight-b,surgery-b' launcher-source/.github/p1-b0-sandbox-repair.launch
+          grep -Fx "  CONTROLLER_COMMIT: $CONTROLLER_COMMIT" launcher-source/.github/workflows/p1-production-controller-launcher.yml
+          grep -Fx "  CONTROLLER_SOURCE_IDENTITY: $CONTROLLER_SOURCE_IDENTITY" launcher-source/.github/workflows/p1-production-controller-launcher.yml
+          bash -n controller-source/deploy/live-physiology-transplant/stay-p1-production-controller
+          bash -n controller-source/deploy/live-physiology-transplant/install-p1-production-controller.sh
+          bash -n controller-source/deploy/live-physiology-transplant/p1-b0-sandbox-repair.sh
+          node --check controller-source/deploy/live-physiology-transplant/p1-b0-live-user-probe.js
+          [[ "$(sha256sum controller-source/deploy/live-physiology-transplant/stay-p1-production-controller | awk '{print $1}')" == "$WRAPPER_SHA256" ]]
+          [[ "$(sha256sum controller-source/deploy/live-physiology-transplant/install-p1-production-controller.sh | awk '{print $1}')" == "$INSTALLER_SHA256" ]]
+          node --test --test-concurrency=1 \
+            controller-source/test/p1-actions-production-controller.test.js \
+            controller-source/test/p1-privileged-bridge.test.js \
+            controller-source/test/p1-b0-runtime-provisioning.test.js \
+            controller-source/test/p1-b0-sandbox-repair.test.js \
+            controller-source/test/p1-surgery-b.test.js \
+            controller-source/test/systemd-core-sandbox-contract.test.js \
+            controller-source/test/hostile-takeover-r10-5.test.js
+
+      - name: Seal exact root-wrapper bootstrap artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT="$RUNNER_TEMP/p1-b0-sandbox-repair-bootstrap"
+          install -d -m 0700 "$ARTIFACT"
+          install -m 0555 \
+            controller-source/deploy/live-physiology-transplant/stay-p1-production-controller \
+            "$ARTIFACT/stay-p1-production-controller"
+          install -m 0555 \
+            controller-source/deploy/live-physiology-transplant/install-p1-production-controller.sh \
+            "$ARTIFACT/install-p1-production-controller.sh"
+          (
+            cd "$ARTIFACT"
+            sha256sum \
+              stay-p1-production-controller \
+              install-p1-production-controller.sh > P1_B0_SANDBOX_REPAIR_BOOTSTRAP.sha256
+          )
+
+      - name: Upload sealed bootstrap artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: p1-b0-sandbox-repair-bootstrap-${{ github.run_id }}
+          path: ${{ runner.temp }}/p1-b0-sandbox-repair-bootstrap/
+          if-no-files-found: error
+          retention-days: 7
+
+  production-bootstrap-and-launch:
+    name: Bootstrap wrapper and run fixed repair sequence
+    needs: build-test-secret-free
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - name: Download isolated sealed bootstrap artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: p1-b0-sandbox-repair-bootstrap-${{ github.run_id }}
+          path: bootstrap-artifact
+
+      - name: Validate bootstrap artifact without executing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED=$'P1_B0_SANDBOX_REPAIR_BOOTSTRAP.sha256\ninstall-p1-production-controller.sh\nstay-p1-production-controller'
+          [[ "$(find bootstrap-artifact -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$EXPECTED" ]]
+          (cd bootstrap-artifact && sha256sum -c P1_B0_SANDBOX_REPAIR_BOOTSTRAP.sha256)
+          [[ "$(sha256sum bootstrap-artifact/stay-p1-production-controller | awk '{print $1}')" == "$WRAPPER_SHA256" ]]
+          [[ "$(sha256sum bootstrap-artifact/install-p1-production-controller.sh | awk '{print $1}')" == "$INSTALLER_SHA256" ]]
+          chmod 0555 bootstrap-artifact/stay-p1-production-controller bootstrap-artifact/install-p1-production-controller.sh
+
+      - name: Prepare deploy key without contacting production
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          : > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+
+      - name: Fail-closed live host identity guard as bootstrap principal
+        id: host_guard
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            ubuntu@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' > "$RUNNER_TEMP/bootstrap-host-guard.raw" 2>&1 <<'REMOTE'
+          set -Eeuo pipefail
+          EXPECTED_PRIVATE_IPV4="172.26.9.207"
+          command -v ip >/dev/null 2>&1 || { echo "HOST_IDENTITY_GUARD=FAIL"; exit 40; }
+          OBSERVED_PRIVATE_IPV4="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a); print a}' | sort -u)"
+          [[ "$OBSERVED_PRIVATE_IPV4" == "$EXPECTED_PRIVATE_IPV4" ]] || {
+            echo "LIVE_HOST_EXPECTED_PRIVATE_IPV4=$EXPECTED_PRIVATE_IPV4"
+            echo "OBSERVED_PRIVATE_IPV4=${OBSERVED_PRIVATE_IPV4:-NONE}"
+            echo "HOST_IDENTITY_GUARD=FAIL"
+            exit 41
+          }
+          echo "LIVE_HOST_EXPECTED_PRIVATE_IPV4=$EXPECTED_PRIVATE_IPV4"
+          echo "OBSERVED_PRIVATE_IPV4=$OBSERVED_PRIVATE_IPV4"
+          echo "HOST_IDENTITY_GUARD=PASS"
+          REMOTE
+          grep -Fx 'HOST_IDENTITY_GUARD=PASS' "$RUNNER_TEMP/bootstrap-host-guard.raw"
+
+      - name: Install exact pinned root wrapper
+        id: bootstrap
+        if: steps.host_guard.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
+          RUN_ROOT="/tmp/stay-p1-bootstrap-$GITHUB_RUN_ID"
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            ubuntu@"$PRODUCTION_PUBLIC_IPV4" \
+            "set -euo pipefail; test ! -e '$RUN_ROOT'; install -d -m 0700 '$RUN_ROOT'"
+          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            bootstrap-artifact/stay-p1-production-controller \
+            bootstrap-artifact/install-p1-production-controller.sh \
+            ubuntu@"$PRODUCTION_PUBLIC_IPV4":"$RUN_ROOT/"
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            ubuntu@"$PRODUCTION_PUBLIC_IPV4" \
+            "sudo -n /bin/bash -s -- '$RUN_ROOT' '$WRAPPER_SHA256' '$INSTALLER_SHA256'" <<'REMOTE'
+          set -Eeuo pipefail
+          ROOT="$1"; EXPECTED_WRAPPER="$2"; EXPECTED_INSTALLER="$3"
+          [[ "$ROOT" =~ ^/tmp/stay-p1-bootstrap-[0-9]+$ && -d "$ROOT" && ! -L "$ROOT" ]]
+          [[ "$(stat -Lc '%U:%G:%a' "$ROOT")" == ubuntu:ubuntu:700 ]]
+          [[ -f "$ROOT/stay-p1-production-controller" && ! -L "$ROOT/stay-p1-production-controller" ]]
+          [[ -f "$ROOT/install-p1-production-controller.sh" && ! -L "$ROOT/install-p1-production-controller.sh" ]]
+          [[ -z "$(find -P "$ROOT" -xdev \( -type l -o -type b -o -type c -o -type p -o -type s \) -print -quit)" ]]
+          [[ -z "$(find -P "$ROOT" -xdev -type f -links +1 -print -quit)" ]]
+          chown root:root "$ROOT" "$ROOT/stay-p1-production-controller" "$ROOT/install-p1-production-controller.sh"
+          chmod 0700 "$ROOT"
+          chmod 0555 "$ROOT/stay-p1-production-controller" "$ROOT/install-p1-production-controller.sh"
+          cleanup() { rm -rf --one-file-system -- "$ROOT"; }
+          trap cleanup EXIT
+          [[ "$(sha256sum "$ROOT/stay-p1-production-controller" | awk '{print $1}')" == "$EXPECTED_WRAPPER" ]]
+          [[ "$(sha256sum "$ROOT/install-p1-production-controller.sh" | awk '{print $1}')" == "$EXPECTED_INSTALLER" ]]
+          /bin/bash "$ROOT/install-p1-production-controller.sh"
+          [[ "$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print $1}')" == "$EXPECTED_WRAPPER" ]]
+          echo "B0_SANDBOX_REPAIR_CONTROLLER_BOOTSTRAP=PASS"
+          REMOTE
+
+      - name: Dispatch and wait for repair, preflight, and Surgery B
+        id: sequence
+        if: steps.bootstrap.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RESULT="$RUNNER_TEMP/p1-b0-sandbox-repair-sequence.env"
+          : > "$RESULT"
+          dispatch_and_wait() {
+            local operation="$1" authorization_key="${2:-}" authorization_value="${3:-}"
+            local before run_id="" title_prefix runs
+            before="$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --workflow p1-production-controller-launcher.yml --branch main \
+              --event workflow_dispatch --limit 30 --json databaseId --jq '[.[].databaseId]')"
+            if [[ -n "$authorization_key" ]]; then
+              gh workflow run p1-production-controller-launcher.yml --repo "$GITHUB_REPOSITORY" \
+                --ref main -f "operation=$operation" -f "$authorization_key=$authorization_value"
+            else
+              gh workflow run p1-production-controller-launcher.yml --repo "$GITHUB_REPOSITORY" \
+                --ref main -f "operation=$operation"
+            fi
+            title_prefix="P1 $operation · "
+            for _ in $(seq 1 90); do
+              runs="$(gh run list --repo "$GITHUB_REPOSITORY" \
+                --workflow p1-production-controller-launcher.yml --branch main \
+                --event workflow_dispatch --limit 30 \
+                --json databaseId,displayTitle,event,headSha,status,conclusion,url,createdAt)"
+              run_id="$(jq -r --arg prefix "$title_prefix" --argjson before "$before" \
+                '[.[] | .databaseId as $id | select(.event == "workflow_dispatch" and (.displayTitle | startswith($prefix)) and (($before | index($id)) == null))] | sort_by(.databaseId) | last | .databaseId // empty' \
+                <<<"$runs")"
+              [[ -n "$run_id" ]] && break
+              sleep 2
+            done
+            [[ "$run_id" =~ ^[0-9]+$ ]]
+            printf '%s_RUN_ID=%s\n' "${operation^^}" "$run_id" | tr '-' '_' >> "$RESULT"
+            gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --interval 10 --exit-status
+            [[ "$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" == success ]]
+          }
+          dispatch_and_wait repair-b0-sandbox \
+            b0_sandbox_repair_authorization AUTHORIZE_B0_SANDBOX_REPAIR_7D040592CCF1F149
+          dispatch_and_wait preflight-b
+          dispatch_and_wait surgery-b \
+            surgery_b_authorization AUTHORIZE_SURGERY_B_SNTSS_NEUTRAL_7D040592CCF1F149
+          echo 'FIXED_SEQUENCE_RESULT=PASS' >> "$RESULT"
+
+      - name: Publish sanitized one-shot result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOST_GUARD_OUTCOME: ${{ steps.host_guard.outcome }}
+          BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
+          SEQUENCE_OUTCOME: ${{ steps.sequence.outcome }}
+        run: |
+          set -euo pipefail
+          RESULT="$RUNNER_TEMP/p1-b0-sandbox-repair-launch-result.env"
+          {
+            echo 'P1_B0_SANDBOX_REPAIR_LAUNCH_RESULT_FORMAT=stay-p1-b0-sandbox-repair-launch-result-v1'
+            echo "BOOTSTRAP_WORKFLOW_RUN_ID=$GITHUB_RUN_ID"
+            echo "CONTROLLER_COMMIT=$CONTROLLER_COMMIT"
+            echo "CONTROLLER_SOURCE_IDENTITY=$CONTROLLER_SOURCE_IDENTITY"
+            echo "ROOT_WRAPPER_SHA256=sha256:$WRAPPER_SHA256"
+            echo "HOST_IDENTITY_GUARD_OUTCOME=$HOST_GUARD_OUTCOME"
+            echo "ROOT_WRAPPER_BOOTSTRAP_OUTCOME=$BOOTSTRAP_OUTCOME"
+            echo "FIXED_SEQUENCE_OUTCOME=$SEQUENCE_OUTCOME"
+            [[ -f "$RUNNER_TEMP/p1-b0-sandbox-repair-sequence.env" ]] && \
+              cat "$RUNNER_TEMP/p1-b0-sandbox-repair-sequence.env"
+          } > "$RESULT"
+          CONTENT="$(base64 -w0 "$RESULT")"
+          PATH_NAME='ops/p1-b0-sandbox-repair-launch-result.env'
+          EXISTING_SHA="$(gh api "repos/$GITHUB_REPOSITORY/contents/$PATH_NAME?ref=main" --jq .sha 2>/dev/null || true)"
+          if [[ -n "$EXISTING_SHA" ]]; then
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$PATH_NAME" \
+              -f message='Record controlled B.0 sandbox repair launch result' \
+              -f content="$CONTENT" -f branch=main -f sha="$EXISTING_SHA" >/dev/null
+          else
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$PATH_NAME" \
+              -f message='Record controlled B.0 sandbox repair launch result' \
+              -f content="$CONTENT" -f branch=main >/dev/null
+          fi
+
+      - name: Require full fixed sequence success
+        if: always()
+        shell: bash
+        env:
+          HOST_GUARD_OUTCOME: ${{ steps.host_guard.outcome }}
+          BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
+          SEQUENCE_OUTCOME: ${{ steps.sequence.outcome }}
+        run: |
+          set -euo pipefail
+          [[ "$HOST_GUARD_OUTCOME" == success ]]
+          [[ "$BOOTSTRAP_OUTCOME" == success ]]
+          [[ "$SEQUENCE_OUTCOME" == success ]]

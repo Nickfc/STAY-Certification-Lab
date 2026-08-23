@@ -1,4 +1,5 @@
 name: P1 Surgery A/A.1/B production launcher
+run-name: P1 ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
