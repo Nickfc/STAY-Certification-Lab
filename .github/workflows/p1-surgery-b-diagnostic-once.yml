@@ -1,0 +1,92 @@
+name: One-shot Surgery B rejection diagnostic
+run-name: One-shot Surgery B rejection diagnostic
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/p1-surgery-b-diagnostic.launch
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: stay-genesis-p1-surgery-b-diagnostic-once
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact trigger revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate sealed diagnostic trigger
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx 'P1_SURGERY_B_DIAGNOSTIC_LAUNCH=AUTHORIZED' .github/p1-surgery-b-diagnostic.launch
+          grep -Fx 'OPERATION=surgery-b' .github/p1-surgery-b-diagnostic.launch
+          grep -Fq 'RESIDENT_CONTROL_CLIENT_ABORT' .github/workflows/p1-production-controller-launcher.yml
+          grep -Fq 'CONTROLLER_COMMIT: a967287135b6ff75240ecd55829f641e4ecef503' .github/workflows/p1-production-controller-launcher.yml
+
+      - name: Dispatch exactly one guarded Surgery B attempt
+        id: surgery
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="$(gh run list --repo "$GITHUB_REPOSITORY" +            --workflow p1-production-controller-launcher.yml --branch main +            --event workflow_dispatch --limit 30 --json databaseId +            --jq '[.[].databaseId]')"
+          gh workflow run p1-production-controller-launcher.yml +            --repo "$GITHUB_REPOSITORY" --ref main +            -f operation=surgery-b +            -f surgery_b_authorization=AUTHORIZE_SURGERY_B_SNTSS_NEUTRAL_7D040592CCF1F149
+          run_id=''
+          for _ in $(seq 1 90); do
+            runs="$(gh run list --repo "$GITHUB_REPOSITORY" +              --workflow p1-production-controller-launcher.yml --branch main +              --event workflow_dispatch --limit 30 +              --json databaseId,displayTitle,event)"
+            run_id="$(jq -r --argjson before "$before" +              '[.[] | .databaseId as $id | select(.event == "workflow_dispatch" and (.displayTitle | startswith("P1 surgery-b · ")) and (($before | index($id)) == null))] | sort_by(.databaseId) | last | .databaseId // empty' +              <<<"$runs")"
+            [[ -n "$run_id" ]] && break
+            sleep 2
+          done
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          for _ in $(seq 1 210); do
+            view="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" +              --json status,conclusion,url)"
+            status="$(jq -r .status <<<"$view")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$view")"
+            if [[ "$status" == completed ]]; then
+              echo "conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+              echo "SURGERY_B_DIAGNOSTIC_CHILD_RUN_ID=$run_id"
+              echo "SURGERY_B_DIAGNOSTIC_CHILD_CONCLUSION=$conclusion"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'SURGERY_B_DIAGNOSTIC_ABORT=child-timeout' >&2
+          exit 1
+
+      - name: Publish diagnostic run identity
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/p1-surgery-b-diagnostic-result.env"
+          {
+            echo 'P1_SURGERY_B_DIAGNOSTIC_RESULT_FORMAT=stay-p1-surgery-b-diagnostic-result-v1'
+            echo "DIAGNOSTIC_PARENT_RUN_ID=$GITHUB_RUN_ID"
+            echo "SURGERY_B_RUN_ID=${{ steps.surgery.outputs.run_id }}"
+            echo "SURGERY_B_CONCLUSION=${{ steps.surgery.outputs.conclusion }}"
+          } > "$result"
+          content="$(base64 -w0 "$result")"
+          path_name='ops/p1-surgery-b-diagnostic-result.env'
+          existing_sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path_name?ref=main" --jq .sha 2>/dev/null || true)"
+          if [[ -n "$existing_sha" ]]; then
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" +              -f message='Record Surgery B rejection diagnostic result' +              -f content="$content" -f branch=main -f sha="$existing_sha" >/dev/null
+          else
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" +              -f message='Record Surgery B rejection diagnostic result' +              -f content="$content" -f branch=main >/dev/null
+          fi
