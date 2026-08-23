@@ -44,19 +44,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          before="$(gh run list --repo "$GITHUB_REPOSITORY" +            --workflow p1-production-controller-launcher.yml --branch main +            --event workflow_dispatch --limit 30 --json databaseId +            --jq '[.[].databaseId]')"
-          gh workflow run p1-production-controller-launcher.yml +            --repo "$GITHUB_REPOSITORY" --ref main +            -f operation=surgery-b +            -f surgery_b_authorization=AUTHORIZE_SURGERY_B_SNTSS_NEUTRAL_7D040592CCF1F149
+          before="$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow p1-production-controller-launcher.yml --branch main \
+            --event workflow_dispatch --limit 30 --json databaseId \
+            --jq '[.[].databaseId]')"
+          gh workflow run p1-production-controller-launcher.yml \
+            --repo "$GITHUB_REPOSITORY" --ref main \
+            -f operation=surgery-b \
+            -f surgery_b_authorization=AUTHORIZE_SURGERY_B_SNTSS_NEUTRAL_7D040592CCF1F149
           run_id=''
           for _ in $(seq 1 90); do
-            runs="$(gh run list --repo "$GITHUB_REPOSITORY" +              --workflow p1-production-controller-launcher.yml --branch main +              --event workflow_dispatch --limit 30 +              --json databaseId,displayTitle,event)"
-            run_id="$(jq -r --argjson before "$before" +              '[.[] | .databaseId as $id | select(.event == "workflow_dispatch" and (.displayTitle | startswith("P1 surgery-b · ")) and (($before | index($id)) == null))] | sort_by(.databaseId) | last | .databaseId // empty' +              <<<"$runs")"
+            runs="$(gh run list --repo "$GITHUB_REPOSITORY" \
+              --workflow p1-production-controller-launcher.yml --branch main \
+              --event workflow_dispatch --limit 30 \
+              --json databaseId,displayTitle,event)"
+            run_id="$(jq -r --argjson before "$before" \
+              '[.[] | .databaseId as $id | select(.event == "workflow_dispatch" and (.displayTitle | startswith("P1 surgery-b · ")) and (($before | index($id)) == null))] | sort_by(.databaseId) | last | .databaseId // empty' \
+              <<<"$runs")"
             [[ -n "$run_id" ]] && break
             sleep 2
           done
           [[ "$run_id" =~ ^[0-9]+$ ]]
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           for _ in $(seq 1 210); do
-            view="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" +              --json status,conclusion,url)"
+            view="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" \
+              --json status,conclusion,url)"
             status="$(jq -r .status <<<"$view")"
             conclusion="$(jq -r '.conclusion // ""' <<<"$view")"
             if [[ "$status" == completed ]]; then
@@ -86,7 +98,11 @@ jobs:
           path_name='ops/p1-surgery-b-diagnostic-result.env'
           existing_sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path_name?ref=main" --jq .sha 2>/dev/null || true)"
           if [[ -n "$existing_sha" ]]; then
-            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" +              -f message='Record Surgery B rejection diagnostic result' +              -f content="$content" -f branch=main -f sha="$existing_sha" >/dev/null
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" \
+              -f message='Record Surgery B rejection diagnostic result' \
+              -f content="$content" -f branch=main -f sha="$existing_sha" >/dev/null
           else
-            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" +              -f message='Record Surgery B rejection diagnostic result' +              -f content="$content" -f branch=main >/dev/null
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" \
+              -f message='Record Surgery B rejection diagnostic result' \
+              -f content="$content" -f branch=main >/dev/null
           fi
