@@ -58,6 +58,9 @@ jobs:
           grep -Fx 'SEQUENCE=repair-b0-sandbox,preflight-b,surgery-b' launcher-source/.github/p1-b0-sandbox-repair.launch
           grep -Fx "  CONTROLLER_COMMIT: $CONTROLLER_COMMIT" launcher-source/.github/workflows/p1-production-controller-launcher.yml
           grep -Fx "  CONTROLLER_SOURCE_IDENTITY: $CONTROLLER_SOURCE_IDENTITY" launcher-source/.github/workflows/p1-production-controller-launcher.yml
+          grep -Fq 'staydeploy@"$PRODUCTION_PUBLIC_IPV4"' launcher-source/.github/workflows/p1-b0-sandbox-repair-bootstrap.yml
+          grep -Fq 'sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect' launcher-source/.github/workflows/p1-b0-sandbox-repair-bootstrap.yml
+          ! grep -Fq 'ubuntu@"$PRODUCTION_PUBLIC_IPV4"' launcher-source/.github/workflows/p1-b0-sandbox-repair-bootstrap.yml
           bash -n controller-source/deploy/live-physiology-transplant/stay-p1-production-controller
           bash -n controller-source/deploy/live-physiology-transplant/install-p1-production-controller.sh
           bash -n controller-source/deploy/live-physiology-transplant/p1-b0-sandbox-repair.sh
@@ -135,7 +138,7 @@ jobs:
           : > ~/.ssh/known_hosts
           chmod 0600 ~/.ssh/known_hosts
 
-      - name: Fail-closed live host identity guard as bootstrap principal
+      - name: Fail-closed live host identity guard as deployment principal
         id: host_guard
         continue-on-error: true
         shell: bash
@@ -144,7 +147,7 @@ jobs:
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            ubuntu@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' > "$RUNNER_TEMP/bootstrap-host-guard.raw" 2>&1 <<'REMOTE'
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' > "$RUNNER_TEMP/bootstrap-host-guard.raw" 2>&1 <<'REMOTE'
           set -Eeuo pipefail
           EXPECTED_PRIVATE_IPV4="172.26.9.207"
           command -v ip >/dev/null 2>&1 || { echo "HOST_IDENTITY_GUARD=FAIL"; exit 40; }
@@ -169,26 +172,29 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
-          RUN_ROOT="/tmp/stay-p1-bootstrap-$GITHUB_RUN_ID"
+          RUN_ROOT="/opt/stay/incoming/p1-bootstrap-$GITHUB_RUN_ID"
+          UNIT="stay-p1-bootstrap-$GITHUB_RUN_ID"
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            ubuntu@"$PRODUCTION_PUBLIC_IPV4" \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
             "set -euo pipefail; test ! -e '$RUN_ROOT'; install -d -m 0700 '$RUN_ROOT'"
           scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             bootstrap-artifact/stay-p1-production-controller \
             bootstrap-artifact/install-p1-production-controller.sh \
-            ubuntu@"$PRODUCTION_PUBLIC_IPV4":"$RUN_ROOT/"
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$RUN_ROOT/"
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            ubuntu@"$PRODUCTION_PUBLIC_IPV4" \
-            "sudo -n /bin/bash -s -- '$RUN_ROOT' '$WRAPPER_SHA256' '$INSTALLER_SHA256'" <<'REMOTE'
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            "sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect --unit='$UNIT' --property=Type=oneshot /bin/bash -s -- '$RUN_ROOT' '$WRAPPER_SHA256' '$INSTALLER_SHA256'" <<'REMOTE'
           set -Eeuo pipefail
           ROOT="$1"; EXPECTED_WRAPPER="$2"; EXPECTED_INSTALLER="$3"
-          [[ "$ROOT" =~ ^/tmp/stay-p1-bootstrap-[0-9]+$ && -d "$ROOT" && ! -L "$ROOT" ]]
-          [[ "$(stat -Lc '%U:%G:%a' "$ROOT")" == ubuntu:ubuntu:700 ]]
+          [[ "$ROOT" =~ ^/opt/stay/incoming/p1-bootstrap-[0-9]+$ && -d "$ROOT" && ! -L "$ROOT" ]]
+          [[ "$(stat -Lc '%U:%G:%a:%h' "$ROOT")" == staydeploy:staydeploy:700:1 ]]
           [[ -f "$ROOT/stay-p1-production-controller" && ! -L "$ROOT/stay-p1-production-controller" ]]
           [[ -f "$ROOT/install-p1-production-controller.sh" && ! -L "$ROOT/install-p1-production-controller.sh" ]]
+          [[ "$(stat -Lc '%U:%G:%a:%h' "$ROOT/stay-p1-production-controller")" == staydeploy:staydeploy:555:1 ]]
+          [[ "$(stat -Lc '%U:%G:%a:%h' "$ROOT/install-p1-production-controller.sh")" == staydeploy:staydeploy:555:1 ]]
           [[ -z "$(find -P "$ROOT" -xdev \( -type l -o -type b -o -type c -o -type p -o -type s \) -print -quit)" ]]
           [[ -z "$(find -P "$ROOT" -xdev -type f -links +1 -print -quit)" ]]
           chown root:root "$ROOT" "$ROOT/stay-p1-production-controller" "$ROOT/install-p1-production-controller.sh"
