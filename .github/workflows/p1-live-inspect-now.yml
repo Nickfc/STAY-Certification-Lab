@@ -57,9 +57,26 @@ jobs:
             STAY_REQUIRE_CORE_PROMOTION_CERT=1 \
             STAY_CORE_PROMOTION_PUBLIC_KEY=/etc/stay/release-authority.pub \
             STAY_RESIDENT_PROMOTION_CERT_DIR=/etc/stay/resident-promotions \
-            node "$ROOT/deploy/live-physiology-transplant/p1-b0-live-user-probe.js" \
-              "$ROOT" /var/lib/stay/data/continuity.sqlite3 \
-              /etc/stay/release-authority.pub /etc/stay/resident-promotions
+            node - "$ROOT" <<'NODE'
+          'use strict';
+          const root = process.argv[2];
+          const safe = value => String(value ?? '')
+            .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '?')
+            .replace(/\r?\n/g, ' | ')
+            .slice(0, 2048);
+          require(root + '/runtime/kernel/core-loader.js')
+            .inspectCoreModule(root + '/cores/sntss/i3d/index.js')
+            .then(result => {
+              console.log('LIVE_USER_CORE_INSPECT=PASS');
+              console.log('VERSION=' + result.manifest.version);
+            })
+            .catch(error => {
+              console.log('LIVE_USER_DIAGNOSTIC=FAIL');
+              console.log('ERROR_CODE=' + safe(error?.code || 'UNKNOWN'));
+              console.log('ERROR_MESSAGE=' + safe(error?.message || error));
+              process.exitCode = 1;
+            });
+          NODE
           REMOTE
           status=$?
           set -e
