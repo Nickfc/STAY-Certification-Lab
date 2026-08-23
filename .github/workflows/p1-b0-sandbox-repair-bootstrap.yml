@@ -60,6 +60,7 @@ jobs:
           grep -Fx "  CONTROLLER_SOURCE_IDENTITY: $CONTROLLER_SOURCE_IDENTITY" launcher-source/.github/workflows/p1-production-controller-launcher.yml
           grep -Fq 'staydeploy@"$PRODUCTION_PUBLIC_IPV4"' launcher-source/.github/workflows/p1-b0-sandbox-repair-bootstrap.yml
           grep -Fq 'sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect' launcher-source/.github/workflows/p1-b0-sandbox-repair-bootstrap.yml
+          grep -Fq 'B0_SANDBOX_REPAIR_CONTROLLER_BOOTSTRAP=ALREADY_PINNED' launcher-source/.github/workflows/p1-b0-sandbox-repair-bootstrap.yml
           ! grep -Fq 'ubuntu@"$PRODUCTION_PUBLIC_IPV4"' launcher-source/.github/workflows/p1-b0-sandbox-repair-bootstrap.yml
           bash -n controller-source/deploy/live-physiology-transplant/stay-p1-production-controller
           bash -n controller-source/deploy/live-physiology-transplant/install-p1-production-controller.sh
@@ -174,6 +175,13 @@ jobs:
           [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
           RUN_ROOT="/opt/stay/incoming/p1-bootstrap-$GITHUB_RUN_ID"
           UNIT="stay-p1-bootstrap-$GITHUB_RUN_ID"
+          if ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            "test -f /usr/local/sbin/stay-p1-production-controller && test ! -L /usr/local/sbin/stay-p1-production-controller && test \"\$(stat -Lc '%U:%G:%a:%h' /usr/local/sbin/stay-p1-production-controller)\" = root:root:555:1 && test \"\$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print \$1}')\" = '$WRAPPER_SHA256'"; then
+            echo "B0_SANDBOX_REPAIR_CONTROLLER_BOOTSTRAP=ALREADY_PINNED"
+            exit 0
+          fi
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
