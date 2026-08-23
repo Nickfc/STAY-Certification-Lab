@@ -8,6 +8,8 @@ EXPECTED_PRIVATE_IPV4='172.26.9.207'
 RELEASE='/opt/stay/releases/0.8.11.3-p1a1-resident-control-7d040592ccf1f149'
 DROPIN='/etc/systemd/system/stay.service.d/p1-b0-resident-runtime.conf'
 HELPER='/usr/local/libexec/stay-bwrap-sandbox'
+SETUID_BWRAP='/usr/local/libexec/stay-bwrap-setuid'
+USERNS_FILTER='/usr/local/libexec/stay-bwrap-userns.bpf'
 FINAL_SEAL='/etc/stay/p1-b0-sandbox-final.env'
 DATABASE='/var/lib/stay/data/continuity.sqlite3'
 SOCKET='/run/stay/resident-control.sock'
@@ -41,7 +43,7 @@ restore_pre_attach() {
     install -o root -g root -m 0644 "$WORK/dropin.before" "$DROPIN"
     systemctl daemon-reload
     systemctl restart stay.service
-    rm -f -- "$HELPER"
+    rm -f -- "$HELPER" "$SETUID_BWRAP" "$USERNS_FILTER"
     echo 'FINAL_TRANSPLANT_REPAIR_ROLLBACK=PASS' >&2
   fi
   rm -rf --one-file-system -- "$WORK"
@@ -54,7 +56,9 @@ observed_ip="$(ip -o -4 addr show scope global | awk '{a=$4; sub(/\/.*/, "", a);
 [[ "$observed_ip" == "$EXPECTED_PRIVATE_IPV4" ]] || abort host-identity-mismatch 102
 [[ "$(readlink -f /opt/stay/current)" == "$RELEASE" ]] || abort release-pointer-mismatch 103
 [[ -f "$DROPIN" && ! -L "$DROPIN" ]] || abort dropin-invalid 104
-[[ ! -e "$HELPER" && ! -L "$HELPER" ]] || abort helper-already-exists 105
+for path in "$HELPER" "$SETUID_BWRAP" "$USERNS_FILTER"; do
+  [[ ! -e "$path" && ! -L "$path" ]] || abort helper-already-exists 105
+done
 [[ ! -e "$FINAL_SEAL" && ! -L "$FINAL_SEAL" ]] || abort final-seal-already-exists 106
 [[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-control-unavailable 107
 
@@ -81,9 +85,71 @@ bwrap_source="$(readlink -f /usr/bin/bwrap)"
 [[ -f "$bwrap_source" && ! -L "$bwrap_source" && -x "$bwrap_source" && "$(stat -Lc '%U:%G:%h' "$bwrap_source")" == root:root:1 ]] || abort bwrap-source-invalid 112
 bwrap_hash="$(sha256sum "$bwrap_source" | awk '{print $1}')"
 install -d -o root -g root -m 0755 /usr/local/libexec
-install -o root -g staydeploy -m 4750 "$bwrap_source" "$HELPER"
-[[ "$(sha256sum "$HELPER" | awk '{print $1}')" == "$bwrap_hash" ]] || abort helper-hash-mismatch 113
-[[ "$(stat -Lc '%U:%G:%a:%h' "$HELPER")" == root:staydeploy:4750:1 ]] || abort helper-permissions 114
+install -o root -g staydeploy -m 4750 "$bwrap_source" "$SETUID_BWRAP"
+[[ "$(sha256sum "$SETUID_BWRAP" | awk '{print $1}')" == "$bwrap_hash" ]] || abort helper-hash-mismatch 113
+[[ "$(stat -Lc '%U:%G:%a:%h' "$SETUID_BWRAP")" == root:staydeploy:4750:1 ]] || abort helper-permissions 114
+
+node - "$WORK/userns.bpf" <<'NODE'
+'use strict';
+const fs = require('node:fs');
+const output = process.argv[2];
+if (process.arch !== 'x64') throw new Error('x64 host required');
+const instructions = [];
+const emit = (code, jt, jf, k) => instructions.push({ code, jt, jf, k });
+const ERRNO_EPERM = 0x00050001;
+const ERRNO_ENOSYS = 0x00050026;
+emit(0x20, 0, 0, 4);              // seccomp_data.arch
+emit(0x15, 1, 0, 0xc000003e);     // AUDIT_ARCH_X86_64
+emit(0x06, 0, 0, 0x80000000);     // KILL_PROCESS
+emit(0x20, 0, 0, 0);              // seccomp_data.nr
+emit(0x15, 0, 1, 272);            // unshare
+emit(0x06, 0, 0, ERRNO_EPERM);
+emit(0x15, 0, 1, 308);            // setns
+emit(0x06, 0, 0, ERRNO_EPERM);
+emit(0x15, 0, 1, 435);            // clone3
+emit(0x06, 0, 0, ERRNO_ENOSYS);
+emit(0x15, 0, 3, 56);             // clone; otherwise jump to ALLOW
+emit(0x20, 0, 0, 16);             // args[0], low 32 bits
+emit(0x45, 0, 1, 0x10000000);     // CLONE_NEWUSER
+emit(0x06, 0, 0, ERRNO_EPERM);
+emit(0x06, 0, 0, 0x7fff0000);     // ALLOW
+const bytes = Buffer.alloc(instructions.length * 8);
+instructions.forEach((insn, index) => {
+  const offset = index * 8;
+  bytes.writeUInt16LE(insn.code, offset);
+  bytes.writeUInt8(insn.jt, offset + 2);
+  bytes.writeUInt8(insn.jf, offset + 3);
+  bytes.writeUInt32LE(insn.k >>> 0, offset + 4);
+});
+fs.writeFileSync(output, bytes, { mode: 0o400 });
+NODE
+install -o root -g staydeploy -m 0440 "$WORK/userns.bpf" "$USERNS_FILTER"
+filter_hash="$(sha256sum "$USERNS_FILTER" | awk '{print $1}')"
+[[ "$(stat -Lc '%U:%G:%a:%h' "$USERNS_FILTER")" == root:staydeploy:440:1 ]] || abort filter-permissions 140
+
+cat > "$WORK/bwrap-wrapper" <<EOF
+#!/usr/bin/env bash
+set -Eeuo pipefail
+binary='$SETUID_BWRAP'
+filter='$USERNS_FILTER'
+declare -a args=()
+replaced=0
+for arg in "\$@"; do
+  if [[ "\$arg" == --disable-userns ]]; then
+    args+=(--seccomp 3)
+    replaced=\$((replaced + 1))
+  else
+    args+=("\$arg")
+  fi
+done
+[[ "\$replaced" -eq 1 ]]
+[[ -f "\$binary" && ! -L "\$binary" && -f "\$filter" && ! -L "\$filter" ]]
+exec 3<"\$filter"
+exec "\$binary" "\${args[@]}"
+EOF
+install -o root -g staydeploy -m 0550 "$WORK/bwrap-wrapper" "$HELPER"
+helper_hash="$(sha256sum "$HELPER" | awk '{print $1}')"
+[[ "$(stat -Lc '%U:%G:%a:%h' "$HELPER")" == root:staydeploy:550:1 ]] || abort wrapper-permissions 141
 
 cat > "$WORK/dropin.next" <<EOF
 [Service]
@@ -141,6 +207,17 @@ NODE
 )" || abort setuid-bwrap-probe-failed 121
 grep -Fx 'LIVE_USER_CORE_INSPECT=PASS' <<<"$probe" >/dev/null || abort setuid-bwrap-probe-marker 122
 grep -Fx 'VERSION=0.4.0-i3d3' <<<"$probe" >/dev/null || abort setuid-bwrap-probe-version 123
+
+set +e
+userns_probe="$(runuser -u staydeploy -- "$HELPER" \
+  --die-with-parent --new-session --unshare-all --unshare-user \
+  --disable-userns --cap-drop ALL --proc /proc --dev /dev --dir /tmp \
+  --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib \
+  --symlink usr/lib64 /lib64 --symlink usr/sbin /sbin --clearenv \
+  /usr/bin/unshare --user /usr/bin/true 2>&1)"
+userns_probe_status=$?
+set -e
+[[ "$userns_probe_status" -ne 0 && "$userns_probe" == *'Operation not permitted'* ]] || abort payload-userns-seccomp-probe 142
 
 control() {
   node - "$1" "$2" <<'NODE'
@@ -239,7 +316,11 @@ seal_tmp="$(mktemp /etc/stay/.p1-b0-sandbox-final.XXXXXX)"
 cat > "$seal_tmp" <<EOF
 P1_B0_SANDBOX_FINAL_FORMAT=stay-p1-b0-sandbox-final-v1
 HELPER=$HELPER
-HELPER_SHA256=$bwrap_hash
+HELPER_SHA256=$helper_hash
+SETUID_BWRAP=$SETUID_BWRAP
+SETUID_BWRAP_SHA256=$bwrap_hash
+USERNS_FILTER=$USERNS_FILTER
+USERNS_FILTER_SHA256=$filter_hash
 DROPIN_SHA256=$dropin_hash
 SERVICE_MAIN_PID=$post_pid
 RUNTIME_REVISION=$(field "$final_health" revision)
@@ -265,8 +346,10 @@ FINAL_TRANSPLANT_RESULT=PASS
 SURGERY_B_RESULT=PASS
 RUNTIME_REVISION_BEFORE=$pre_revision
 RUNTIME_REVISION_AFTER=$(field "$final_health" revision)
-SANDBOX_REPAIR=SETUID_BWRAP_GROUP_RESTRICTED
-BWRAP_HELPER_SHA256=sha256:$bwrap_hash
+SANDBOX_REPAIR=SETUID_BWRAP_WITH_PAYLOAD_USERNS_SECCOMP
+BWRAP_HELPER_SHA256=sha256:$helper_hash
+SETUID_BWRAP_SHA256=sha256:$bwrap_hash
+USERNS_FILTER_SHA256=sha256:$filter_hash
 SERVICE_RESTARTED=YES_SANDBOX_REPAIR_ONLY
 CURRENT_POINTER_CHANGE=NO
 SNTSS_RESIDENCY_ID=resident:sntss
