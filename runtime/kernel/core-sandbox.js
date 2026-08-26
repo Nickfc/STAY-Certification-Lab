@@ -78,7 +78,7 @@ function nativeCoreExecArgv(modulePath) {
 function coreHostEnvironment({ compatibility = false } = {}) {
   if (compatibility) return { ...process.env, STAY_COREHOST: '1', STAY_COREHOST_COMPATIBILITY: '1' };
   const env = { STAY_COREHOST: '1' };
-  for (const key of ['PATH', 'NODE_ENV', 'TZ', 'LANG', 'LC_ALL', 'STAY_REQUIRE_OS_CORE_SANDBOX', 'STAY_BWRAP']) {
+  for (const key of ['PATH', 'NODE_ENV', 'TZ', 'LANG', 'LC_ALL']) {
     if (process.env[key] != null) env[key] = process.env[key];
   }
   return env;

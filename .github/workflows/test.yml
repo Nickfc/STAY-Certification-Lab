@@ -24,9 +24,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends bubblewrap
-          sudo chown root:root /usr/bin/bwrap
-          sudo chmod 4755 /usr/bin/bwrap
-          test -x /usr/bin/bwrap
-          test -u /usr/bin/bwrap
+          sudo tee /usr/local/bin/stay-ci-bwrap >/dev/null <<'EOF'
+          #!/bin/sh
+          exec sudo -n /usr/bin/bwrap "$@"
+          EOF
+          sudo chown root:root /usr/local/bin/stay-ci-bwrap
+          sudo chmod 0755 /usr/local/bin/stay-ci-bwrap
+          sudo -n true
+          test -x /usr/local/bin/stay-ci-bwrap
       - name: Run STAY tests
+        env:
+          STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
         run: npm test

@@ -6,7 +6,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { enforcePackagePolicy, auditSourceText, verifyManifestAgainstPackagePolicy } = require('../runtime/kernel/package-policy');
-const { nativeCoreExecArgv, coreHostEnvironment } = require('../runtime/kernel/core-sandbox');
+const {
+  nativeCoreExecArgv,
+  coreHostEnvironment,
+  coreSupervisorEnvironment,
+} = require('../runtime/kernel/core-sandbox');
 const { normalizePolicy } = require('../runtime/kernel/resource-governor');
 const { cgroupLimitValues } = require('../runtime/kernel/cgroup-governor');
 const containment = require('../cores/sntss/v0.1.0/containment');
@@ -100,11 +104,27 @@ test('R8-09 invalid checkpoints are quarantined and oversized acquired state rem
 });
 
 test('R8-10 environment and diagnostics expose no ambient secret or inspector surface', () => {
-  const env = coreHostEnvironment();
-  assert.ok(Object.keys(env).every(key => containment.packagePolicy.environmentAllowlist.includes(key)));
-  assert.equal(env.STAY_COREHOST, '1'); assert.equal(Object.hasOwn(env, 'HOME'), false);
-  const argv = nativeCoreExecArgv(entrypoint);
-  assert.ok(argv.includes('--permission')); assert.ok(argv.every(value => !value.startsWith('--allow-child-process') && !value.startsWith('--allow-net')));
+  const previousSandbox = process.env.STAY_REQUIRE_OS_CORE_SANDBOX;
+  const previousBwrap = process.env.STAY_BWRAP;
+  try {
+    process.env.STAY_REQUIRE_OS_CORE_SANDBOX = '1';
+    process.env.STAY_BWRAP = '/trusted/supervisor/bwrap';
+    const env = coreHostEnvironment();
+    assert.ok(Object.keys(env).every(key => containment.packagePolicy.environmentAllowlist.includes(key)));
+    assert.equal(env.STAY_COREHOST, '1'); assert.equal(Object.hasOwn(env, 'HOME'), false);
+    assert.equal(Object.hasOwn(env, 'STAY_REQUIRE_OS_CORE_SANDBOX'), false);
+    assert.equal(Object.hasOwn(env, 'STAY_BWRAP'), false);
+    const supervisorEnv = coreSupervisorEnvironment();
+    assert.equal(supervisorEnv.STAY_REQUIRE_OS_CORE_SANDBOX, '1');
+    assert.equal(supervisorEnv.STAY_BWRAP, '/trusted/supervisor/bwrap');
+    const argv = nativeCoreExecArgv(entrypoint);
+    assert.ok(argv.includes('--permission')); assert.ok(argv.every(value => !value.startsWith('--allow-child-process') && !value.startsWith('--allow-net')));
+  } finally {
+    if (previousSandbox == null) delete process.env.STAY_REQUIRE_OS_CORE_SANDBOX;
+    else process.env.STAY_REQUIRE_OS_CORE_SANDBOX = previousSandbox;
+    if (previousBwrap == null) delete process.env.STAY_BWRAP;
+    else process.env.STAY_BWRAP = previousBwrap;
+  }
 });
 
 test('R8-11 SIGKILL of the isolated SNTSS CoreHost preserves Kernel and StateStore health', async t => {
