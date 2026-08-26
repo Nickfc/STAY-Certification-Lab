@@ -32,7 +32,22 @@ jobs:
           sudo chmod 0755 /usr/local/bin/stay-ci-bwrap
           sudo -n true
           test -x /usr/local/bin/stay-ci-bwrap
+      - name: Prepare sandbox-readable validation tree
+        run: |
+          git clone --no-hardlinks "$GITHUB_WORKSPACE" /tmp/stay-ci-source
+          test "$(git -C /tmp/stay-ci-source rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git -C /tmp/stay-ci-source status --porcelain)"
+          find /tmp/stay-ci-source -type d -exec chmod a+rx {} +
+      - name: Run real entry preflight
+        working-directory: /tmp/stay-ci-source
+        env:
+          STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
+        run: >-
+          node --test --test-concurrency=1
+          --test-name-pattern='the real preflight CLI entry passes through Bubblewrap on Linux'
+          test/production-hardening-entry-path.test.js
       - name: Run STAY tests
+        working-directory: /tmp/stay-ci-source
         env:
           STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
         run: npm test
