@@ -2,7 +2,7 @@ name: Test STAY
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/r111f-production-hardening-v5]
   pull_request:
     branches: [main]
 
