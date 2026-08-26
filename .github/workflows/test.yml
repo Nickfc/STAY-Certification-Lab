@@ -46,6 +46,11 @@ jobs:
           node --test --test-concurrency=1
           --test-name-pattern='the real preflight CLI entry passes through Bubblewrap on Linux'
           test/production-hardening-entry-path.test.js
+      - name: Run secure server entry preflight
+        working-directory: /tmp/stay-ci-source
+        env:
+          STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
+        run: node --test --test-concurrency=1 test/r11-m01-operator-status.test.js
       - name: Run STAY tests
         working-directory: /tmp/stay-ci-source
         env:
