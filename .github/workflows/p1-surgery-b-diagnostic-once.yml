@@ -2,11 +2,7 @@ name: One-shot Surgery B rejection diagnostic
 run-name: One-shot Surgery B rejection diagnostic
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/p1-surgery-b-diagnostic.launch
+  workflow_dispatch:
 
 permissions:
   actions: write

@@ -2,11 +2,7 @@ name: Finish Surgery B now
 run-name: Finish Surgery B now
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/p1-surgery-b-finish-now.launch
+  workflow_dispatch:
 
 permissions:
   contents: write

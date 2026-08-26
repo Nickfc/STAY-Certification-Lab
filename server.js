@@ -5,6 +5,7 @@ const path = require('node:path');
 const http = require('node:http');
 const pkg = require('./package.json');
 const { LivingKernel } = require('./runtime');
+const { readRevisionFreeze } = require('./runtime/revision-freeze');
 
 const STAY_VERSION = pkg.stayVersion || pkg.version;
 const dataDir = process.env.STAY_DATA_DIR || path.join(process.cwd(), '.stay-data');
@@ -40,12 +41,53 @@ function publicMetadata(status) {
       });
     }
   }
+  const revision = status.kernel ? status.kernel.runtimeRevision : null;
+  const revisionFreeze = readRevisionFreeze(revision);
+  const residentStatus = Array.isArray(status.residencies)
+    ? status.residencies
+    : (Array.isArray(status.health?.residencies) ? status.health.residencies : []);
+  const residents = residentStatus.filter(Boolean).map((resident) => ({
+    residencyId: resident.residencyId,
+    coreId: resident.coreId,
+    version: resident.version,
+    status: resident.status,
+    running: resident.running === true,
+    mode: resident.coreId === 'chronobiology' ||
+      (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
+      ? 'SHADOW'
+      : 'NEUTRAL',
+    authorityOwned: resident.authorityOwned === true,
+    checkpointGeneration: Number(resident.checkpointGeneration || 0),
+    handledEvents: Number(resident.handledEvents || 0),
+    observedOutputs: Number(resident.observedOutputs || 0),
+    healthOk: resident.running === true && resident.health?.ok === true
+  }));
+  const bsfLedger = status.biologicalLedger || status.health?.biologicalLedger || null;
+  const bsfOk = status.health?.persistence?.ok !== false &&
+    bsfLedger?.protocol === 'stay-biological-ledger-v1';
+  const systems = [{
+    id: 'bsf',
+    label: 'BSF',
+    mode: 'LIVE',
+    status: bsfOk ? 'RUNNING' : 'DEGRADED',
+    running: bsfOk,
+    healthOk: bsfOk,
+    protocol: bsfLedger?.protocol || null,
+    events: Number(bsfLedger?.events || 0),
+    pendingDeliveries: Number(bsfLedger?.pendingDeliveries || 0),
+    activeConsumers: Number(bsfLedger?.activeConsumers || 0),
+    writeFailures: Number(status.health?.persistence?.writeFailureCount || 0)
+  }];
   return {
     ok: status.health ? status.health.ok : true,
     version: STAY_VERSION,
-    revision: status.kernel ? status.kernel.runtimeRevision : null,
+    revision,
+    revisionFrozen: revisionFreeze.frozen,
+    revisionLabel: revisionFreeze.label,
     updatedAt: new Date().toISOString(),
-    cores
+    cores,
+    systems,
+    residents
   };
 }
 

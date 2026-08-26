@@ -16,24 +16,120 @@ function withTimeout(promise, timeoutMs, label) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+function timeoutError(label, timeoutMs, code) {
+  return Object.assign(
+    new Error(`${label} exceeded ${timeoutMs} ms`),
+    { code }
+  );
+}
+
+/*
+ * A deadline is an observation, not cancellation.
+ *
+ * Promise.race() alone is unsafe for a stateful actor: the timed-out handler
+ * keeps running and a retry can overtake it, applying one durable event twice.
+ * Keep ownership of the original promise, allow a bounded settlement window,
+ * and refuse replay if the original work cannot be proven settled.
+ */
+async function settleThroughDeadline({
+  promise,
+  timeoutMs,
+  settlementGraceMs,
+  label,
+  timeoutCode,
+  stalledCode,
+  onDeadline = () => {}
+}) {
+  const settled = Promise.resolve(promise).then(
+    value => ({ status: 'fulfilled', value }),
+    error => ({ status: 'rejected', error })
+  );
+  let deadlineTimer;
+  const first = await Promise.race([
+    settled,
+    new Promise(resolve => {
+      deadlineTimer = setTimeout(
+        () => resolve({ status: 'deadline' }),
+        timeoutMs
+      );
+      deadlineTimer.unref?.();
+    })
+  ]);
+  clearTimeout(deadlineTimer);
+
+  if (first.status === 'fulfilled') {
+    return { value: first.value, exceededDeadline: false };
+  }
+  if (first.status === 'rejected') throw first.error;
+
+  const observed = timeoutError(label, timeoutMs, timeoutCode);
+  try { onDeadline(observed); } catch {}
+
+  let graceTimer;
+  const late = await Promise.race([
+    settled,
+    new Promise(resolve => {
+      graceTimer = setTimeout(
+        () => resolve({ status: 'stalled' }),
+        settlementGraceMs
+      );
+      graceTimer.unref?.();
+    })
+  ]);
+  clearTimeout(graceTimer);
+
+  if (late.status === 'fulfilled') {
+    return { value: late.value, exceededDeadline: true };
+  }
+  if (late.status === 'rejected') throw late.error;
+
+  throw Object.assign(
+    timeoutError(
+      `${label} did not settle after its deadline`,
+      settlementGraceMs,
+      stalledCode
+    ),
+    {
+      deadlineCode: timeoutCode,
+      deadlineMs: timeoutMs,
+      settlementGraceMs
+    }
+  );
+}
+
 class BoundedActorQueue {
   constructor({
     name,
     handler,
     capacity = 256,
     handlerTimeoutMs = 5000,
+    settlementGraceMs = 5000,
+    recoveryTimeoutMs = 15000,
+    recoverySettlementGraceMs = 5000,
+    maxAttempts = 3,
     clock = () => Date.now(),
-    onFault = () => {},
-    recoverFailure = null
+    recoverFailure = null,
+    onSlow = () => {},
+    onFault = () => {}
   }) {
     if (typeof handler !== 'function') throw new Error('actor queue requires a handler');
     this.name = name || 'actor';
     this.handler = handler;
     this.capacity = Math.max(1, Number(capacity) || 256);
     this.handlerTimeoutMs = Math.max(1, Number(handlerTimeoutMs) || 5000);
+    this.settlementGraceMs = Math.max(1, Number(settlementGraceMs) || 5000);
+    this.recoveryTimeoutMs = Math.max(1, Number(recoveryTimeoutMs) || 15000);
+    this.recoverySettlementGraceMs = Math.max(
+      1,
+      Number(recoverySettlementGraceMs) || 5000
+    );
+    this.maxAttempts = Math.max(1, Math.min(8, Number(maxAttempts) || 3));
     this.clock = clock;
+    this.recoverFailure = typeof recoverFailure === 'function'
+      ? recoverFailure
+      : null;
+    this.onSlow = onSlow;
     this.onFault = onFault;
-    this.recoverFailure = typeof recoverFailure === 'function' ? recoverFailure : null;
     this.items = [];
     this.running = false;
     this.runningSequence = null;
@@ -49,8 +145,13 @@ class BoundedActorQueue {
       coalesced: 0,
       failed: 0,
       timedOut: 0,
+      stalled: 0,
+      attempts: 0,
       recoveryAttempts: 0,
       recovered: 0,
+      recoveryRejected: 0,
+      recoveryTimedOut: 0,
+      lateCompleted: 0,
       maxDepth: 0,
       maxLatencyMs: 0,
       lastLatencyMs: 0,
@@ -100,6 +201,80 @@ class BoundedActorQueue {
 
   get depth() { return this.items.length + (this.running ? 1 : 0); }
 
+  async runHandlerAttempt(item, attempt) {
+    this.metrics.attempts += 1;
+    const transition = Promise.resolve().then(() => this.handler(item.event));
+    return settleThroughDeadline({
+      promise: transition,
+      timeoutMs: this.handlerTimeoutMs,
+      settlementGraceMs: this.settlementGraceMs,
+      label: `${this.name} handler`,
+      timeoutCode: 'ACTOR_HANDLER_TIMEOUT',
+      stalledCode: 'ACTOR_HANDLER_STALLED',
+      onDeadline: error => {
+        this.metrics.timedOut += 1;
+        this.onSlow(error, item.event, { attempt });
+      }
+    });
+  }
+
+  async recover(item, error, attempt) {
+    if (
+      !this.recoverFailure ||
+      attempt >= this.maxAttempts ||
+      ['ACTOR_HANDLER_STALLED', 'ACTOR_RECOVERY_STALLED'].includes(error?.code)
+    ) return false;
+    this.metrics.recoveryAttempts += 1;
+    let result;
+    try {
+      result = await settleThroughDeadline({
+        promise: Promise.resolve().then(() => this.recoverFailure(
+          error,
+          item.event,
+          {
+            attempt,
+            nextAttempt: attempt + 1,
+            maxAttempts: this.maxAttempts,
+            eventSequence: this.runningSequence
+          }
+        )),
+        timeoutMs: this.recoveryTimeoutMs,
+        settlementGraceMs: this.recoverySettlementGraceMs,
+        label: `${this.name} recovery`,
+        timeoutCode: 'ACTOR_RECOVERY_TIMEOUT',
+        stalledCode: 'ACTOR_RECOVERY_STALLED',
+        onDeadline: () => { this.metrics.recoveryTimedOut += 1; }
+      });
+    } catch (recoveryError) {
+      this.metrics.recoveryRejected += 1;
+      recoveryError.cause ||= error;
+      throw recoveryError;
+    }
+    if (result.value !== true) {
+      this.metrics.recoveryRejected += 1;
+      return false;
+    }
+    this.metrics.recovered += 1;
+    return true;
+  }
+
+  recordTerminalFailure(item, error) {
+    this.metrics.failed += 1;
+    if (error.code === 'ACTOR_HANDLER_STALLED' || error.code === 'ACTOR_RECOVERY_STALLED') {
+      this.metrics.stalled += 1;
+    }
+    this.metrics.lastError = {
+      code: error.code || null,
+      message: error.message,
+      at: new Date().toISOString()
+    };
+    this.failures.push({ sequence: this.runningSequence, error });
+    if (this.failures.length > 128) this.failures.shift();
+    item.reject(error);
+    this.resolveWaiters();
+    try { this.onFault(error, item.event); } catch {}
+  }
+
   async pump() {
     if (this.running || this.closed) return;
     this.running = true;
@@ -109,68 +284,27 @@ class BoundedActorQueue {
       const latencyMs = Math.max(0, this.clock() - item.enqueuedAt);
       this.metrics.lastLatencyMs = latencyMs;
       this.metrics.maxLatencyMs = Math.max(this.metrics.maxLatencyMs, latencyMs);
-
-      let attempt = 1;
-      let settled = false;
-
-      while (!this.closed && !settled) {
-        try {
-          const result = await withTimeout(
-            Promise.resolve().then(() => this.handler(item.event)),
-            this.handlerTimeoutMs,
-            `${this.name} handler`
-          );
-
-          this.metrics.completed += 1;
-          if (attempt > 1) this.metrics.recovered += 1;
-          this.lastCompletedSequence = Math.max(
-            this.lastCompletedSequence,
-            Number(item.event?.sequence || item.event?.id) || 0
-          );
-          item.resolve({ delivered: true, result, attempts: attempt });
-          settled = true;
-        } catch (handlerError) {
-          let error = handlerError;
-          let recovered = false;
-
-          if (this.recoverFailure) {
-            try {
-              recovered = Boolean(
-                await this.recoverFailure(
-                  error,
-                  item.event,
-                  {
-                    attempt,
-                    sequence: this.runningSequence
-                  }
-                )
-              );
-            } catch (recoveryError) {
-              error = recoveryError;
-            }
-          }
-
-          if (recovered) {
-            this.metrics.recoveryAttempts += 1;
+      try {
+        let result;
+        let attempt = 1;
+        for (;;) {
+          try {
+            const completed = await this.runHandlerAttempt(item, attempt);
+            result = completed.value;
+            if (completed.exceededDeadline) this.metrics.lateCompleted += 1;
+            break;
+          } catch (error) {
+            const shouldRetry = await this.recover(item, error, attempt);
+            if (!shouldRetry) throw error;
             attempt += 1;
-            continue;
           }
-
-          this.metrics.failed += 1;
-          if (error.code === 'ACTOR_HANDLER_TIMEOUT') this.metrics.timedOut += 1;
-          this.metrics.lastError = {
-            code: error.code || null,
-            message: error.message,
-            at: new Date().toISOString()
-          };
-          this.failures.push({ sequence: this.runningSequence, error });
-          if (this.failures.length > 128) this.failures.shift();
-          item.reject(error);
-          this.onFault(error, item.event);
-          settled = true;
         }
+        this.metrics.completed += 1;
+        this.lastCompletedSequence = Math.max(this.lastCompletedSequence, Number(item.event?.sequence || item.event?.id) || 0);
+        item.resolve({ delivered: true, result });
+      } catch (error) {
+        this.recordTerminalFailure(item, error);
       }
-
       this.runningSequence = null;
       this.resolveWaiters();
     }
@@ -236,7 +370,22 @@ class BoundedActorQueue {
   }
 
   snapshotMetrics() {
-    return { ...this.metrics, depth: this.depth, capacity: this.capacity, lastCompletedSequence: this.lastCompletedSequence };
+    return {
+      ...this.metrics,
+      depth: this.depth,
+      capacity: this.capacity,
+      closed: this.closed,
+      runningSequence: this.runningSequence,
+      lastCompletedSequence: this.lastCompletedSequence,
+      lastDrainedSequence: this.lastDrainedSequence,
+      contract: {
+        handlerTimeoutMs: this.handlerTimeoutMs,
+        settlementGraceMs: this.settlementGraceMs,
+        recoveryTimeoutMs: this.recoveryTimeoutMs,
+        recoverySettlementGraceMs: this.recoverySettlementGraceMs,
+        maxAttempts: this.maxAttempts
+      }
+    };
   }
 
   close(error = Object.assign(new Error(`${this.name} queue closed`), { code: 'ACTOR_QUEUE_CLOSED' })) {
@@ -246,4 +395,4 @@ class BoundedActorQueue {
   }
 }
 
-module.exports = { BoundedActorQueue, withTimeout };
+module.exports = { BoundedActorQueue, withTimeout, settleThroughDeadline };

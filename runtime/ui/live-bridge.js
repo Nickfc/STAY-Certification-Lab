@@ -2,6 +2,7 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { readRevisionFreeze } = require('../revision-freeze');
 
 const SCRIPT_URL = '/__stay/live-runtime-badge.js';
 
@@ -23,13 +24,51 @@ function flattenCoreStatus(status) {
 }
 
 function publicMetadata(status, releaseVersion) {
+  const revision = status.kernel ? status.kernel.runtimeRevision : null;
+  const revisionFreeze = readRevisionFreeze(revision);
+  const residentStatus = Array.isArray(status.residencies)
+    ? status.residencies
+    : (Array.isArray(status.health?.residencies) ? status.health.residencies : []);
+  const bsfLedger = status.biologicalLedger || status.health?.biologicalLedger || null;
+  const bsfOk = status.health?.persistence?.ok !== false &&
+    bsfLedger?.protocol === 'stay-biological-ledger-v1';
   return {
     ok: Boolean(status.health ? status.health.ok : true),
     releaseVersion,
     kernelVersion: status.kernel ? status.kernel.version : releaseVersion,
-    revision: status.kernel ? status.kernel.runtimeRevision : null,
+    revision,
+    revisionFrozen: revisionFreeze.frozen,
+    revisionLabel: revisionFreeze.label,
     updatedAt: new Date().toISOString(),
-    cores: flattenCoreStatus(status)
+    cores: flattenCoreStatus(status),
+    systems: [{
+      id: 'bsf',
+      label: 'BSF',
+      mode: 'LIVE',
+      status: bsfOk ? 'RUNNING' : 'DEGRADED',
+      running: bsfOk,
+      healthOk: bsfOk,
+      protocol: bsfLedger?.protocol || null,
+      events: Number(bsfLedger?.events || 0),
+      pendingDeliveries: Number(bsfLedger?.pendingDeliveries || 0),
+      activeConsumers: Number(bsfLedger?.activeConsumers || 0)
+    }],
+    residents: residentStatus.filter(Boolean).map((resident) => ({
+      residencyId: resident.residencyId,
+      coreId: resident.coreId,
+      version: resident.version,
+      status: resident.status,
+      running: resident.status === 'RUNNING',
+      mode: resident.coreId === 'chronobiology' ||
+        (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
+        ? 'SHADOW'
+        : 'NEUTRAL',
+      authorityOwned: resident.authorityOwned === true,
+      checkpointGeneration: Number(resident.checkpointGeneration || 0),
+      handledEvents: Number(resident.handledEvents || 0),
+      observedOutputs: Number(resident.observedOutputs || 0),
+      healthOk: resident.health?.ok !== false
+    }))
   };
 }
 
@@ -57,7 +96,13 @@ function createLiveBridge({ kernel, releaseVersion, badgePath = path.join(__dirn
       meta.releaseVersion,
       meta.kernelVersion,
       meta.revision,
-      meta.cores.map((core) => [core.id, core.version, core.mode, core.ok])
+      meta.revisionFrozen,
+      meta.revisionLabel,
+      meta.cores.map((core) => [core.id, core.version, core.mode, core.ok]),
+      meta.systems.map((system) => [system.id, system.mode, system.status, system.healthOk,
+        system.events, system.pendingDeliveries, system.activeConsumers]),
+      meta.residents.map((resident) => [resident.residencyId, resident.version, resident.status,
+        resident.mode, resident.checkpointGeneration, resident.handledEvents, resident.observedOutputs])
     ]);
   }
 

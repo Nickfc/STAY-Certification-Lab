@@ -14,6 +14,8 @@ let operationChain = Promise.resolve();
 let workerBuffer = '';
 let workerCounter = 0;
 const workerPending = new Map();
+let payloadAttachCounter = 0;
+const payloadAttachPending = new Map();
 let currentEvent = null;
 let outputLimitPerEvent = 64;
 let outputBytesPerEvent = 1024 * 1024;
@@ -35,12 +37,62 @@ function rejectWorkerPending(error) {
   workerPending.clear();
 }
 
+function rejectPayloadAttachPending(error) {
+  for (const pending of payloadAttachPending.values()) {
+    clearTimeout(pending.timer);
+    pending.reject(error);
+  }
+  payloadAttachPending.clear();
+}
+
 function terminateWorker(reason = 'terminated') {
   const current = worker;
   worker = null;
   workerModulePath = null;
   if (current && current.exitCode == null && current.signalCode == null) current.kill('SIGKILL');
   rejectWorkerPending(Object.assign(new Error(`Core worker ${reason}`), { code: 'CORE_WORKER_EXIT' }));
+  rejectPayloadAttachPending(Object.assign(
+    new Error(`Core payload attachment ${reason}`),
+    { code: 'COREHOST_PAYLOAD_ATTACH_ABORTED' }
+  ));
+}
+
+function requestPayloadAttachment(workerLauncherPid, timeoutMs) {
+  const attachToken = `payload-${process.pid}-${++payloadAttachCounter}`;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      payloadAttachPending.delete(attachToken);
+      reject(Object.assign(new Error('Core payload cgroup attachment timed out'), {
+        code: 'COREHOST_PAYLOAD_ATTACH_TIMEOUT',
+        timeoutMs
+      }));
+    }, timeoutMs);
+    timer.unref?.();
+    payloadAttachPending.set(attachToken, { resolve, reject, timer });
+    try {
+      send({ type: 'payload-ready', attachToken, workerLauncherPid });
+    } catch (error) {
+      payloadAttachPending.delete(attachToken);
+      clearTimeout(timer);
+      reject(error);
+    }
+  });
+}
+
+function handlePayloadAttachment(message) {
+  if (
+    !message ||
+    message.protocol !== IPC_PROTOCOL ||
+    message.protocolVersion !== IPC_PROTOCOL_VERSION ||
+    message.type !== 'payload-attached'
+  ) return false;
+  const pending = payloadAttachPending.get(String(message.attachToken || ''));
+  if (!pending) return true;
+  payloadAttachPending.delete(message.attachToken);
+  clearTimeout(pending.timer);
+  if (message.ok === true) pending.resolve({ attached: message.attached === true });
+  else pending.reject(workerError(message.error));
+  return true;
 }
 
 function handleWorkerMessage(message) {
@@ -69,7 +121,13 @@ function handleWorkerMessage(message) {
       terminateWorker('exceeded causal output quota');
       throw Object.assign(new Error('Core worker per-event output quota exceeded'), { code: 'COREHOST_OUTPUT_QUOTA' });
     }
-    send({
+    /*
+     * Outputs are speculative until the event and its checkpoint complete.
+     * Buffer them in the trusted supervisor and release them only after the
+     * worker returns the combined transition. A timed-out/discarded worker
+     * therefore cannot leak an output from state that never durably commits.
+     */
+    currentEvent.outputs.push({
       type: 'output',
       topic: message.topic,
       payload: message.payload,
@@ -116,13 +174,17 @@ function consumeWorkerStdout(chunk) {
   }
 }
 
-function ensureWorker(modulePath, expectedCoreId = null, hardRamMiB = 64) {
+function ensureWorker(modulePath, expectedCoreId = null, memoryPlan = {}) {
   if (worker) {
     if (workerModulePath !== modulePath) throw Object.assign(new Error('CoreHost worker module changed after spawn'), { code: 'CORE_WORKER_MODULE_MISMATCH' });
     return worker;
   }
   const compatibility = expectedCoreId === 'fetus-legacy' || isLegacyCompatibilityCore(modulePath);
-  const launched = spawnCoreWorker(modulePath, { compatibility, maxOldSpaceMiB: Math.max(16, hardRamMiB * 0.8) });
+  const launched = spawnCoreWorker(modulePath, {
+    compatibility,
+    maxOldSpaceMiB: Math.max(16, Number(memoryPlan.workerOldSpaceMiB) || 64),
+    maxSemiSpaceMiB: Math.max(1, Number(memoryPlan.workerSemiSpaceMiB) || 8)
+  });
   worker = launched.child;
   workerModulePath = modulePath;
   workerBuffer = '';
@@ -158,8 +220,14 @@ function requestWorker(operation, payload, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       workerPending.delete(requestId);
+      const workerPid = worker?.pid || null;
       terminateWorker(`request ${operation} timed out`);
-      reject(Object.assign(new Error(`Core worker ${operation} timed out`), { code: 'CORE_WORKER_TIMEOUT' }));
+      reject(Object.assign(new Error(`Core worker ${operation} timed out`), {
+        code: 'CORE_WORKER_TIMEOUT',
+        coreWorkerOperation: operation,
+        coreWorkerPid: workerPid,
+        timeoutMs
+      }));
     }, timeoutMs);
     timer.unref?.();
     workerPending.set(requestId, {
@@ -179,11 +247,22 @@ function requestWorker(operation, payload, timeoutMs = 15000) {
 
 async function initialize(payload, inspectOnly = false) {
   const expectedCoreId = payload.expectedCoreId || null;
-  const hardRamMiB = Number(payload.expectedManifest?.resources?.hardRamMiB) || 64;
-  const current = ensureWorker(payload.modulePath, expectedCoreId, hardRamMiB);
+  const current = ensureWorker(
+    payload.modulePath,
+    expectedCoreId,
+    payload.workerMemoryPlan || {}
+  );
   const launch = current._stayLaunch;
+  const attachment = await requestPayloadAttachment(
+    current.pid,
+    Math.max(1000, Number(payload.payloadAttachTimeoutMs) || 5000)
+  );
   const workerPayload = { ...payload, modulePath: launch.modulePath, inspectOnly };
-  const result = await requestWorker(inspectOnly ? 'inspect' : 'init', workerPayload, Math.max(5000, Number(payload.handlerTimeoutMs) || 0));
+  const result = await requestWorker(
+    inspectOnly ? 'inspect' : 'init',
+    workerPayload,
+    Math.max(5000, Number(payload.workerInitTimeoutMs) || 0)
+  );
   const checked = validateManifest(result.manifest);
   if (payload.expectedCoreId && payload.expectedCoreId !== checked.coreId) throw new Error('CoreHost coreId mismatch');
   if (payload.expectedVersion && payload.expectedVersion !== checked.version) throw new Error('CoreHost version mismatch');
@@ -194,7 +273,14 @@ async function initialize(payload, inspectOnly = false) {
   mode = payload.mode || 'standby';
   outputLimitPerEvent = Math.max(1, Number(payload.outputLimitPerEvent) || 64);
   outputBytesPerEvent = Math.max(1024, Number(payload.outputBytesPerEvent) || 1024 * 1024);
-  return { ...result, manifest: checked, sandboxed: Boolean(launch.sandboxed) };
+  return {
+    ...result,
+    manifest: checked,
+    sandboxed: Boolean(launch.sandboxed),
+    workerLauncherPid: current.pid,
+    payloadAttachmentAcknowledged: true,
+    payloadAttached: attachment.attached
+  };
 }
 
 async function execute(operation, payload) {
@@ -203,14 +289,36 @@ async function execute(operation, payload) {
   if (!worker || !manifest) throw new Error('CoreHost is not initialized');
   if (operation === 'event') {
     const event = payload.event;
-    if (!manifest.inputs.includes(event.topic)) return { ignored: true };
-    currentEvent = { context: payload.context || null, outputCount: 0, outputBytes: 0 };
-    try { return await requestWorker('event', { event }, Math.max(1000, Number(payload.timeoutMs) || 0)); }
+    currentEvent = {
+      context: payload.context || null,
+      outputCount: 0,
+      outputBytes: 0,
+      outputs: []
+    };
+    try {
+      const result = await requestWorker(
+        'event',
+        {
+          event,
+          includeCheckpoint: payload.includeCheckpoint === true
+        },
+        Math.max(50, Number(payload.workerTimeoutMs) || 50)
+      );
+      for (const output of currentEvent.outputs) send(output);
+      return result;
+    }
     finally { currentEvent = null; }
   }
-  if (operation === 'snapshot') return requestWorker('snapshot', {});
-  if (operation === 'health') return requestWorker('health', {});
-  if (operation === 'mode') { mode = payload.mode; return requestWorker('mode', { mode }); }
+  if (operation === 'snapshot') {
+    return requestWorker('snapshot', {}, Math.max(50, Number(payload.workerTimeoutMs) || 15000));
+  }
+  if (operation === 'health') {
+    return requestWorker('health', {}, Math.max(50, Number(payload.workerTimeoutMs) || 15000));
+  }
+  if (operation === 'mode') {
+    mode = payload.mode;
+    return requestWorker('mode', { mode }, Math.max(50, Number(payload.workerTimeoutMs) || 15000));
+  }
   if (operation === 'stop') {
     stopping = true;
     try { return await requestWorker('stop', {}, 15000); }
@@ -236,6 +344,7 @@ async function handleRequest(message) {
 }
 
 process.on('message', message => {
+  if (handlePayloadAttachment(message)) return;
   operationChain = operationChain.then(() => handleRequest(message), () => handleRequest(message));
 });
 process.on('disconnect', () => { stopping = true; terminateWorker('parent disconnected'); process.exit(1); });

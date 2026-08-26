@@ -1,13 +1,19 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 const crypto = require('node:crypto');
 const { fork } = require('node:child_process');
 const { validateManifest } = require('./manifest');
-const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION } = require('./protocol');
-const { HOST_PATH } = require('./core-host-client');
+const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION, errorRecord } = require('./protocol');
+const {
+  HOST_PATH,
+  COREHOST_PAYLOAD_ATTACH_TIMEOUT_MS
+} = require('./core-host-client');
 const { canonicalCoreModulePath, isLegacyCompatibilityCore, trustedCoreHostExecArgv, coreSupervisorEnvironment } = require('./core-sandbox');
 const { enforcePackagePolicy, verifyManifestAgainstPackagePolicy } = require('./package-policy');
+const { normalizePolicy } = require('./resource-governor');
+const { CgroupGovernor, processDescendants } = require('./cgroup-governor');
 
 const CORE_INSPECT_DIAGNOSTIC_LIMIT = 1024;
 
@@ -53,10 +59,24 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
   const moduleDigest = sha256(fs.readFileSync(absolute));
   const packagePolicy = enforcePackagePolicy(absolute);
   const compatibility = isLegacyCompatibilityCore(absolute);
+  const inspectionPolicy = normalizePolicy(
+    packagePolicy?.policy?.resourceContract?.manifestResources || {},
+    'optional'
+  );
+  const inspectionCgroup = new CgroupGovernor({
+    name: `inspect-${path.basename(absolute)}-${process.pid}-${crypto.randomBytes(4).toString('hex')}`,
+    policy: inspectionPolicy
+  });
+  await inspectionCgroup.prepare();
   const child = fork(HOST_PATH, [], {
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
     serialization: 'advanced',
-    execArgv: ['--disable-sigusr1', '--max-old-space-size=64', ...(compatibility ? [] : trustedCoreHostExecArgv(absolute))],
+    execArgv: [
+      '--disable-sigusr1',
+      '--max-old-space-size=16',
+      '--max-semi-space-size=2',
+      ...(compatibility ? [] : trustedCoreHostExecArgv(absolute))
+    ],
     env: coreSupervisorEnvironment({ compatibility })
   });
   let timer;
@@ -66,9 +86,72 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
   try {
     const result = await new Promise((resolve, reject) => {
       const requestId = `inspect-${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
-      timer = setTimeout(() => reject(Object.assign(new Error('core manifest inspection timed out'), { code: 'CORE_INSPECT_TIMEOUT' })), timeoutMs);
+      timer = setTimeout(
+        () => reject(Object.assign(new Error('core manifest inspection timed out'), { code: 'CORE_INSPECT_TIMEOUT' })),
+        timeoutMs
+      );
       timer.unref?.();
       child.on('message', message => {
+        if (message?.type === 'payload-ready') {
+          Promise.resolve()
+            .then(async () => {
+              const token = String(message.attachToken || '');
+              const workerLauncherPid = Number(message.workerLauncherPid);
+              if (
+                message.protocol !== IPC_PROTOCOL ||
+                message.protocolVersion !== IPC_PROTOCOL_VERSION ||
+                !/^[a-zA-Z0-9._:-]{1,160}$/.test(token) ||
+                !Number.isSafeInteger(workerLauncherPid) ||
+                workerLauncherPid <= 1
+              ) {
+                throw Object.assign(
+                  new Error('inspection payload attachment request is invalid'),
+                  { code: 'COREHOST_PAYLOAD_ATTACH_PROTOCOL' }
+                );
+              }
+              if (process.platform === 'linux') {
+                const supervisorTree = await processDescendants(child.pid);
+                if (
+                  workerLauncherPid === child.pid ||
+                  !supervisorTree.includes(workerLauncherPid)
+                ) {
+                  throw Object.assign(
+                    new Error('inspection payload launcher is not a CoreHost descendant'),
+                    { code: 'COREHOST_PAYLOAD_ATTACH_ANCESTRY' }
+                  );
+                }
+              }
+              const attached = await inspectionCgroup.attachPayloadTree(
+                workerLauncherPid,
+                []
+              );
+              if (inspectionCgroup.required && attached !== true) {
+                throw Object.assign(new Error('required inspection payload cgroup attachment failed'), {
+                  code: 'CGROUP_PREINIT_ATTACHMENT'
+                });
+              }
+              child.send({
+                protocol: IPC_PROTOCOL,
+                protocolVersion: IPC_PROTOCOL_VERSION,
+                type: 'payload-attached',
+                attachToken: token,
+                ok: true,
+                attached
+              });
+            })
+            .catch(error => {
+              if (!child.connected) return;
+              child.send({
+                protocol: IPC_PROTOCOL,
+                protocolVersion: IPC_PROTOCOL_VERSION,
+                type: 'payload-attached',
+                attachToken: message.attachToken,
+                ok: false,
+                error: errorRecord(error)
+              });
+            });
+          return;
+        }
         if (message?.type === 'log') {
           diagnostics = appendDiagnostic(diagnostics, Array.isArray(message.args) ? message.args.map(diagnosticValue).join(' ') : message.args);
           return;
@@ -91,7 +174,15 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
         protocolVersion: IPC_PROTOCOL_VERSION,
         requestId,
         operation: 'inspect',
-        payload: { modulePath: absolute }
+        payload: {
+          modulePath: absolute,
+          workerInitTimeoutMs: timeoutMs,
+          payloadAttachTimeoutMs: COREHOST_PAYLOAD_ATTACH_TIMEOUT_MS,
+          workerMemoryPlan: {
+            workerOldSpaceMiB: 64,
+            workerSemiSpaceMiB: 8
+          }
+        }
       });
     });
     const manifest = validateManifest(result.manifest);
@@ -112,6 +203,7 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
         throw Object.assign(new Error('core manifest inspector could not be reaped'), { code: 'CORE_INSPECT_REAP_FAILED' });
       }
     }
+    await inspectionCgroup.stop();
   }
 }
 

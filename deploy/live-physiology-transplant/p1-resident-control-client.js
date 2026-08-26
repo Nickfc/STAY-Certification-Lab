@@ -5,8 +5,13 @@ const net = require('node:net');
 
 const SOCKET = '/run/stay/resident-control.sock';
 const FORMAT = 'stay-resident-control-v1';
-const OPERATIONS = new Set(['status', 'attach', 'detach']);
+const OPERATIONS = new Set(['status', 'attach', 'detach', 'promote', 'resynchronize']);
 const RESIDENCIES = new Set(['resident:sntss', 'resident:chronobiology']);
+
+function timeoutMs() {
+  const value = Number(process.env.STAY_RESIDENT_CONTROL_TIMEOUT_MS || 5000);
+  return Number.isSafeInteger(value) && value >= 1000 && value <= 60000 ? value : 5000;
+}
 
 function main(argv = process.argv.slice(2)) {
   const [operation, residencyId] = argv;
@@ -16,7 +21,7 @@ function main(argv = process.argv.slice(2)) {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection(SOCKET);
     socket.setEncoding('utf8');
-    socket.setTimeout(5000, () => socket.destroy(Object.assign(new Error('timeout'), { code: 'RESIDENT_CONTROL_TIMEOUT' })));
+    socket.setTimeout(timeoutMs(), () => socket.destroy(Object.assign(new Error('timeout'), { code: 'RESIDENT_CONTROL_TIMEOUT' })));
     let body = '';
     socket.once('error', reject);
     socket.once('connect', () => socket.write(JSON.stringify({ format: FORMAT, operation, residencyId }) + '\n'));
@@ -40,4 +45,4 @@ if (require.main === module) main().catch(error => {
   process.exitCode = 1;
 });
 
-module.exports = { main };
+module.exports = { main, timeoutMs };

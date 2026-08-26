@@ -2,9 +2,7 @@ name: Stage and observe final transplant
 run-name: Stage and observe final transplant
 
 on:
-  push:
-    branches: [main]
-    paths: [.github/p1-final-transplant-stage.launch]
+  workflow_dispatch:
 
 permissions:
   contents: write

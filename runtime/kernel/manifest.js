@@ -17,7 +17,8 @@ function validateResources(value) {
   if (value == null) return Object.freeze({});
   if (typeof value !== 'object' || Array.isArray(value)) throw new Error('manifest.resources must be an object');
   const allowed = new Set([
-    'softRamMiB', 'hardRamMiB', 'sampleIntervalMs', 'hardConfirmations', 'trendSamples',
+    'softRamMiB', 'hardRamMiB', 'sampleIntervalMs', 'hardConfirmations',
+    'hardCpuWindowSamples', 'trendSamples',
     'storageMiB', 'queueCapacity', 'handlerTimeoutMs', 'healthTimeoutMs',
     'maxRestarts', 'restartWindowMs', 'restartBackoffMs', 'softCpuPercent', 'hardCpuPercent',
     'outputCapacity', 'outputLimitPerEvent', 'outputBytesPerEvent', 'pidsMax'

@@ -26,6 +26,21 @@
         color: rgba(255,255,255,.92);
         pointer-events: auto;
       }
+      .physiology {
+        display: none;
+        position: fixed;
+        left: var(--stay-physiology-left, 20px);
+        top: var(--stay-physiology-top, 158px);
+        z-index: 2147483646;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 6px;
+        max-width: calc(100vw - 40px);
+        pointer-events: none;
+      }
+      .physiology.visible { display: flex; }
+      .chip { border: 1px solid rgba(141,235,178,.35); border-radius: 999px; background: rgba(141,235,178,.09); color: #8debb2; padding: 4px 7px; font-size: 9px; letter-spacing: .05em; white-space: nowrap; }
+      .chip.shadow { border-color: rgba(200,167,255,.35); background: rgba(200,167,255,.09); color: #c8a7ff; }
       button {
         appearance: none;
         border: 1px solid rgba(255,255,255,.14);
@@ -70,6 +85,7 @@
       @keyframes flash { 0% { transform: scale(1.07); } 100% { transform: scale(1); } }
       @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
     </style>
+    <div class="physiology" id="physiology" aria-label="STAY live physiology status"></div>
     <div class="wrap">
       <button id="badge" type="button" aria-expanded="false" title="STAY Living Runtime status">
         <span class="dot wait" id="dot"></span>
@@ -88,6 +104,7 @@
   const label = root.getElementById('label');
   const details = root.getElementById('details');
   const foot = root.getElementById('foot');
+  const physiology = root.getElementById('physiology');
   let lastFingerprint = '';
   let lastMessageAt = 0;
 
@@ -101,29 +118,62 @@
     return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   }
 
+  function revisionLabel(meta) {
+    if (typeof meta?.revisionLabel === 'string' && /^R[0-9]+F?$/.test(meta.revisionLabel)) return meta.revisionLabel;
+    return `R${meta?.revision ?? '?'}${meta?.revisionFrozen === true ? 'F' : ''}`;
+  }
+
   function row(key, value, ok) {
     const cls = ok === true ? 'healthy' : ok === false ? 'unhealthy' : '';
     return `<div class="row"><span class="key">${escapeHtml(key)}</span><span class="value ${cls}">${escapeHtml(value)}</span></div>`;
   }
 
+  function positionPhysiology() {
+    const candidates = [...document.querySelectorAll('h1,h2,[class*="brand"],[class*="logo"],header *')];
+    const brand = candidates.find((element) => String(element.textContent || '').trim().toUpperCase() === 'STAY');
+    const rect = brand?.getBoundingClientRect();
+    host.style.setProperty('--stay-physiology-left', rect ? `${Math.max(14, Math.ceil(rect.left))}px` : '20px');
+    host.style.setProperty('--stay-physiology-top', rect ? `${Math.ceil(rect.bottom + 8)}px` : '158px');
+  }
+
+  positionPhysiology();
+  requestAnimationFrame(positionPhysiology);
+  window.addEventListener('resize', positionPhysiology);
+
   function apply(meta) {
     if (!meta || typeof meta !== 'object') return;
     lastMessageAt = Date.now();
     const cores = Array.isArray(meta.cores) ? meta.cores : [];
-    const fingerprint = JSON.stringify([meta.releaseVersion, meta.kernelVersion, meta.revision, cores.map((c) => [c.id, c.version, c.mode, c.ok])]);
+    const systems = Array.isArray(meta.systems) ? meta.systems : [];
+    const residents = Array.isArray(meta.residents) ? meta.residents : [];
+    const fingerprint = JSON.stringify([meta.releaseVersion, meta.kernelVersion, meta.revision, meta.revisionFrozen, meta.revisionLabel, cores.map((c) => [c.id, c.version, c.mode, c.ok]), systems.map((s) => [s.id, s.mode, s.status, s.healthOk]), residents.map((r) => [r.residencyId, r.version, r.status, r.mode])]);
     const changed = Boolean(lastFingerprint && fingerprint !== lastFingerprint);
     lastFingerprint = fingerprint;
 
     dot.className = 'dot' + (meta.ok === false ? ' off' : '');
-    label.textContent = `LIVE · v${meta.releaseVersion || meta.kernelVersion || '?'} · R${meta.revision ?? '?'}`;
+    label.textContent = `LIVE · v${meta.releaseVersion || meta.kernelVersion || '?'} · ${revisionLabel(meta)}`;
 
     let html = row('Release', `v${meta.releaseVersion || '?'}`);
     html += row('Living Kernel', `v${meta.kernelVersion || '?'}`, meta.ok !== false);
-    html += row('Runtime revision', `R${meta.revision ?? '?'}`);
+    html += row('Runtime revision', revisionLabel(meta));
     for (const core of cores) {
       html += row(core.id || 'core', `v${core.version || '?'} · ${core.mode || 'active'}`, core.ok !== false);
     }
+    for (const system of systems) {
+      html += row(system.label || system.id || 'system', `${system.mode || 'LIVE'} · ${system.status || 'UNKNOWN'}`, system.running && system.healthOk !== false);
+    }
+    for (const resident of residents) {
+      html += row(resident.coreId || resident.residencyId || 'resident', `v${resident.version || '?'} · ${resident.mode || 'NEUTRAL'} · ${resident.status || 'UNKNOWN'}`, resident.running && resident.healthOk !== false);
+    }
     details.innerHTML = html;
+    const chips = systems.filter((system) => system?.running === true).map((system) =>
+      `<span class="chip"><b>● ${escapeHtml(String(system.label || system.id || 'SYSTEM').toUpperCase())}</b> · ${escapeHtml(system.mode || 'LIVE')}</span>`
+    ).concat(residents.filter((resident) => resident?.running === true).map((resident) =>
+      `<span class="chip ${resident.mode === 'SHADOW' ? 'shadow' : ''}"><b>● ${escapeHtml(String(resident.coreId || resident.residencyId || 'RESIDENT').toUpperCase())}</b> · ${escapeHtml(resident.mode || 'NEUTRAL')}</span>`
+    ));
+    physiology.classList.toggle('visible', chips.length > 0);
+    physiology.innerHTML = chips.join('');
+    positionPhysiology();
     foot.textContent = `Live stream · ${new Date(meta.updatedAt || Date.now()).toLocaleTimeString()}`;
 
     if (changed) {

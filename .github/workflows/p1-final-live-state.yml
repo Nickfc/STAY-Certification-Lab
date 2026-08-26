@@ -1,9 +1,7 @@
 name: Capture final transplant live state
 
 on:
-  push:
-    branches: [main]
-    paths: [.github/p1-final-live-state.launch]
+  workflow_dispatch:
 
 permissions:
   contents: write

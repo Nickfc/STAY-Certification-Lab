@@ -130,7 +130,7 @@
       "docs/chronobiology/c3c-final-seal.json": "af3b44612c96ff613e2d403c78b5c47af75327e4dd6364e24a8cc1903df8bf95",
       "test/chronobiology-c1-genesis.test.js": "92d069df1a23d7c6c89c57a3f892e093d948e513d14e4922461ec6ab531c0757",
       "test/chronobiology-hostile-certification.test.js": "5a58bda11f6966361ab2b1d3688a883529ebaf50071725acf80a9cd267631534",
-      "test/chronobiology-c3c-split-certification.test.js": "0684f0fa7b45ce8194b620312f6025a68c5d7e671f2c5ca70b6f944967c623f1",
+      "test/chronobiology-c3c-split-certification.test.js": "fa670ea33b66369984387a1ff98e8654b0705c8bc58b5db31ab39e34163950dc",
       "certification/chronobiology-c3c/RUN.sh": "1f2ddabe37e0915ecdadc2f729c8f23d48c7fd78923cf47cddb9140ba8739be9",
       "certification/chronobiology-c3c/WATCH.sh": "551d06213d06f7e76df854a3f044ffe58ac78cc41427bfbd8101d963cc80ec29",
       "certification/chronobiology-c3c/compute/RUN.sh": "472f2f557871f6b2d939cfdb262a45274cec3d8c1892a60a81948f3bc9ebd1db",

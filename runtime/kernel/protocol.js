@@ -29,7 +29,11 @@ function errorRecord(error) {
     name: String(error?.name || 'Error').slice(0, 80),
     code: error?.code ? String(error.code).slice(0, 80) : null,
     message: String(error?.message || error || 'unknown error').slice(0, 2000),
-    stack: String(error?.stack || '').slice(0, 8000)
+    stack: String(error?.stack || '').slice(0, 8000),
+    operation: error?.coreWorkerOperation || error?.coreHostOperation || null,
+    timeoutMs: Number.isFinite(Number(error?.timeoutMs))
+      ? Number(error.timeoutMs)
+      : null
   };
 }
 

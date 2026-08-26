@@ -101,7 +101,7 @@ function releaseRootFor(modulePath) {
   throw Object.assign(new Error('Core module is outside the immutable release root'), { code: 'CORE_SANDBOX_RELEASE_ROOT' });
 }
 
-function sandboxWorkerPlan(modulePath, { maxOldSpaceMiB = 64 } = {}) {
+function sandboxWorkerPlan(modulePath, { maxOldSpaceMiB = 64, maxSemiSpaceMiB = 8 } = {}) {
   const absoluteModule = canonicalCoreModulePath(modulePath);
   const releaseRoot = releaseRootFor(absoluteModule);
   const relativeModule = path.relative(releaseRoot, absoluteModule);
@@ -116,6 +116,7 @@ function sandboxWorkerPlan(modulePath, { maxOldSpaceMiB = 64 } = {}) {
   const execArgv = [
     '--disable-sigusr1',
     `--max-old-space-size=${Math.max(16, Math.floor(maxOldSpaceMiB))}`,
+    `--max-semi-space-size=${Math.max(1, Math.floor(maxSemiSpaceMiB))}`,
     ...nativeCoreExecArgv(absoluteModule).map(value => value
       .replaceAll(releaseRoot, sandboxRoot)
       .replaceAll(path.resolve(__dirname, '..'), path.posix.join(sandboxRoot, 'runtime')))
@@ -147,13 +148,14 @@ function sandboxWorkerPlan(modulePath, { maxOldSpaceMiB = 64 } = {}) {
   });
 }
 
-function spawnCoreWorker(modulePath, { compatibility = false, maxOldSpaceMiB = 64 } = {}) {
+function spawnCoreWorker(modulePath, { compatibility = false, maxOldSpaceMiB = 64, maxSemiSpaceMiB = 8 } = {}) {
   const absoluteModule = canonicalCoreModulePath(modulePath);
   const requireOsSandbox = process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1' && !compatibility;
   if (!requireOsSandbox) {
     const args = [
       '--disable-sigusr1',
       `--max-old-space-size=${Math.max(16, Math.floor(maxOldSpaceMiB))}`,
+      `--max-semi-space-size=${Math.max(1, Math.floor(maxSemiSpaceMiB))}`,
       ...(compatibility ? [] : nativeCoreExecArgv(absoluteModule)),
       WORKER_PATH
     ];
@@ -170,7 +172,7 @@ function spawnCoreWorker(modulePath, { compatibility = false, maxOldSpaceMiB = 6
   if (process.platform !== 'linux') {
     throw Object.assign(new Error('required OS Core sandbox is only supported on Linux'), { code: 'CORE_OS_SANDBOX_REQUIRED' });
   }
-  const plan = sandboxWorkerPlan(absoluteModule, { maxOldSpaceMiB });
+  const plan = sandboxWorkerPlan(absoluteModule, { maxOldSpaceMiB, maxSemiSpaceMiB });
   if (!fs.existsSync(plan.executable)) {
     throw Object.assign(new Error(`required bubblewrap executable is missing: ${plan.executable}`), { code: 'CORE_OS_SANDBOX_REQUIRED' });
   }

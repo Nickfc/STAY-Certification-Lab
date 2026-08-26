@@ -98,7 +98,14 @@ async function initialize(payload) {
       || execution.outputBytes > Math.max(1024, Number(payload.outputBytesPerEvent) || 1024 * 1024)) {
       throw Object.assign(new Error('CoreHost per-event output quota exceeded'), { code: 'COREHOST_OUTPUT_QUOTA' });
     }
-    await sendAsync({ type: 'output', topic, payload: outputPayload, meta: { ...meta, outputIndex: execution.outputCount }, context, mode });
+    execution.outputs.push({
+      type: 'output',
+      topic,
+      payload: outputPayload,
+      meta: { ...meta, outputIndex: execution.outputCount },
+      context,
+      mode
+    });
     return null;
   };
   let initialState = structuredClone(payload.initialState || {});
@@ -140,10 +147,26 @@ async function execute(operation, payload) {
   if (!api) throw new Error('CoreHost is not initialized');
   if (operation === 'event') {
     const event = payload.event;
-    if (!manifest.inputs.includes(event.topic)) return { ignored: true };
-    return contextStorage.run({ context: payload.context || null, outputCount: 0, outputBytes: 0 }, async () => {
+    if (!manifest.inputs.includes(event.topic)) {
+      return {
+        result: { ignored: true },
+        checkpoint: payload.includeCheckpoint === true ? await api.snapshot() : null
+      };
+    }
+    return contextStorage.run({
+      context: payload.context || null,
+      outputCount: 0,
+      outputBytes: 0,
+      outputs: []
+    }, async () => {
+      const execution = contextStorage.getStore();
       await api.handle(event);
-      return { handled: true, sequence: event.sequence || event.id };
+      const result = {
+        result: { handled: true, sequence: event.sequence || event.id },
+        checkpoint: payload.includeCheckpoint === true ? await api.snapshot() : null
+      };
+      for (const output of execution.outputs) await sendAsync(output);
+      return result;
     });
   }
   if (operation === 'snapshot') return api.snapshot();

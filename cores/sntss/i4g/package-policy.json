@@ -1,0 +1,96 @@
+{
+  "formatVersion": 1,
+  "coreId": "sntss",
+  "entrypoint": "index.js",
+  "allowedBuiltins": [
+    "node:crypto"
+  ],
+  "ambientCapabilities": {
+    "filesystemWrite": false,
+    "network": false,
+    "processSpawn": false
+  },
+  "diagnostics": false,
+  "environmentAllowlist": [
+    "LANG",
+    "LC_ALL",
+    "NODE_ENV",
+    "PATH",
+    "STAY_COREHOST",
+    "TZ"
+  ],
+  "files": {
+    "../../../runtime/kernel/canonical-json.js": "sha256:aafdc03899a23b00ff6a0ec2930399a0d88ffc767e0cf903d9a69f5cbf93fe9e",
+    "chemical-state.js": "sha256:24f20f5a472ca1cbf6e625a536e34fd75568155721b8b69195b4fc2fafa9d70e",
+    "durable-state.js": "sha256:64d36088ee037f72ed4de98065f70bf712f070b1bb41899a8313be476c701e81",
+    "families/acetylcholine-like.js": "sha256:da68b683fdda2033ee5f3941049fe4c387e2784c7b4e29335be1bae7ec3f14fd",
+    "families/dopamine-like.js": "sha256:a670d5353b560188623839317b3a9eb5039f3463337d7d1f6fa72e00780c514b",
+    "families/endogenous-opioid-like.js": "sha256:c2dde9fd2165c97ea4154d1535a2795199a2dd711567bbfb1e7b5dc7fcce8afd",
+    "families/gaba-like.js": "sha256:4c220cdbae8d5cbc20f0e7e368e9dc11f9e85a23888eb6a615c198abd6fe72f0",
+    "families/glutamate-like.js": "sha256:95236a67322321112ca120bf3854ce0d3ab26138d5bcdbb683b67eb9ed17a2df",
+    "families/index.js": "sha256:aa2a951cbab14871929e4a2239cf6fe8b5b09a92f210965993e68152d5d81931",
+    "families/noradrenaline-like.js": "sha256:b7cde9578ba572561bc4c179347046b08524d99487cea2bd6b6f54ccfb876237",
+    "families/oxytocin-like.js": "sha256:0a538d6e16520902130c7af091e26b03bebec23513a9286d6df894ec354dd2db",
+    "families/serotonin-like.js": "sha256:bd41a764dc5720a5aa3dfd778050b29134b7558ad90b8629444dcdb009425e16",
+    "fixed-point.js": "sha256:2735868a843abaa31d1b2ff5ea40840f94c148076d1b6c497ddf8093c794f368",
+    "i3c-state.js": "sha256:cd617878956f7f6862e8bfd8163f5c67784d07c4b9319af289f02b4f0e111285",
+    "i3d-state.js": "sha256:5277840bc562a4a6a17fb1f61c92b669c8c283927985e3898145fd78556c2559",
+    "index.js": "sha256:4e96f1882ddbe35fc0e8f2afcdabae2b5e75812d8e9a392b09bcc8040b335ea7",
+    "individuality.js": "sha256:44f7f77ab8af5e35fcfa53e6057e3366c41169c9a142d99f2c0ba3f84b8c217d",
+    "kinetics.js": "sha256:cea3ca6b7bb5b8130dce5513f67406d765a3b6e9d6c9b16acd1cc27585e0bfb3",
+    "receptor-adaptation-profile.js": "sha256:7b35ef80b388f06e8a9673b5067eec72b1afc6c6101ec59b0d328f6ea430bb0d",
+    "receptor-adaptation.js": "sha256:a3e5e8fdd79fed8c3044198e879bf59e8b754f57a7ff4d5d63ee6ebecbac879b",
+    "receptor-availability-profile.js": "sha256:f1834631bdaa4f5d86f42927cd53281bc1cadba6f31b46d0fc57b239c40816c7",
+    "receptor-availability.js": "sha256:e52e05a43b0c42995a59c6f347661035abcb5f3db533501d3bc8ad45aba9536c",
+    "receptor-model.js": "sha256:66a3b244cdd9fec4a2d7cab2f2ac24a612939a8cc265d510c319a6bf82e61a13",
+    "receptor-profile.js": "sha256:884c6110cf3a3ac395700f89f4c7bdda8a67526326eb5d1191ea01e3cd02c8e3",
+    "receptor-regulation.js": "sha256:04757feb7b57bdf4401387a2e3c3c4d5b8fcf0724773462dce66110e7abc588d",
+    "regulation-profile.js": "sha256:9a7a55c0e2910c1811ae5eb579ae13cde2fa256335cb0905d124a0ed933c2ac0",
+    "species-profile.js": "sha256:fff2600be16213032d9ab97c82f7674dc9e403011ee85f7450e830db5bbda0e3"
+  },
+  "resourceContract": {
+    "cgroupV2": {
+      "distribution": "stay-cores",
+      "leaf": "sntss-i4g-<instance>",
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "kernelGovernorOwned": true,
+      "memoryHighBytes": 67108864,
+      "memoryMaxBytes": 100663296,
+      "pidsMax": 16,
+      "cpuMax": "20000 100000"
+    },
+    "manifestResources": {
+      "softRamMiB": 64,
+      "hardRamMiB": 96,
+      "softCpuPercent": 5,
+      "hardCpuPercent": 20,
+      "pidsMax": 16,
+      "queueCapacity": 256,
+      "handlerTimeoutMs": 250,
+      "healthTimeoutMs": 1000,
+      "outputCapacity": 128,
+      "outputLimitPerEvent": 16,
+      "outputBytesPerEvent": 65536,
+      "storageMiB": 4,
+      "maxRestarts": 4,
+      "restartWindowMs": 60000,
+      "restartBackoffMs": 250
+    },
+    "requiredOnProductionHost": true
+  },
+  "bounds": {
+    "checkpointBytes": 1048576,
+    "auditRecords": 64,
+    "auditRecordBytes": 4096,
+    "migrationRecords": 64,
+    "migrationWorkItems": 1,
+    "shutdownMs": 2000,
+    "pendingRequests": 128,
+    "productionOutputs": 0
+  },
+  "policyHash": "sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d"
+}

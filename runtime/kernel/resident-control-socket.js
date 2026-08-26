@@ -13,7 +13,7 @@ const RESIDENT_MODULES = Object.freeze({
   'resident:chronobiology': 'cores/chronobiology/c3/index.js'
 });
 
-const OPERATIONS = new Set(['status', 'attach', 'detach']);
+const OPERATIONS = new Set(['status', 'attach', 'detach', 'promote', 'resynchronize']);
 
 function fail(message, code) {
   throw Object.assign(new Error(message), { code });
@@ -42,7 +42,12 @@ function resolveContract(kernel, residencyId) {
   if (!contract || contract.residencyId !== residencyId) {
     fail('resident contract is unavailable', 'RESIDENT_CONTRACT_UNKNOWN');
   }
-  return { manager, contract, moduleRelativePath: RESIDENT_MODULES[residencyId] };
+  const record = kernel.stateStore.getResident(residencyId);
+  return {
+    manager,
+    contract,
+    moduleRelativePath: record?.moduleRelativePath || RESIDENT_MODULES[residencyId]
+  };
 }
 
 async function statusFor(kernel, residencyId) {
@@ -63,12 +68,21 @@ async function statusFor(kernel, residencyId) {
     observedOutputs: Number(runtimeStatus?.observedOutputs || 0),
     present: Boolean(record),
     status: record?.status || 'ABSENT',
-    running: Boolean(unit && record?.status === 'RUNNING'),
+    running: runtimeStatus?.running === true,
     checkpointHash: record?.checkpointHash || null,
     checkpointGeneration: Number(record?.checkpointGeneration || 0),
     authorityOwned: Boolean(runtimeStatus?.authorityOwned),
     handledEvents: Number(runtimeStatus?.handledEvents || 0),
-    health: runtimeStatus?.health || null
+    health: runtimeStatus?.health || null,
+    lastError: runtimeStatus?.lastError || null,
+    lastSlowTransition: runtimeStatus?.lastSlowTransition || null,
+    resyncRequired: runtimeStatus?.resyncRequired === true,
+    terminalPersistenceError: runtimeStatus?.terminalPersistenceError || null,
+    teardownError: runtimeStatus?.teardownError || null,
+    queue: runtimeStatus?.queue || null,
+    host: runtimeStatus?.host || null,
+    durabilityContract: runtimeStatus?.durabilityContract || null,
+    activationBackfilled: Number(runtimeStatus?.activationBackfilled || 0)
   });
 }
 
@@ -90,13 +104,26 @@ function createResidentControlDispatcher(kernel) {
           fail('resident already exists', 'RESIDENT_ALREADY_EXISTS');
         }
         await kernel.attachResident(resolved.moduleRelativePath);
-      } else {
+      } else if (request.operation === 'detach') {
         await kernel.detachResident(request.residencyId);
+      } else if (request.operation === 'resynchronize') {
+        if (typeof kernel.resynchronizeResident !== 'function') {
+          fail('resident resynchronization is unavailable', 'RESIDENT_CONTROL_RESYNCHRONIZE');
+        }
+        await kernel.resynchronizeResident(request.residencyId);
+      } else {
+        if (request.residencyId !== 'resident:sntss') {
+          fail('only SNTSS has a bounded generation-promotion operation', 'RESIDENT_CONTROL_PROMOTION');
+        }
+        if (typeof kernel.promoteSntssContinuityGenesis !== 'function') {
+          fail('SNTSS generation promotion is unavailable', 'RESIDENT_CONTROL_PROMOTION');
+        }
+        await kernel.promoteSntssContinuityGenesis();
       }
       return {
         ok: true,
         operation: request.operation,
-        statePreserved: request.operation === 'detach',
+        statePreserved: ['detach', 'resynchronize'].includes(request.operation),
         resident: await statusFor(kernel, request.residencyId)
       };
     } finally {
