@@ -24,8 +24,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends bubblewrap
+          sudo chown root:root /usr/bin/bwrap
+          sudo chmod 4755 /usr/bin/bwrap
           test -x /usr/bin/bwrap
+          test -u /usr/bin/bwrap
       - name: Run STAY tests
-        env:
-          STAY_BWRAP: /usr/bin/bwrap
         run: npm test
