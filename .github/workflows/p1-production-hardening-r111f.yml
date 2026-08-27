@@ -33,6 +33,8 @@ env:
   ARCHIVE_SHA256: 59d8c9f971189690a3ac51befe588a9eb6d8d1d88206cb406a8b2312b06bf01b
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+  PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1i-i4g-deadline-3f4580ae943e
   FAILED_READ_ONLY_STAGE: /opt/stay/incoming/r111f-v6-33097105865
   FAILED_READ_ONLY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V6_BUNDLE_20260827.tar.gz
@@ -155,15 +157,17 @@ jobs:
           install -d -m 0700 ~/.ssh
           printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
           chmod 0600 ~/.ssh/stay_deploy
-          : > ~/.ssh/known_hosts
+          printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
           chmod 0600 ~/.ssh/known_hosts
+          [[ "$(wc -l < ~/.ssh/known_hosts)" == 1 ]]
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
       - name: Remove exact failed read-only stage
         if: inputs.operation == 'preflight'
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
             "$FAILED_READ_ONLY_STAGE" "$FAILED_READ_ONLY_ARCHIVE" "$FAILED_READ_ONLY_ARCHIVE_SHA256" <<'REMOTE'
           set -Eeuo pipefail
@@ -235,7 +239,7 @@ jobs:
           run_root="/opt/stay/incoming/r111f-v7-${GITHUB_RUN_ID}"
           printf 'RUN_ROOT=%s\n' "$run_root" >> "$GITHUB_ENV"
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
             "set -euo pipefail; observed=\$(ip -o -4 addr show scope global | awk '{a=\$4;sub(/\\/.*/,\"\",a);print a}' | sort -u); [[ \"\$observed\" == '$PRODUCTION_PRIVATE_IPV4' ]]; test ! -e '$run_root'; install -d -m 0700 '$run_root'"
           scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \

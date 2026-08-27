@@ -39,6 +39,11 @@ test('R111F deployment is manual-only and pins the merged Git and immutable arch
   assert.match(workflow, /RELEASE_TREE: 561f025b7acb2b64690071459a7c9ef877d9b1f3/);
   assert.match(workflow, /ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V7_BUNDLE_20260827\.tar\.gz/);
   assert.match(workflow, /ARCHIVE_SHA256: 59d8c9f971189690a3ac51befe588a9eb6d8d1d88206cb406a8b2312b06bf01b/);
+  assert.match(workflow, /PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg\/MwMUS/);
+  assert.match(workflow, /PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q/);
+  assert.match(workflow, /printf '%s %s\\n' "\$PRODUCTION_PUBLIC_IPV4" "\$PRODUCTION_SSH_ED25519_KEY" > ~\/\.ssh\/known_hosts/);
+  assert.match(workflow, /ssh-keygen -lf ~\/\.ssh\/known_hosts/);
+  assert.doesNotMatch(workflow, /StrictHostKeyChecking=accept-new/);
   assert.match(workflow, /persist-credentials: false/);
   assert.match(workflow, /^permissions:\n  contents: read$/m);
 });
@@ -150,6 +155,9 @@ test('R111F controller bootstrap is source-sealed and preserves the narrow sudo 
   assert.match(bootstrap, /AUTHORIZE_R111F_V8_PINNED_CONTROLLER_BOOTSTRAP/);
   assert.match(bootstrap, /WRAPPER_SHA256: 7eb9470a50108a3de9070c6f3d4e454ce74f9da88e6aa2b6d2248d3fb9707335/);
   assert.match(bootstrap, /INSTALLER_SHA256: 8f2178b51097c1209ae9d96ea215fd9185634f1a82173a843c072013172303ea/);
+  assert.match(bootstrap, /PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q/);
+  assert.match(bootstrap, /ssh-keygen -lf ~\/\.ssh\/known_hosts/);
+  assert.doesNotMatch(bootstrap, /StrictHostKeyChecking=accept-new/);
   assert.match(installer, /EXPECTED_WRAPPER_SHA256="7eb9470a50108a3de9070c6f3d4e454ce74f9da88e6aa2b6d2248d3fb9707335"/);
   const secretFree = bootstrap.slice(
     bootstrap.indexOf('  validate-and-seal:'),
