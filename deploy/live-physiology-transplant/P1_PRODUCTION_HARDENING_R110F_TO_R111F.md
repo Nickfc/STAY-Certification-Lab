@@ -1,5 +1,20 @@
 # P1 production hardening: R110F to R111F
 
+## V8 completed-benchmark evidence fence
+
+The V8 transport candidate accepts the completed R110F collector only when its
+systemd unit ended normally after the full 72-hour window and its 12-hour
+milestone, 72-hour milestone, canonical state, and 4,311-record append-only
+sample ledger match their pinned SHA-256 identities. The terminal record must
+also prove the expected fenced SNTSS `RESYNC_REQUIRED` state while BSF,
+Chronobiology, SQLite, fetus continuity, and authority containment remain
+intact. An active, partial, restarted, corrupt, differently failed, or
+successfully passing R110F collector is refused.
+
+The completed terminal state does not waive the failed benchmark. It seals the
+failure as immutable diagnostic evidence before the existing one-shot R111 cold
+recovery and starts an entirely new v3 72-hour zero-fault benchmark.
+
 ## V7 deterministic deadline fault proof
 
 The V7 transport candidate replaces the finite 300 ms injected delay with a
@@ -33,7 +48,7 @@ R111F is accepted only when BSF is live, SNTSS I4-G1 and Chronobiology C3 are he
 
 Before stopping the R110F collector or changing `/opt/stay/current`, the forward script:
 
-1. verifies the host, active R110F release, R108F/R110F freeze chain, R110F 12-hour evidence digest, runtime drop-in, sandbox helper, resident socket, and all staged hashes;
+1. verifies the host, active R110F release, R108F/R110F freeze chain, exact completed R110F 12-hour/72-hour/state/ledger evidence, normal collector termination, runtime drop-in, sandbox helper, resident socket, and all staged hashes;
 2. captures the R110F resident and durable recovery baseline read-only;
 3. builds an immutable candidate and proves the I4-G1 tree is byte-identical to the source release;
 4. promotes the complete CoreHost client, wrapper, supervisor, worker, sandbox, protocol, package-policy, cgroup and resource-governor cohort atomically, copies the exact forward recipe into the candidate for self-audit, and rejects any release recipe that omits a cohort member;
@@ -47,7 +62,7 @@ Any failure before the committed service restart restores the original pointer a
 
 ## Forward transition
 
-The transition closes the failed R110F benchmark with immutable evidence, installs a one-shot R111 cold-resynchronization contract, points to the candidate, and performs one deliberate `stay.service` restart. It then removes the one-shot drop-in without another restart, proves SNTSS and Chronobiology recovery, runs a 130-second live progression gate, creates and verifies `/var/lib/stay/evidence/runtime-freezes/R111.json`, verifies `R111F` public metadata, and starts a clean v3 72-hour collector.
+The transition seals the completed failed R110F benchmark with immutable evidence, installs a one-shot R111 cold-resynchronization contract, points to the candidate, and performs one deliberate `stay.service` restart. It then removes the one-shot drop-in without another restart, proves SNTSS and Chronobiology recovery, runs a 130-second live progression gate, creates and verifies `/var/lib/stay/evidence/runtime-freezes/R111.json`, verifies `R111F` public metadata, and starts a clean v3 72-hour collector.
 
 If a failure occurs after the committed restart, the script does not pretend that rollback preserved the organism. It leaves the forward generation running and archives exact evidence for the recovery script.
 

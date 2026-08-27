@@ -8,6 +8,9 @@ const REVISION = 111;
 const PARENT_REVISION = 110;
 const PARENT_RECORD_SHA256 = 'sha256:da7ad05dd0044754b81d599617d03a86d4cc31e208e39710d167f15c8c163989';
 const R110_12H_SHA256 = 'sha256:1fbf5e7b854204278a7ee7967dfc0c9016d1eeb5b281eb7a5289fd66d3b88007';
+const R110_72H_SHA256 = 'sha256:67551f663c79efb6d106ca4f6e9c16557917d24b64bbe2b2592f27820065b504';
+const R110_STATE_SHA256 = 'sha256:a215023bac35f1c12b8ba9b8021b7ebc16e131f153623a48a0a3c891814fd61a';
+const R110_SAMPLES_SHA256 = 'sha256:53cbbffc750534c5e5aadc056845f31bf88afc4f850cd1e23800371a8bdd5237';
 const I4_POLICY_SHA256 = 'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d';
 const MIB = 1024 * 1024;
 
@@ -202,9 +205,17 @@ function assertFoundation({ sample, state, parent, recovery, preflight, closure,
     preflight?.faultContainment?.committedCount === 1 &&
     Number(preflight?.faultContainment?.recoveredGeneration) >
       Number(preflight?.faultContainment?.failedGeneration) &&
-    closure?.format === 'stay-physiology-benchmark-closure-v3' &&
+    closure?.format === 'stay-physiology-benchmark-closure-v4' &&
     closure?.revisionLabel === 'R110F' && closure?.result === 'OBSERVED_FAILURES' &&
-    closure?.source12hSha256 === R110_12H_SHA256 && closure?.evidenceRetained === true &&
+    closure?.source12hSha256 === R110_12H_SHA256 &&
+    closure?.source72hSha256 === R110_72H_SHA256 &&
+    closure?.sourceStateSha256 === R110_STATE_SHA256 &&
+    closure?.sourceSamplesSha256 === R110_SAMPLES_SHA256 &&
+    Number(closure?.terminal?.elapsedMs) >= 72 * 60 * 60 * 1000 &&
+    Number(closure?.terminal?.samples) === 4311 &&
+    Number(closure?.terminal?.failures) === 3596 &&
+    Number(closure?.terminal?.observedFailureCount) === 3606 &&
+    closure?.evidenceRetained === true &&
     soak?.format === 'stay-production-hardening-live-soak-v1' && soak?.result === 'PASS' &&
     Number(soak?.elapsedMs) >= 125000 && Number(soak?.residentProcessTransitions) === 0 &&
     Number(soak?.newCoreHostFaults) === 0 && Number(soak?.newMaintenanceFailures) === 0 &&
@@ -340,8 +351,13 @@ function createRecord(input) {
         state.historicalContinuity.prunedRowsAcceptedByImmutableCommitment
     },
     r110Diagnostic: {
-      milestone: '12h',
-      evidenceSha256: R110_12H_SHA256,
+      milestone: '72h',
+      firstFailureMilestone: '12h',
+      evidenceSha256: R110_72H_SHA256,
+      firstFailureEvidenceSha256: R110_12H_SHA256,
+      terminalStateSha256: R110_STATE_SHA256,
+      sampleLedgerSha256: R110_SAMPLES_SHA256,
+      sampleLedgerRecords: Number(closure.terminal.samples),
       result: 'OBSERVED_FAILURES',
       rootCause: 'NON_ATOMIC_COREHOST_TIMEOUT_RECOVERY_AND_TWO_PROCESS_RESOURCE_ACCOUNTING',
       evidenceRetained: true,

@@ -11,6 +11,9 @@ PARENT_FREEZE='/var/lib/stay/evidence/runtime-freezes/R110.json'
 HISTORICAL_FREEZE='/var/lib/stay/evidence/runtime-freezes/R108.json'
 R110_BENCHMARK_ROOT='/var/lib/stay/evidence/physiology-benchmark/R110F'
 R110_12H="$R110_BENCHMARK_ROOT/12h.json"
+R110_72H="$R110_BENCHMARK_ROOT/72h.json"
+R110_BENCHMARK_STATE="$R110_BENCHMARK_ROOT/state.json"
+R110_BENCHMARK_SAMPLES="$R110_BENCHMARK_ROOT/samples.jsonl"
 R110_CLOSURE="$R110_BENCHMARK_ROOT/production-hardening-closure.json"
 RUNTIME_DROPIN='/etc/systemd/system/stay.service.d/p1-b0-resident-runtime.conf'
 ONE_SHOT_DROPIN='/etc/systemd/system/stay.service.d/p1-r111-cold-recovery-once.conf'
@@ -73,7 +76,6 @@ NEW_RELEASE=''
 TARGET_CREATED=0
 POINTER_CHANGED=0
 RESTART_COMMITTED=0
-OLD_BENCHMARK_STOPPED=0
 CLOSURE_CREATED=0
 ONE_SHOT_CREATED=0
 FREEZE_INSTALLED=0
@@ -151,9 +153,6 @@ cleanup() {
     if [[ "$CLOSURE_CREATED" -eq 1 && -f "$R110_CLOSURE" && ! -L "$R110_CLOSURE" ]]; then
       rm -f -- "$R110_CLOSURE"
     fi
-    if [[ "$OLD_BENCHMARK_STOPPED" -eq 1 ]]; then
-      systemctl start stay-p1-physiology-benchmark.service >/dev/null 2>&1 || true
-    fi
     if [[ "$TARGET_CREATED" -eq 1 && "$NEW_RELEASE" == /opt/stay/releases/0.8.11.3-p1j-production-hardening-* && -d "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]]; then
       rm -rf --one-file-system -- "$NEW_RELEASE"
     fi
@@ -179,7 +178,9 @@ trap cleanup EXIT
   abort authorization-required 1102
 
 phase 'IMMUTABLE INPUTS'
-for file in "$DATABASE" "$PARENT_FREEZE" "$HISTORICAL_FREEZE" "$R110_12H" "$RUNTIME_DROPIN" "$BWRAP" "$SOURCE_MANIFEST"; do
+for file in "$DATABASE" "$PARENT_FREEZE" "$HISTORICAL_FREEZE" \
+  "$R110_12H" "$R110_72H" "$R110_BENCHMARK_STATE" "$R110_BENCHMARK_SAMPLES" \
+  "$RUNTIME_DROPIN" "$BWRAP" "$SOURCE_MANIFEST"; do
   [[ -f "$file" && ! -L "$file" ]] || abort immutable-input-invalid 1103
 done
 [[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-control-socket-invalid 1104
@@ -190,8 +191,20 @@ done
 [[ "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]] || abort unexpected-current-release 1108
 [[ "$(systemctl show stay.service -p ActiveState --value)" == active &&
    "$(systemctl show stay.service -p SubState --value)" == running ]] || abort stay-service-not-running 1109
-[[ "$(systemctl show stay-p1-physiology-benchmark.service -p ActiveState --value)" == active ]] ||
-  abort r110-benchmark-not-active 1110
+benchmark_active_state="$(systemctl show stay-p1-physiology-benchmark.service -p ActiveState --value)"
+benchmark_sub_state="$(systemctl show stay-p1-physiology-benchmark.service -p SubState --value)"
+benchmark_result="$(systemctl show stay-p1-physiology-benchmark.service -p Result --value)"
+benchmark_exec_code="$(systemctl show stay-p1-physiology-benchmark.service -p ExecMainCode --value)"
+benchmark_exec_status="$(systemctl show stay-p1-physiology-benchmark.service -p ExecMainStatus --value)"
+benchmark_unit_state="$(systemctl show stay-p1-physiology-benchmark.service -p UnitFileState --value)"
+benchmark_start_mono="$(systemctl show stay-p1-physiology-benchmark.service -p ExecMainStartTimestampMonotonic --value)"
+benchmark_exit_mono="$(systemctl show stay-p1-physiology-benchmark.service -p ExecMainExitTimestampMonotonic --value)"
+[[ "$benchmark_active_state" == inactive && "$benchmark_sub_state" == dead &&
+   "$benchmark_result" == success && "$benchmark_exec_code" == 1 &&
+   "$benchmark_exec_status" == 0 && "$benchmark_unit_state" == enabled &&
+   "$benchmark_start_mono" =~ ^[0-9]+$ && "$benchmark_exit_mono" =~ ^[0-9]+$ &&
+   "$benchmark_start_mono" -gt 0 && "$benchmark_exit_mono" -gt "$benchmark_start_mono" ]] ||
+  abort r110-benchmark-terminal-state-invalid 1110
 
 for file in "$CONTROL_CLIENT" "$STATE_HELPER" "$LIVE_PROOF" "$PREFLIGHT" "$FREEZE_HELPER" "$BENCHMARK_HELPER"; do
   [[ -f "$file" && ! -L "$file" ]] || abort helper-invalid 1111
@@ -269,10 +282,23 @@ STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$CONTROL_CLIENT" status resident:ch
 STAY_DATABASE="$DATABASE" node "$LIVE_PROOF" before \
   "$WORK/sntss.before.json" "$WORK/chronobiology.before.json" > \
   "$WORK/recovery.before.json" || abort r110-recovery-baseline-invalid 1123
-node "$LIVE_PROOF" closure "$R110_12H" > "$WORK/r110-closure.json" ||
+node "$LIVE_PROOF" closure \
+  "$R110_12H" "$R110_72H" "$R110_BENCHMARK_STATE" "$R110_BENCHMARK_SAMPLES" > \
+  "$WORK/r110-closure.json" ||
   abort r110-closure-invalid 1124
 install -o root -g root -m 0400 "$RUNTIME_DROPIN" "$WORK/runtime-dropin.before"
 install -o root -g root -m 0400 "$R110_12H" "$WORK/r110-12h.json"
+install -o root -g root -m 0400 "$R110_72H" "$WORK/r110-72h.json"
+cat > "$WORK/r110-benchmark-terminal.env" <<EOF
+ACTIVE_STATE=$benchmark_active_state
+SUB_STATE=$benchmark_sub_state
+RESULT=$benchmark_result
+EXEC_MAIN_CODE=$benchmark_exec_code
+EXEC_MAIN_STATUS=$benchmark_exec_status
+UNIT_FILE_STATE=$benchmark_unit_state
+EXEC_MAIN_START_MONOTONIC=$benchmark_start_mono
+EXEC_MAIN_EXIT_MONOTONIC=$benchmark_exit_mono
+EOF
 
 phase 'BUILD IMMUTABLE R111 CANDIDATE'
 CANDIDATE="$(mktemp -d /opt/stay/releases/.p1j-production-hardening.XXXXXX)"
@@ -379,9 +405,10 @@ CANDIDATE=''
 TARGET_CREATED=1
 chmod -R a-w "$NEW_RELEASE"
 
-phase 'CLOSE FAILED R110F BENCHMARK'
-systemctl stop stay-p1-physiology-benchmark.service || abort r110-benchmark-stop-failed 1125
-OLD_BENCHMARK_STOPPED=1
+phase 'SEAL COMPLETED FAILED R110F BENCHMARK'
+[[ "$(systemctl show stay-p1-physiology-benchmark.service -p ActiveState --value)" == inactive &&
+   "$(systemctl show stay-p1-physiology-benchmark.service -p Result --value)" == success ]] ||
+  abort r110-benchmark-terminal-state-changed 1125
 install -o root -g root -m 0400 "$WORK/r110-closure.json" "$R110_CLOSURE"
 CLOSURE_CREATED=1
 
