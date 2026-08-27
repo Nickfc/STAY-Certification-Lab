@@ -15,10 +15,44 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
+      - name: Install required OS sandbox
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap
+          sudo tee /usr/local/bin/stay-ci-bwrap >/dev/null <<'EOF'
+          #!/bin/sh
+          exec sudo -n /usr/bin/bwrap "$@"
+          EOF
+          sudo chown root:root /usr/local/bin/stay-ci-bwrap
+          sudo chmod 0755 /usr/local/bin/stay-ci-bwrap
+          sudo -n true
+          test -x /usr/local/bin/stay-ci-bwrap
+      - name: Prepare sandbox-readable validation tree
+        run: |
+          git clone --no-hardlinks "$GITHUB_WORKSPACE" /tmp/stay-ci-source
+          test "$(git -C /tmp/stay-ci-source rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git -C /tmp/stay-ci-source status --porcelain)"
+          find /tmp/stay-ci-source -type d -exec chmod a+rx {} +
+      - name: Run real entry preflight
+        working-directory: /tmp/stay-ci-source
+        env:
+          STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
+        run: >-
+          node --test --test-concurrency=1
+          --test-name-pattern='the real preflight CLI entry passes through Bubblewrap on Linux'
+          test/production-hardening-entry-path.test.js
+      - name: Run secure server entry preflight
+        working-directory: /tmp/stay-ci-source
+        env:
+          STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
+        run: node --test --test-concurrency=1 test/r11-m01-operator-status.test.js
       - name: Run STAY tests
+        working-directory: /tmp/stay-ci-source
+        env:
+          STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
         run: npm test

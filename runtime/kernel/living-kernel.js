@@ -26,10 +26,18 @@ class LivingKernel {
     snapshotRetention = Number(process.env.STAY_SNAPSHOT_RETENTION || 24),
     releaseRoot = path.resolve(__dirname, '..', '..'),
     trustedOrganismTime = null,
+    enableTrustedOrganismTime =
+      process.env.STAY_ENABLE_TRUSTED_ORGANISM_TIME === '1',
     durableResidentsDisabled =
       process.env.STAY_DISABLE_DURABLE_RESIDENTS === '1',
     allowLaboratoryResidentAttachment =
       process.env.STAY_REQUIRE_CORE_PROMOTION_CERT !== '1',
+
+    allowBoundedChronobiologyShadowAttachment =
+      process.env.STAY_ALLOW_CHRONOBIOLOGY_SHADOW_ATTACH === '1',
+
+    allowBoundedSntssContinuityGenesisPromotion =
+      process.env.STAY_ALLOW_SNTSS_I4G_PROMOTION === '1',
 
     residentPromotionPublicKeyPath =
       process.env.STAY_CORE_PROMOTION_PUBLIC_KEY ||
@@ -70,6 +78,12 @@ class LivingKernel {
     this.trustedOrganismTime =
       trustedOrganismTime;
 
+    this.enableTrustedOrganismTime =
+      Boolean(enableTrustedOrganismTime);
+
+    this.ownsTrustedOrganismTime =
+      false;
+
     this.durableResidentsDisabled =
       Boolean(durableResidentsDisabled);
 
@@ -99,6 +113,12 @@ class LivingKernel {
       Boolean(
         allowLaboratoryResidentAttachment
       );
+
+    this.allowBoundedChronobiologyShadowAttachment =
+      Boolean(allowBoundedChronobiologyShadowAttachment);
+
+    this.allowBoundedSntssContinuityGenesisPromotion =
+      Boolean(allowBoundedSntssContinuityGenesisPromotion);
 
     this.residentPromotionPublicKeyPath =
       String(
@@ -153,8 +173,25 @@ class LivingKernel {
     const {
       ResidentManager,
       L0_SNTSS_CONTRACT,
+      I4G_SNTSS_CONTRACT,
       CHRONOBIOLOGY_RESIDENT_CONTRACT
     } = require('./resident-manager');
+
+    const durableSntss =
+      this.stateStore
+        .getResident(
+          'resident:sntss'
+        );
+
+    const sntssContract =
+      durableSntss?.version ===
+        I4G_SNTSS_CONTRACT.version &&
+      durableSntss?.stateSchema ===
+        I4G_SNTSS_CONTRACT.stateSchema &&
+      durableSntss?.moduleRelativePath ===
+        'cores/sntss/i4g/index.js'
+        ? I4G_SNTSS_CONTRACT
+        : L0_SNTSS_CONTRACT;
 
     this.residentManager =
       new ResidentManager({
@@ -178,7 +215,7 @@ class LivingKernel {
 
         contracts:
           [
-            L0_SNTSS_CONTRACT,
+            sntssContract,
             CHRONOBIOLOGY_RESIDENT_CONTRACT
           ]
       });
@@ -206,6 +243,44 @@ class LivingKernel {
     if (!existing) await this.stateStore.writeLife('identity', this.identity);
     if (!this.identity.organismId || !this.identity.createdAt || this.identity.lineage !== 'STAY/Genesis') {
       throw Object.assign(new Error('organism identity is incomplete or inconsistent'), { code: 'IDENTITY_INVALID' });
+    }
+
+    if (
+      this.enableTrustedOrganismTime &&
+      this.trustedOrganismTime === null
+    ) {
+      const {
+        TrustedOrganismTime,
+        BOOTSTRAP_PROTOCOL
+      } = require('./trusted-organism-time');
+
+      this.trustedOrganismTime =
+        new TrustedOrganismTime({
+          stateStore:
+            this.stateStore,
+
+          organismId:
+            this.identity.organismId
+        });
+
+      this.ownsTrustedOrganismTime =
+        true;
+
+      await this.trustedOrganismTime.start({
+        bootstrap: {
+          protocol:
+            BOOTSTRAP_PROTOCOL,
+
+          organismId:
+            this.identity.organismId,
+
+          trustedTimeUs:
+            0,
+
+          proofId:
+            'p1-r98f-chronobiology-shadow-bootstrap-v1'
+        }
+      });
     }
 
     const revisionState = await this.stateStore.readLife('runtime-revision', { revision: 0 });
@@ -245,10 +320,17 @@ class LivingKernel {
     ) {
       this.ensureResidentManager();
 
+      const ordinaryRecovery =
+        await this.recoverDurableResidents();
+
+      const coldRecovery =
+        await this.recoverColdFailedResidents();
+
       this.lastResidentRecovery =
-        Object.freeze(
-          await this.recoverDurableResidents()
-        );
+        Object.freeze([
+          ...ordinaryRecovery,
+          ...coldRecovery
+        ]);
     }
 
     await this.stateStore.appendJournal({
@@ -312,6 +394,26 @@ class LivingKernel {
 
   async writeHeartbeat() {
     const cores = await this.registry.status();
+
+    if (
+      this.residentManager &&
+      !this.residentManager.closed
+    ) {
+      try {
+        await this.residentManager
+          .maintainResidentOutboxes();
+
+        this.clearMaintenanceError(
+          'resident-outbox'
+        );
+      } catch (error) {
+        this.recordMaintenanceError(
+          'resident-outbox',
+          error
+        );
+      }
+    }
+
     this.lastBiologicalRetention = this.stateStore.pruneBiologicalEvents({ retainCount: 4096 });
     await this.stateStore.writeLife('event-sequence', {
       sequence: this.fabric.sequence,
@@ -538,11 +640,30 @@ class LivingKernel {
         moduleRelativePath
       );
 
-    const { loadAndVerifyResidentPromotion } =
+    const { loadAndVerifyResidentPromotion, CHRONOBIOLOGY_AUTHORIZATION_CLASS } =
       require('./resident-promotion-authority');
 
-    const authorization =
-      loadAndVerifyResidentPromotion({
+    const boundedChronobiologyShadow =
+      this.allowBoundedChronobiologyShadowAttachment &&
+      inspected.contract?.residencyId === 'resident:chronobiology' &&
+      inspected.contract?.coreId === 'chronobiology' &&
+      inspected.contract?.version === '1.0.0-c3rc.1' &&
+      inspected.contract?.stateSchema === 2 &&
+      inspected.contract?.stage === 'c3-shadow-release-candidate' &&
+      inspected.contract?.productionEligible === false &&
+      inspected.contract?.authorityMode === 'shadow' &&
+      inspected.contract?.signalling === 'LAB_SHADOW_ONLY' &&
+      inspected.contract?.packagePolicyHash === 'sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820';
+
+    const authorization = boundedChronobiologyShadow
+      ? Object.freeze({
+          ok: true,
+          certificateId: null,
+          authorizationClass: CHRONOBIOLOGY_AUTHORIZATION_CLASS,
+          boundedShadowAuthorization: true,
+          laboratoryBypass: false
+        })
+      : loadAndVerifyResidentPromotion({
         inspected,
 
         action:
@@ -552,7 +673,7 @@ class LivingKernel {
           this.identity,
 
         contract:
-          manager.contract,
+          inspected.contract,
 
         required:
           !this
@@ -576,7 +697,7 @@ class LivingKernel {
           new Date().toISOString(),
 
         residencyId:
-          manager.contract
+          inspected.contract
             .residencyId,
 
         coreId:
@@ -600,7 +721,11 @@ class LivingKernel {
 
         laboratoryBypass:
           authorization
-            .laboratoryBypass === true
+            .laboratoryBypass === true,
+
+        boundedShadowAuthorization:
+          authorization
+            .boundedShadowAuthorization === true
       });
 
     const binding =
@@ -661,6 +786,175 @@ class LivingKernel {
 
         runtimeRevision:
           this.runtimeRevision
+      });
+
+    return unit;
+  }
+
+
+  async promoteSntssContinuityGenesis() {
+    if (
+      !this
+        .allowBoundedSntssContinuityGenesisPromotion
+    ) {
+      throw Object.assign(
+        new Error(
+          'bounded SNTSS continuity-genesis promotion is not enabled'
+        ),
+        {
+          code:
+            'SNTSS_I4G_PROMOTION_NOT_AUTHORIZED'
+        }
+      );
+    }
+
+    const manager =
+      this.ensureResidentManager();
+
+    const binding =
+      await this.ensureOrganismBinding({
+        allowCreate:
+          false
+      });
+
+    const parentFreezeRecordSha256 =
+      'sha256:78021d86da8038e298fedb46b7371a46e1bc1e4d1cb0624205a864877ca22875';
+
+    const unit =
+      await manager
+        .promoteSntssContinuityGenesis({
+          moduleRelativePath:
+            'cores/sntss/i4g/index.js',
+
+          binding,
+
+          publishGenesis:
+            async ({
+              sourceCheckpoint
+            }) => {
+              const signalId =
+                'runtime.sntss.continuity-genesis.r105f.' +
+                sourceCheckpoint.blobHash;
+
+              const existing =
+                this.stateStore
+                  .getBiologicalEventByDeduplicationKey(
+                    signalId
+                  );
+
+              if (existing) {
+                return existing;
+              }
+
+              await this.bumpRuntimeRevision(
+                'resident.sntss-continuity-genesis',
+                {
+                  residencyId:
+                    'resident:sntss',
+                  fromVersion:
+                    '0.4.0-i3d3',
+                  toVersion:
+                    '0.5.0-i4g1',
+                  sourceCheckpointGeneration:
+                    sourceCheckpoint.generation,
+                  sourceCheckpointHash:
+                    sourceCheckpoint.blobHash
+                }
+              );
+
+              const wallClockMs =
+                Math.max(
+                  Number(this.clock()),
+                  Number(binding.issuedAt)
+                );
+
+              const signal =
+                createSignal({
+                  signalId,
+
+                  topic:
+                    'runtime.sntss.continuity-genesis',
+
+                  payload: {
+                    formatVersion:
+                      1,
+                    authorization:
+                      'R13_SNTSS_CONTINUITY_GENESIS_SHADOW',
+                    organismIdentitySha256:
+                      manager.organismIdentityHash,
+                    parentFreezeRevision:
+                      105,
+                    parentFreezeRecordSha256,
+                    runtimeRevision:
+                      this.runtimeRevision,
+                    seedHex:
+                      crypto
+                        .randomBytes(32)
+                        .toString('hex'),
+                    sourceCheckpointGeneration:
+                      sourceCheckpoint.generation,
+                    sourceCheckpointHash:
+                      `sha256:${sourceCheckpoint.blobHash}`
+                  },
+
+                  trustedTime: {
+                    source:
+                      'kernel',
+                    observedAtMs:
+                      wallClockMs
+                  },
+
+                  provenance: {
+                    producerType:
+                      'kernel',
+                    producerId:
+                      'living-kernel',
+                    authorityEpoch:
+                      this.runtimeRevision
+                  },
+
+                  durability:
+                    DURABILITY.DURABLE
+                });
+
+              return this.fabric
+                .publishBiologicalSignal(
+                  signal,
+                  {
+                    eventClass:
+                      'critical',
+                    sourceVersion:
+                      KERNEL_VERSION,
+                    evidenceHash:
+                      parentFreezeRecordSha256
+                  }
+                );
+            }
+        });
+
+    this.statusCache =
+      null;
+
+    await this.stateStore
+      .appendJournal({
+        type:
+          'resident.sntss-continuity-genesis-promoted',
+        at:
+          new Date().toISOString(),
+        residencyId:
+          unit.residencyId,
+        instanceId:
+          unit.resident.instanceId,
+        version:
+          unit.manifest.version,
+        stateSchema:
+          unit.manifest.stateSchema,
+        runtimeRevision:
+          this.runtimeRevision,
+        authorityMode:
+          'NONE',
+        outputs:
+          0
       });
 
     return unit;
@@ -788,7 +1082,7 @@ class LivingKernel {
           this.identity,
 
         contract:
-          manager.contract,
+          inspected.contract,
 
         required:
           !this
@@ -1251,6 +1545,149 @@ class LivingKernel {
     return results;
   }
 
+  async recoverColdFailedResidents() {
+    const expectedRevision =
+      Number(
+        process.env
+          .STAY_RECOVER_COLD_RESIDENTS_AT_REVISION
+      );
+
+    if (
+      !Number.isSafeInteger(
+        expectedRevision
+      ) ||
+      expectedRevision < 1 ||
+      expectedRevision !==
+        this.runtimeRevision
+    ) {
+      return [];
+    }
+
+    const candidates = [
+      {
+        residencyId:
+          'resident:sntss',
+        status:
+          'RESYNC_REQUIRED',
+        allowColdQuarantine:
+          false
+      },
+      {
+        residencyId:
+          'resident:sntss',
+        status:
+          'QUARANTINED',
+        allowColdQuarantine:
+          true
+      },
+      {
+        residencyId:
+          'resident:chronobiology',
+        status:
+          'RESYNC_REQUIRED',
+        allowColdQuarantine:
+          false
+      }
+    ].filter(candidate =>
+      this.stateStore
+        .getResident(
+          candidate.residencyId
+        )
+        ?.status ===
+          candidate.status
+    );
+
+    if (!candidates.length) {
+      return [];
+    }
+
+    const manager =
+      this.ensureResidentManager();
+
+    const binding =
+      await this.ensureOrganismBinding({
+        allowCreate:
+          false
+      });
+
+    const results = [];
+
+    for (const candidate of candidates) {
+      try {
+        const recovered =
+          await manager.resynchronize(
+            candidate.residencyId,
+            binding,
+            this.runtimeRevision,
+            {
+              allowColdQuarantine:
+                candidate
+                  .allowColdQuarantine
+            }
+          );
+
+        results.push({
+          residencyId:
+            candidate.residencyId,
+          recovered:
+            true,
+          coldRecovery:
+            true,
+          abandonedCount:
+            recovered.record
+              .abandonedCount,
+          status:
+            'RUNNING'
+        });
+      } catch (error) {
+        try {
+          this.stateStore
+            .setResidentStatus(
+              candidate.residencyId,
+              candidate.status
+            );
+        } catch {}
+
+        try {
+          this.stateStore
+            .recordRecovery(
+              'resident.cold-recovery-failed',
+              this.stateStore
+                .getResident(
+                  candidate.residencyId
+                )
+                ?.coreId || null,
+              {
+                residencyId:
+                  candidate.residencyId,
+                expectedRevision,
+                code:
+                  error.code || null,
+                message:
+                  error.message
+              }
+            );
+        } catch {}
+
+        results.push({
+          residencyId:
+            candidate.residencyId,
+          recovered:
+            false,
+          coldRecovery:
+            true,
+          code:
+            error.code || null
+        });
+      }
+    }
+
+    this.statusCache =
+      null;
+
+    return results;
+  }
+
   async publishTimePulse(clockStatus = 'trusted') {
     if (!['trusted', 'degraded', 'uncertain'].includes(clockStatus)) throw Object.assign(new Error('invalid runtime clock status'), { code: 'RUNTIME_CLOCK_STATUS' });
 
@@ -1490,9 +1927,13 @@ class LivingKernel {
               (
                 resident.status ===
                   'RUNNING' &&
-                resident.health &&
-                resident.health.ok ===
-                  false
+                (
+                  resident.running !== true ||
+                  !resident.health ||
+                  resident.health.ok !== true ||
+                  resident.terminalPersistenceError ||
+                  resident.teardownError
+                )
               )
             )
         )

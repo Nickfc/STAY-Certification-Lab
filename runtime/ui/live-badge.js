@@ -41,8 +41,31 @@
   badge.style.cssText = 'border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(12,15,19,.84);backdrop-filter:blur(14px);color:inherit;padding:8px 11px;font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-shadow:0 8px 28px rgba(0,0,0,.28);cursor:pointer;';
   host.appendChild(badge);
 
+  const physiologyHost = document.createElement('div');
+  physiologyHost.id = 'stay-physiology-strip';
+  physiologyHost.setAttribute('aria-label', 'STAY live physiology status');
+  physiologyHost.style.cssText = 'display:none;position:fixed;z-index:2147483646;left:20px;top:158px;align-items:center;flex-wrap:wrap;justify-content:flex-start;gap:6px;max-width:calc(100vw - 40px);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:white;pointer-events:none;';
+  document.body.appendChild(physiologyHost);
+
+  function positionPhysiologyHost() {
+    const candidates = [...document.querySelectorAll('h1,h2,[class*="brand"],[class*="logo"],header *')];
+    const brand = candidates.find((element) => String(element.textContent || '').trim().toUpperCase() === 'STAY');
+    if (!brand) {
+      physiologyHost.style.left = '20px';
+      physiologyHost.style.top = '158px';
+      return;
+    }
+    const rect = brand.getBoundingClientRect();
+    physiologyHost.style.left = `${Math.max(14, Math.ceil(rect.left))}px`;
+    physiologyHost.style.top = `${Math.ceil(rect.bottom + 8)}px`;
+  }
+
+  positionPhysiologyHost();
+  requestAnimationFrame(positionPhysiologyHost);
+  window.addEventListener('resize', positionPhysiologyHost);
+
   const panel = document.createElement('div');
-  panel.style.cssText = 'display:none;position:absolute;top:42px;right:0;width:320px;max-width:calc(100vw - 28px);border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(12,15,19,.94);backdrop-filter:blur(18px);color:inherit;padding:12px;font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-shadow:0 12px 42px rgba(0,0,0,.36);';
+  panel.style.cssText = 'display:none;position:absolute;top:42px;right:0;width:360px;max-width:calc(100vw - 28px);border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(12,15,19,.94);backdrop-filter:blur(18px);color:inherit;padding:12px;font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-shadow:0 12px 42px rgba(0,0,0,.36);';
   host.appendChild(panel);
 
   panel.innerHTML = `
@@ -50,6 +73,8 @@
     <div>STAY <b id="stay-version">—</b></div>
     <div style="margin-top:6px">runtime revision <b id="stay-revision">—</b></div>
     <div id="stay-cores" style="margin-top:6px"></div>
+    <div id="stay-systems" style="margin-top:9px"></div>
+    <div id="stay-residents" style="margin-top:9px"></div>
     <div style="height:1px;background:rgba(255,255,255,.10);margin:12px 0"></div>
     <label style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:6px">
       <span>Compute engine</span>
@@ -80,6 +105,8 @@
   const versionEl = panel.querySelector('#stay-version');
   const revisionEl = panel.querySelector('#stay-revision');
   const coresEl = panel.querySelector('#stay-cores');
+  const systemsEl = panel.querySelector('#stay-systems');
+  const residentsEl = panel.querySelector('#stay-residents');
   const slider = panel.querySelector('#stay-compute-slider');
   const valueEl = panel.querySelector('#stay-compute-value');
   const effectiveEl = panel.querySelector('#stay-compute-effective');
@@ -94,12 +121,46 @@
   let previousFingerprint = '';
 
   const esc = (v) => String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const revisionLabel = (meta) => {
+    if (typeof meta?.revisionLabel === 'string' && /^R[0-9]+F?$/.test(meta.revisionLabel)) return meta.revisionLabel;
+    return `R${meta?.revision ?? '?'}${meta?.revisionFrozen === true ? 'F' : ''}`;
+  };
 
   function updateBadge() {
     if (!latestMeta) return;
     const plan = window.__stayComputePlan || {};
     const engine = String(plan.engineResolved || selectedEngine || 'auto').toUpperCase();
-    badge.textContent = `${latestMeta.ok === false ? '○' : '●'} LIVE · v${latestMeta.version || '?'} · R${latestMeta.revision ?? '?'} · ${engine} ${selectedPercent}%`;
+    badge.textContent = `${latestMeta.ok === false ? '○' : '●'} LIVE · v${latestMeta.version || '?'} · ${revisionLabel(latestMeta)} · ${engine} ${selectedPercent}%`;
+  }
+
+  function renderPhysiology(systems, residents) {
+    const liveSystems = systems.filter((system) => system && system.running === true);
+    const present = residents.filter((resident) => resident && resident.running === true);
+    const chips = liveSystems.map((system) => {
+      const color = '#8debb2';
+      const label = String(system.label || system.id || 'SYSTEM').toUpperCase();
+      return `<span style="border:1px solid ${color}55;border-radius:999px;background:${color}16;color:${color};padding:4px 7px;font-size:9px;letter-spacing:.05em;white-space:nowrap"><b>● ${esc(label)}</b> · ${esc(system.mode || 'LIVE')}</span>`;
+    }).concat(present.map((resident) => {
+      const shadow = resident.mode === 'SHADOW';
+      const color = shadow ? '#c8a7ff' : '#89e5ff';
+      const label = resident.coreId === 'chronobiology' ? 'CHRONOBIOLOGY' : String(resident.coreId || resident.residencyId || 'RESIDENT').toUpperCase();
+      return `<span style="border:1px solid ${color}55;border-radius:999px;background:${color}16;color:${color};padding:4px 7px;font-size:9px;letter-spacing:.05em;white-space:nowrap"><b>● ${esc(label)}</b> · ${esc(resident.mode || 'NEUTRAL')}</span>`;
+    }));
+    physiologyHost.style.display = chips.length ? 'flex' : 'none';
+    physiologyHost.innerHTML = chips.join('');
+    positionPhysiologyHost();
+    systemsEl.innerHTML = systems.length
+      ? `<div style="opacity:.55;margin-bottom:5px;letter-spacing:.08em">BIOLOGICAL FABRIC</div>${systems.map((system) => {
+          const ok = system.running && system.healthOk !== false;
+          return `<div style="margin-top:6px"><span style="color:${ok ? '#8debb2' : '#ff9a9a'}">${ok ? '●' : '○'}</span> ${esc(system.label || system.id || 'system')} · ${esc(system.mode || 'LIVE')} · ${esc(system.status || 'UNKNOWN')} · E${Number(system.events || 0).toLocaleString()} · P${Number(system.pendingDeliveries || 0).toLocaleString()} · C${Number(system.activeConsumers || 0).toLocaleString()}</div>`;
+        }).join('')}`
+      : '<div style="opacity:.55">Biological fabric unavailable</div>';
+    residentsEl.innerHTML = residents.length
+      ? `<div style="opacity:.55;margin-bottom:5px;letter-spacing:.08em">RESIDENT PHYSIOLOGY</div>${residents.map((resident) => {
+          const ok = resident.running && resident.healthOk !== false;
+          return `<div style="margin-top:6px"><span style="color:${ok ? '#8debb2' : '#ff9a9a'}">${ok ? '●' : '○'}</span> ${esc(resident.coreId || resident.residencyId)} <b>v${esc(resident.version || '?')}</b> · ${esc(resident.mode || 'NEUTRAL')} · ${esc(resident.status || 'UNKNOWN')} · G${Number(resident.checkpointGeneration || 0).toLocaleString()} · E${Number(resident.handledEvents || 0).toLocaleString()} · O${Number(resident.observedOutputs || 0).toLocaleString()}</div>`;
+        }).join('')}`
+      : '<div style="opacity:.55">No resident physiology attached</div>';
   }
 
   function updateComputeReadout() {
@@ -220,11 +281,13 @@
       const meta = await response.json();
       latestMeta = meta;
       const cores = Array.isArray(meta.cores) ? meta.cores : [];
-      const fingerprint = JSON.stringify([meta.version, meta.revision, meta.ok, cores]);
+      const systems = Array.isArray(meta.systems) ? meta.systems : [];
+      const residents = Array.isArray(meta.residents) ? meta.residents : [];
+      const fingerprint = JSON.stringify([meta.version, meta.revision, meta.revisionFrozen, meta.revisionLabel, meta.ok, cores, systems, residents]);
 
       updateBadge();
       versionEl.textContent = `v${meta.version || '?'}`;
-      revisionEl.textContent = `R${meta.revision ?? '?'}`;
+      revisionEl.textContent = revisionLabel(meta);
       coresEl.innerHTML = cores.map(c => {
         const g = c.memoryGuardian;
         const memory = g && Number.isFinite(Number(g.rssMiB))
@@ -232,6 +295,7 @@
           : '';
         return `<div style="margin-top:6px">${esc(c.id)} <b>v${esc(c.version)}</b> · ${esc(c.mode || 'active')}${memory}</div>`;
       }).join('');
+      renderPhysiology(systems, residents);
       updateComputeReadout();
 
       if (previousFingerprint && previousFingerprint !== fingerprint && badge.animate) {

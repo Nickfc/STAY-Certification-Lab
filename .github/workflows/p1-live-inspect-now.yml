@@ -2,9 +2,7 @@ name: Capture live SNTSS inspector failure now
 run-name: Capture live SNTSS inspector failure now
 
 on:
-  push:
-    branches: [main]
-    paths: [.github/p1-live-inspect-now.launch]
+  workflow_dispatch:
 
 permissions:
   contents: write

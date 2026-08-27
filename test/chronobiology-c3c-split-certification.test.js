@@ -12,6 +12,7 @@ const evidence = require('../certification/chronobiology-c3c/split-evidence');
 const publicFailure = require('../certification/chronobiology-c3c/compute/public-failure-record');
 
 const root = path.resolve(__dirname, '..');
+const python = process.env.PYTHON || 'python3';
 const candidateSha = '1'.repeat(40);
 const candidateTree = '2'.repeat(40);
 
@@ -326,11 +327,11 @@ test('C3-C-SPLIT-10 migration packaging is deterministic and transport inventory
     "z.writestr('state/legacy-0.6.0/genesis-state.json',b'never-used')",
     'z.close()',
   ].join(';');
-  assert.equal(spawnSync('python3', ['-c', zipScript, inventoryFile, migration]).status, 0);
+  assert.equal(spawnSync(python, ['-c', zipScript, inventoryFile, migration]).status, 0);
 
   const helper = path.join(root,
     'certification/chronobiology-c3c/compute/legacy-fixture-transport.py');
-  const build = (output) => spawnSync('python3', [helper, 'build',
+  const build = (output) => spawnSync(python, [helper, 'build',
     '--inventory', inventoryFile, '--input', migration, '--output', output],
   { encoding: 'utf8' });
   const firstBuild = build(first);
@@ -340,7 +341,7 @@ test('C3-C-SPLIT-10 migration packaging is deterministic and transport inventory
   assert.equal(firstBuild.stdout, secondBuild.stdout);
   assert.deepEqual(fs.readFileSync(first), fs.readFileSync(second));
 
-  const verify = spawnSync('python3', [helper, 'verify-extract',
+  const verify = spawnSync(python, [helper, 'verify-extract',
     '--inventory', inventoryFile, '--input', first, '--output', extracted],
   { encoding: 'utf8' });
   assert.equal(verify.status, 0, verify.stderr);

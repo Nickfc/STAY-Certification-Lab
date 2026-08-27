@@ -31,6 +31,16 @@ async function makeDisposableTreeWritable(root) {
   await fsp.chmod(root, 0o700);
 }
 
+function writeFixtureBlob(dataDir, body) {
+  const bytes = Buffer.from(`${JSON.stringify(body)}\n`, 'utf8');
+  const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+  const directory = path.join(dataDir, 'blobs', 'sha256', hash.slice(0, 2));
+  const blobPath = path.join(directory, hash);
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(blobPath, bytes, { flag: 'wx', mode: 0o600 });
+  return Object.freeze({ hash, byteLength: bytes.length });
+}
+
 async function createSchema3Fixture(dataDir) {
   await fsp.mkdir(path.join(dataDir, 'life'), { recursive: true, mode: 0o700 });
   const identity = Object.freeze({
@@ -43,6 +53,14 @@ async function createSchema3Fixture(dataDir) {
     `${JSON.stringify(identity, null, 2)}\n`,
     { mode: 0o600 }
   );
+  const checkpoint = writeFixtureBlob(dataDir, {
+    format: 'stay-p1-offlive-checkpoint-v1',
+    organismId: identity.organismId,
+    coreId: 'fetus-legacy',
+    version: '0.6.0',
+    stateSchema: 1,
+    generation: 37
+  });
   const databasePath = path.join(dataDir, 'continuity.sqlite3');
   const db = new DatabaseSync(databasePath);
   try {
@@ -62,15 +80,14 @@ async function createSchema3Fixture(dataDir) {
     db.prepare(`INSERT INTO authority(core_id, instance_id, version, epoch, barrier_sequence, checkpoint_hash, updated_at)
       VALUES(?, ?, ?, ?, ?, ?, ?)`).run(
         'fetus-legacy', '82202211-8dd6-44d4-a4ec-8f2553d8dc6f', '0.6.0', 1, 0,
-        'fcda9ed1919bf60902968b883e3649a7fdbb13f3c0c15b20b4e0ea31ae4d6e9a',
+        checkpoint.hash,
         '2026-08-22T13:16:23.557Z'
       );
     db.prepare(`INSERT INTO checkpoints(checkpoint_id, core_id, instance_id, version, authority_epoch, state_schema, generation, blob_hash, byte_length, created_at)
       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         'p1-fixture-fetus-37', 'fetus-legacy', '82202211-8dd6-44d4-a4ec-8f2553d8dc6f',
         '0.6.0', 1, 1, 37,
-        'fcda9ed1919bf60902968b883e3649a7fdbb13f3c0c15b20b4e0ea31ae4d6e9a',
-        13758, '2026-08-22T13:16:23.557Z'
+        checkpoint.hash, checkpoint.byteLength, '2026-08-22T13:16:23.557Z'
       );
   } finally {
     db.close();
@@ -99,13 +116,21 @@ async function runKernel(releaseRoot, dataDir, durableResidentsDisabled) {
 
 function appendForwardState(databasePath) {
   const db = new DatabaseSync(databasePath);
-  const forwardHash = '7c65f47b08b4c594363bb0f9ecafdd818de5ebd8457bcf49e00e131fd7f4b786';
+  const forward = writeFixtureBlob(path.dirname(databasePath), {
+    format: 'stay-p1-offlive-checkpoint-v1',
+    organismId: 'stay-p1-offlive-existing-organism',
+    coreId: 'fetus-legacy',
+    version: '0.6.0',
+    stateSchema: 1,
+    generation: 38
+  });
+  const forwardHash = forward.hash;
   try {
     db.exec('PRAGMA foreign_keys=ON; BEGIN IMMEDIATE');
     db.prepare(`INSERT INTO checkpoints(checkpoint_id, core_id, instance_id, version, authority_epoch, state_schema, generation, blob_hash, byte_length, input_cursor, created_at)
       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         'p1-forward-fetus-38', 'fetus-legacy', '82202211-8dd6-44d4-a4ec-8f2553d8dc6f',
-        '0.6.0', 1, 1, 38, forwardHash, 13801, 0, new Date().toISOString()
+        '0.6.0', 1, 1, 38, forwardHash, forward.byteLength, 0, new Date().toISOString()
       );
     db.prepare('UPDATE authority SET checkpoint_hash=?, updated_at=? WHERE core_id=?')
       .run(forwardHash, new Date().toISOString(), 'fetus-legacy');

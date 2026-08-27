@@ -110,9 +110,29 @@ async function execute(operation, payload) {
   if (!api) throw new Error('Core worker is not initialized');
   if (operation === 'event') {
     const event = payload.event;
-    if (!manifest.inputs.includes(event.topic)) return { ignored: true };
+    if (!manifest.inputs.includes(event.topic)) {
+      return {
+        result: { ignored: true },
+        checkpoint: payload.includeCheckpoint === true
+          ? await api.snapshot()
+          : null
+      };
+    }
     await api.handle(event);
-    return { handled: true, sequence: event.sequence || event.id };
+    /*
+     * The worker owns one indivisible compute image: handle the event and
+     * capture the resulting checkpoint before acknowledging the transition.
+     * The Kernel still owns the durable database commit. If this operation
+     * fails or times out, the whole worker is discarded and reconstructed
+     * from the last database-committed recovery image; a separate snapshot
+     * request can no longer race that discard boundary.
+     */
+    return {
+      result: { handled: true, sequence: event.sequence || event.id },
+      checkpoint: payload.includeCheckpoint === true
+        ? await api.snapshot()
+        : null
+    };
   }
   if (operation === 'snapshot') return api.snapshot();
   if (operation === 'health') return api.health();

@@ -71,6 +71,47 @@ const L0_SNTSS_CONTRACT =
   });
 
 
+const I4G_SNTSS_CONTRACT =
+  Object.freeze({
+    residencyId:
+      'resident:sntss',
+
+    coreId:
+      'sntss',
+
+    role:
+      'resident-physiology',
+
+    version:
+      '0.5.0-i4g1',
+
+    stateSchema:
+      5,
+
+    stage:
+      'i4g-continuity-genesis-shadow',
+
+    priority:
+      'optional',
+
+    productionEligible:
+      false,
+
+    inputs:
+      Object.freeze([
+        'runtime.organism.binding',
+        'runtime.sntss.continuity-genesis',
+        'runtime.time.pulse'
+      ]),
+
+    outputs:
+      Object.freeze([]),
+
+    packagePolicyHash:
+      'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d'
+  });
+
+
 const CHRONOBIOLOGY_RESIDENT_CONTRACT =
   Object.freeze({
     residencyId:
@@ -397,6 +438,32 @@ function residentTransitionTimeoutMs(
 }
 
 
+function residentQueueTimeoutMs(
+  manifest,
+  handlerTimeoutMs
+) {
+  const ordinary =
+    residentTransitionTimeoutMs(
+      handlerTimeoutMs
+    );
+
+  /*
+   * Chronobiology's canonical founder expansion is a one-time cold
+   * transition. CoreHostClient still rejects every later event at the
+   * manifest's ordinary 250 ms deadline; this outer allowance merely keeps
+   * the actor queue from expiring before that one bounded cold dispatch can
+   * finish and be durably committed.
+   */
+  return manifest?.coreId ===
+    'chronobiology'
+    ? Math.max(
+        ordinary,
+        6500
+      )
+    : ordinary;
+}
+
+
 function residentDrainTimeoutMs(
   handlerTimeoutMs
 ) {
@@ -426,7 +493,14 @@ function residentDrainTimeoutMs(
 
 
 function replayRetryableCoreHostError(error) {
-  return ['COREHOST_TIMEOUT', 'COREHOST_EXIT'].includes(String(error?.code || ''));
+  return [
+    'COREHOST_TIMEOUT',
+    'COREHOST_EXIT',
+    'COREHOST_OFFLINE',
+    'CORE_WORKER_TIMEOUT',
+    'CORE_WORKER_EXIT',
+    'CORE_WORKER_OFFLINE'
+  ].includes(String(error?.code || ''));
 }
 
 
@@ -435,7 +509,7 @@ function sleep(ms) {
 }
 
 
-async function waitForResidentCoreHostRecovery(client, timeoutMs = 5000) {
+async function waitForResidentCoreHostRecovery(client, failedGeneration, timeoutMs = 5000) {
   const started = Date.now();
 
   while (Date.now() - started < timeoutMs) {
@@ -445,15 +519,22 @@ async function waitForResidentCoreHostRecovery(client, timeoutMs = 5000) {
       });
     }
 
-    if (!client.restarting && client.child?.connected && client.lifecycle !== 'recovering') {
-      return;
+    if (
+      client.generation > failedGeneration &&
+      !client.restarting &&
+      client.child?.connected &&
+      client.lifecycle !== 'recovering'
+    ) {
+      return client.generation;
     }
 
     await sleep(10);
   }
 
-  throw Object.assign(new Error('resident CoreHost did not recover before replay retry deadline'), {
-    code: 'RESIDENT_REPLAY_COREHOST_RECOVERY_TIMEOUT'
+  throw Object.assign(new Error('resident CoreHost did not advance its generation before replay retry deadline'), {
+    code: 'RESIDENT_REPLAY_COREHOST_RECOVERY_TIMEOUT',
+    failedGeneration,
+    observedGeneration: client.generation
   });
 }
 
@@ -716,6 +797,8 @@ class ResidentManager {
   async inspect(
     moduleRelativePath,
     expectedResidencyId =
+      null,
+    explicitContract =
       null
   ) {
     const normalized =
@@ -779,7 +862,11 @@ class ResidentManager {
       definition.manifest;
 
     const contract =
-      expectedResidencyId
+      explicitContract
+        ? normalizeResidentContract(
+            explicitContract
+          )
+        : expectedResidencyId
         ? this.contractRegistry
             .byResidencyId
             .get(
@@ -845,6 +932,40 @@ class ResidentManager {
           manifest
         )
     };
+  }
+
+
+  activateResidentContract(
+    contractInput
+  ) {
+    const contract =
+      normalizeResidentContract(
+        contractInput
+      );
+
+    this.contractRegistry
+      .byResidencyId
+      .set(
+        contract.residencyId,
+        contract
+      );
+
+    this.contractRegistry
+      .byCoreId
+      .set(
+        contract.coreId,
+        contract
+      );
+
+    if (
+      this.contract?.residencyId ===
+        contract.residencyId
+    ) {
+      this.contract =
+        contract;
+    }
+
+    return contract;
   }
 
 
@@ -961,7 +1082,8 @@ class ResidentManager {
     inspected,
     binding,
     checkpoint = null,
-    finalizedReplay = []
+    finalizedReplay = [],
+    backfillInactiveGap = false
   }) {
     const manifest =
       inspected.definition
@@ -1032,6 +1154,18 @@ class ResidentManager {
       lastError:
         null,
 
+      lastSlowTransition:
+        null,
+
+      resyncRequired:
+        false,
+
+      terminalPersistenceError:
+        null,
+
+      teardownError:
+        null,
+
       replayHold:
         true,
 
@@ -1044,8 +1178,17 @@ class ResidentManager {
       pendingOutputIntents:
         new Map(),
 
+      outboxDrainPromise:
+        null,
+
       finalizedReplayTail:
-        [...finalizedReplay]
+        [...finalizedReplay],
+
+      activationBackfilled:
+        0,
+
+      consumerActivated:
+        false
     };
 
 
@@ -1059,10 +1202,36 @@ class ResidentManager {
             .queueCapacity,
 
         handlerTimeoutMs:
-          residentTransitionTimeoutMs(
-            client.policy
-              .handlerTimeoutMs
+          residentQueueTimeoutMs(
+            manifest,
+            client.handlerTimeoutMs ??
+              client.policy
+                .handlerTimeoutMs
           ),
+
+        settlementGraceMs:
+          Math.max(
+            5000,
+            residentTransitionTimeoutMs(
+              client.handlerTimeoutMs ??
+                client.policy.handlerTimeoutMs
+            )
+          ),
+
+        recoveryTimeoutMs:
+          Math.max(
+            15000,
+            residentTransitionTimeoutMs(
+              client.handlerTimeoutMs ??
+                client.policy.handlerTimeoutMs
+            ) * 3
+          ),
+
+        recoverySettlementGraceMs:
+          5000,
+
+        maxAttempts:
+          3,
 
         handler:
           event =>
@@ -1083,6 +1252,17 @@ class ResidentManager {
               event,
               context
             ),
+
+        onSlow:
+          (error, event, context) => {
+            unit.lastSlowTransition = {
+              at: new Date().toISOString(),
+              sequence: Number(event?.sequence) || 0,
+              topic: event?.topic || null,
+              attempt: Number(context?.attempt) || 1,
+              deadlineMs: Number(error?.deadlineMs) || queue?.handlerTimeoutMs || null
+            };
+          },
 
         onFault:
           (error, event) => {
@@ -1130,28 +1310,25 @@ class ResidentManager {
         unit.lifecycle =
           'failed';
 
-        try {
-          this.stateStore
-            .setResidentStatus(
+        this.persistTerminalTransition(
+          unit,
+          'QUARANTINED',
+          'resident.quarantined',
+          {
+            residencyId:
               unit.residencyId,
-              'QUARANTINED'
-            );
 
-          this.stateStore
-            .recordRecovery(
-              'resident.quarantined',
-              unit.manifest.coreId,
-              {
-                residencyId:
-                  unit.residencyId,
+            instanceId:
+              resident.instanceId,
 
-                instanceId:
-                  resident.instanceId,
+            ...detail
+          }
+        );
 
-                ...detail
-              }
-            );
-        } catch {}
+        this.stopTerminalUnit(
+          unit,
+          'quarantine'
+        );
       }
     );
 
@@ -1194,10 +1371,11 @@ class ResidentManager {
           };
 
 
-    await client.start(
-      envelope.state,
-      envelope.stateSchema
-    );
+    try {
+      await client.start(
+        envelope.state,
+        envelope.stateSchema
+      );
 
 
     /*
@@ -1281,8 +1459,9 @@ class ResidentManager {
     );
 
 
-    this.stateStore
-      .registerBiologicalConsumer({
+    const consumerActivation =
+      this.stateStore
+        .registerBiologicalConsumer({
         consumerId:
           resident.residencyId,
 
@@ -1296,8 +1475,20 @@ class ResidentManager {
           false,
 
         authorityEpoch:
-          0
+          0,
+
+        backfillInactiveGap
       });
+
+
+    unit.activationBackfilled =
+      Number(
+        consumerActivation
+          ?.activationBackfilled || 0
+      );
+
+    unit.consumerActivated =
+      true;
 
 
     unit.resident =
@@ -1318,7 +1509,6 @@ class ResidentManager {
      * Incoming durable events remain PENDING in StateStore and are discovered
      * by the replay loop in canonical sequence order.
      */
-    try {
       await this.replayFinalizedResidentEvents(unit);
 
       await this.replayPendingBiologicalEvents(
@@ -1420,13 +1610,53 @@ class ResidentManager {
         resident.residencyId
       );
 
+      /*
+       * Consumer activation and replay are one logical recovery boundary.
+       * If initialization or replay fails after the atomic activation/backfill,
+       * stop routing new events to this absent unit. Its cursor and immutable
+       * PENDING deliveries remain available to the next recovery attempt.
+       */
+      if (unit.consumerActivated) {
+        try {
+          this.stateStore
+            .deactivateBiologicalConsumer(
+              resident.residencyId
+            );
+        } catch {}
+      }
+
       try {
         unit.queue.close();
       } catch {}
 
       try {
         await unit.client.stop();
-      } catch {}
+      } catch (error) {
+        try {
+          this.stateStore
+            .recordRecovery(
+              'resident.startup-teardown-failed',
+              resident?.coreId || unit.manifest?.coreId || null,
+              {
+                residencyId:
+                  unit.residencyId,
+
+                instanceId:
+                  resident?.instanceId || null,
+
+                code:
+                  error.code || null,
+
+                message:
+                  error.message || String(error)
+              }
+            );
+        } catch {}
+
+        this.logger.warn?.(
+          `[STAY] resident startup teardown failed: ${error.message}`
+        );
+      }
 
       throw error;
     }
@@ -1526,6 +1756,343 @@ class ResidentManager {
       checkpoint:
         null
     });
+  }
+
+
+  async promoteSntssContinuityGenesis({
+    moduleRelativePath =
+      'cores/sntss/i4g/index.js',
+    binding,
+    publishGenesis
+  }) {
+    if (this.closed) {
+      fail(
+        'resident manager is closed',
+        'RESIDENT_MANAGER_CLOSED'
+      );
+    }
+
+    if (
+      typeof publishGenesis !==
+        'function'
+    ) {
+      fail(
+        'continuity-genesis publisher is required',
+        'SNTSS_I4G_PROMOTION_CONFIG'
+      );
+    }
+
+    const residencyId =
+      I4G_SNTSS_CONTRACT
+        .residencyId;
+
+    const before =
+      this.stateStore
+        .getResident(
+          residencyId
+        );
+
+    if (
+      !before ||
+      before.version !==
+        L0_SNTSS_CONTRACT.version ||
+      before.stateSchema !==
+        L0_SNTSS_CONTRACT.stateSchema ||
+      before.moduleRelativePath !==
+        'cores/sntss/i3d/index.js' ||
+      before.status !==
+        'RUNNING' ||
+      !this.units.has(
+        residencyId
+      )
+    ) {
+      fail(
+        'SNTSS is not the live I3-D3 promotion baseline',
+        'SNTSS_I4G_PROMOTION_BASELINE'
+      );
+    }
+
+    this.validateBinding(
+      binding
+    );
+
+    const previousContract =
+      this.contractRegistry
+        .byResidencyId
+        .get(
+          residencyId
+        );
+
+    const previousInspection =
+      await this.inspect(
+        before.moduleRelativePath,
+        residencyId,
+        L0_SNTSS_CONTRACT
+      );
+
+    const inspected =
+      await this.inspect(
+        moduleRelativePath,
+        residencyId,
+        I4G_SNTSS_CONTRACT
+      );
+
+    let candidate =
+      null;
+
+    let committed =
+      false;
+
+    let outputViolation =
+      false;
+
+    let sourceCheckpoint =
+      null;
+
+    try {
+      await this.detach(
+        residencyId
+      );
+
+      sourceCheckpoint =
+        await this.stateStore
+          .readResidentCheckpoint(
+            residencyId
+          );
+
+      if (
+        !sourceCheckpoint ||
+        sourceCheckpoint.version !==
+          L0_SNTSS_CONTRACT.version ||
+        sourceCheckpoint.stateSchema !==
+          L0_SNTSS_CONTRACT.stateSchema
+      ) {
+        fail(
+          'SNTSS prenatal checkpoint is unavailable',
+          'SNTSS_I4G_PROMOTION_CHECKPOINT'
+        );
+      }
+
+      candidate =
+        new CoreHostClient({
+          modulePath:
+            inspected.definition
+              .modulePath,
+
+          expectedManifest:
+            inspected.definition
+              .manifest,
+
+          instanceId:
+            before.instanceId,
+
+          mode:
+            'standby',
+
+          logger:
+            this.logger,
+
+          policy: {
+            resources:
+              inspected.definition
+                .manifest.resources,
+
+            priority:
+              inspected.definition
+                .manifest.priority
+          }
+        });
+
+      candidate.on(
+        'output',
+        () => {
+          outputViolation =
+            true;
+        }
+      );
+
+      await candidate.start(
+        sourceCheckpoint.state,
+        sourceCheckpoint.stateSchema
+      );
+
+      const genesisEvent =
+        await publishGenesis({
+          sourceCheckpoint,
+          inspected
+        });
+
+      const dispatched =
+        await candidate.dispatch(
+          genesisEvent,
+          {
+            eventSequence:
+              genesisEvent.sequence
+          }
+        );
+
+      if (outputViolation) {
+        fail(
+          'I4-G1 emitted output during continuity genesis',
+          'RESIDENT_OUTPUT_VIOLATION'
+        );
+      }
+
+      const bornState =
+        dispatched.checkpoint != null
+          ? dispatched.checkpoint
+          : await candidate.snapshot();
+
+      if (
+        bornState?.stateSchema !==
+          I4G_SNTSS_CONTRACT.stateSchema ||
+        !bornState?.individuality ||
+        bornState.individuality
+          .genesisEventId !==
+            genesisEvent.id ||
+        bornState.individuality
+          .sourceCheckpointGeneration !==
+            sourceCheckpoint.generation ||
+        bornState.individuality
+          .sourceCheckpointHash !==
+            `sha256:${sourceCheckpoint.blobHash}`
+      ) {
+        fail(
+          'I4-G1 continuity genesis did not produce the bound generation',
+          'SNTSS_I4G_PROMOTION_GENESIS'
+        );
+      }
+
+      const health =
+        await candidate.health();
+
+      if (
+        health?.ok ===
+          false ||
+        health?.continuityGenesisEstablished !==
+          true
+      ) {
+        fail(
+          'I4-G1 continuity-genesis health gate failed',
+          'SNTSS_I4G_PROMOTION_HEALTH'
+        );
+      }
+
+      const promoted =
+        await this.stateStore
+          .promoteResidentGeneration({
+            residencyId,
+            instanceId:
+              before.instanceId,
+            organismIdentityHash:
+              before.organismIdentityHash,
+            fromVersion:
+              before.version,
+            fromStateSchema:
+              before.stateSchema,
+            fromModuleRelativePath:
+              before.moduleRelativePath,
+            fromCheckpointGeneration:
+              sourceCheckpoint.generation,
+            fromCheckpointHash:
+              sourceCheckpoint.blobHash,
+            toVersion:
+              inspected.definition
+                .manifest.version,
+            toStateSchema:
+              inspected.definition
+                .manifest.stateSchema,
+            toModuleRelativePath:
+              inspected.moduleRelativePath,
+            toModuleHash:
+              inspected.definition
+                .moduleDigest,
+            toManifestHash:
+              inspected.manifestHash,
+            toPackagePolicyHash:
+              inspected.definition
+                .packagePolicyHash,
+            topics:
+              inspected.definition
+                .manifest.inputs,
+            genesisEvent,
+            state:
+              bornState
+          });
+
+      committed =
+        true;
+
+      candidate.stopping =
+        true;
+
+      await candidate.stop();
+      candidate =
+        null;
+
+      this.activateResidentContract(
+        I4G_SNTSS_CONTRACT
+      );
+
+      return await this.startUnit({
+        resident:
+          promoted.resident,
+        inspected,
+        binding,
+        checkpoint:
+          promoted.checkpoint
+      });
+    } catch (error) {
+      if (candidate) {
+        candidate.stopping =
+          true;
+
+        await candidate
+          .stop()
+          .catch(
+            () => {}
+          );
+      }
+
+      if (!committed && sourceCheckpoint) {
+        this.activateResidentContract(
+          previousContract ||
+          L0_SNTSS_CONTRACT
+        );
+
+        try {
+          this.stateStore
+            .setResidentStatus(
+              residencyId,
+              'RECOVERING'
+            );
+
+          await this.startUnit({
+            resident:
+              this.stateStore
+                .getResident(
+                  residencyId
+                ),
+            inspected:
+              previousInspection,
+            binding,
+            checkpoint:
+              sourceCheckpoint
+          });
+        } catch (rollbackError) {
+          error.rollbackError = {
+            code:
+              rollbackError?.code ||
+              null,
+            message:
+              rollbackError?.message ||
+              String(rollbackError)
+          };
+        }
+      }
+
+      throw error;
+    }
   }
 
 
@@ -1660,7 +2227,8 @@ class ResidentManager {
       inspected,
       binding,
       checkpoint,
-      finalizedReplay
+      finalizedReplay,
+      backfillInactiveGap: true
     });
   }
 
@@ -1814,15 +2382,8 @@ class ResidentManager {
         .enqueue(
           event
         )
-        .catch(
-          error => {
-            this.markResyncRequired(
-              unit,
-              error,
-              event
-            );
-          }
-        );
+        /* BoundedActorQueue.onFault is the sole terminal-fault owner. */
+        .catch(() => {});
     }
   }
 
@@ -1846,34 +2407,52 @@ class ResidentManager {
         event
       );
 
-    const dispatched =
-      await unit.client
-        .dispatch(
-          dispatchedEvent,
-          {
-            coreId:
-              unit.manifest.coreId,
+    let dispatched;
 
-            implementationInstanceId:
-              unit.resident
-                .instanceId,
+    try {
+      dispatched =
+        await unit.client
+          .dispatch(
+            dispatchedEvent,
+            {
+              coreId:
+                unit.manifest.coreId,
 
-            authorityEpoch:
-              unit.contract
-                .signalling ===
-                  RESIDENT_SIGNALLING
-                    .LAB_SHADOW_ONLY
-                ? unit.contract
-                    .producerEpoch
-                : 0,
+              implementationInstanceId:
+                unit.resident
+                  .instanceId,
 
-            eventSequence:
-              event.sequence,
+              authorityEpoch:
+                unit.contract
+                  .signalling ===
+                    RESIDENT_SIGNALLING
+                      .LAB_SHADOW_ONLY
+                  ? unit.contract
+                      .producerEpoch
+                  : 0,
 
-            eventId:
-              event.id
-          }
+              eventSequence:
+                event.sequence,
+
+              eventId:
+                event.id
+            }
+          );
+    } catch (error) {
+      /*
+       * The trusted supervisor may have delivered one or more speculative
+       * output messages before discovering a later output/protocol failure.
+       * None crossed the StateStore commit boundary. Erase the whole attempt
+       * before BoundedActorQueue reconstructs the worker and retries the same
+       * durable sequence.
+       */
+      unit.pendingOutputIntents
+        .delete(
+          event.sequence
         );
+
+      throw error;
+    }
 
 
     if (
@@ -2176,22 +2755,27 @@ class ResidentManager {
     }
 
 
+    const failedGeneration =
+      Number(error.coreHostGeneration) ||
+      unit.client.generation;
+
     /*
-     * The actor handler has already failed and returned control to
-     * BoundedActorQueue. Recovery happens here outside that handler deadline.
-     *
-     * EVENT timeout/exit recovery is initiated by CoreHostClient.request().
-     * A durable SNAPSHOT timeout is initiated by CoreHostClient.dispatch()
-     * using the last committed recovery image. Either way, never retry until
-     * the previous process is gone and the replacement host is connected.
+     * The actor still owns this exact PENDING event. Await the single-flight
+     * reconstruction from the last database-committed recovery image and
+     * prove the process generation advanced before replay is permitted.
      */
+    await unit.client
+      .ensureRecovery(error);
+
     await waitForResidentCoreHostRecovery(
       unit.client,
+      failedGeneration,
       Math.max(
         5000,
         residentTransitionTimeoutMs(
-          unit.client.policy
-            .handlerTimeoutMs
+          unit.client.handlerTimeoutMs ??
+            unit.client.policy
+              .handlerTimeoutMs
         ) * 3
       )
     );
@@ -2241,7 +2825,12 @@ class ResidentManager {
 
             operation:
               error.coreHostOperation ||
-              null
+              null,
+
+            failedGeneration,
+
+            recoveredGeneration:
+              unit.client.generation
           }
         );
     } catch {}
@@ -2251,11 +2840,108 @@ class ResidentManager {
   }
 
 
+  persistTerminalTransition(
+    unit,
+    status,
+    recoveryType,
+    detail
+  ) {
+    try {
+      this.stateStore
+        .transitionResidentToTerminal({
+          residencyId:
+            unit.residencyId,
+
+          status,
+
+          recoveryType,
+
+          coreId:
+            unit.manifest.coreId,
+
+          detail
+        });
+
+      unit.terminalPersistenceError =
+        null;
+
+      return true;
+    } catch (error) {
+      unit.terminalPersistenceError = {
+        at:
+          new Date().toISOString(),
+
+        code:
+          error.code || null,
+
+        message:
+          error.message || String(error)
+      };
+
+      this.logger.error?.(
+        `[STAY] resident terminal transition was not persisted: ${error.message}`
+      );
+
+      return false;
+    }
+  }
+
+
+  stopTerminalUnit(
+    unit,
+    phase
+  ) {
+    Promise.resolve()
+      .then(() => unit.client?.stop())
+      .catch(error => {
+        unit.teardownError = {
+          at:
+            new Date().toISOString(),
+
+          phase,
+
+          code:
+            error.code || null,
+
+          message:
+            error.message || String(error)
+        };
+
+        try {
+          this.stateStore
+            .recordRecovery(
+              'resident.terminal-teardown-failed',
+              unit.manifest.coreId,
+              {
+                residencyId:
+                  unit.residencyId,
+
+                phase,
+
+                code:
+                  error.code || null,
+
+                message:
+                  error.message || String(error)
+              }
+            );
+        } catch {}
+
+        this.logger.error?.(
+          `[STAY] resident terminal teardown failed: ${error.message}`
+        );
+      });
+  }
+
+
   markResyncRequired(
     unit,
     error,
     event
   ) {
+    if (unit.resyncRequired || unit.outputViolation) return false;
+    unit.resyncRequired = true;
+
     unit.lastError = {
       at:
         new Date().toISOString(),
@@ -2283,6 +2969,29 @@ class ResidentManager {
           unit.residencyId
         );
 
+    /*
+     * One component owns terminal chronology failure. Stop the queue before
+     * changing consumer eligibility so follow-on COREHOST_OFFLINE errors
+     * cannot fan out duplicate resync records or additional delivery debt.
+     */
+    try {
+      unit.queue?.close(
+        Object.assign(
+          new Error(`resident ${unit.residencyId} requires resynchronization`),
+          {
+            code: 'RESIDENT_RESYNC_REQUIRED',
+            cause: error
+          }
+        )
+      );
+    } catch {}
+
+    unit.lifecycle = 'failed';
+    this.stopTerminalUnit(
+      unit,
+      'resync-required'
+    );
+
 
     if (
       resident &&
@@ -2293,38 +3002,20 @@ class ResidentManager {
         resident.status
       )
     ) {
-      try {
-        this.stateStore
-          .setResidentStatus(
+      this.persistTerminalTransition(
+        unit,
+        'RESYNC_REQUIRED',
+        'resident.resync-required',
+        {
+          residencyId:
             unit.residencyId,
-            'RESYNC_REQUIRED'
-          );
 
-        /*
-         * Once chronology is uncertain, stop
-         * accruing new biological delivery debt.
-         */
-        this.stateStore
-          .deactivateBiologicalConsumer(
-            unit.residencyId
-          );
-      } catch {}
+          ...unit.lastError
+        }
+      );
     }
 
-
-    try {
-      this.stateStore
-        .recordRecovery(
-          'resident.resync-required',
-          unit.manifest.coreId,
-          {
-            residencyId:
-              unit.residencyId,
-
-            ...unit.lastError
-          }
-        );
-    } catch {}
+    return true;
   }
 
 
@@ -2335,8 +3026,15 @@ class ResidentManager {
     unit.observedOutputs +=
       1;
 
+    if (unit.outputViolation) {
+      return;
+    }
+
     unit.outputViolation =
       true;
+
+    unit.lifecycle =
+      'failed';
 
     unit.lastError = {
       at:
@@ -2354,34 +3052,35 @@ class ResidentManager {
 
 
     try {
-      this.stateStore
-        .setResidentStatus(
-          unit.residencyId,
-          'QUARANTINED'
-        );
-
-      this.stateStore
-        .deactivateBiologicalConsumer(
-          unit.residencyId
-        );
-
-      this.stateStore
-        .recordRecovery(
-          'resident.output-violation',
-          unit.manifest.coreId,
-          {
-            residencyId:
-              unit.residencyId,
-
-            instanceId:
-              unit.resident
-                .instanceId,
-
-            topic:
-              message?.topic || null
-          }
-        );
+      unit.queue?.close(
+        Object.assign(
+          new Error('resident output firewall tripped'),
+          { code: 'RESIDENT_OUTPUT_VIOLATION' }
+        )
+      );
     } catch {}
+
+    this.persistTerminalTransition(
+      unit,
+      'QUARANTINED',
+      'resident.output-violation',
+      {
+        residencyId:
+          unit.residencyId,
+
+        instanceId:
+          unit.resident
+            .instanceId,
+
+        topic:
+          message?.topic || null
+      }
+    );
+
+    this.stopTerminalUnit(
+      unit,
+      'output-violation'
+    );
 
     /*
      * Intentionally NO EventFabric publish path.
@@ -2547,30 +3246,167 @@ class ResidentManager {
     unit
   ) {
     try {
-      return await this
-        .drainResidentOutbox(
+      const drained = await this
+        .drainResidentOutboxSingleFlight(
           unit
         );
+
+      unit.outboxFailureSignature =
+        null;
+
+      return drained;
     } catch (error) {
-      try {
-        this.stateStore
-          .recordRecovery(
-            'resident.outbox-pending',
-            unit.manifest.coreId,
-            {
-              residencyId:
-                unit.residencyId,
-              code:
-                error.code ||
-                null,
-              message:
-                error.message
-            }
-          );
-      } catch {}
+      this.recordOutboxPending(
+        unit,
+        error
+      );
 
       return 0;
     }
+  }
+
+
+  async drainResidentOutboxSingleFlight(
+    unit
+  ) {
+    if (unit.outboxDrainPromise) {
+      return unit.outboxDrainPromise;
+    }
+
+    const operation =
+      Promise.resolve()
+        .then(() =>
+          this.drainResidentOutbox(
+            unit
+          )
+        );
+
+    unit.outboxDrainPromise =
+      operation;
+
+    try {
+      return await operation;
+    } finally {
+      if (
+        unit.outboxDrainPromise ===
+          operation
+      ) {
+        unit.outboxDrainPromise =
+          null;
+      }
+    }
+  }
+
+
+  recordOutboxPending(
+    unit,
+    error
+  ) {
+    const signature =
+      `${error?.code || ''}\u0000${error?.message || ''}`;
+
+    if (
+      unit.outboxFailureSignature ===
+        signature
+    ) {
+      return;
+    }
+
+    unit.outboxFailureSignature =
+      signature;
+
+    try {
+      this.stateStore
+        .recordRecovery(
+          'resident.outbox-pending',
+          unit.manifest.coreId,
+          {
+            residencyId:
+              unit.residencyId,
+            code:
+              error?.code ||
+              null,
+            message:
+              error?.message ||
+              'biological outbox publication failed'
+          }
+        );
+    } catch {}
+  }
+
+
+  async maintainResidentOutboxes() {
+    if (this.closed) {
+      return 0;
+    }
+
+    let drained = 0;
+    const failures = [];
+
+    const units =
+      [...this.units.values()]
+        .sort(
+          (left, right) =>
+            left.residencyId.localeCompare(
+              right.residencyId
+            )
+        );
+
+    for (const unit of units) {
+      const resident =
+        this.stateStore
+          .getResident(
+            unit.residencyId
+          );
+
+      if (
+        resident?.status !==
+          'RUNNING'
+      ) {
+        continue;
+      }
+
+      try {
+        drained +=
+          await this
+            .drainResidentOutboxSingleFlight(
+              unit
+            );
+
+        unit.outboxFailureSignature =
+          null;
+      } catch (error) {
+        this.recordOutboxPending(
+          unit,
+          error
+        );
+
+        failures.push({
+          residencyId:
+            unit.residencyId,
+          code:
+            error.code ||
+            null,
+          message:
+            error.message
+        });
+      }
+    }
+
+    if (failures.length > 0) {
+      throw Object.assign(
+        new Error(
+          `durable resident outbox maintenance failed for ${failures.map(value => value.residencyId).join(', ')}`
+        ),
+        {
+          code:
+            'RESIDENT_OUTBOX_MAINTENANCE',
+          failures
+        }
+      );
+    }
+
+    return drained;
   }
 
 
@@ -2721,7 +3557,32 @@ class ResidentManager {
 
       try {
         await unit.client.stop();
-      } catch {}
+      } catch (error) {
+        try {
+          this.stateStore
+            .recordRecovery(
+              'resident.detach-teardown-failed',
+              resident?.coreId || unit.manifest?.coreId || null,
+              {
+                residencyId:
+                  unit.residencyId,
+
+                instanceId:
+                  resident?.instanceId || null,
+
+                code:
+                  error.code || null,
+
+                message:
+                  error.message || String(error)
+              }
+            );
+        } catch {}
+
+        this.logger.warn?.(
+          `[STAY] resident detach teardown failed: ${error.message}`
+        );
+      }
 
       this.units.delete(
         residencyId
@@ -2863,7 +3724,11 @@ class ResidentManager {
   async resynchronize(
     residencyId,
     binding,
-    runtimeRevision
+    runtimeRevision,
+    {
+      allowColdQuarantine =
+        false
+    } = {}
   ) {
     if (
       this.closed
@@ -2887,9 +3752,19 @@ class ResidentManager {
       );
     }
 
+    const coldQuarantine =
+      allowColdQuarantine === true &&
+      resident.residencyId ===
+        'resident:sntss' &&
+      resident.coreId ===
+        'sntss' &&
+      resident.status ===
+        'QUARANTINED';
+
     if (
       resident.status !==
-        'RESYNC_REQUIRED'
+        'RESYNC_REQUIRED' &&
+      !coldQuarantine
     ) {
       fail(
         `resident ${residencyId} is not awaiting resynchronization`,
@@ -2994,12 +3869,15 @@ class ResidentManager {
             ),
         inspected,
         binding,
-        checkpoint
+        checkpoint,
+        backfillInactiveGap: true
       });
 
     this.stateStore
       .recordRecovery(
-        'resident.resynchronized',
+        coldQuarantine
+          ? 'resident.cold-quarantine-recovered'
+          : 'resident.resynchronized',
         resident.coreId,
         {
           residencyId,
@@ -3012,6 +3890,7 @@ class ResidentManager {
           toCursor:
             record.toCursor,
           runtimeRevision,
+          coldQuarantine,
           inventedBiologicalTime:
             false
         }
@@ -3218,8 +4097,9 @@ class ResidentManager {
       .drainThrough(
         sequence,
         residentDrainTimeoutMs(
-          unit.client.policy
-            .handlerTimeoutMs
+          unit.client.handlerTimeoutMs ??
+            unit.client.policy
+              .handlerTimeoutMs
         )
       );
   }
@@ -3253,7 +4133,7 @@ class ResidentManager {
     let health =
       null;
 
-    if (unit) {
+    if (unit && resident.status === 'RUNNING' && !unit.resyncRequired) {
       try {
         health =
           await unit.client
@@ -3306,6 +4186,17 @@ class ResidentManager {
 
       status:
         resident.status,
+
+      running:
+        Boolean(
+          unit &&
+          resident.status === 'RUNNING' &&
+          ['standby', 'shadow', 'active'].includes(unit.lifecycle) &&
+          unit.resyncRequired !== true &&
+          unit.outputViolation !== true &&
+          !unit.terminalPersistenceError &&
+          !unit.teardownError
+        ),
 
       instanceId:
         resident.instanceId,
@@ -3362,6 +4253,53 @@ class ResidentManager {
         unit
           ? unit.lastError
           : null,
+
+      lastSlowTransition:
+        unit
+          ? unit.lastSlowTransition
+          : null,
+
+      resyncRequired:
+        Boolean(unit?.resyncRequired || resident.status === 'RESYNC_REQUIRED'),
+
+      terminalPersistenceError:
+        unit?.terminalPersistenceError || null,
+
+      teardownError:
+        unit?.teardownError || null,
+
+      queue:
+        unit
+          ? unit.queue.snapshotMetrics()
+          : null,
+
+      durabilityContract: {
+        eventCheckpointConsumerAckAtomic:
+          true,
+
+        outboxIntentInSameCommit:
+          true,
+
+        biologicalPublicationFromCommittedOutboxOnly:
+          true,
+
+        recoveryImageAdvancesAfterCommitOnly:
+          true,
+
+        activationGapBackfillAtomic:
+          true,
+
+        outboxPublicationSingleFlight:
+          true,
+
+        startupFailureTeardownComplete:
+          true
+      },
+
+      activationBackfilled:
+        unit
+          ? unit.activationBackfilled
+          : 0,
 
       host:
         unit
@@ -3435,6 +4373,30 @@ class ResidentManager {
               resident.stateSchema
             );
         } catch (error) {
+          try {
+            this.stateStore
+              .recordRecovery(
+                'resident.shutdown-checkpoint-failed',
+                resident.coreId,
+                {
+                  residencyId:
+                    unit.residencyId,
+
+                  instanceId:
+                    resident.instanceId,
+
+                  checkpointGeneration:
+                    Number(resident.checkpointGeneration) || 0,
+
+                  code:
+                    error.code || null,
+
+                  message:
+                    error.message || String(error)
+                }
+              );
+          } catch {}
+
           this.logger.warn?.(
             `[STAY] resident shutdown checkpoint failed: ${error.message}`
           );
@@ -3447,7 +4409,32 @@ class ResidentManager {
 
       try {
         await unit.client.stop();
-      } catch {}
+      } catch (error) {
+        try {
+          this.stateStore
+            .recordRecovery(
+              'resident.shutdown-stop-failed',
+              resident?.coreId || unit.manifest?.coreId || null,
+              {
+                residencyId:
+                  unit.residencyId,
+
+                instanceId:
+                  resident?.instanceId || null,
+
+                code:
+                  error.code || null,
+
+                message:
+                  error.message || String(error)
+              }
+            );
+        } catch {}
+
+        this.logger.warn?.(
+          `[STAY] resident shutdown stop failed: ${error.message}`
+        );
+      }
     }
 
 
@@ -3459,6 +4446,7 @@ class ResidentManager {
 module.exports = {
   ResidentManager,
   L0_SNTSS_CONTRACT,
+  I4G_SNTSS_CONTRACT,
   CHRONOBIOLOGY_RESIDENT_CONTRACT,
   RESIDENT_SIGNALLING,
   normalizeResidentContract,

@@ -15,7 +15,11 @@ const { stableStringify } = require('./canonical-json');
 async function fsyncDirectory(dirPath) {
   let handle;
   try { handle = await fs.open(dirPath, 'r'); await handle.sync(); }
-  catch (error) { if (!['EINVAL', 'ENOTSUP', 'EISDIR'].includes(error.code)) throw error; }
+  catch (error) {
+    const unsupported = ['EINVAL', 'ENOTSUP', 'EISDIR'].includes(error.code) ||
+      (process.platform === 'win32' && error.code === 'EPERM');
+    if (!unsupported) throw error;
+  }
   finally { await handle?.close(); }
 }
 
@@ -468,6 +472,10 @@ class StateStore {
     this.db = null;
     this.lastSuccessfulWriteAt = null;
     this.lastWriteError = null;
+    this.writeFailureCount = 0;
+    this.maintenanceErrors = new Map();
+    this.snapshotBlobPinCounts = new Map();
+    this.deferredBlobDeletes = new Set();
   }
 
   async init() {
@@ -476,11 +484,27 @@ class StateStore {
       await fs.mkdir(path.join(this.rootDir, relative), { recursive: true, mode: 0o700 });
     }
     this.db = new DatabaseSync(this.databasePath);
-    this.db.exec(`
+
+    try {
+      /*
+       * Refuse a database produced by a newer runtime before executing any
+       * DDL.  In particular, CREATE TABLE IF NOT EXISTS and ALTER TABLE are
+       * not harmless probes: an older binary must not partially rewrite a
+       * future continuity store before it discovers the version mismatch.
+       */
+      this.assertSupportedSchemaVersions();
+
+      this.db.exec(`
       PRAGMA journal_mode=WAL;
       PRAGMA synchronous=FULL;
       PRAGMA foreign_keys=ON;
       PRAGMA busy_timeout=5000;
+      `);
+
+      this.db.exec('BEGIN IMMEDIATE');
+
+      try {
+        this.db.exec(`
       CREATE TABLE IF NOT EXISTS metadata (
         key TEXT PRIMARY KEY,
         json TEXT NOT NULL,
@@ -1807,18 +1831,87 @@ class StateStore {
       new Date().toISOString()
     );
 
+        this.db.exec('COMMIT');
+      } catch (error) {
+        try { this.db.exec('ROLLBACK'); } catch {}
+        throw error;
+      }
+
     await this.importLegacyMetadata();
     await this.reconcileMetadataMirrors();
     await this.assertCanonicalLifeMirror('identity');
     await this.reconcileIncompleteUpgrades();
     this.markWriteSuccess();
     return this;
+    } catch (error) {
+      try {
+        if (this.db?.isTransaction) this.db.exec('ROLLBACK');
+      } catch {}
+
+      try { this.db?.close(); } catch {}
+      this.db = null;
+      throw error;
+    }
+  }
+
+  assertSupportedSchemaVersions() {
+    this.assertOpen();
+
+    const schemaTable = this.db.prepare(`
+      SELECT 1 AS present
+      FROM sqlite_master
+      WHERE type='table' AND name='schema_versions'
+    `).get();
+
+    if (!schemaTable) return;
+
+    const supported = new Map([
+      ['continuity', [4, 'STATE_SCHEMA_UNSUPPORTED']],
+      ['biological-envelope', [4, 'STATE_BIOLOGICAL_SCHEMA_UNSUPPORTED']],
+      ['biological-stream-progress', [1, 'STATE_BIOLOGICAL_STREAM_PROGRESS_SCHEMA_UNSUPPORTED']],
+      ['biological-outbox', [2, 'STATE_BIOLOGICAL_OUTBOX_SCHEMA_UNSUPPORTED']],
+      ['biological-cutover', [1, 'STATE_BIOLOGICAL_CUTOVER_SCHEMA_UNSUPPORTED']],
+      ['biological-routes', [1, 'STATE_BIOLOGICAL_ROUTE_SCHEMA_UNSUPPORTED']]
+    ]);
+
+    const rows = this.db.prepare(`
+      SELECT name, version
+      FROM schema_versions
+      WHERE name IN (
+        'continuity',
+        'biological-envelope',
+        'biological-stream-progress',
+        'biological-outbox',
+        'biological-cutover',
+        'biological-routes'
+      )
+    `).all();
+
+    for (const row of rows) {
+      const [maximum, code] = supported.get(row.name);
+      const version = Number(row.version);
+
+      if (!Number.isSafeInteger(version) || version < 0 || version > maximum) {
+        throw Object.assign(
+          new Error(`${row.name} schema is newer than this runtime supports`),
+          { code }
+        );
+      }
+    }
   }
 
   assertOpen() { if (!this.db) throw new Error('StateStore is not initialized'); }
 
   withTransaction(fn) {
     this.assertOpen();
+
+    /*
+     * Schema bootstrap owns one outer transaction.  Migration helpers use
+     * this same method, so joining that transaction is required to keep the
+     * entire bootstrap crash-atomic rather than committing each sub-step.
+     */
+    if (this.db.isTransaction) return fn();
+
     this.db.exec('BEGIN IMMEDIATE');
     try { const result = fn(); this.db.exec('COMMIT'); return result; }
     catch (error) { try { this.db.exec('ROLLBACK'); } catch {} throw error; }
@@ -1828,7 +1921,34 @@ class StateStore {
   corePath(coreId, channel = 'active') { return path.join(this.rootDir, 'cores', coreId, channel + '.json'); }
 
   markWriteSuccess() { this.lastSuccessfulWriteAt = new Date().toISOString(); this.lastWriteError = null; }
-  markWriteFailure(error) { this.lastWriteError = { at: new Date().toISOString(), code: error.code || null, message: error.message }; }
+  markWriteFailure(error) {
+    this.writeFailureCount += 1;
+    this.lastWriteError = {
+      at: new Date().toISOString(),
+      code: error.code || null,
+      message: error.message
+    };
+  }
+
+  async runMaintenance(operation, task) {
+    try {
+      const value = await task();
+      this.maintenanceErrors.delete(operation);
+      return { ok: true, value };
+    } catch (error) {
+      const detail = {
+        operation,
+        at: new Date().toISOString(),
+        code: error.code || null,
+        message: error.message
+      };
+      this.maintenanceErrors.set(operation, detail);
+      try {
+        this.recordRecovery('maintenance.failed', null, detail);
+      } catch {}
+      return { ok: false, error: detail };
+    }
+  }
 
   async checkedAtomicWrite(filePath, data, mode = 0o600) {
     try { await atomicWrite(filePath, data, mode); this.markWriteSuccess(); }
@@ -6667,7 +6787,46 @@ class StateStore {
     });
   }
 
-  registerBiologicalConsumer({ consumerId, coreId, topics = [], required = true, authorityEpoch = 0 }) {
+  getBiologicalEventByDeduplicationKey(
+    deduplicationKey
+  ) {
+    if (
+      typeof deduplicationKey !==
+        'string' ||
+      !deduplicationKey ||
+      deduplicationKey.length > 256
+    ) {
+      throw Object.assign(
+        new Error('event deduplication key is invalid'),
+        { code: 'EVENT_DEDUP_KEY' }
+      );
+    }
+
+    const row =
+      this.db.prepare(`
+        SELECT *
+        FROM biological_events
+        WHERE deduplication_key=?
+      `).get(
+        deduplicationKey
+      );
+
+    return row
+      ? this.biologicalEventFromRow(
+          row,
+          true
+        )
+      : null;
+  }
+
+  registerBiologicalConsumer({
+    consumerId,
+    coreId,
+    topics = [],
+    required = true,
+    authorityEpoch = 0,
+    backfillInactiveGap = false
+  }) {
     if (typeof consumerId !== 'string' || !consumerId || consumerId.length > 200) throw Object.assign(new Error('invalid biological consumer id'), { code: 'BIOLOGICAL_CONSUMER_ID' });
     if (typeof coreId !== 'string' || !coreId) throw Object.assign(new Error('invalid biological consumer core'), { code: 'BIOLOGICAL_CONSUMER_CORE' });
     const normalizedTopics = [...new Set(topics.map(String))].sort();
@@ -6677,6 +6836,7 @@ class StateStore {
     return this.withTransaction(() => {
       const existing = this.db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?').get(consumerId);
       if (existing && existing.core_id !== coreId) throw Object.assign(new Error('biological consumer identity changed core'), { code: 'BIOLOGICAL_CONSUMER_MISMATCH' });
+      let activationBackfilled = 0;
       if (!existing) {
         const highWater = Number(this.db.prepare('SELECT COALESCE(MAX(sequence), 0) AS value FROM biological_events').get()?.value || 0);
         this.db.prepare(`INSERT INTO biological_consumers(consumer_id, core_id, required, active, topics_json, topics_sha256,
@@ -6684,10 +6844,29 @@ class StateStore {
           consumerId, coreId, required ? 1 : 0, topicsJson, topicsHash, highWater, Number(authorityEpoch) || 0, at, at
         );
       } else {
+        if (backfillInactiveGap === true) {
+          activationBackfilled = Number(this.db.prepare(`
+            INSERT OR IGNORE INTO biological_deliveries(
+              sequence,
+              consumer_id
+            )
+            SELECT
+              sequence,
+              ?
+            FROM biological_events
+            WHERE sequence>?
+          `).run(
+            consumerId,
+            Number(existing.cursor) || 0
+          ).changes || 0);
+        }
         this.db.prepare(`UPDATE biological_consumers SET required=?, active=1, topics_json=?, topics_sha256=?, authority_epoch=?, updated_at=?
           WHERE consumer_id=?`).run(required ? 1 : 0, topicsJson, topicsHash, Number(authorityEpoch) || 0, at, consumerId);
       }
-      return this.getBiologicalConsumer(consumerId);
+      return {
+        ...this.getBiologicalConsumer(consumerId),
+        activationBackfilled
+      };
     });
   }
 
@@ -7203,7 +7382,10 @@ class StateStore {
     const heartbeat = await this.readLife('runtime-heartbeat', null);
     const heartbeatAt = heartbeat?.at || null;
     const heartbeatAgeMs = heartbeatAt ? Math.max(0, Date.now() - Date.parse(heartbeatAt)) : null;
-    const healthy = integrity === 'ok' && Boolean(heartbeatAt) && heartbeatAgeMs <= maxHeartbeatAgeMs && !this.lastWriteError;
+    const maintenanceErrors = [...this.maintenanceErrors.values()];
+    const healthy = integrity === 'ok' && Boolean(heartbeatAt) &&
+      heartbeatAgeMs <= maxHeartbeatAgeMs && !this.lastWriteError &&
+      this.writeFailureCount === 0 && maintenanceErrors.length === 0;
     return {
       ok: healthy,
       format: 'stay-statestore-v3',
@@ -7213,11 +7395,65 @@ class StateStore {
       heartbeatAt,
       heartbeatAgeMs,
       lastSuccessfulWriteAt: this.lastSuccessfulWriteAt,
-      lastWriteError: this.lastWriteError
+      lastWriteError: this.lastWriteError,
+      writeFailureCount: this.writeFailureCount,
+      maintenanceErrors
     };
   }
 
   blobPath(hash) { return path.join(this.blobRoot, hash.slice(0, 2), hash); }
+
+  pinSnapshotBlobs(hashes) {
+    for (const hash of hashes) {
+      this.snapshotBlobPinCounts.set(
+        hash,
+        (this.snapshotBlobPinCounts.get(hash) || 0) + 1
+      );
+    }
+  }
+
+  snapshotBlobIsPinned(hash) {
+    return (this.snapshotBlobPinCounts.get(hash) || 0) > 0;
+  }
+
+  blobReferenceCount(hash) {
+    const queries = [
+      'SELECT COUNT(*) AS count FROM checkpoints WHERE blob_hash=?',
+      'SELECT COUNT(*) AS count FROM authority WHERE checkpoint_hash=?',
+      'SELECT COUNT(*) AS count FROM resident_checkpoints WHERE blob_hash=?',
+      'SELECT COUNT(*) AS count FROM resident_instances WHERE checkpoint_hash=?'
+    ];
+    return queries.reduce(
+      (total, sql) => total + Number(this.db.prepare(sql).get(hash)?.count || 0),
+      0
+    );
+  }
+
+  async deleteBlobIfUnreferenced(hash) {
+    if (this.blobReferenceCount(hash) !== 0) return false;
+    if (this.snapshotBlobIsPinned(hash)) {
+      this.deferredBlobDeletes.add(hash);
+      return false;
+    }
+    await fs.unlink(this.blobPath(hash)).catch(error => {
+      if (error.code !== 'ENOENT') throw error;
+    });
+    this.deferredBlobDeletes.delete(hash);
+    return true;
+  }
+
+  async releaseSnapshotBlobs(hashes) {
+    for (const hash of hashes) {
+      const remaining = (this.snapshotBlobPinCounts.get(hash) || 0) - 1;
+      if (remaining > 0) this.snapshotBlobPinCounts.set(hash, remaining);
+      else this.snapshotBlobPinCounts.delete(hash);
+    }
+    for (const hash of hashes) {
+      if (this.deferredBlobDeletes.has(hash) && !this.snapshotBlobIsPinned(hash)) {
+        await this.deleteBlobIfUnreferenced(hash);
+      }
+    }
+  }
 
   async putBlob(value) {
     const bytes = Buffer.isBuffer(value) ? value : Buffer.from(typeof value === 'string' ? value : JSON.stringify(value));
@@ -7462,6 +7698,85 @@ class StateStore {
     return this.getResident(residencyId);
   }
 
+  transitionResidentToTerminal({
+    residencyId,
+    status,
+    recoveryType,
+    coreId,
+    detail = {}
+  }) {
+    if (!['QUARANTINED', 'RESYNC_REQUIRED'].includes(status)) {
+      throw Object.assign(
+        new Error(`invalid resident terminal status: ${status}`),
+        { code: 'RESIDENT_TERMINAL_STATUS_INVALID' }
+      );
+    }
+    if (typeof recoveryType !== 'string' || !recoveryType) {
+      throw Object.assign(
+        new Error('resident terminal recovery type is invalid'),
+        { code: 'RESIDENT_TERMINAL_RECOVERY_TYPE' }
+      );
+    }
+    const at = new Date().toISOString();
+    let result;
+    try {
+      result = this.withTransaction(() => {
+      const resident = this.db.prepare(`
+        SELECT core_id
+        FROM resident_instances
+        WHERE residency_id=?
+      `).get(residencyId);
+      if (!resident) {
+        throw Object.assign(
+          new Error(`unknown resident: ${residencyId}`),
+          { code: 'RESIDENT_UNKNOWN' }
+        );
+      }
+      if (coreId && resident.core_id !== coreId) {
+        throw Object.assign(
+          new Error('resident terminal transition changed core identity'),
+          { code: 'RESIDENT_IDENTITY_CONFLICT' }
+        );
+      }
+      const updated = this.db.prepare(`
+        UPDATE resident_instances
+        SET status=?, updated_at=?
+        WHERE residency_id=?
+      `).run(status, at, residencyId);
+      if (updated.changes !== 1) {
+        throw Object.assign(
+          new Error('resident terminal transition lost identity'),
+          { code: 'RESIDENT_IDENTITY_CONFLICT' }
+        );
+      }
+      this.db.prepare(`
+        UPDATE biological_consumers
+        SET active=0, required=0, updated_at=?
+        WHERE consumer_id=?
+      `).run(at, residencyId);
+      this.db.prepare(`
+        INSERT INTO recovery_records(type, core_id, detail_json, created_at)
+        VALUES(?, ?, ?, ?)
+      `).run(recoveryType, resident.core_id, JSON.stringify(detail), at);
+      this.db.prepare(`
+        DELETE FROM recovery_records
+        WHERE id NOT IN (
+          SELECT id FROM recovery_records ORDER BY id DESC LIMIT 10000
+        )
+      `).run();
+      return {
+        resident: this.getResident(residencyId),
+        consumer: this.getBiologicalConsumer(residencyId)
+      };
+      });
+    } catch (error) {
+      this.markWriteFailure(error);
+      throw error;
+    }
+    this.markWriteSuccess();
+    return result;
+  }
+
   async commitResidentCheckpoint({
     residencyId,
     instanceId,
@@ -7532,8 +7847,11 @@ class StateStore {
     const checkpointId =
       crypto.randomUUID();
 
-    const result =
-      this.withTransaction(() => {
+    let result;
+
+    try {
+      result =
+        this.withTransaction(() => {
           const row =
             this.db.prepare(`
               SELECT
@@ -7714,13 +8032,43 @@ class StateStore {
           outboxIntents:
             committedOutbox
         };
-      });
+        });
+    } catch (error) {
+      this.markWriteFailure(error);
+
+      /*
+       * putBlob necessarily precedes the SQLite transaction. If validation,
+       * acknowledgement, or outbox insertion rolls that transaction back,
+       * the content-addressed file must not accumulate as invisible storage
+       * debt. A hash already referenced elsewhere is retained; snapshot pins
+       * defer deletion through the existing pin protocol.
+       */
+      try {
+        await this.deleteBlobIfUnreferenced(
+          blob.hash
+        );
+      } catch (cleanupError) {
+        error.orphanBlobCleanup = {
+          code:
+            cleanupError.code ||
+            null,
+
+          message:
+            cleanupError.message
+        };
+      }
+
+      throw error;
+    }
 
     this.markWriteSuccess();
 
-    await this.pruneResidentCheckpoints(
-      residencyId,
-      32
+    await this.runMaintenance(
+      'resident-checkpoint-retention',
+      () => this.pruneResidentCheckpoints(
+        residencyId,
+        32
+      )
     );
 
     return {
@@ -7732,6 +8080,414 @@ class StateStore {
       blobHash: blob.hash,
       byteLength: blob.byteLength,
       createdAt
+    };
+  }
+
+
+  async promoteResidentGeneration({
+    residencyId,
+    instanceId,
+    organismIdentityHash,
+    fromVersion,
+    fromStateSchema,
+    fromModuleRelativePath,
+    fromCheckpointGeneration,
+    fromCheckpointHash,
+    toVersion,
+    toStateSchema,
+    toModuleRelativePath,
+    toModuleHash,
+    toManifestHash,
+    toPackagePolicyHash,
+    topics,
+    genesisEvent,
+    state
+  }) {
+    const textFields = {
+      residencyId,
+      instanceId,
+      fromVersion,
+      fromModuleRelativePath,
+      toVersion,
+      toModuleRelativePath
+    };
+
+    for (const [name, value] of Object.entries(textFields)) {
+      if (
+        typeof value !==
+          'string' ||
+        !value
+      ) {
+        throw Object.assign(
+          new Error(`resident promotion ${name} is invalid`),
+          { code: 'RESIDENT_PROMOTION_INPUT' }
+        );
+      }
+    }
+
+    for (const [name, value] of Object.entries({
+      organismIdentityHash,
+      toModuleHash,
+      toManifestHash,
+      toPackagePolicyHash
+    })) {
+      if (!RESIDENT_HASH.test(String(value || ''))) {
+        throw Object.assign(
+          new Error(`resident promotion ${name} is invalid`),
+          { code: 'RESIDENT_PROMOTION_INPUT' }
+        );
+      }
+    }
+
+    if (
+      !Number.isSafeInteger(fromStateSchema) ||
+      fromStateSchema < 1 ||
+      !Number.isSafeInteger(toStateSchema) ||
+      toStateSchema <= fromStateSchema ||
+      !Number.isSafeInteger(fromCheckpointGeneration) ||
+      fromCheckpointGeneration < 1 ||
+      !/^[0-9a-f]{64}$/.test(String(fromCheckpointHash || '')) ||
+      !Array.isArray(topics) ||
+      topics.some(topic => typeof topic !== 'string' || !topic) ||
+      !genesisEvent ||
+      genesisEvent.topic !== 'runtime.sntss.continuity-genesis' ||
+      genesisEvent.ledger?.durable !== true ||
+      !Number.isSafeInteger(genesisEvent.sequence) ||
+      genesisEvent.sequence < 1 ||
+      typeof genesisEvent.id !== 'string' ||
+      !genesisEvent.id
+    ) {
+      throw Object.assign(
+        new Error('resident generation promotion input is invalid'),
+        { code: 'RESIDENT_PROMOTION_INPUT' }
+      );
+    }
+
+    const normalizedModule =
+      String(toModuleRelativePath)
+        .replaceAll('\\', '/');
+
+    if (
+      path.posix.isAbsolute(normalizedModule) ||
+      normalizedModule.split('/').includes('..')
+    ) {
+      throw Object.assign(
+        new Error('resident promotion module path is invalid'),
+        { code: 'RESIDENT_MODULE_PATH' }
+      );
+    }
+
+    const json =
+      JSON.stringify(state ?? {});
+
+    const blob =
+      await this.putBlob(
+        json
+      );
+
+    const createdAt =
+      new Date().toISOString();
+
+    const checkpointId =
+      crypto.randomUUID();
+
+    const normalizedTopics =
+      [...new Set(topics.map(String))]
+        .sort();
+
+    const topicsJson =
+      stableStringify(
+        normalizedTopics
+      );
+
+    const topicsHash =
+      sha256(
+        topicsJson
+      );
+
+    const generation =
+      fromCheckpointGeneration + 1;
+
+    const transition =
+      `sha256:${sha256(stableStringify({
+        protocol:
+          'stay-resident-transition-v1',
+        residencyId,
+        eventId:
+          genesisEvent.id,
+        sequence:
+          genesisEvent.sequence
+      }))}`;
+
+    this.withTransaction(() => {
+      const current =
+        this.getResident(
+          residencyId
+        );
+
+      if (
+        !current ||
+        current.instanceId !== instanceId ||
+        current.organismIdentityHash !== organismIdentityHash ||
+        current.version !== fromVersion ||
+        current.stateSchema !== fromStateSchema ||
+        current.moduleRelativePath !== fromModuleRelativePath ||
+        current.checkpointGeneration !== fromCheckpointGeneration ||
+        current.checkpointHash !== fromCheckpointHash ||
+        current.status !== 'DETACHED'
+      ) {
+        throw Object.assign(
+          new Error('resident promotion lost the detached source generation'),
+          { code: 'RESIDENT_PROMOTION_BASELINE' }
+        );
+      }
+
+      const checkpoint =
+        this.db.prepare(`
+          SELECT generation, blob_hash
+          FROM resident_checkpoints
+          WHERE residency_id=?
+          ORDER BY generation DESC
+          LIMIT 1
+        `).get(
+          residencyId
+        );
+
+      if (
+        Number(checkpoint?.generation) !== fromCheckpointGeneration ||
+        checkpoint?.blob_hash !== fromCheckpointHash
+      ) {
+        throw Object.assign(
+          new Error('resident promotion source checkpoint is no longer current'),
+          { code: 'RESIDENT_PROMOTION_CHECKPOINT' }
+        );
+      }
+
+      const eventRow =
+        this.db.prepare(`
+          SELECT *
+          FROM biological_events
+          WHERE sequence=? AND event_id=? AND topic=?
+        `).get(
+          genesisEvent.sequence,
+          genesisEvent.id,
+          genesisEvent.topic
+        );
+
+      if (!eventRow) {
+        throw Object.assign(
+          new Error('continuity-genesis event is not durably committed'),
+          { code: 'RESIDENT_PROMOTION_EVENT' }
+        );
+      }
+
+      const storedEvent =
+        this.biologicalEventFromRow(
+          eventRow,
+          false
+        );
+
+      if (
+        stableStringify(storedEvent) !==
+          stableStringify({
+            ...genesisEvent,
+            ledger:
+              storedEvent.ledger
+          })
+      ) {
+        throw Object.assign(
+          new Error('continuity-genesis event changed before promotion commit'),
+          { code: 'RESIDENT_PROMOTION_EVENT' }
+        );
+      }
+
+      const consumer =
+        this.db.prepare(`
+          SELECT *
+          FROM biological_consumers
+          WHERE consumer_id=?
+        `).get(
+          residencyId
+        );
+
+      const pending =
+        Number(
+          this.db.prepare(`
+            SELECT COUNT(*) AS count
+            FROM biological_deliveries
+            WHERE consumer_id=? AND status='PENDING'
+          `).get(
+            residencyId
+          )?.count || 0
+        );
+
+      if (
+        !consumer ||
+        consumer.core_id !== current.coreId ||
+        Number(consumer.active) !== 0 ||
+        pending !== 0
+      ) {
+        throw Object.assign(
+          new Error('resident consumer is not at a quiescent promotion boundary'),
+          { code: 'RESIDENT_PROMOTION_CONSUMER' }
+        );
+      }
+
+      this.db.prepare(`
+        INSERT INTO resident_checkpoints(
+          checkpoint_id,
+          residency_id,
+          instance_id,
+          version,
+          state_schema,
+          generation,
+          blob_hash,
+          byte_length,
+          input_cursor,
+          created_at
+        )
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        checkpointId,
+        residencyId,
+        instanceId,
+        toVersion,
+        toStateSchema,
+        generation,
+        blob.hash,
+        blob.byteLength,
+        genesisEvent.sequence,
+        createdAt
+      );
+
+      const updated =
+        this.db.prepare(`
+          UPDATE resident_instances
+          SET
+            version=?,
+            state_schema=?,
+            module_relative_path=?,
+            module_hash=?,
+            manifest_hash=?,
+            package_policy_hash=?,
+            checkpoint_hash=?,
+            checkpoint_generation=?,
+            status='ATTACHED',
+            updated_at=?
+          WHERE
+            residency_id=? AND
+            instance_id=? AND
+            version=? AND
+            state_schema=? AND
+            module_relative_path=? AND
+            checkpoint_hash=? AND
+            checkpoint_generation=? AND
+            status='DETACHED'
+        `).run(
+          toVersion,
+          toStateSchema,
+          normalizedModule,
+          toModuleHash,
+          toManifestHash,
+          toPackagePolicyHash,
+          blob.hash,
+          generation,
+          createdAt,
+          residencyId,
+          instanceId,
+          fromVersion,
+          fromStateSchema,
+          fromModuleRelativePath,
+          fromCheckpointHash,
+          fromCheckpointGeneration
+        );
+
+      if (updated.changes !== 1) {
+        throw Object.assign(
+          new Error('resident promotion identity update lost its compare-and-swap'),
+          { code: 'RESIDENT_PROMOTION_IDENTITY' }
+        );
+      }
+
+      this.db.prepare(`
+        INSERT INTO biological_deliveries(
+          sequence,
+          consumer_id,
+          status,
+          transition_id,
+          checkpoint_hash,
+          acknowledged_at
+        )
+        VALUES(?, ?, 'ACKED', ?, ?, ?)
+      `).run(
+        genesisEvent.sequence,
+        residencyId,
+        transition,
+        blob.hash,
+        createdAt
+      );
+
+      this.db.prepare(`
+        UPDATE biological_consumers
+        SET
+          required=0,
+          active=1,
+          topics_json=?,
+          topics_sha256=?,
+          cursor=?,
+          authority_epoch=0,
+          checkpoint_hash=?,
+          updated_at=?
+        WHERE consumer_id=? AND active=0
+      `).run(
+        topicsJson,
+        topicsHash,
+        genesisEvent.sequence,
+        blob.hash,
+        createdAt,
+        residencyId
+      );
+    });
+
+    this.markWriteSuccess();
+
+    await this.runMaintenance(
+      'resident-checkpoint-retention',
+      () => this.pruneResidentCheckpoints(
+        residencyId,
+        32
+      )
+    );
+
+    return {
+      resident:
+        this.getResident(
+          residencyId
+        ),
+      checkpoint: {
+        checkpointId,
+        residencyId,
+        instanceId,
+        version:
+          toVersion,
+        stateSchema:
+          toStateSchema,
+        generation,
+        blobHash:
+          blob.hash,
+        byteLength:
+          blob.byteLength,
+        inputCursor:
+          genesisEvent.sequence,
+        createdAt,
+        state:
+          structuredClone(
+            state
+          )
+      },
+      genesisEvent,
+      transitionId:
+        transition
     };
   }
 
@@ -7776,56 +8532,7 @@ class StateStore {
     });
 
     for (const row of remove) {
-      const authoritativeCheckpointRefs =
-        Number(
-          this.db.prepare(`
-            SELECT COUNT(*) AS count
-            FROM checkpoints
-            WHERE blob_hash=?
-          `).get(row.blob_hash)?.count || 0
-        );
-
-      const authorityRefs =
-        Number(
-          this.db.prepare(`
-            SELECT COUNT(*) AS count
-            FROM authority
-            WHERE checkpoint_hash=?
-          `).get(row.blob_hash)?.count || 0
-        );
-
-      const residentCheckpointRefs =
-        Number(
-          this.db.prepare(`
-            SELECT COUNT(*) AS count
-            FROM resident_checkpoints
-            WHERE blob_hash=?
-          `).get(row.blob_hash)?.count || 0
-        );
-
-      const residentPointerRefs =
-        Number(
-          this.db.prepare(`
-            SELECT COUNT(*) AS count
-            FROM resident_instances
-            WHERE checkpoint_hash=?
-          `).get(row.blob_hash)?.count || 0
-        );
-
-      if (
-        authoritativeCheckpointRefs === 0 &&
-        authorityRefs === 0 &&
-        residentCheckpointRefs === 0 &&
-        residentPointerRefs === 0
-      ) {
-        await fs.unlink(
-          this.blobPath(row.blob_hash)
-        ).catch(error => {
-          if (error.code !== 'ENOENT') {
-            throw error;
-          }
-        });
-      }
+      await this.deleteBlobIfUnreferenced(row.blob_hash);
     }
   }
 
@@ -10131,9 +10838,12 @@ class StateStore {
 
     this.markWriteSuccess();
 
-    await this.pruneCheckpoints(
-      coreId,
-      32
+    await this.runMaintenance(
+      'authoritative-checkpoint-retention',
+      () => this.pruneCheckpoints(
+        coreId,
+        32
+      )
     );
 
     return {
@@ -10188,9 +10898,7 @@ class StateStore {
       for (const row of remove) statement.run(row.checkpoint_id);
     });
     for (const row of remove) {
-      const checkpointRefs = Number(this.db.prepare('SELECT COUNT(*) AS count FROM checkpoints WHERE blob_hash=?').get(row.blob_hash)?.count || 0);
-      const authorityRefs = Number(this.db.prepare('SELECT COUNT(*) AS count FROM authority WHERE checkpoint_hash=?').get(row.blob_hash)?.count || 0);
-      if (checkpointRefs === 0 && authorityRefs === 0) await fs.unlink(this.blobPath(row.blob_hash)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+      await this.deleteBlobIfUnreferenced(row.blob_hash);
     }
   }
 
@@ -10631,11 +11339,16 @@ class StateStore {
 
   recordRecovery(type, coreId, detail = {}) {
     const at = new Date().toISOString();
-    this.withTransaction(() => {
-      this.db.prepare('INSERT INTO recovery_records(type, core_id, detail_json, created_at) VALUES(?, ?, ?, ?)')
-        .run(type, coreId || null, JSON.stringify(detail), at);
-      this.db.prepare('DELETE FROM recovery_records WHERE id NOT IN (SELECT id FROM recovery_records ORDER BY id DESC LIMIT 10000)').run();
-    });
+    try {
+      this.withTransaction(() => {
+        this.db.prepare('INSERT INTO recovery_records(type, core_id, detail_json, created_at) VALUES(?, ?, ?, ?)')
+          .run(type, coreId || null, JSON.stringify(detail), at);
+        this.db.prepare('DELETE FROM recovery_records WHERE id NOT IN (SELECT id FROM recovery_records ORDER BY id DESC LIMIT 10000)').run();
+      });
+    } catch (error) {
+      this.markWriteFailure(error);
+      throw error;
+    }
     this.markWriteSuccess();
   }
 
@@ -10646,79 +11359,106 @@ class StateStore {
     const name = createdAt.replace(/[:.]/g, '-') + '-' + safeReason;
     const finalDir = path.join(snapshotsRoot, name);
     const tempDir = finalDir + '.tmp-' + process.pid;
-    await fs.mkdir(tempDir, { recursive: true, mode: 0o700 });
-
-    const snapshotDatabasePath = path.join(tempDir, 'continuity.sqlite3');
-    const escapedSnapshotPath = snapshotDatabasePath.replaceAll("'", "''");
-    this.db.exec(`VACUUM INTO '${escapedSnapshotPath}'`);
-    const snapshotDb = new DatabaseSync(snapshotDatabasePath);
+    let snapshotBlobHashes = new Set();
+    let snapshotAuthority = [];
+    let snapshotResidents = [];
+    let blobsPinned = false;
+    let completed = false;
     try {
-      const check = snapshotDb.prepare('PRAGMA quick_check').get();
-      if (String(check?.quick_check || '').toLowerCase() !== 'ok') {
-        throw Object.assign(new Error('snapshot SQLite image failed quick_check'), { code: 'SNAPSHOT_INTEGRITY' });
+      await fs.mkdir(tempDir, { recursive: true, mode: 0o700 });
+
+      /*
+       * Pin the exact blob closure and create the SQLite image without an
+       * intervening await. Checkpoint retention therefore cannot unlink a
+       * selected blob or add a newer reference to this snapshot image.
+       */
+      snapshotBlobHashes = new Set(
+        this.db.prepare(`
+          SELECT blob_hash FROM checkpoints
+          UNION
+          SELECT blob_hash FROM resident_checkpoints
+          UNION
+          SELECT checkpoint_hash AS blob_hash
+          FROM authority
+          WHERE checkpoint_hash IS NOT NULL
+          UNION
+          SELECT checkpoint_hash AS blob_hash
+          FROM resident_instances
+          WHERE checkpoint_hash IS NOT NULL
+        `).all().map(row => row.blob_hash)
+      );
+      this.pinSnapshotBlobs(snapshotBlobHashes);
+      blobsPinned = true;
+      snapshotAuthority = this.listAuthority();
+      snapshotResidents = this.listResidents();
+
+      const snapshotDatabasePath = path.join(tempDir, 'continuity.sqlite3');
+      const escapedSnapshotPath = snapshotDatabasePath.replaceAll("'", "''");
+      this.db.exec(`VACUUM INTO '${escapedSnapshotPath}'`);
+      const snapshotDb = new DatabaseSync(snapshotDatabasePath);
+      try {
+        const check = snapshotDb.prepare('PRAGMA quick_check').get();
+        if (String(check?.quick_check || '').toLowerCase() !== 'ok') {
+          throw Object.assign(new Error('snapshot SQLite image failed quick_check'), { code: 'SNAPSHOT_INTEGRITY' });
+        }
+      } finally { snapshotDb.close(); }
+      const selected = [];
+      for (const relative of ['life/identity.json', 'life/runtime-heartbeat.json', 'legacy-0.6.0/genesis-state.json']) {
+        const source = path.join(this.rootDir, relative);
+        if (await exists(source)) selected.push(source);
       }
-    } finally { snapshotDb.close(); }
-    const selected = [];
-    for (const relative of ['life/identity.json', 'life/runtime-heartbeat.json', 'legacy-0.6.0/genesis-state.json']) {
-      const source = path.join(this.rootDir, relative);
-      if (await exists(source)) selected.push(source);
-    }
-    const checkpointRows = this.db.prepare('SELECT DISTINCT blob_hash FROM checkpoints').all();
-    for (const row of checkpointRows) {
-      const source = this.blobPath(row.blob_hash);
-      if (
-        await exists(source) &&
-        !selected.includes(source)
-      ) {
+      for (const hash of snapshotBlobHashes) {
+        const source = this.blobPath(hash);
+        if (!(await exists(source))) {
+          throw Object.assign(
+            new Error(`snapshot referenced blob is missing: ${hash}`),
+            { code: 'SNAPSHOT_BLOB_MISSING' }
+          );
+        }
         selected.push(source);
       }
-    }
 
-    const residentCheckpointRows =
-      this.db.prepare(
-        'SELECT DISTINCT blob_hash FROM resident_checkpoints'
-      ).all();
-
-    for (const row of residentCheckpointRows) {
-      const source =
-        this.blobPath(row.blob_hash);
-
-      if (
-        await exists(source) &&
-        !selected.includes(source)
-      ) {
-        selected.push(source);
+      const manifest = {
+        format: 'stay-runtime-snapshot-v2',
+        createdAt,
+        reason,
+        files: {
+          'continuity.sqlite3':
+            await sha256File(snapshotDatabasePath)
+        },
+        authority:
+          snapshotAuthority,
+        residents:
+          snapshotResidents
+      };
+      for (const source of selected) {
+        const relative = path.relative(this.rootDir, source);
+        const target = path.join(tempDir, relative);
+        await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+        await fs.copyFile(source, target);
+        manifest.files[relative] = await sha256File(target);
+      }
+      await atomicWrite(path.join(tempDir, 'SNAPSHOT_MANIFEST.json'), JSON.stringify(manifest, null, 2) + '\n');
+      await fs.rename(tempDir, finalDir);
+      completed = true;
+      await fsyncDirectory(snapshotsRoot);
+      this.markWriteSuccess();
+      await this.runMaintenance(
+        'snapshot-and-journal-retention',
+        async () => {
+          await this.pruneSnapshots(retention);
+          await this.pruneJournal(30);
+          this.pruneUpgradeHistory(1000);
+        }
+      );
+      return { name, path: finalDir, createdAt, reason, fileCount: Object.keys(manifest.files).length };
+    } finally {
+      try {
+        if (blobsPinned) await this.releaseSnapshotBlobs(snapshotBlobHashes);
+      } finally {
+        if (!completed) await fs.rm(tempDir, { recursive: true, force: true });
       }
     }
-
-    const manifest = {
-      format: 'stay-runtime-snapshot-v2',
-      createdAt,
-      reason,
-      files: {
-        'continuity.sqlite3':
-          await sha256File(snapshotDatabasePath)
-      },
-      authority:
-        this.listAuthority(),
-      residents:
-        this.listResidents()
-    };
-    for (const source of selected) {
-      const relative = path.relative(this.rootDir, source);
-      const target = path.join(tempDir, relative);
-      await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-      await fs.copyFile(source, target);
-      manifest.files[relative] = await sha256File(target);
-    }
-    await atomicWrite(path.join(tempDir, 'SNAPSHOT_MANIFEST.json'), JSON.stringify(manifest, null, 2) + '\n');
-    await fs.rename(tempDir, finalDir);
-    await fsyncDirectory(snapshotsRoot);
-    this.markWriteSuccess();
-    await this.pruneSnapshots(retention);
-    await this.pruneJournal(30);
-    this.pruneUpgradeHistory(1000);
-    return { name, path: finalDir, createdAt, reason, fileCount: Object.keys(manifest.files).length };
   }
 
   async pruneJournal(retentionDays = 30) {

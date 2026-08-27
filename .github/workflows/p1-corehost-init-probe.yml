@@ -1,9 +1,7 @@
 name: Probe exact SNTSS CoreHost init
 
 on:
-  push:
-    branches: [main]
-    paths: [.github/p1-corehost-init-probe.launch]
+  workflow_dispatch:
 
 permissions:
   contents: write

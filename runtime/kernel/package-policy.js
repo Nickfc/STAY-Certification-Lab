@@ -124,6 +124,28 @@ function verifyManifestAgainstPackagePolicy(record, manifest) {
   }
   if (manifest.coreId !== record.policy.coreId) fail('manifest core identity differs from package policy');
   if (stableStringify(manifest.resources) !== stableStringify(record.policy.resourceContract.manifestResources)) fail('manifest resources differ from the package resource contract', 'CORE_PACKAGE_RESOURCE_MISMATCH');
+  const cgroup = record.policy.resourceContract?.cgroupV2;
+  if (cgroup) {
+    const expectedHigh = Number(manifest.resources.softRamMiB) * 1024 * 1024;
+    const expectedMax = Number(manifest.resources.hardRamMiB) * 1024 * 1024;
+    const period = 100000;
+    const expectedCpuMax = `${Math.max(1000, Math.floor(
+      Number(manifest.resources.hardCpuPercent) / 100 * period
+    ))} ${period}`;
+    if (
+      Number(cgroup.memoryHighBytes) !== expectedHigh ||
+      Number(cgroup.memoryMaxBytes) !== expectedMax ||
+      Number(cgroup.pidsMax) !== Number(manifest.resources.pidsMax) ||
+      cgroup.cpuMax !== expectedCpuMax ||
+      cgroup.distribution !== 'stay-cores' ||
+      !['cpu', 'memory', 'pids'].every(controller =>
+        Array.isArray(cgroup.controllers) && cgroup.controllers.includes(controller)
+      ) ||
+      cgroup.kernelGovernorOwned !== true
+    ) {
+      fail('package cgroup contract differs from the manifest payload envelope', 'CORE_PACKAGE_RESOURCE_MISMATCH');
+    }
+  }
   return true;
 }
 

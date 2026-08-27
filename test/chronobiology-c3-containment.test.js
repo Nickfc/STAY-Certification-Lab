@@ -192,8 +192,16 @@ test('C3-RES-06 status-poll storm is bounded at 128 pending CoreHost requests', 
     logger: { info() {}, warn() {}, error() {} },
   });
   client.child = { connected: true, send(_message, callback) { callback?.(null); } };
-  const pending = Array.from({ length: 128 }, () => client.health());
-  await assert.rejects(client.health(), { code: 'COREHOST_PENDING_LIMIT' });
+  const pending = Array.from({ length: 128 }, () => client.request(
+    'health',
+    { workerTimeoutMs: chronobiology.manifest.resources.healthTimeoutMs },
+    60_000,
+  ));
+  await assert.rejects(client.request(
+    'health',
+    { workerTimeoutMs: chronobiology.manifest.resources.healthTimeoutMs },
+    60_000,
+  ), { code: 'COREHOST_PENDING_LIMIT' });
   assert.equal(client.pending.size, 128);
   for (const request of client.pending.values()) clearTimeout(request.timer);
   client.pending.clear();

@@ -10,6 +10,7 @@ const { makeDataDir, waitFor, fs, path } = require('./helpers');
 
 const ROOT = path.join(__dirname, '..');
 const TOKEN = 'r11-m01-operator-capability-0123456789abcdef0123456789abcdef';
+const RESIDENT_SOCKET_PRELOAD = path.join(__dirname, 'fixtures', 'r11-m01-resident-socket-preload.js');
 
 async function freePort() {
   return new Promise((resolve, reject) => {
@@ -49,7 +50,7 @@ function request(port, pathname, options = {}) {
 async function startServer(t, extraEnv = {}) {
   const dataDir = await makeDataDir('stay-r11-m01-data-');
   const port = await freePort();
-  const child = spawn(process.execPath, ['server-secure.js'], {
+  const child = spawn(process.execPath, ['--require', RESIDENT_SOCKET_PRELOAD, 'server-secure.js'], {
     cwd: ROOT,
     env: {
       ...process.env,
@@ -58,12 +59,17 @@ async function startServer(t, extraEnv = {}) {
       STAY_DATA_DIR: dataDir,
       STAY_ALLOW_IDENTITY_BOOTSTRAP: '1',
       STAY_LEGACY_PORT: '0',
+      STAY_TEST_RESIDENT_CONTROL_SOCKET: process.platform === 'win32'
+        ? ''
+        : path.join(os.tmpdir(), `stay-r11-${process.pid}-${port}.sock`),
       ...extraEnv
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
+  let stdout = '';
   let stderr = '';
-  child.stderr.on('data', chunk => { stderr += String(chunk); });
+  child.stdout.on('data', chunk => { stdout = (stdout + String(chunk)).slice(-4096); });
+  child.stderr.on('data', chunk => { stderr = (stderr + String(chunk)).slice(-4096); });
   t.after(async () => {
     if (child.exitCode == null && child.signalCode == null) {
       child.kill('SIGTERM');
@@ -71,9 +77,17 @@ async function startServer(t, extraEnv = {}) {
     }
     await fs.rm(dataDir, { recursive: true, force: true });
   });
-  await waitFor(async () => {
-    try { return (await request(port, '/healthz')).status === 200; } catch { return false; }
-  }, 5000);
+  try {
+    await waitFor(async () => {
+      if (child.exitCode != null || child.signalCode != null) {
+        throw new Error(`secure server exited before readiness: code=${child.exitCode} signal=${child.signalCode}`);
+      }
+      try { return (await request(port, '/healthz')).status === 200; } catch { return false; }
+    }, 5000);
+  } catch (error) {
+    const diagnostic = `${stdout}\n${stderr}`.trim().slice(-4096);
+    throw new Error(`${error.message}; secure server diagnostic: ${diagnostic || '<none>'}`);
+  }
   return { child, port, stderr: () => stderr };
 }
 

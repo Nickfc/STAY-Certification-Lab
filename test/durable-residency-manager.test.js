@@ -2079,7 +2079,7 @@ test(
 
 
 test(
-  'L0-B1-12: durable snapshot timeout recycles uncommitted CoreHost memory before exact event retry',
+  'L0-B1-12: durable combined-transition timeout recycles uncommitted CoreHost memory before exact event retry',
   async t => {
     const runtime =
       await makeRuntime(t);
@@ -2141,14 +2141,16 @@ test(
         if (
           !injected &&
           operation ===
-            'snapshot'
+            'event' &&
+          payload?.includeCheckpoint ===
+            true
         ) {
           injected =
             true;
 
           throw Object.assign(
             new Error(
-              'synthetic durable snapshot timeout'
+              'synthetic combined transition timeout'
             ),
             {
               code:

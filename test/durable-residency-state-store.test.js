@@ -16,6 +16,12 @@ const path =
   require('node:path');
 
 const {
+  DatabaseSync
+} = require(
+  'node:sqlite'
+);
+
+const {
   StateStore
 } = require(
   '../runtime/kernel/state-store'
@@ -1071,12 +1077,28 @@ test(
      * Failed open must not downgrade or rewrite the
      * unknown future schema marker.
      */
+    const verification =
+      new DatabaseSync(
+        path.join(
+          dataDir,
+          'continuity.sqlite3'
+        ),
+        {
+          open: true,
+          readOnly: true
+        }
+      );
+
+
     const row =
-      future.db.prepare(`
+      verification.prepare(`
         SELECT version
         FROM schema_versions
         WHERE name='continuity'
       `).get();
+
+
+    verification.close();
 
 
     assert.equal(

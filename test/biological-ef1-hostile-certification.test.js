@@ -15,9 +15,8 @@ function transitionId(value) {
   return 'sha256:' + crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
-async function makeDir(t, name) {
+async function makeDir(name) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), `stay-ef1-h-${name}-`));
-  t.after(() => fs.rm(dir, { recursive: true, force: true }));
   return dir;
 }
 
@@ -84,12 +83,13 @@ function makeDrainSlot(store, fabric, epoch = 2) {
 }
 
 test('EF1-H whole-process restart after cutover commit replays one spooled old-epoch obligation with its original identity', async t => {
-  const dir = await makeDir(t, 'restart-drain');
+  const dir = await makeDir('restart-drain');
   const seeded = await seedCutover(dir);
 
   const store = new StateStore(dir);
   await store.init();
   t.after(() => { try { store.close(); } catch {} });
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
   const fabric = makeFabric(store);
   const observed = [];
   fabric.subscribe('bio.observed', event => { observed.push(event); });
@@ -107,7 +107,7 @@ test('EF1-H whole-process restart after cutover commit replays one spooled old-e
 });
 
 test('EF1-H second recovery drain after accepted spool cannot apply the same historical output twice', async t => {
-  const dir = await makeDir(t, 'restart-twice');
+  const dir = await makeDir('restart-twice');
   const seeded = await seedCutover(dir);
 
   let store = new StateStore(dir);
@@ -123,6 +123,7 @@ test('EF1-H second recovery drain after accepted spool cannot apply the same his
   store = new StateStore(dir);
   await store.init();
   t.after(() => { try { store.close(); } catch {} });
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
   fabric = makeFabric(store);
   let secondCount = 0;
   fabric.subscribe('bio.observed', () => { secondCount += 1; });
@@ -135,12 +136,13 @@ test('EF1-H second recovery drain after accepted spool cannot apply the same his
 });
 
 test('EF1-H ambiguous publish failure retains the spool and retry binds the same durable event identity exactly once', async t => {
-  const dir = await makeDir(t, 'delivery-failure');
+  const dir = await makeDir('delivery-failure');
   const seeded = await seedCutover(dir);
 
   const store = new StateStore(dir);
   await store.init();
   t.after(() => { try { store.close(); } catch {} });
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
   const fabric = makeFabric(store);
   let fail = true;
   let attempts = 0;
@@ -173,7 +175,7 @@ test('EF1-H ambiguous publish failure retains the spool and retry binds the same
 });
 
 test('EF1-H crash before cutover seal preserves old authority and ordinary pending output rather than inventing a new epoch', async t => {
-  const dir = await makeDir(t, 'before-seal');
+  const dir = await makeDir('before-seal');
   const store = new StateStore(dir);
   await store.init();
   store.setInitialAuthority({ coreId: 'alpha', instanceId: 'old', version: '1.0.0', epoch: 1 });
@@ -195,17 +197,19 @@ test('EF1-H crash before cutover seal preserves old authority and ordinary pendi
   const recovered = new StateStore(dir);
   await recovered.init();
   t.after(() => { try { recovered.close(); } catch {} });
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
   assert.equal(recovered.getAuthority('alpha').epoch, 1);
   assert.equal(recovered.listPendingBiologicalOutboxIntents({ producerCoreId: 'alpha' }).length, 1);
   assert.equal(recovered.listBiologicalCutoverSpool({ producerCoreId: 'alpha' }).length, 0);
 });
 
 test('EF1-H committed cutover spool hash tampering fails closed after restart', async t => {
-  const dir = await makeDir(t, 'spool-tamper');
+  const dir = await makeDir('spool-tamper');
   const seeded = await seedCutover(dir);
   const store = new StateStore(dir);
   await store.init();
   t.after(() => { try { store.close(); } catch {} });
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
 
   store.db.prepare(`UPDATE biological_cutover_spool SET barrier_sequence=barrier_sequence+1 WHERE producer_event_id=?`).run(seeded.intent.producerEventId);
   assert.throws(
