@@ -14,6 +14,15 @@ const R110_STATE_SHA256 = 'a215023bac35f1c12b8ba9b8021b7ebc16e131f153623a48a0a3c
 const R110_SAMPLES_SHA256 = '53cbbffc750534c5e5aadc056845f31bf88afc4f850cd1e23800371a8bdd5237';
 const R110_TERMINAL_SAMPLES = 4311;
 const BENCHMARK_72H_MS = 72 * 60 * 60 * 1000;
+const MIB = 1024 * 1024;
+
+function targetRevision() {
+  const value = Number(process.env.STAY_PRODUCTION_HARDENING_TARGET_REVISION || 111);
+  if (![111, 114].includes(value)) {
+    fail('production-hardening target revision is invalid', 'P1_PRODUCTION_HARDENING_REVISION');
+  }
+  return value;
+}
 
 function fail(message, code = 'P1_PRODUCTION_HARDENING_LIVE_PROOF') {
   throw Object.assign(new Error(message), { code });
@@ -108,6 +117,9 @@ function databaseSnapshot() {
       shutdownCheckpointFailureRows: value("SELECT COUNT(*) value FROM recovery_records WHERE type='resident.shutdown-checkpoint-failed'"),
       shutdownStopFailureRows: value("SELECT COUNT(*) value FROM recovery_records WHERE type='resident.shutdown-stop-failed'"),
       outboxPendingRows: value("SELECT COUNT(*) value FROM recovery_records WHERE type='resident.outbox-pending' AND core_id IN ('sntss', 'chronobiology')"),
+      quarantinedRows: value("SELECT COUNT(*) value FROM recovery_records WHERE type='resident.quarantined' AND core_id IN ('sntss', 'chronobiology')"),
+      kernelRecoveryFailedRows: value("SELECT COUNT(*) value FROM recovery_records WHERE type='resident.kernel-recovery-failed' AND core_id IN ('sntss', 'chronobiology')"),
+      coldRecoveryFailedRows: value("SELECT COUNT(*) value FROM recovery_records WHERE type='resident.cold-recovery-failed' AND core_id IN ('sntss', 'chronobiology')"),
       sntssCoreHostFaults: coreHostFaults('sntss'),
       chronobiologyCoreHostFaults: coreHostFaults('chronobiology'),
       sntssResyncRequiredRows: value("SELECT COUNT(*) value FROM recovery_records WHERE type='resident.resync-required' AND core_id='sntss'"),
@@ -296,6 +308,179 @@ function recoveryProof(beforeFile, sntssStatusFile, chronobiologyStatusFile) {
   };
 }
 
+function captureRepairBefore(sntssStatusFile, chronobiologyStatusFile) {
+  const sntssStatus = readJson(sntssStatusFile, 'SNTSS status')?.resident;
+  const chronobiologyStatus = readJson(chronobiologyStatusFile, 'Chronobiology status')?.resident;
+  const database = databaseSnapshot();
+  const sntss = database.residents.find(row => row.residency_id === 'resident:sntss');
+  const chronobiology = database.residents.find(row => row.residency_id === 'resident:chronobiology');
+  const sntssResync = database.recentRecovery.find(row =>
+    row.type === 'resident.resynchronized' && row.core_id === 'sntss'
+  );
+  const sntssQuarantine = database.recentRecovery.find(row =>
+    row.type === 'resident.quarantined' && row.core_id === 'sntss'
+  );
+  const chronobiologyFailure = database.recentRecovery.find(row =>
+    row.type === 'resident.kernel-recovery-failed' && row.core_id === 'chronobiology'
+  );
+  assert(
+    database.quickCheck === 'ok' && database.runtimeRevision === 112 &&
+    sntss?.version === '0.5.0-i4g1' && Number(sntss?.state_schema) === 5 &&
+    sntss?.status === 'QUARANTINED' && database.checkpoint?.blobDigestMatches === true &&
+    sntssStatus?.status === 'QUARANTINED' && sntssStatus?.running === false &&
+    sntssStatus?.authorityOwned === false && Number(sntssStatus?.observedOutputs) === 0 &&
+    chronobiology?.version === '1.0.0-c3rc.1' && chronobiology?.status === 'QUARANTINED' &&
+    chronobiologyStatus?.status === 'QUARANTINED' && chronobiologyStatus?.running === false &&
+    chronobiologyStatus?.authorityOwned === false && Number(chronobiologyStatus?.observedOutputs) === 0 &&
+    sntssResync?.detail?.runtimeRevision === 111 &&
+    sntssResync?.detail?.inventedBiologicalTime === false &&
+    Number(sntssResync?.detail?.abandonedCount) === 0 &&
+    sntssQuarantine?.detail?.reason === 'restart-storm' &&
+    Number(sntssQuarantine?.detail?.restarts) === 5 &&
+    chronobiologyFailure?.detail?.code === 'CGROUP_REQUIRED' &&
+    /ESRCH/.test(String(chronobiologyFailure?.detail?.message || '')) &&
+    database.pendingOutboxIntents === 0 && database.failedDeliveries === 0 &&
+    database.sntssAuthorityRows === 0 && database.chronobiologyAuthorityRows === 0 &&
+    database.sntssOutputRows === 0,
+    'contained R112 repair baseline is invalid',
+    'P1_PRODUCTION_HARDENING_R112_REPAIR_BASELINE'
+  );
+  const resident = value => ({
+    instanceId: value.instance_id,
+    status: value.status,
+    checkpointGeneration: Number(value.checkpoint_generation),
+    checkpointHash: value.checkpoint_hash
+  });
+  return {
+    format: 'stay-production-hardening-repair-before-v1',
+    capturedAt: new Date().toISOString(),
+    runtimeRevision: 112,
+    sntss: resident(sntss),
+    chronobiology: resident(chronobiology),
+    pendingDeliveries: database.pendingDeliveries,
+    recentRecoveryHighWaterId: database.recoveryHighWaterId,
+    counters: {
+      maintenanceFailureRows: database.maintenanceFailureRows,
+      startupTeardownFailureRows: database.startupTeardownFailureRows,
+      detachTeardownFailureRows: database.detachTeardownFailureRows,
+      terminalTeardownFailureRows: database.terminalTeardownFailureRows,
+      shutdownCheckpointFailureRows: database.shutdownCheckpointFailureRows,
+      shutdownStopFailureRows: database.shutdownStopFailureRows,
+      outboxPendingRows: database.outboxPendingRows,
+      quarantinedRows: database.quarantinedRows,
+      kernelRecoveryFailedRows: database.kernelRecoveryFailedRows,
+      coldRecoveryFailedRows: database.coldRecoveryFailedRows,
+      sntssCoreHostFaults: database.sntssCoreHostFaults,
+      chronobiologyCoreHostFaults: database.chronobiologyCoreHostFaults,
+      sntssResyncRequiredRows: database.sntssResyncRequiredRows,
+      chronobiologyResyncRequiredRows: database.chronobiologyResyncRequiredRows,
+      sntssDeliveryRetryRows: database.sntssDeliveryRetryRows,
+      chronobiologyDeliveryRetryRows: database.chronobiologyDeliveryRetryRows,
+      duplicateResyncGroups: database.duplicateResyncGroups
+    }
+  };
+}
+
+function repairRecoveryProof(beforeFile, sntssStatusFile, chronobiologyStatusFile) {
+  const before = readJson(beforeFile, 'repair before proof');
+  const sntssStatus = readJson(sntssStatusFile, 'SNTSS status')?.resident;
+  const chronobiologyStatus = readJson(chronobiologyStatusFile, 'Chronobiology status')?.resident;
+  const database = databaseSnapshot();
+  const sntss = database.residents.find(row => row.residency_id === 'resident:sntss');
+  const chronobiology = database.residents.find(row => row.residency_id === 'resident:chronobiology');
+  const sntssResync = recoveryRecordAfter(
+    before.recentRecoveryHighWaterId, 'resident.resynchronized', 'sntss'
+  );
+  const chronobiologyResync = recoveryRecordAfter(
+    before.recentRecoveryHighWaterId, 'resident.resynchronized', 'chronobiology'
+  );
+  const counters = before.counters || {};
+  const unchanged = [
+    'maintenanceFailureRows', 'startupTeardownFailureRows', 'detachTeardownFailureRows',
+    'terminalTeardownFailureRows', 'shutdownCheckpointFailureRows', 'shutdownStopFailureRows',
+    'outboxPendingRows', 'quarantinedRows', 'kernelRecoveryFailedRows', 'coldRecoveryFailedRows',
+    'sntssCoreHostFaults', 'chronobiologyCoreHostFaults',
+    'sntssResyncRequiredRows', 'chronobiologyResyncRequiredRows',
+    'sntssDeliveryRetryRows', 'chronobiologyDeliveryRetryRows', 'duplicateResyncGroups'
+  ];
+  const healthyResident = (status, coreId) => {
+    const memory = status?.host?.resourceGovernor?.policy?.memoryPlan;
+    const processRss = Number(status?.host?.resourceGovernor?.latest?.process?.rssBytes);
+    return status?.coreId === coreId && status?.status === 'RUNNING' && status?.running === true &&
+      status?.health?.ok === true && status?.authorityOwned === false &&
+      !status?.terminalPersistenceError && !status?.teardownError &&
+      status?.host?.osContainment?.required === true &&
+      status?.host?.osContainment?.available === true &&
+      status?.host?.osContainment?.payloadAttachedBeforeInit === true &&
+      Number(memory?.payloadSoftBytes) === 64 * MIB &&
+      Number(memory?.payloadHardBytes) === 96 * MIB &&
+      Number(memory?.supervisorHardBytes) === 64 * MIB &&
+      Number(memory?.supervisorOldSpaceMiB) === 12 &&
+      Number(memory?.supervisorSemiSpaceMiB) === 1 &&
+      Number.isFinite(processRss) && processRss > 0 && processRss < 64 * MIB &&
+      status?.host?.resourceGovernor?.lastAction == null;
+  };
+  const serviceRestarts = Number(process.env.STAY_RECOVERY_SERVICE_RESTARTS || 1);
+  assert(
+    before.format === 'stay-production-hardening-repair-before-v1' &&
+    Number.isSafeInteger(serviceRestarts) && serviceRestarts >= 1 && serviceRestarts <= 2 &&
+    before.runtimeRevision === 112 && database.quickCheck === 'ok' && database.runtimeRevision === 114 &&
+    sntss?.instance_id === before.sntss?.instanceId && sntss?.status === 'RUNNING' &&
+    Number(sntss?.checkpoint_generation) > Number(before.sntss?.checkpointGeneration) &&
+    chronobiology?.instance_id === before.chronobiology?.instanceId && chronobiology?.status === 'RUNNING' &&
+    Number(chronobiology?.checkpoint_generation) > Number(before.chronobiology?.checkpointGeneration) &&
+    healthyResident(sntssStatus, 'sntss') && healthyResident(chronobiologyStatus, 'chronobiology') &&
+    Number(sntssStatus?.observedOutputs) === 0 &&
+    sntssResync?.detail?.runtimeRevision === 113 &&
+    sntssResync?.detail?.inventedBiologicalTime === false &&
+    Number(sntssResync?.detail?.abandonedCount) === 0 &&
+    chronobiologyResync?.detail?.runtimeRevision === 113 &&
+    chronobiologyResync?.detail?.inventedBiologicalTime === false &&
+    Number(chronobiologyResync?.detail?.abandonedCount) === 0 &&
+    unchanged.every(key => Number(database[key]) === Number(counters[key])) &&
+    database.pendingOutboxIntents === 0 && database.failedDeliveries === 0 &&
+    database.pendingDeliveries <= 32 && database.sntssAuthorityRows === 0 &&
+    database.chronobiologyAuthorityRows === 0 && database.sntssOutputRows === 0,
+    'R112 to R114 contained recovery proof is invalid',
+    'P1_PRODUCTION_HARDENING_R114_RECOVERY_PROOF'
+  );
+  const recoveryResident = (prior, current, resync) => ({
+    before: prior,
+    after: {
+      runtimeRevision: 114,
+      status: current.status,
+      running: true,
+      instanceId: current.instance_id,
+      checkpointGeneration: Number(current.checkpoint_generation),
+      checkpointHash: current.checkpoint_hash
+    },
+    resyncRecordId: Number(resync.id),
+    abandonedCount: Number(resync.detail.abandonedCount),
+    inventedBiologicalTime: false
+  });
+  return {
+    format: 'stay-production-hardening-contained-repair-proof-v1',
+    result: 'PASS',
+    capturedAt: new Date().toISOString(),
+    sourceRevision: 112,
+    coldRecoveryRevision: 113,
+    completedRevision: 114,
+    serviceRestarts,
+    sntss: recoveryResident(before.sntss, sntss, sntssResync),
+    chronobiology: recoveryResident(before.chronobiology, chronobiology, chronobiologyResync),
+    maintenanceFailuresDuringRecovery: 0,
+    outboxPublicationFailuresDuringRecovery: 0,
+    coreHostFaultsDuringRecovery: 0,
+    resyncRequiredDuringRecovery: 0,
+    deliveryRetriesDuringRecovery: 0,
+    quarantinesDuringRecovery: 0,
+    duplicateResyncGroupsDuringRecovery: 0,
+    payloadLimitsChanged: false,
+    deadlinesChanged: false,
+    authorityChanged: false
+  };
+}
+
 function validateTerminalBenchmark(evidence, state, sampleLedgerRecords) {
   const bsf = evidence.final?.meta?.systems?.find(system => system.id === 'bsf');
   const sntss = evidence.final?.meta?.residents?.find(
@@ -457,9 +642,10 @@ function soakProof(beforeFile, afterFile) {
     'shutdownCheckpointFailureRows', 'shutdownStopFailureRows',
     'outboxPendingRows', 'duplicateResyncGroups', 'failedDeliveries'
   ];
+  const revision = targetRevision();
   assert(
     elapsedMs >= 125000 && before.health?.ok === true && after.health?.ok === true &&
-    Number(before.health?.revision) === 111 && Number(after.health?.revision) === 111 &&
+    Number(before.health?.revision) === revision && Number(after.health?.revision) === revision &&
     before.meta?.revisionFrozen === false && after.meta?.revisionFrozen === false &&
     before.service?.pid === after.service?.pid &&
     JSON.stringify(processList(before, 'sntss')) === JSON.stringify(processList(after, 'sntss')) &&
@@ -484,7 +670,7 @@ function soakProof(beforeFile, afterFile) {
     Number(after.database?.sntssAuthorityRows) === 0 &&
     Number(after.database?.chronobiologyAuthorityRows) === 0 &&
     Number(after.database?.sntssOutputRows) === 0,
-    'bounded R111 live soak failed',
+    `bounded R${revision} live soak failed`,
     'P1_PRODUCTION_HARDENING_SOAK'
   );
   return {
@@ -519,6 +705,14 @@ function main(argv = process.argv.slice(2)) {
     process.stdout.write(JSON.stringify(recoveryProof(rest[0], rest[1], rest[2])) + '\n');
     return;
   }
+  if (mode === 'repair-before' && rest.length === 2) {
+    process.stdout.write(JSON.stringify(captureRepairBefore(rest[0], rest[1])) + '\n');
+    return;
+  }
+  if (mode === 'repair-recovery' && rest.length === 3) {
+    process.stdout.write(JSON.stringify(repairRecoveryProof(rest[0], rest[1], rest[2])) + '\n');
+    return;
+  }
   if (mode === 'closure' && rest.length === 4) {
     process.stdout.write(JSON.stringify(makeClosure(...rest)) + '\n');
     return;
@@ -527,7 +721,7 @@ function main(argv = process.argv.slice(2)) {
     process.stdout.write(JSON.stringify(soakProof(rest[0], rest[1])) + '\n');
     return;
   }
-  fail('before, recovery, closure, or soak arguments are required', 'P1_PRODUCTION_HARDENING_LIVE_PROOF_USAGE');
+  fail('before, recovery, repair-before, repair-recovery, closure, or soak arguments are required', 'P1_PRODUCTION_HARDENING_LIVE_PROOF_USAGE');
 }
 
 if (require.main === module) {
@@ -542,6 +736,8 @@ module.exports = {
   databaseSnapshot,
   captureBefore,
   recoveryProof,
+  captureRepairBefore,
+  repairRecoveryProof,
   makeClosure,
   validateTerminalBenchmark,
   soakProof

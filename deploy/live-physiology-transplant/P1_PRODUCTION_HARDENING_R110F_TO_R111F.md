@@ -1,109 +1,126 @@
-# P1 production hardening: R110F to R111F
+# P1 production hardening: R110F to contained R114F repair
 
-## V8 completed-benchmark evidence fence
+The historical filename is retained because it is part of the immutable V8
+release lineage. The original R111F target was not attained and must never be
+reported as attained. The guarded V8 rollout produced one durable Kernel start
+at R111, then the required `fetus-legacy` boot install advanced the runtime to
+R112. The R111 recovery correctly refused another restart because that would
+have falsified the revision lineage.
 
-The V8 transport candidate accepts the completed R110F collector only when its
-systemd unit ended normally after the full 72-hour window and its 12-hour
-milestone, 72-hour milestone, canonical state, and 4,311-record append-only
-sample ledger match their pinned SHA-256 identities. The terminal record must
-also prove the expected fenced SNTSS `RESYNC_REQUIRED` state while BSF,
-Chronobiology, SQLite, fetus continuity, and authority containment remain
-intact. An active, partial, restarted, corrupt, differently failed, or
-successfully passing R110F collector is refused.
+## Sealed production findings
 
-The completed terminal state does not waive the failed benchmark. It seals the
-failure as immutable diagnostic evidence before the existing one-shot R111 cold
-recovery and starts an entirely new v3 72-hour zero-fault benchmark.
+The failed forward and recovery evidence is immutable and SHA-256 fenced. Its
+durable journal proves:
 
-## V7 deterministic deadline fault proof
+- R111 was created by the single `kernel.start` at 2026-08-27T22:55:29.649Z;
+- R112 was created by the required `core.install` of `fetus-legacy` at
+  2026-08-27T22:55:30.866Z;
+- SNTSS resynchronized at R111 with zero abandoned deliveries and no invented
+  biological time, then entered a restart storm when its trusted supervisor
+  reached 67.8 MiB against the unchanged 64 MiB hard ceiling;
+- Chronobiology remained quarantined after a short-lived Bubblewrap setup PID
+  disappeared during the pre-initialization cgroup tree move;
+- BSF, SQLite, the public entry path, and fetus continuity stayed live, while
+  both residents retained authority `NONE` and produced zero live outputs.
 
-The V7 transport candidate replaces the finite 300 ms injected delay with a
-deliberately never-settling fixture transition. The supervisor must terminate
-that transition at the existing 100 ms worker deadline, discard its speculative
-state and output, and recover from the last committed image. No handler,
-resource, IPC, workflow, or deployment timeout is widened by this correction.
+R110F remains the last accepted frozen revision and its failed 72-hour
+benchmark remains immutable diagnostic evidence. R112 is an honest, unfrozen,
+contained intermediate generation.
 
-## Purpose
+## Repair target
 
-R110F remains immutable failure evidence. Its 12-hour milestone recorded six SNTSS CoreHost faults, four deadline crossings, four SNTSS process transitions, and a terminal non-running SNTSS resident. This forward release repairs the runtime and its evidence contract without changing the frozen SNTSS I4-G1 biological package or resource declaration.
+The repair creates a new immutable release from the exact live R112 release,
+installs a one-shot cold-recovery contract for R113, and performs exactly one
+deliberate service restart. `kernel.start` creates R113, both quarantined
+residents recover at that fenced revision, and the required fetus boot install
+creates the final R114 generation. Only R114 may be frozen as R114F.
 
-R111F is accepted only when BSF is live, SNTSS I4-G1 and Chronobiology C3 are healthy shadow residents with no authority, the recovered SNTSS instance and lineage are preserved, the final runtime is frozen, and a new 72-hour zero-fault benchmark is running.
+R114F is accepted only when:
 
-## Non-negotiable invariants
+- BSF is live and SQLite quick-check is `ok`;
+- SNTSS I4-G1 and Chronobiology C3 are running, healthy shadow residents;
+- both resident instance identities and checkpoint lineages are preserved;
+- both cold resynchronizations report zero abandoned deliveries and no
+  invented biological time;
+- SNTSS and Chronobiology authority remains `NONE` and SNTSS outputs remain 0;
+- fetus continuity and the real public entry path remain healthy;
+- a 130-second zero-transition live progression gate passes;
+- `/var/lib/stay/evidence/runtime-freezes/R114.json` verifies immutably; and
+- a clean R114F v3 72-hour zero-fault benchmark is running.
 
-- One actor owns one biological event until it is durably committed or the resident enters terminal resynchronization.
-- A deadline observes slowness; it does not make an unsettled stateful transition safe to replay.
-- Event handling and checkpoint creation are one worker operation.
-- Resident checkpoint, input acknowledgement, and output intent cross one SQLite transaction boundary.
-- Biological outputs are released only from committed outbox intents.
-- Recovery starts only from the last database-committed checkpoint and cannot advance its generation before the failed supervisor has exited.
-- Terminal resident status, consumer deactivation, and recovery evidence commit atomically.
-- A failed persistence write remains a process-lifetime health fault.
-- Public `running` requires a live, healthy resident unit; a stale `RUNNING` database row is insufficient.
-- Payload PIDs must exactly match one cgroup leaf, supervisors stay in `stay-kernel`, and SNTSS and Chronobiology payload sets are disjoint.
-- The declared 20% SNTSS CPU ceiling remains the exact kernel `cpu.max` quota. Cgroup throttling is observable failure evidence, not a reason for a second userspace limiter to destroy the resident; on non-cgroup test hosts, CPU recycling requires a complete four-sample rolling window and the existing two hard confirmations.
-- The SNTSS I4-G1 source tree, version `0.5.0-i4g1`, state schema 5, package policy, individuality, authority `NONE`, outputs 0, and declared resource envelope do not change.
+## Resource and deadline invariants
 
-## Pre-restart proof
+No payload limit or biological deadline changes:
 
-Before stopping the R110F collector or changing `/opt/stay/current`, the forward script:
+- payload `memory.high` remains 67,108,864 bytes;
+- payload `memory.max` remains 100,663,296 bytes;
+- payload `pids.max` remains 16;
+- payload `cpu.max` remains `20000 100000`;
+- SNTSS worker transition time remains 250 ms;
+- the trusted supervisor hard ceiling remains 64 MiB.
 
-1. verifies the host, active R110F release, R108F/R110F freeze chain, exact completed R110F 12-hour/72-hour/state/ledger evidence, normal collector termination, runtime drop-in, sandbox helper, resident socket, and all staged hashes;
-2. captures the R110F resident and durable recovery baseline read-only;
-3. builds an immutable candidate and proves the I4-G1 tree is byte-identical to the source release;
-4. promotes the complete CoreHost client, wrapper, supervisor, worker, sandbox, protocol, package-policy, cgroup and resource-governor cohort atomically, copies the exact forward recipe into the candidate for self-audit, and rejects any release recipe that omits a cohort member;
-5. runs the full hardening suite and preserves its complete TAP output as immutable failure evidence if any pre-restart assertion fails;
-6. invokes the exact production preflight entry as `staydeploy` for a separately recorded I4-G1 package-policy and Bubblewrap inspection before the full proof, so loader/bootstrap failures cannot be hidden by API-only tests;
-7. runs the full real OS-sandbox preflight as `staydeploy`, including 5,000 deterministic I4-G1 pulses uniformly paced at no more than 5x biological time, with the resource governor left active and every successful combined checkpoint explicitly committed into the recovery watermark, plus forced uncommitted-transition recovery with zero speculative output.
+The trusted supervisor is made smaller under that ceiling by disabling JIT and
+tightening its V8 old/semi-space bounds to 12/1 MiB. This does not change the
+biological worker budget. The sustained read-only Linux preflight must measure
+the trusted supervisor below 64 MiB with no hard resource action before any
+production mutation. The pre-init cgroup move tolerates a disappeared
+setup PID only after proving that every surviving observed payload PID is in
+the exact target cgroup. A live uncontained PID, empty surviving tree, PID
+limit, memory event, or containment mismatch still fails closed.
 
-The isolated proof must remain in CoreHost generation 1 with no hard resource action. Its resource tests separately prove that a sustained non-cgroup CPU violator is still contained, while a cgroup-contained payload retains the exact kernel quota and reports throttle deltas without destructive duplicate enforcement. Advancing the recovery watermark does not excuse a recycle; it proves that even an unexpected recovery could only reconstruct database-committed physiology rather than an empty prenatal state.
+An authority-free resident with an empty outbox is now treated as already
+drained. If even one pending output intent exists without a valid authority
+epoch, the same path remains a hard `BIOLOGICAL_OUTBOX_DRAIN_AUTHORITY`
+failure.
 
-Any failure before the committed service restart restores the original pointer and restarts the R110F collector.
+## Release gates
 
-## Forward transition
+Before production mutation, the release must pass:
 
-The transition seals the completed failed R110F benchmark with immutable evidence, installs a one-shot R111 cold-resynchronization contract, points to the candidate, and performs one deliberate `stay.service` restart. It then removes the one-shot drop-in without another restart, proves SNTSS and Chronobiology recovery, runs a 130-second live progression gate, creates and verifies `/var/lib/stay/evidence/runtime-freezes/R111.json`, verifies `R111F` public metadata, and starts a clean v3 72-hour collector.
+1. focused containment, cold-recovery, outbox, resource, deadline, BSF, SNTSS,
+   Chronobiology, fetus-continuity, and workflow regressions;
+2. the complete test suite;
+3. SHA-256 verification of every staged release file;
+4. validation from a clean extracted archive;
+5. the real secure loader and real entry-path preflight;
+6. the full 5,000-pulse I4-G1 proof at its unchanged cadence and acceleration
+   bound; and
+7. immutable hosted-archive download and checksum verification.
 
-If a failure occurs after the committed restart, the script does not pretend that rollback preserved the organism. It leaves the forward generation running and archives exact evidence for the recovery script.
+The production script additionally fences the exact live R112 release, R110F
+closure, failed-forward evidence, failed-recovery evidence, host identity,
+systemd restart counter, freeze ancestry, runtime configuration, resident
+status, authority rows, output rows, and database integrity.
 
-## Revision-fenced recovery
+## Rollback and recovery
 
-The recovery script never blindly restarts an R111 process:
+Any failure before the committed service restart restores the R112 pointer and
+removes the unreferenced candidate. After the restart, the script never rolls
+the organism back across a committed revision. It leaves the live generation
+contained and archives exact failure evidence.
 
-- If R111 is already the live durable revision, a restart would advance to R112 and is refused.
-- A second R111 start is allowed only when the durable revision is still 110, proving the first start never committed R111.
-- An existing R111 freeze is accepted only after cryptographic verification.
-- An existing R111 benchmark is reused only when its script, control client, systemd unit, live process, environment, state ledger, and collector identity all match exactly.
-
-## R111F benchmark acceptance
-
-At 15 minutes, 12 hours, and 72 hours the milestone is `PASS` only if all of the following remain true:
-
-- BSF live and healthy, SQLite quick-check `ok`, zero sticky write failures;
-- SNTSS I4-G1 and Chronobiology C3 running in shadow with zero authority;
-- SNTSS outputs remain zero and Chronobiology durable shadow output advances;
-- both checkpoint generations advance;
-- zero CoreHost faults, deadlines, resynchronizations, delivery retries, teardown failures, maintenance failures, failed deliveries, or pending outbox intents;
-- zero main, SNTSS, Chronobiology, or collector process transitions;
-- zero cgroup memory pressure, OOM, PID-limit, or CPU-throttle events;
-- exact live/declarative payload PID agreement, distinct resident leaves, correct supervisor placement, and unchanged memory/PID/CPU limits;
-- append-only sample ledger and canonical state agree, with fsync-backed milestone/state writes;
-- retention-aware recovery-record watermarks cannot hide a new fault when row counts shrink.
-
-The collector never promotes authority after 72 hours. A passing 72-hour record is evidence for a separate, explicit decision. Any observed failure keeps BSF/SNTSS/Chronobiology in their existing safe modes and requires a new forward revision.
+The recovery script normally finishes proof, freeze, and benchmark work only
+when the same R114 process is already live. One retry is permitted solely when
+the failed start committed no revision and durable state is still exactly R112;
+the original R113 one-shot contract is reinstalled and the retry must reach
+R114. At R113, R114 with an unhealthy generation, or any other durable
+revision, another restart is forbidden because it would advance the lineage
+and requires a new explicitly fenced release.
 
 ## Success markers
 
-The forward path ends with:
-
 ```text
 P1_PRODUCTION_HARDENING_FORWARD_RESULT=PASS
-RUNTIME_REVISION_AFTER=111
-REVISION_LABEL=R111F
+RUNTIME_REVISION_BEFORE=112
+COLD_RECOVERY_REVISION=113
+RUNTIME_REVISION_AFTER=114
+REVISION_LABEL=R114F
 SNTSS_BIOLOGICAL_PACKAGE_CHANGED=NO
 SNTSS_RESOURCE_CONTRACT_CHANGED=NO
 BENCHMARK_CONTRACT=V3_ZERO_FAULT_ZERO_TRANSITION
 BENCHMARK_SERVICE=ACTIVE
 ```
 
-The recovery path, when needed, ends with `P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT=PASS` and the same R111F benchmark contract.
+The recovery-only completion marker is
+`P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT=PASS` with the same R114F
+contract.

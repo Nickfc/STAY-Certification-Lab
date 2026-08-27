@@ -48,8 +48,8 @@
         "totalHardEnvelopeBytes": 167772160,
         "supervisorSoftBytes": 50331648,
         "supervisorHardBytes": 67108864,
-        "supervisorOldSpaceMiB": 16,
-        "supervisorSemiSpaceMiB": 2,
+        "supervisorOldSpaceMiB": 12,
+        "supervisorSemiSpaceMiB": 1,
         "workerOldSpaceMiB": 64,
         "workerSemiSpaceMiB": 8
       }
@@ -173,17 +173,17 @@
   "moduleHashes": {
     "runtime/kernel/package-policy.js": "sha256:836ab6824243405d9b9a5b80202bcad2b7391806aea86fb0716ad92dc61e288a",
     "runtime/kernel/core-loader.js": "sha256:739cddf79c78d7eff4b9871c7a4019e89c4c6fff2548f4dca87352441617f0b9",
-    "runtime/kernel/core-host-client.js": "sha256:289d3bb0ad3e18131e788205d7e0a1e27638e8dc83c3df5825b36f422f500ba7",
+    "runtime/kernel/core-host-client.js": "sha256:17339d5757abd6f17754e47c72b89cc46f7edf031c0745bacce100aa90afd4a2",
     "runtime/kernel/core-sandbox.js": "sha256:bd9be36a84bcfbb23bed6456e601a096f04cf1f3d0d2559bc08d098910a5eba1",
     "runtime/core-host/host.js": "sha256:9fececb6f3cee0a3e45752f4c8372abe5ab686007a1ed01a7d49ca007299aa2e",
     "runtime/core-host/sandbox-host.js": "sha256:904c542d0cb0d686412cc12bfad6ddc27146de6b094f698aa0bfa44e97f78a26",
     "runtime/core-host/worker.js": "sha256:fc5ba30ddf373b6a9ba0c2968fc98f55d5749ed2449b59080f7e97234bb78058",
-    "runtime/kernel/resource-governor.js": "sha256:bd0d9c32d2f338a9c2e72e8e8ddf7064ab430bca0f017ec0b9668d9ee56805a6",
-    "runtime/kernel/cgroup-governor.js": "sha256:1b0210349d3481146a867bc05f65276d55f9248087328dc1d55b198f1da091a8",
+    "runtime/kernel/resource-governor.js": "sha256:57d6205a6f55a37f2388e27bfcb7ae4bad3278003ed23fc3f837abd933c9508b",
+    "runtime/kernel/cgroup-governor.js": "sha256:bd6a5340ef9950a8b817c06f05394242172f1dd1e76c790dbc0c43f0e16f09c3",
     "cores/sntss/v0.1.0/containment.js": "sha256:d227063c7e44f0c25edc429630c243e0850b1e8b3b3fe16eff812fd4b9601fe2",
     "cores/sntss/v0.1.0/package-policy.json": "sha256:53dcfa0f5132c702457581138dd2a4afa1a04fb3610a24d09b08886e97cd9102",
     "cores/sntss/schemas/containment-policy.schema.json": "sha256:653922d85332998a29eb792e72dab8a2fb8d73e4eb90175363a9d4daec461377",
     "test/sntss-containment.test.js": "sha256:5ecee4cd65b14b8801afbd5051d1a01e297e1a4777be8e8d8236773a239db94b"
   },
-  "evidenceHash": "sha256:970b1625f3014f2852a60548ba7c16639428100f9a2040c90be3c5f82a26efd1"
+  "evidenceHash": "sha256:64134a3a817ccf87caf4d77fa252d878478f2451fc7b9511b262a49a4ae82aa6"
 }

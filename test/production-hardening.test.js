@@ -18,8 +18,9 @@ const {
   DEFAULT_HARD_CPU_WINDOW_SAMPLES,
   MIB
 } = require('../runtime/kernel/resource-governor');
-const { cgroupLimitValues } = require('../runtime/kernel/cgroup-governor');
 const {
+  attachPayloadProcesses,
+  cgroupLimitValues,
   prepareDelegatedHierarchy,
   processDescendants,
   resolveDelegatedLayout,
@@ -423,6 +424,123 @@ test('delegated cgroup layout keeps supervisors in kernel and discovers the full
   assert.deepEqual(descendants.sort((left, right) => left - right), [10, 11, 12, 13, 14]);
 });
 
+test('payload containment tolerates only vanished launch helpers and proves every survivor', async () => {
+  const directory = '/sys/fs/cgroup/stay-cores/chronobiology-fixture';
+  const processFile = `${directory}/cgroup.procs`;
+  const live = new Set([701, 703]);
+  const members = new Set();
+  const writes = [];
+  const vanished = Object.assign(new Error('synthetic launch helper exited'), { code: 'ESRCH' });
+  const missing = Object.assign(new Error('synthetic process is gone'), { code: 'ENOENT' });
+  const io = {
+    writeFile: async (file, value) => {
+      assert.equal(file, processFile);
+      const pid = Number(value);
+      writes.push(pid);
+      if (pid === 702) throw vanished;
+      members.add(pid);
+    },
+    readFile: async file => {
+      if (file === processFile) return [...members].join('\n') + '\n';
+      const pid = Number(file.match(/^\/proc\/(\d+)\/stat$/)?.[1]);
+      if (!live.has(pid)) throw missing;
+      return `${pid} (fixture) S`;
+    }
+  };
+
+  assert.deepEqual(
+    await attachPayloadProcesses(directory, [701, 702, 703], io),
+    [701, 703]
+  );
+  assert.deepEqual(writes, [701, 702, 703]);
+});
+
+test('payload containment fails closed when a live process is not in the target cgroup', async () => {
+  const directory = '/sys/fs/cgroup/stay-cores/sntss-fixture';
+  const processFile = `${directory}/cgroup.procs`;
+  const io = {
+    writeFile: async (_file, value) => {
+      if (Number(value) === 802) {
+        throw Object.assign(new Error('synthetic failed move'), { code: 'ESRCH' });
+      }
+    },
+    readFile: async file => file === processFile ? '801\n' : 'live'
+  };
+
+  await assert.rejects(
+    attachPayloadProcesses(directory, [801, 802], io),
+    error => error.code === 'CGROUP_PAYLOAD_UNCONTAINED' &&
+      JSON.stringify(error.pids) === JSON.stringify([802])
+  );
+});
+
+test('cold recovery includes an authority-contained quarantined Chronobiology resident', async () => {
+  const calls = [];
+  const kernel = Object.create(require('../runtime/kernel/living-kernel').LivingKernel.prototype);
+  kernel.runtimeRevision = 113;
+  kernel.statusCache = {};
+  kernel.stateStore = {
+    getResident(residencyId) {
+      return residencyId === 'resident:chronobiology'
+        ? { residencyId, coreId: 'chronobiology', status: 'QUARANTINED' }
+        : null;
+    }
+  };
+  kernel.ensureOrganismBinding = async () => ({ identitySha256: 'sha256:' + '1'.repeat(64) });
+  kernel.ensureResidentManager = () => ({
+    async resynchronize(residencyId, _binding, revision, options) {
+      calls.push({ residencyId, revision, options });
+      return { record: { abandonedCount: 0 } };
+    }
+  });
+
+  const previous = process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION;
+  process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION = '113';
+  try {
+    assert.deepEqual(await kernel.recoverColdFailedResidents(), [{
+      residencyId: 'resident:chronobiology',
+      recovered: true,
+      coldRecovery: true,
+      abandonedCount: 0,
+      status: 'RUNNING'
+    }]);
+  } finally {
+    if (previous == null) delete process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION;
+    else process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION = previous;
+  }
+  assert.deepEqual(calls, [{
+    residencyId: 'resident:chronobiology',
+    revision: 113,
+    options: { allowColdQuarantine: true }
+  }]);
+});
+
+test('an authority-free empty outbox is quiet while an orphaned pending intent fails closed', () => {
+  let pending = null;
+  const store = Object.create(StateStore.prototype);
+  store.assertOpen = () => {};
+  store.db = {
+    prepare() {
+      return { get: () => pending };
+    }
+  };
+
+  assert.deepEqual(store.listDrainableBiologicalOutboxIntents({
+    producerCoreId: 'sntss',
+    currentAuthorityEpoch: null
+  }), []);
+
+  pending = { producer_event_id: 'orphaned-output' };
+  assert.throws(
+    () => store.listDrainableBiologicalOutboxIntents({
+      producerCoreId: 'sntss',
+      currentAuthorityEpoch: null
+    }),
+    error => error.code === 'BIOLOGICAL_OUTBOX_DRAIN_AUTHORITY' &&
+      error.producerEventId === 'orphaned-output'
+  );
+});
+
 test('a reused payload cgroup is killed and proven empty before the next generation', async () => {
   let processes = '4401\n4402\n';
   const writes = [];
@@ -772,6 +890,8 @@ test('manifest memory remains the exact payload budget and the supervisor has a 
   assert.equal(policy.memoryPlan.totalHardEnvelopeBytes, 160 * MIB);
   assert.equal(policy.memoryPlan.supervisorSoftBytes, 48 * MIB);
   assert.equal(policy.memoryPlan.supervisorHardBytes, 64 * MIB);
+  assert.equal(policy.memoryPlan.supervisorOldSpaceMiB, 12);
+  assert.equal(policy.memoryPlan.supervisorSemiSpaceMiB, 1);
   assert.equal(policy.memoryPlan.workerOldSpaceMiB, 64);
   assert.equal(policy.hardCpuWindowSamples, 4);
   assert.equal(cgroupLimitValues(policy)['memory.high'], String(64 * MIB));

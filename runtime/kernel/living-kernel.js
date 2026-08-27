@@ -1587,6 +1587,14 @@ class LivingKernel {
           'RESYNC_REQUIRED',
         allowColdQuarantine:
           false
+      },
+      {
+        residencyId:
+          'resident:chronobiology',
+        status:
+          'QUARANTINED',
+        allowColdQuarantine:
+          true
       }
     ].filter(candidate =>
       this.stateStore

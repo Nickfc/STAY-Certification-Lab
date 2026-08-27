@@ -22,8 +22,8 @@ function coreHostMemoryPlan(policy) {
     totalHardEnvelopeBytes: payloadHardBytes + supervisorReserveBytes,
     supervisorSoftBytes: 48 * MIB,
     supervisorHardBytes: supervisorReserveBytes,
-    supervisorOldSpaceMiB: 16,
-    supervisorSemiSpaceMiB: 2,
+    supervisorOldSpaceMiB: 12,
+    supervisorSemiSpaceMiB: 1,
     workerOldSpaceMiB: Math.max(16, Math.min(64, Math.floor(payloadHardMiB * 2 / 3))),
     workerSemiSpaceMiB: 8
   });

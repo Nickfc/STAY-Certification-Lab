@@ -26,6 +26,10 @@ const freeze = fs.readFileSync(
   path.join(ROOT, 'deploy/live-physiology-transplant/p1-production-hardening-freeze.js'),
   'utf8'
 );
+const preflight = fs.readFileSync(
+  path.join(ROOT, 'deploy/live-physiology-transplant/p1-production-hardening-preflight.js'),
+  'utf8'
+);
 const controller = fs.readFileSync(
   path.join(ROOT, 'deploy/live-physiology-transplant/stay-p1-production-controller'),
   'utf8'
@@ -113,7 +117,7 @@ test('R111F live preflight is non-mutating and binds the exact R110F host state'
   assert.match(staleCleanup, /! -user staydeploy/);
 });
 
-test('R111F forward accepts only the exact normally completed R110F failure ledger', () => {
+test('R114F contained repair remains anchored to the exact completed R110F failure ledger', () => {
   for (const digest of [
     '1fbf5e7b854204278a7ee7967dfc0c9016d1eeb5b281eb7a5289fd66d3b88007',
     '67551f663c79efb6d106ca4f6e9c16557917d24b64bbe2b2592f27820065b504',
@@ -130,7 +134,7 @@ test('R111F forward accepts only the exact normally completed R110F failure ledg
   assert.match(forward, /benchmark_exec_status" == 0/);
   assert.match(forward, /benchmark_unit_state" == enabled/);
   assert.match(forward, /benchmark_exit_mono" -gt "\$benchmark_start_mono"/);
-  assert.match(forward, /SEAL COMPLETED FAILED R110F BENCHMARK/);
+  assert.match(forward, /r110-benchmark-terminal-state-invalid/);
   assert.doesNotMatch(forward, /systemctl stop stay-p1-physiology-benchmark\.service/);
   assert.match(liveProof, /stay-physiology-benchmark-closure-v4/);
   assert.match(liveProof, /evidence\.result === 'OBSERVED_FAILURES'/);
@@ -140,14 +144,53 @@ test('R111F forward accepts only the exact normally completed R110F failure ledg
   assert.match(liveProof, /Number\(state\.samples\) === Number\(sampleLedgerRecords\)/);
 });
 
-test('R111F mutation requires exact authorization, bounded root execution and forward-only recovery', () => {
+test('R114F repair is fenced to the exact contained R112 failure state and one R113 cold boot', () => {
+  assert.match(forward, /SOURCE_RELEASE='\/opt\/stay\/releases\/0\.8\.11\.3-p1j-production-hardening-6a04981799aa'/);
+  assert.match(forward, /FAILED-R111-20260827T225532Z\.PQqgvJ/);
+  assert.match(forward, /FAILED-R111-RECOVERY-20260827T230134Z\.yj5Jz9/);
+  assert.match(forward, /1c6785982bb0e8e73d0eac474c6d793417be2b5d5951e0d5e1d074838aea1155/);
+  assert.match(forward, /cb225e46fe6be038ba9b448ce44649b18ab23d9f41cbf72369ab5208664cb506/);
+  assert.match(forward, /'REPAIR_CONTAINED_R112_TO_R114F_AND_BENCHMARK_72H'/);
+  assert.match(forward, /revision\)" == 112/);
+  assert.match(forward, /revisionLabel\)" == R112/);
+  assert.match(forward, /Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=113/);
+  assert.match(forward, /systemctl restart stay\.service/);
+  assert.match(forward, /revision 2>\/dev\/null \|\| true\)" == 114/);
+  assert.match(forward, /TARGET_REVISION=R114F/);
+  assert.match(forward, /STAY_PRODUCTION_HARDENING_TARGET_REVISION=114/);
+  assert.match(preflight, /supervisorRssBytes < 64 \* MIB/);
+  assert.match(preflight, /Number\(memoryPlan\?\.supervisorOldSpaceMiB\) === 12/);
+  assert.match(preflight, /Number\(memoryPlan\?\.supervisorSemiSpaceMiB\) === 1/);
+  assert.match(freeze, /Number\(preflight\?\.targetRevision\) === REVISION/);
+  assert.match(liveProof, /database\.runtimeRevision === 112/);
+  assert.match(liveProof, /database\.runtimeRevision === 114/);
+  assert.match(liveProof, /sntssResync\?\.detail\?\.runtimeRevision === 113/);
+  assert.match(liveProof, /chronobiologyResync\?\.detail\?\.runtimeRevision === 113/);
+  assert.match(liveProof, /database\.pendingDeliveries <= 32/);
+  assert.match(freeze, /Number\(recovery\.serviceRestarts\) >= 1/);
+  assert.match(freeze, /recovery\?\.payloadLimitsChanged === false/);
+  assert.match(freeze, /recovery\?\.deadlinesChanged === false/);
+  assert.match(freeze, /recovery\?\.authorityChanged === false/);
+});
+
+test('R114F recovery retries only when no revision committed and otherwise refuses advancement', () => {
+  assert.match(recovery, /'FORWARD_RECOVER_R114_AND_COMPLETE_FREEZE_BENCHMARK'/);
+  assert.match(recovery, /durable_revision" == 114/);
+  assert.match(recovery, /r114-generation-not-live-restart-would-advance-revision/);
+  assert.match(recovery, /R114_RUNNING_GENERATION_PROVED_NO_RESTART/);
+  assert.match(recovery, /durable_revision" == 112/);
+  assert.match(recovery, /FIRST_START_COMMITTED_NO_REVISION_SAFE_R113_RETRY/);
+  assert.match(recovery, /systemctl restart stay\.service/);
+  assert.match(recovery, /recovery_restarts=2/);
+  assert.match(recovery, /revisionLabel\)" == R114F/);
+});
+
+test('currently shipped V8 mutation controller remains exact, bounded and forward-only', () => {
   assert.match(workflow, /AUTHORIZE_R111F_V8_READ_ONLY_PREFLIGHT/);
   assert.match(workflow, /AUTHORIZE_R111F_V8_FORWARD_WITH_FENCED_RECOVERY/);
   assert.match(workflow, /AUTHORIZE_R111F_V8_FORWARD_RECOVERY_ONLY/);
   assert.match(controller, /HARDEN_R110F_EXACTLY_ONCE_RECOVER_AND_BENCHMARK_72H/);
   assert.match(controller, /FORWARD_RECOVER_R111_AND_COMPLETE_FREEZE_BENCHMARK/);
-  assert.match(forward, /'HARDEN_R110F_EXACTLY_ONCE_RECOVER_AND_BENCHMARK_72H'/);
-  assert.match(recovery, /'FORWARD_RECOVER_R111_AND_COMPLETE_FREEZE_BENCHMARK'/);
   assert.match(workflow,
     /sudo -n \/usr\/local\/sbin\/stay-p1-production-controller '\$controller_operation' '\$RUN_ROOT' '\$REQUESTED_AUTHORIZATION'/);
   assert.doesNotMatch(workflow, /sudo -n \/usr\/bin\/systemd-run/);

@@ -9419,11 +9419,7 @@ class StateStore {
     if (
       typeof producerCoreId !==
         'string' ||
-      !producerCoreId ||
-      !Number.isSafeInteger(
-        epoch
-      ) ||
-      epoch < 1
+      !producerCoreId
     ) {
       throw Object.assign(
         new Error(
@@ -9432,6 +9428,45 @@ class StateStore {
         {
           code:
             'BIOLOGICAL_OUTBOX_DRAIN_AUTHORITY'
+        }
+      );
+    }
+
+    if (
+      !Number.isSafeInteger(
+        epoch
+      ) ||
+      epoch < 1
+    ) {
+      /*
+       * Authority-contained residents with no declared output capability have
+       * no producer epoch. Their empty outbox is already fully drained and is
+       * not an operational failure. A pending row without authority remains a
+       * hard error so corruption or an authority leak can never be hidden.
+       */
+      const pending =
+        this.db.prepare(`
+          SELECT producer_event_id
+          FROM biological_outbox_intents
+          WHERE producer_core_id=? AND status='PENDING'
+          LIMIT 1
+        `).get(
+          producerCoreId
+        );
+
+      if (!pending) {
+        return [];
+      }
+
+      throw Object.assign(
+        new Error(
+          'drainable biological outbox authority is invalid'
+        ),
+        {
+          code:
+            'BIOLOGICAL_OUTBOX_DRAIN_AUTHORITY',
+          producerEventId:
+            pending.producer_event_id
         }
       );
     }
