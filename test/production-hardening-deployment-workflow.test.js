@@ -160,6 +160,10 @@ test('R111F controller bootstrap is source-sealed and preserves the narrow sudo 
   assert.match(bootstrap, /private=\\\$\(mktemp -d \/run\/stay-r111f-v8-bootstrap\.XXXXXX\)/);
   assert.match(bootstrap, /install -o root -g root -m 0555/);
   assert.match(bootstrap, /P1_R111F_V8_CONTROLLER_BOOTSTRAP\.sha256/);
+  assert.match(bootstrap, /FAILED_BOOTSTRAP_STAGE: \/opt\/stay\/incoming\/r111f-controller-v8-33108449678/);
+  assert.match(bootstrap, /FAILED_BOOTSTRAP_STAGE=CLEANED/);
+  assert.match(bootstrap, /stat -Lc '%U:%G:%a' "\$root"/);
+  assert.doesNotMatch(bootstrap, /staydeploy:staydeploy:700:1/);
   assert.match(bootstrap, /R111F_V8_CONTROLLER_BOOTSTRAP=PASS/);
   assert.match(bootstrap, /SUDOERS_SCOPE=STAYDEPLOY_TO_PINNED_P1_CONTROLLER_ONLY/);
   assert.doesNotMatch(bootstrap, /sudo -n \/usr\/bin\/systemd-run/);
