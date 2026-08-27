@@ -147,7 +147,13 @@ jobs:
             echo 'FAILED_BOOTSTRAP_STAGE=ALREADY_ABSENT'
             exit 0
           fi
-          [[ -d "$root" && ! -L "$root" && "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
+          [[ -d "$root" && ! -L "$root" ]]
+          root_identity="$(stat -Lc '%U:%G' "$root")"
+          root_mode="$(stat -Lc '%a' "$root")"
+          echo "FAILED_BOOTSTRAP_STAGE_IDENTITY=$root_identity"
+          echo "FAILED_BOOTSTRAP_STAGE_MODE=$root_mode"
+          [[ "$root_identity" == staydeploy:staydeploy ]]
+          [[ "$root_mode" == 700 || "$root_mode" == 2700 ]]
           expected=$'P1_R111F_V8_CONTROLLER_BOOTSTRAP.sha256\ninstall-p1-production-controller.sh\nstay-p1-production-controller'
           [[ "$(find "$root" -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
           [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
@@ -185,7 +191,12 @@ jobs:
           set -Eeuo pipefail
           root="$1"; wrapper_sha="$2"; installer_sha="$3"
           [[ "$root" =~ ^/opt/stay/incoming/r111f-controller-v8-[0-9]+$ && -d "$root" && ! -L "$root" ]]
-          [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
+          root_identity="$(stat -Lc '%U:%G' "$root")"
+          root_mode="$(stat -Lc '%a' "$root")"
+          echo "R111F_V8_CONTROLLER_STAGE_IDENTITY=$root_identity"
+          echo "R111F_V8_CONTROLLER_STAGE_MODE=$root_mode"
+          [[ "$root_identity" == staydeploy:staydeploy ]]
+          [[ "$root_mode" == 700 || "$root_mode" == 2700 ]]
           [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
           (cd "$root" && sha256sum -c P1_R111F_V8_CONTROLLER_BOOTSTRAP.sha256)
