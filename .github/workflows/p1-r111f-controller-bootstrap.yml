@@ -25,6 +25,7 @@ env:
   INSTALLER_SHA256: 8f2178b51097c1209ae9d96ea215fd9185634f1a82173a843c072013172303ea
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  FAILED_BOOTSTRAP_STAGE: /opt/stay/incoming/r111f-controller-v8-33108449678
 
 jobs:
   validate-and-seal:
@@ -129,6 +130,37 @@ jobs:
           chmod 0600 ~/.ssh/stay_deploy
           : > ~/.ssh/known_hosts
           chmod 0600 ~/.ssh/known_hosts
+      - name: Remove exact failed bootstrap stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$FAILED_BOOTSTRAP_STAGE" "$WRAPPER_SHA256" "$INSTALLER_SHA256" <<'REMOTE'
+          set -Eeuo pipefail
+          root="$1"; wrapper_sha="$2"; installer_sha="$3"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == 172.26.9.207 ]]
+          [[ "$root" == /opt/stay/incoming/r111f-controller-v8-33108449678 ]]
+          if [[ ! -e "$root" && ! -L "$root" ]]; then
+            echo 'FAILED_BOOTSTRAP_STAGE=ALREADY_ABSENT'
+            exit 0
+          fi
+          [[ -d "$root" && ! -L "$root" && "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
+          expected=$'P1_R111F_V8_CONTROLLER_BOOTSTRAP.sha256\ninstall-p1-production-controller.sh\nstay-p1-production-controller'
+          [[ "$(find "$root" -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
+          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
+          [[ "$(sha256sum "$root/stay-p1-production-controller" | awk '{print $1}')" == "$wrapper_sha" ]]
+          [[ "$(sha256sum "$root/install-p1-production-controller.sh" | awk '{print $1}')" == "$installer_sha" ]]
+          (cd "$root" && sha256sum -c P1_R111F_V8_CONTROLLER_BOOTSTRAP.sha256)
+          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
+          find -P "$root" -xdev -type f -exec chmod u+rw {} +
+          rm -rf --one-file-system -- "$root"
+          [[ ! -e "$root" && ! -L "$root" ]]
+          echo 'FAILED_BOOTSTRAP_STAGE=CLEANED'
+          REMOTE
       - name: Guard host, stage exact controller, and emit root bridge contract
         shell: bash
         run: |
@@ -153,7 +185,7 @@ jobs:
           set -Eeuo pipefail
           root="$1"; wrapper_sha="$2"; installer_sha="$3"
           [[ "$root" =~ ^/opt/stay/incoming/r111f-controller-v8-[0-9]+$ && -d "$root" && ! -L "$root" ]]
-          [[ "$(stat -Lc '%U:%G:%a:%h' "$root")" == staydeploy:staydeploy:700:1 ]]
+          [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
           [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
           (cd "$root" && sha256sum -c P1_R111F_V8_CONTROLLER_BOOTSTRAP.sha256)
