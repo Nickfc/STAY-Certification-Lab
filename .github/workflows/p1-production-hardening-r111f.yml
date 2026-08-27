@@ -1,5 +1,5 @@
-name: R111F V7 guarded production hardening
-run-name: R111F V7 ${{ inputs.operation }} · ${{ github.actor }}
+name: R111F V8 guarded production hardening
+run-name: R111F V8 ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -22,15 +22,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r111f-v7-production-hardening
+  group: stay-r111f-v8-production-hardening
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r111f-v7
-  RELEASE_COMMIT: 0a88ef1e593651eaa14463f8989a7f62c4f58f5b
-  RELEASE_TREE: 561f025b7acb2b64690071459a7c9ef877d9b1f3
-  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V7_BUNDLE_20260827.tar.gz
-  ARCHIVE_SHA256: 59d8c9f971189690a3ac51befe588a9eb6d8d1d88206cb406a8b2312b06bf01b
+  RELEASE_TAG: r111f-v8
+  RELEASE_COMMIT: b65509a3e29a29ff87f0b49ca2f52917af5bd2f1
+  RELEASE_TREE: 0a03f3cefe41e082845c312025b9c880021e9ef2
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V8_BUNDLE_20260827.tar.gz
+  ARCHIVE_SHA256: 381be48f4bc037b2066d2bfdf8e4369c60e194a9e3e934e775e5a290e5f65586
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
@@ -39,9 +39,9 @@ env:
   FAILED_READ_ONLY_STAGE: /opt/stay/incoming/r111f-v6-33097105865
   FAILED_READ_ONLY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V6_BUNDLE_20260827.tar.gz
   FAILED_READ_ONLY_ARCHIVE_SHA256: f1e668a63caca869c212a0e4d178d8e9829985fb29e77869a67a74b84c5634e3
-  FAILED_AUTHORITY_STAGE: /opt/stay/incoming/r111f-v7-33103827764
-  FAILED_AUTHORITY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V7_BUNDLE_20260827.tar.gz
-  FAILED_AUTHORITY_ARCHIVE_SHA256: 59d8c9f971189690a3ac51befe588a9eb6d8d1d88206cb406a8b2312b06bf01b
+  FAILED_V7_FORWARD_STAGE: /opt/stay/incoming/r111f-v7-33114548848
+  FAILED_V7_FORWARD_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V7_BUNDLE_20260827.tar.gz
+  FAILED_V7_FORWARD_ARCHIVE_SHA256: 59d8c9f971189690a3ac51befe588a9eb6d8d1d88206cb406a8b2312b06bf01b
 
 jobs:
   validate-immutable-release:
@@ -70,13 +70,13 @@ jobs:
           [[ "$(git rev-parse 'HEAD^{tree}')" == "$RELEASE_TREE" ]]
           case "$REQUESTED_OPERATION" in
             preflight)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V7_READ_ONLY_PREFLIGHT' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V8_READ_ONLY_PREFLIGHT' ]]
               ;;
             deploy)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V7_FORWARD_WITH_FENCED_RECOVERY' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V8_FORWARD_WITH_FENCED_RECOVERY' ]]
               ;;
             recover)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V7_FORWARD_RECOVERY_ONLY' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V8_FORWARD_RECOVERY_ONLY' ]]
               ;;
             *) exit 64 ;;
           esac
@@ -99,7 +99,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          root="/tmp/stay-r111f-v7-${GITHUB_RUN_ID}"
+          root="/tmp/stay-r111f-v8-${GITHUB_RUN_ID}"
           extract="$root/extract"
           install -d -m 0700 "$extract"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
@@ -196,21 +196,21 @@ jobs:
           [[ ! -e "$root" && ! -L "$root" ]]
           echo 'FAILED_READ_ONLY_STAGE=CLEANED'
           REMOTE
-      - name: Remove exact failed authority-boundary stage
+      - name: Remove exact failed V7 forward stage
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
-            "$FAILED_AUTHORITY_STAGE" "$FAILED_AUTHORITY_ARCHIVE" "$FAILED_AUTHORITY_ARCHIVE_SHA256" <<'REMOTE'
+            "$FAILED_V7_FORWARD_STAGE" "$FAILED_V7_FORWARD_ARCHIVE" "$FAILED_V7_FORWARD_ARCHIVE_SHA256" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; archive="$2"; expected_sha="$3"
           observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
           [[ "$observed" == 172.26.9.207 ]]
-          [[ "$root" == /opt/stay/incoming/r111f-v7-33103827764 ]]
+          [[ "$root" == /opt/stay/incoming/r111f-v7-33114548848 ]]
           if [[ ! -e "$root" && ! -L "$root" ]]; then
-            echo 'FAILED_AUTHORITY_STAGE=ALREADY_ABSENT'
+            echo 'FAILED_V7_FORWARD_STAGE=ALREADY_ABSENT'
             exit 0
           fi
           [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
@@ -230,13 +230,13 @@ jobs:
           find -P "$root" -xdev -type f -exec chmod u+rw {} +
           rm -rf --one-file-system -- "$root"
           [[ ! -e "$root" && ! -L "$root" ]]
-          echo 'FAILED_AUTHORITY_STAGE=CLEANED'
+          echo 'FAILED_V7_FORWARD_STAGE=CLEANED'
           REMOTE
       - name: Stage and independently verify immutable release
         shell: bash
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r111f-v7-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r111f-v8-${GITHUB_RUN_ID}"
           printf 'RUN_ROOT=%s\n' "$run_root" >> "$GITHUB_ENV"
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
@@ -252,7 +252,7 @@ jobs:
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$ARCHIVE" "$ARCHIVE_SHA256" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; archive="$2"; expected_sha="$3"; extract="$root/release"
-          [[ "$root" =~ ^/opt/stay/incoming/r111f-v7-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r111f-v8-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
           (cd "$root" && sha256sum -c "$archive.sha256")
           mapfile -t entries < <(tar -tzf "$root/$archive")
@@ -282,7 +282,7 @@ jobs:
             > "$RUNNER_TEMP/preflight.raw" 2>&1 <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; source_release="$2"; release="$root/release"
-          [[ "$root" =~ ^/opt/stay/incoming/r111f-v7-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r111f-v8-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
           [[ "$observed" == 172.26.9.207 ]]
           before_service="$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)"
@@ -317,10 +317,10 @@ jobs:
         run: |
           set -euo pipefail
           controller_operation='harden-r111f'
-          expected_authorization='AUTHORIZE_R111F_V7_FORWARD_WITH_FENCED_RECOVERY'
+          expected_authorization='AUTHORIZE_R111F_V8_FORWARD_WITH_FENCED_RECOVERY'
           if [[ "$OPERATION" == recover ]]; then
             controller_operation='recover-r111f'
-            expected_authorization='AUTHORIZE_R111F_V7_FORWARD_RECOVERY_ONLY'
+            expected_authorization='AUTHORIZE_R111F_V8_FORWARD_RECOVERY_ONLY'
           fi
           [[ "$REQUESTED_AUTHORIZATION" == "$expected_authorization" ]]
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
@@ -422,7 +422,7 @@ jobs:
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$RUN_ROOT" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"
-          [[ "$root" =~ ^/opt/stay/incoming/r111f-v7-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r111f-v8-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 \) -print -quit)" ]]
           find -P "$root" -xdev -type d -exec chmod u+rwx {} +
           find -P "$root" -xdev -type f -exec chmod u+rw {} +
@@ -433,7 +433,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r111f-v7-${{ inputs.operation }}-${{ github.run_id }}
+          name: r111f-v8-${{ inputs.operation }}-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/preflight.raw
             ${{ runner.temp }}/operation.raw

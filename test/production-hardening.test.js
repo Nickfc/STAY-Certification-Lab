@@ -37,6 +37,7 @@ const { statusFor } = require('../runtime/kernel/resident-control-socket');
 const { StateStore } = require('../runtime/kernel/state-store');
 const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION } = require('../runtime/kernel/protocol');
 const benchmark = require('../deploy/live-physiology-transplant/p1-physiology-benchmark');
+const liveProof = require('../deploy/live-physiology-transplant/p1-production-hardening-live-proof');
 const fixture = require('./fixtures/stateful-core');
 
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'stateful-core.js');
@@ -2158,6 +2159,113 @@ function benchmarkSample({ generation = 10, capturedAt = '2026-08-25T00:00:00.00
     databaseTotalBytes: 9 * MIB
   };
 }
+
+function terminalR110BenchmarkFixture() {
+  const startedAt = '2026-08-24T16:42:18.454Z';
+  const capturedAt = '2026-08-27T16:42:22.647Z';
+  const evidence = {
+    format: 'stay-physiology-benchmark-milestone-v2',
+    milestone: '72h',
+    result: 'OBSERVED_FAILURES',
+    recoveryAware: true,
+    startedAt,
+    capturedAt,
+    elapsedMs: 259204207,
+    runtimeRevision: 110,
+    samples: 4311,
+    failures: 3596,
+    observedFailureCount: 3606,
+    progressOk: true,
+    coreHostFaults: { sntss: 6, chronobiology: 0 },
+    coreHostTimeouts: { sntss: 4, chronobiology: 0 },
+    processTransitions: { main: 0, sntss: 4, chronobiology: 0 },
+    final: {
+      health: { ok: true, revision: 110 },
+      meta: {
+        revision: 110,
+        revisionFrozen: true,
+        revisionLabel: 'R110F',
+        systems: [{
+          id: 'bsf', mode: 'LIVE', status: 'RUNNING', running: true, healthOk: true
+        }],
+        residents: [
+          {
+            residencyId: 'resident:chronobiology', version: '1.0.0-c3rc.1',
+            status: 'RUNNING', running: true, mode: 'SHADOW', authorityOwned: false,
+            observedOutputs: 290, healthOk: true
+          },
+          {
+            residencyId: 'resident:sntss', version: '0.5.0-i4g1',
+            status: 'RESYNC_REQUIRED', running: false, mode: 'SHADOW', authorityOwned: false,
+            observedOutputs: 0, healthOk: true
+          }
+        ]
+      },
+      database: {
+        quickCheck: 'ok', pendingDeliveries: 0, failedDeliveries: 0,
+        sntssAuthorityRows: 0, chronobiologyAuthorityRows: 0, sntssOutputRows: 0
+      }
+    }
+  };
+  const state = {
+    format: 'stay-physiology-benchmark-state-v2',
+    startedAt,
+    runtimeRevision: 110,
+    samples: 4311,
+    failures: 3596,
+    milestones: { '72h': capturedAt },
+    sntssCoreHostFaults: 6,
+    chronobiologyCoreHostFaults: 0,
+    sntssCoreHostTimeouts: 4,
+    chronobiologyCoreHostTimeouts: 0,
+    sntssProcessTransitions: 4,
+    chronobiologyProcessTransitions: 0,
+    mainPidTransitions: 0
+  };
+  return { evidence, state };
+}
+
+test('completed R110 benchmark acceptance is exact, terminal, and authority-contained', () => {
+  const { evidence, state } = terminalR110BenchmarkFixture();
+  assert.deepEqual(liveProof.validateTerminalBenchmark(evidence, state, 4311), {
+    elapsedMs: 259204207,
+    samples: 4311,
+    failures: 3596,
+    observedFailureCount: 3606,
+    completedAt: '2026-08-27T16:42:22.647Z'
+  });
+
+  const mutations = [
+    value => { value.evidence.result = 'PASS'; },
+    value => { value.evidence.elapsedMs = 72 * 60 * 60 * 1000 - 1; },
+    value => { value.evidence.final.meta.systems[0].healthOk = false; },
+    value => { value.evidence.final.meta.residents[0].authorityOwned = true; },
+    value => { value.evidence.final.meta.residents[1].running = true; },
+    value => { value.evidence.final.meta.residents[1].observedOutputs = 1; },
+    value => { value.evidence.final.database.quickCheck = 'corrupt'; },
+    value => { value.evidence.final.database.sntssAuthorityRows = 1; },
+    value => { value.evidence.final.database.failedDeliveries = 1; },
+    value => { value.state.samples = 4310; },
+    value => { value.state.sntssCoreHostFaults = 5; },
+    value => { value.sampleLedgerRecords = 4310; }
+  ];
+  for (const mutate of mutations) {
+    const candidate = {
+      evidence: structuredClone(evidence),
+      state: structuredClone(state),
+      sampleLedgerRecords: 4311
+    };
+    mutate(candidate);
+    assert.throws(
+      () => liveProof.validateTerminalBenchmark(
+        candidate.evidence,
+        candidate.state,
+        candidate.sampleLedgerRecords
+      ),
+      error => error?.code === 'P1_PRODUCTION_HARDENING_R110_TERMINAL_EVIDENCE'
+    );
+  }
+});
 
 test('benchmark v3 baselines history and fails on new nested/resource/process faults', () => {
   const previousExpected = process.env.STAY_PHYSIOLOGY_EXPECT_SNTSS_VERSION;

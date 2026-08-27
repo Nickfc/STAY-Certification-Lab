@@ -9,6 +9,11 @@ const { stableStringify } = require('../../runtime/kernel/canonical-json');
 
 const DATABASE = process.env.STAY_DATABASE || '/var/lib/stay/data/continuity.sqlite3';
 const R110_12H_SHA256 = '1fbf5e7b854204278a7ee7967dfc0c9016d1eeb5b281eb7a5289fd66d3b88007';
+const R110_72H_SHA256 = '67551f663c79efb6d106ca4f6e9c16557917d24b64bbe2b2592f27820065b504';
+const R110_STATE_SHA256 = 'a215023bac35f1c12b8ba9b8021b7ebc16e131f153623a48a0a3c891814fd61a';
+const R110_SAMPLES_SHA256 = '53cbbffc750534c5e5aadc056845f31bf88afc4f850cd1e23800371a8bdd5237';
+const R110_TERMINAL_SAMPLES = 4311;
+const BENCHMARK_72H_MS = 72 * 60 * 60 * 1000;
 
 function fail(message, code = 'P1_PRODUCTION_HARDENING_LIVE_PROOF') {
   throw Object.assign(new Error(message), { code });
@@ -291,11 +296,96 @@ function recoveryProof(beforeFile, sntssStatusFile, chronobiologyStatusFile) {
   };
 }
 
-function makeClosure(evidenceFile) {
+function validateTerminalBenchmark(evidence, state, sampleLedgerRecords) {
+  const bsf = evidence.final?.meta?.systems?.find(system => system.id === 'bsf');
+  const sntss = evidence.final?.meta?.residents?.find(
+    resident => resident.residencyId === 'resident:sntss'
+  );
+  const chronobiology = evidence.final?.meta?.residents?.find(
+    resident => resident.residencyId === 'resident:chronobiology'
+  );
+  const startedAt = Date.parse(evidence.startedAt);
+  const capturedAt = Date.parse(evidence.capturedAt);
+  assert(
+    evidence.format === 'stay-physiology-benchmark-milestone-v2' &&
+    evidence.milestone === '72h' && evidence.result === 'OBSERVED_FAILURES' &&
+    evidence.recoveryAware === true && Number(evidence.runtimeRevision) === 110 &&
+    Number(evidence.elapsedMs) >= BENCHMARK_72H_MS &&
+    Number.isFinite(startedAt) && Number.isFinite(capturedAt) &&
+    capturedAt - startedAt >= BENCHMARK_72H_MS &&
+    Number(evidence.samples) === R110_TERMINAL_SAMPLES &&
+    Number(evidence.failures) === 3596 && Number(evidence.observedFailureCount) === 3606 &&
+    evidence.progressOk === true &&
+    Number(evidence.coreHostFaults?.sntss) === 6 &&
+    Number(evidence.coreHostFaults?.chronobiology) === 0 &&
+    Number(evidence.coreHostTimeouts?.sntss) === 4 &&
+    Number(evidence.coreHostTimeouts?.chronobiology) === 0 &&
+    Number(evidence.processTransitions?.main) === 0 &&
+    Number(evidence.processTransitions?.sntss) === 4 &&
+    Number(evidence.processTransitions?.chronobiology) === 0 &&
+    evidence.final?.health?.ok === true && Number(evidence.final?.health?.revision) === 110 &&
+    Number(evidence.final?.meta?.revision) === 110 &&
+    evidence.final?.meta?.revisionFrozen === true &&
+    evidence.final?.meta?.revisionLabel === 'R110F' &&
+    bsf?.mode === 'LIVE' && bsf?.status === 'RUNNING' &&
+    bsf?.running === true && bsf?.healthOk === true &&
+    sntss?.version === '0.5.0-i4g1' && sntss?.status === 'RESYNC_REQUIRED' &&
+    sntss?.running === false && sntss?.mode === 'SHADOW' &&
+    sntss?.authorityOwned === false && Number(sntss?.observedOutputs) === 0 &&
+    sntss?.healthOk === true &&
+    chronobiology?.version === '1.0.0-c3rc.1' && chronobiology?.status === 'RUNNING' &&
+    chronobiology?.running === true && chronobiology?.mode === 'SHADOW' &&
+    chronobiology?.authorityOwned === false && chronobiology?.healthOk === true &&
+    Number(chronobiology?.observedOutputs) > 0 &&
+    evidence.final?.database?.quickCheck === 'ok' &&
+    Number(evidence.final?.database?.pendingDeliveries) === 0 &&
+    Number(evidence.final?.database?.failedDeliveries) === 0 &&
+    evidence.final?.database?.pendingOutboxIntents == null &&
+    Number(evidence.final?.database?.sntssAuthorityRows) === 0 &&
+    Number(evidence.final?.database?.chronobiologyAuthorityRows) === 0 &&
+    Number(evidence.final?.database?.sntssOutputRows) === 0 &&
+    state.format === 'stay-physiology-benchmark-state-v2' &&
+    state.startedAt === evidence.startedAt && Number(state.runtimeRevision) === 110 &&
+    Number(state.samples) === R110_TERMINAL_SAMPLES &&
+    Number(state.samples) === Number(sampleLedgerRecords) &&
+    Number(state.failures) === Number(evidence.failures) &&
+    state.milestones?.['72h'] === evidence.capturedAt &&
+    Number(state.sntssCoreHostFaults) === Number(evidence.coreHostFaults.sntss) &&
+    Number(state.chronobiologyCoreHostFaults) === Number(evidence.coreHostFaults.chronobiology) &&
+    Number(state.sntssCoreHostTimeouts) === Number(evidence.coreHostTimeouts.sntss) &&
+    Number(state.chronobiologyCoreHostTimeouts) === Number(evidence.coreHostTimeouts.chronobiology) &&
+    Number(state.sntssProcessTransitions) === Number(evidence.processTransitions.sntss) &&
+    Number(state.chronobiologyProcessTransitions) === Number(evidence.processTransitions.chronobiology) &&
+    Number(state.mainPidTransitions) === Number(evidence.processTransitions.main),
+    'R110F terminal 72-hour failure evidence is invalid',
+    'P1_PRODUCTION_HARDENING_R110_TERMINAL_EVIDENCE'
+  );
+  return {
+    elapsedMs: Number(evidence.elapsedMs),
+    samples: Number(evidence.samples),
+    failures: Number(evidence.failures),
+    observedFailureCount: Number(evidence.observedFailureCount),
+    completedAt: evidence.capturedAt
+  };
+}
+
+function makeClosure(evidenceFile, terminalEvidenceFile, stateFile, samplesFile) {
   const bytes = fs.readFileSync(evidenceFile);
+  const terminalBytes = fs.readFileSync(terminalEvidenceFile);
+  const stateBytes = fs.readFileSync(stateFile);
+  const sampleBytes = fs.readFileSync(samplesFile);
   const evidence = JSON.parse(bytes.toString('utf8'));
+  const terminalEvidence = JSON.parse(terminalBytes.toString('utf8'));
+  const state = JSON.parse(stateBytes.toString('utf8'));
+  let sampleLedgerRecords = sampleBytes.at(-1) === 0x0a ? 0 : -1;
+  if (sampleLedgerRecords === 0) {
+    for (const byte of sampleBytes) sampleLedgerRecords += byte === 0x0a ? 1 : 0;
+  }
   assert(
     digest(bytes) === R110_12H_SHA256 &&
+    digest(terminalBytes) === R110_72H_SHA256 &&
+    digest(stateBytes) === R110_STATE_SHA256 &&
+    digest(sampleBytes) === R110_SAMPLES_SHA256 &&
     Number(evidence.runtimeRevision) === 110 && evidence.milestone === '12h' &&
     Number(evidence.coreHostFaults?.sntss) >= 1 &&
     Number(evidence.coreHostTimeouts?.sntss) >= 1 &&
@@ -303,12 +393,17 @@ function makeClosure(evidenceFile) {
     'R110F 12-hour failure evidence is invalid',
     'P1_PRODUCTION_HARDENING_R110_EVIDENCE'
   );
+  const terminal = validateTerminalBenchmark(terminalEvidence, state, sampleLedgerRecords);
   const record = {
-    format: 'stay-physiology-benchmark-closure-v3',
+    format: 'stay-physiology-benchmark-closure-v4',
     revisionLabel: 'R110F',
     result: 'OBSERVED_FAILURES',
     disposition: 'REQUIRES_PRODUCTION_HARDENING',
     source12hSha256: `sha256:${R110_12H_SHA256}`,
+    source72hSha256: `sha256:${R110_72H_SHA256}`,
+    sourceStateSha256: `sha256:${R110_STATE_SHA256}`,
+    sourceSamplesSha256: `sha256:${R110_SAMPLES_SHA256}`,
+    terminal,
     observed: {
       sntssCoreHostFaults: Number(evidence.coreHostFaults.sntss),
       sntssCoreHostTimeouts: Number(evidence.coreHostTimeouts.sntss),
@@ -424,8 +519,8 @@ function main(argv = process.argv.slice(2)) {
     process.stdout.write(JSON.stringify(recoveryProof(rest[0], rest[1], rest[2])) + '\n');
     return;
   }
-  if (mode === 'closure' && rest.length === 1) {
-    process.stdout.write(JSON.stringify(makeClosure(rest[0])) + '\n');
+  if (mode === 'closure' && rest.length === 4) {
+    process.stdout.write(JSON.stringify(makeClosure(...rest)) + '\n');
     return;
   }
   if (mode === 'soak' && rest.length === 2) {
@@ -448,5 +543,6 @@ module.exports = {
   captureBefore,
   recoveryProof,
   makeClosure,
+  validateTerminalBenchmark,
   soakProof
 };
