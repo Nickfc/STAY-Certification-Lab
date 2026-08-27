@@ -34,6 +34,7 @@ env:
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1i-i4g-deadline-3f4580ae943e
+  FAILED_READ_ONLY_STAGE: /opt/stay/incoming/r111f-v6-33094396169
 
 jobs:
   validate-immutable-release:
@@ -151,6 +152,41 @@ jobs:
           chmod 0600 ~/.ssh/stay_deploy
           : > ~/.ssh/known_hosts
           chmod 0600 ~/.ssh/known_hosts
+      - name: Remove exact failed read-only stage
+        if: inputs.operation == 'preflight'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$FAILED_READ_ONLY_STAGE" "$ARCHIVE" "$ARCHIVE_SHA256" <<'REMOTE'
+          set -Eeuo pipefail
+          root="$1"; archive="$2"; expected_sha="$3"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == 172.26.9.207 ]]
+          [[ "$root" == /opt/stay/incoming/r111f-v6-33094396169 ]]
+          if [[ ! -e "$root" && ! -L "$root" ]]; then
+            echo 'FAILED_READ_ONLY_STAGE=ALREADY_ABSENT'
+            exit 0
+          fi
+          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
+          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
+          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
+          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
+          [[ -f "$manifest" && ! -L "$manifest" ]]
+          (cd "$root/release" && sha256sum -c \
+            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
+          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
+          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
+          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
+          find -P "$root" -xdev -type f -exec chmod u+rw {} +
+          rm -rf --one-file-system -- "$root"
+          [[ ! -e "$root" && ! -L "$root" ]]
+          echo 'FAILED_READ_ONLY_STAGE=CLEANED'
+          REMOTE
       - name: Stage and independently verify immutable release
         shell: bash
         run: |
@@ -166,6 +202,7 @@ jobs:
             "release-assets/$ARCHIVE" "release-assets/$ARCHIVE.sha256" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$ARCHIVE" "$ARCHIVE_SHA256" <<'REMOTE'
           set -Eeuo pipefail
@@ -194,6 +231,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$RUN_ROOT" "$SOURCE_RELEASE" \
             > "$RUNNER_TEMP/preflight.raw" 2>&1 <<'REMOTE'
@@ -244,7 +282,9 @@ jobs:
             authorization_value='FORWARD_RECOVER_R111_AND_COMPLETE_FREEZE_BENCHMARK'
             runtime_max=900
           fi
-          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
             "sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect --unit='stay-r111f-v6-authority-probe-${GITHUB_RUN_ID}' --property=RuntimeMaxSec=30 /usr/bin/true" \
             > "$RUNNER_TEMP/root-probe.raw" 2>&1

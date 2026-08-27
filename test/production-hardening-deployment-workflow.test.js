@@ -49,6 +49,14 @@ test('R111F deployment validates the archive, clean extraction, Git payload, syn
 });
 
 test('R111F live preflight is non-mutating and binds the exact R110F host state', () => {
+  const livePreflight = workflow.slice(
+    workflow.indexOf('      - name: Run mutation-free live preflight'),
+    workflow.indexOf('      - name: Invoke bounded forward or recovery operation')
+  );
+  const staleCleanup = workflow.slice(
+    workflow.indexOf('      - name: Remove exact failed read-only stage'),
+    workflow.indexOf('      - name: Stage and independently verify immutable release')
+  );
   assert.match(workflow, /PRODUCTION_PRIVATE_IPV4: 172\.26\.9\.207/);
   assert.match(workflow, /SOURCE_RELEASE: \/opt\/stay\/releases\/0\.8\.11\.3-p1i-i4g-deadline-3f4580ae943e/);
   assert.match(workflow, /v\.ok!==true\|\|v\.revision!==110/);
@@ -59,6 +67,12 @@ test('R111F live preflight is non-mutating and binds the exact R110F host state'
   assert.match(workflow, /SERVICE_OPERATION=NO/);
   assert.match(workflow, /CURRENT_POINTER_CHANGE=NO/);
   assert.match(workflow, /AUTHORITY_CHANGE=NO/);
+  assert.match(livePreflight, /ServerAliveInterval=30/);
+  assert.match(livePreflight, /ServerAliveCountMax=3/);
+  assert.match(workflow, /FAILED_READ_ONLY_STAGE: \/opt\/stay\/incoming\/r111f-v6-33094396169/);
+  assert.ok(staleCleanup.indexOf('172.26.9.207') < staleCleanup.indexOf('rm -rf'));
+  assert.match(staleCleanup, /sha256sum "\$root\/\$archive"/);
+  assert.match(staleCleanup, /FAILED_READ_ONLY_STAGE=CLEANED/);
 });
 
 test('R111F mutation requires exact authorization, bounded root execution and forward-only recovery', () => {
