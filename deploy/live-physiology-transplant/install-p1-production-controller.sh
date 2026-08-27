@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 EXPECTED_PRIVATE_IPV4="172.26.9.207"
-EXPECTED_WRAPPER_SHA256="a82f54e5232702513fd9503ecd1b497b6bcdf2f076fc6b8453e1157ae59f0e15"
+EXPECTED_WRAPPER_SHA256="1792803754a068775c244a4a56e6197349032dfbecf158db3cfa828d2f76ec3b"
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-production-controller"
 TARGET_WRAPPER="/usr/local/sbin/stay-p1-production-controller"

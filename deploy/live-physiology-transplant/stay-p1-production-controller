@@ -392,7 +392,7 @@ verify_r111f_staged_identity() {
   [[ -z "$(findmnt -rn -R -o TARGET "$RUN_ROOT" 2>/dev/null || true)" ]] || return 1
   verify_hash "$archive" "$EXPECTED_R111F_ARCHIVE_SHA256" || return 1
   [[ -f "$sidecar" && ! -L "$sidecar" ]] || return 1
-  [[ "$(<"$sidecar")" == "$EXPECTED_R111F_ARCHIVE_SHA256  $EXPECTED_R111F_ARCHIVE" ]] || return 1
+  [[ "$(<"$sidecar")" == "$EXPECTED_R111F_ARCHIVE_SHA256 *$EXPECTED_R111F_ARCHIVE" ]] || return 1
 
   mapfile -t entries < <(tar -tzf "$archive") || return 1
   [[ "${#entries[@]}" -eq 85 ]] || return 1
