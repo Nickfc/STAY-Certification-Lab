@@ -25,6 +25,8 @@ env:
   INSTALLER_SHA256: 8f2178b51097c1209ae9d96ea215fd9185634f1a82173a843c072013172303ea
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+  PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
   FAILED_BOOTSTRAP_STAGE: /opt/stay/incoming/r111f-controller-v8-33108449678
 
 jobs:
@@ -128,14 +130,16 @@ jobs:
           install -d -m 0700 ~/.ssh
           printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
           chmod 0600 ~/.ssh/stay_deploy
-          : > ~/.ssh/known_hosts
+          printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
           chmod 0600 ~/.ssh/known_hosts
+          [[ "$(wc -l < ~/.ssh/known_hosts)" == 1 ]]
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
       - name: Remove exact failed bootstrap stage
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
             "$FAILED_BOOTSTRAP_STAGE" "$WRAPPER_SHA256" "$INSTALLER_SHA256" <<'REMOTE'
           set -Eeuo pipefail
@@ -176,7 +180,7 @@ jobs:
           printf 'RUN_ROOT=%s\n' "$run_root" >> "$GITHUB_ENV"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
           # Fixed local identities are intentionally expanded into the remote guard.
           # shellcheck disable=SC2029
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
