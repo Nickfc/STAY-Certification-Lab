@@ -37,6 +37,9 @@ env:
   FAILED_READ_ONLY_STAGE: /opt/stay/incoming/r111f-v6-33097105865
   FAILED_READ_ONLY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V6_BUNDLE_20260827.tar.gz
   FAILED_READ_ONLY_ARCHIVE_SHA256: f1e668a63caca869c212a0e4d178d8e9829985fb29e77869a67a74b84c5634e3
+  FAILED_AUTHORITY_STAGE: /opt/stay/incoming/r111f-v7-33103827764
+  FAILED_AUTHORITY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V7_BUNDLE_20260827.tar.gz
+  FAILED_AUTHORITY_ARCHIVE_SHA256: 59d8c9f971189690a3ac51befe588a9eb6d8d1d88206cb406a8b2312b06bf01b
 
 jobs:
   validate-immutable-release:
@@ -189,6 +192,42 @@ jobs:
           [[ ! -e "$root" && ! -L "$root" ]]
           echo 'FAILED_READ_ONLY_STAGE=CLEANED'
           REMOTE
+      - name: Remove exact failed authority-boundary stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$FAILED_AUTHORITY_STAGE" "$FAILED_AUTHORITY_ARCHIVE" "$FAILED_AUTHORITY_ARCHIVE_SHA256" <<'REMOTE'
+          set -Eeuo pipefail
+          root="$1"; archive="$2"; expected_sha="$3"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == 172.26.9.207 ]]
+          [[ "$root" == /opt/stay/incoming/r111f-v7-33103827764 ]]
+          if [[ ! -e "$root" && ! -L "$root" ]]; then
+            echo 'FAILED_AUTHORITY_STAGE=ALREADY_ABSENT'
+            exit 0
+          fi
+          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
+          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
+          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
+          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
+          [[ -f "$manifest" && ! -L "$manifest" ]]
+          [[ "$(sha256sum "$manifest" | awk '{print $1}')" == 48530ec7f678519e58a576a29242177e89636e80124b270ab1d95ce17fcff9c7 ]]
+          (cd "$root/release" && sha256sum -c \
+            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
+          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
+          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
+          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
+          find -P "$root" -xdev -type f -exec chmod u+rw {} +
+          rm -rf --one-file-system -- "$root"
+          [[ ! -e "$root" && ! -L "$root" ]]
+          echo 'FAILED_AUTHORITY_STAGE=CLEANED'
+          REMOTE
       - name: Stage and independently verify immutable release
         shell: bash
         run: |
@@ -273,40 +312,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          unit="stay-r111f-v7-${OPERATION}-${GITHUB_RUN_ID}"
-          script='p1-production-hardening-forward.sh'
-          authorization_name='STAY_P1_PRODUCTION_HARDENING_AUTHORIZATION'
-          authorization_value='HARDEN_R110F_EXACTLY_ONCE_RECOVER_AND_BENCHMARK_72H'
-          runtime_max=1500
+          controller_operation='harden-r111f'
+          expected_authorization='AUTHORIZE_R111F_V7_FORWARD_WITH_FENCED_RECOVERY'
           if [[ "$OPERATION" == recover ]]; then
-            script='p1-production-hardening-forward-recovery.sh'
-            authorization_name='STAY_P1_PRODUCTION_HARDENING_RECOVERY_AUTHORIZATION'
-            authorization_value='FORWARD_RECOVER_R111_AND_COMPLETE_FREEZE_BENCHMARK'
-            runtime_max=900
+            controller_operation='recover-r111f'
+            expected_authorization='AUTHORIZE_R111F_V7_FORWARD_RECOVERY_ONLY'
           fi
+          [[ "$REQUESTED_AUTHORIZATION" == "$expected_authorization" ]]
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
-          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
-            "sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect --unit='stay-r111f-v7-authority-probe-${GITHUB_RUN_ID}' --property=RuntimeMaxSec=30 /usr/bin/true" \
-            > "$RUNNER_TEMP/root-probe.raw" 2>&1
           set +e
+          # Exact validated operation, stage, and authorization are expanded locally.
+          # shellcheck disable=SC2029
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
-            "sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect --unit='$unit' --property=RuntimeMaxSec='$runtime_max' --property=TimeoutStartSec='$runtime_max' --property=WorkingDirectory='$RUN_ROOT/release' /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin '$authorization_name=$authorization_value' /bin/bash '$RUN_ROOT/release/deploy/live-physiology-transplant/$script'" \
+            "sudo -n /usr/local/sbin/stay-p1-production-controller '$controller_operation' '$RUN_ROOT' '$REQUESTED_AUTHORIZATION'" \
             > "$RUNNER_TEMP/operation.raw" 2>&1
           operation_status=$?
           set -e
-          if [[ "$operation_status" -ne 0 && "$OPERATION" == deploy ]] && \
-             grep -Fq 'P1_PRODUCTION_HARDENING_FORWARD_POST_RESTART=LEFT_RUNNING_FOR_FORWARD_RECOVERY' "$RUNNER_TEMP/operation.raw"; then
-            set +e
-            ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
-              "sudo -n /usr/bin/systemd-run --quiet --wait --pipe --collect --unit='stay-r111f-v7-auto-recovery-${GITHUB_RUN_ID}' --property=RuntimeMaxSec=900 --property=TimeoutStartSec=900 --property=WorkingDirectory='$RUN_ROOT/release' /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin STAY_P1_PRODUCTION_HARDENING_RECOVERY_AUTHORIZATION=FORWARD_RECOVER_R111_AND_COMPLETE_FREEZE_BENCHMARK /bin/bash '$RUN_ROOT/release/deploy/live-physiology-transplant/p1-production-hardening-forward-recovery.sh'" \
-              >> "$RUNNER_TEMP/operation.raw" 2>&1
-            operation_status=$?
-            set -e
-          fi
           cat "$RUNNER_TEMP/operation.raw"
           [[ "$operation_status" -eq 0 ]]
+          grep -Fx 'R111F_CONTROLLER_RESULT=PASS' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'CONTROLLER_DISPATCH_STATUS=0' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'CONTROLLER_FAILURE_CLASS=NONE' "$RUNNER_TEMP/operation.raw"
           grep -Eq '^(P1_PRODUCTION_HARDENING_FORWARD_RESULT|P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT)=PASS$' "$RUNNER_TEMP/operation.raw"
       - name: Verify live R111F result
         if: inputs.operation != 'preflight'
@@ -404,7 +432,6 @@ jobs:
           name: r111f-v7-${{ inputs.operation }}-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/preflight.raw
-            ${{ runner.temp }}/root-probe.raw
             ${{ runner.temp }}/operation.raw
             ${{ runner.temp }}/live-result.raw
           if-no-files-found: warn

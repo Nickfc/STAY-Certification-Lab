@@ -5,8 +5,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 EXPECTED_PRIVATE_IPV4="172.26.9.207"
-EXPECTED_WRAPPER_SHA256="859f0f8a857f21c093a5ce671c080c222558eb4ed005a1f4751c9c2aedea6a84"
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+EXPECTED_WRAPPER_SHA256="7eb9470a50108a3de9070c6f3d4e454ce74f9da88e6aa2b6d2248d3fb9707335"
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-production-controller"
 TARGET_WRAPPER="/usr/local/sbin/stay-p1-production-controller"
 TARGET_SUDOERS="/etc/sudoers.d/stay-p1-production-controller"
@@ -97,3 +97,5 @@ echo "B0_COMPLETE_AUTHORIZED=NO"
 echo "B0_SANDBOX_REPAIR_AUTHORIZED=NO"
 echo "B0_SANDBOX_REPAIR_COMPLETION_AUTHORIZED=NO"
 echo "B0_ROLLBACK_AUTHORIZED=NO"
+echo "R111F_FORWARD_AUTHORIZED=NO"
+echo "R111F_RECOVERY_AUTHORIZED=NO"
