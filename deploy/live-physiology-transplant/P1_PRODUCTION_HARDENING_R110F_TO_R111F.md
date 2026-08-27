@@ -1,5 +1,13 @@
 # P1 production hardening: R110F to R111F
 
+## V7 deterministic deadline fault proof
+
+The V7 transport candidate replaces the finite 300 ms injected delay with a
+deliberately never-settling fixture transition. The supervisor must terminate
+that transition at the existing 100 ms worker deadline, discard its speculative
+state and output, and recover from the last committed image. No handler,
+resource, IPC, workflow, or deployment timeout is widened by this correction.
+
 ## Purpose
 
 R110F remains immutable failure evidence. Its 12-hour milestone recorded six SNTSS CoreHost faults, four deadline crossings, four SNTSS process transitions, and a terminal non-running SNTSS resident. This forward release repairs the runtime and its evidence contract without changing the frozen SNTSS I4-G1 biological package or resource declaration.

@@ -43,6 +43,9 @@ async function createCore({ initialState, emit }) {
       if (event.payload?.emitBeforeDelay === true) {
         await emit('test.output', { count });
       }
+      if (event.payload?.neverSettle === true) {
+        await new Promise(() => {});
+      }
       const delayMs = Number(event.payload?.delayMs || 0);
       if (delayMs > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
       if (event.payload?.mutateBeforeDelay !== true) count += 1;
