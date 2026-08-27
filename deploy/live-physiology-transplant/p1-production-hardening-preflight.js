@@ -313,13 +313,13 @@ async function proveFaultContainment() {
         payload: {
           mutateBeforeDelay: true,
           emitBeforeDelay: true,
-          delayMs: 300
+          neverSettle: true
         }
       }, { eventSequence: 1, eventId: 'forced-uncommitted-transition' });
     } catch (error) { failure = error; }
     assert(
       ['CORE_WORKER_TIMEOUT', 'COREHOST_TIMEOUT'].includes(failure?.code),
-      'forced fault did not cross a bounded worker deadline',
+      `forced fault did not cross a bounded worker deadline: ${failure?.code || 'NO_FAILURE'}`,
       'P1_PREFLIGHT_FAULT_DEADLINE'
     );
     await client.ensureRecovery(failure);

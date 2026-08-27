@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { CoreHostClient } = require('../runtime/kernel/core-host-client');
 const test = require('node:test');
 
 const PREFLIGHT_PATH = path.join(
@@ -12,6 +13,13 @@ const PREFLIGHT_PATH = path.join(
   'deploy',
   'live-physiology-transplant',
   'p1-production-hardening-preflight.js'
+);
+const FAULT_FIXTURE_PATH = path.join(
+  __dirname,
+  '..',
+  'deploy',
+  'live-physiology-transplant',
+  'p1-production-hardening-fixture.js'
 );
 
 function runPreflight(args, env) {
@@ -80,6 +88,60 @@ test('the guarded forward path runs the real entry probe before the full preflig
   assert.match(entryBlock, /--candidate-inspection-only/);
   assert.match(entryBlock, /entry-path-preflight\.json/);
   assert.doesNotMatch(entryBlock, /STAY_REQUIRE_OS_CORE_SANDBOX=0/);
+});
+
+test('the production fault fixture cannot outrun its unchanged 100 ms worker deadline', async t => {
+  const fixture = require(FAULT_FIXTURE_PATH);
+  assert.equal(fixture.manifest.resources.handlerTimeoutMs, 100);
+  const previous = process.env.STAY_REQUIRE_CORE_PACKAGE_POLICY;
+  let client;
+  try {
+    process.env.STAY_REQUIRE_CORE_PACKAGE_POLICY = '0';
+    client = new CoreHostClient({
+      modulePath: FAULT_FIXTURE_PATH,
+      expectedManifest: fixture.manifest,
+      instanceId: 'p1-r111-deterministic-fault-regression',
+      mode: 'standby',
+      logger: { log() {}, info() {}, warn() {}, error() {} },
+      policy: { resources: fixture.manifest.resources, priority: fixture.manifest.priority }
+    });
+  } finally {
+    if (previous == null) delete process.env.STAY_REQUIRE_CORE_PACKAGE_POLICY;
+    else process.env.STAY_REQUIRE_CORE_PACKAGE_POLICY = previous;
+  }
+  client.on('error', () => {});
+  const outputs = [];
+  client.on('output', output => outputs.push(output));
+  t.after(() => client.stop().catch(() => {}));
+  await client.start({ count: 0 }, 1);
+  const failedGeneration = client.generation;
+  let failure = null;
+  await assert.rejects(
+    client.dispatch({
+      id: 'deterministic-never-settling-transition',
+      sequence: 1,
+      class: 'durable',
+      topic: 'test.event',
+      payload: { mutateBeforeDelay: true, emitBeforeDelay: true, neverSettle: true }
+    }, { eventSequence: 1, eventId: 'deterministic-never-settling-transition' }),
+    error => {
+      failure = error;
+      return ['CORE_WORKER_TIMEOUT', 'COREHOST_TIMEOUT'].includes(error?.code);
+    }
+  );
+  await client.ensureRecovery(failure);
+  assert.ok(client.generation > failedGeneration);
+  assert.equal(outputs.length, 0);
+  const committed = await client.dispatch({
+    id: 'deterministic-recovered-transition',
+    sequence: 1,
+    class: 'durable',
+    topic: 'test.event',
+    payload: { emitBeforeDelay: true }
+  }, { eventSequence: 1, eventId: 'deterministic-recovered-transition' });
+  assert.equal(committed.checkpoint?.count, 1);
+  assert.equal(outputs.length, 1);
+  assert.equal(outputs[0]?.payload?.count, 0);
 });
 
 test('the real preflight CLI entry fails closed when its OS sandbox is unavailable', {
