@@ -42,6 +42,10 @@ env:
   FAILED_V7_FORWARD_STAGE: /opt/stay/incoming/r111f-v7-33114548848
   FAILED_V7_FORWARD_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V7_BUNDLE_20260827.tar.gz
   FAILED_V7_FORWARD_ARCHIVE_SHA256: 59d8c9f971189690a3ac51befe588a9eb6d8d1d88206cb406a8b2312b06bf01b
+  FAILED_V8_IDENTITY_STAGE: /opt/stay/incoming/r111f-v8-33119878249
+  FAILED_V8_IDENTITY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V8_BUNDLE_20260827.tar.gz
+  FAILED_V8_IDENTITY_ARCHIVE_SHA256: 381be48f4bc037b2066d2bfdf8e4369c60e194a9e3e934e775e5a290e5f65586
+  FAILED_V8_IDENTITY_MANIFEST_SHA256: 2371e103c15cab60073218606de20f3b8f7db7c2eeac52c24cd9545371100d0e
 
 jobs:
   validate-immutable-release:
@@ -231,6 +235,43 @@ jobs:
           rm -rf --one-file-system -- "$root"
           [[ ! -e "$root" && ! -L "$root" ]]
           echo 'FAILED_V7_FORWARD_STAGE=CLEANED'
+          REMOTE
+      - name: Remove exact failed V8 identity stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$FAILED_V8_IDENTITY_STAGE" "$FAILED_V8_IDENTITY_ARCHIVE" \
+            "$FAILED_V8_IDENTITY_ARCHIVE_SHA256" "$FAILED_V8_IDENTITY_MANIFEST_SHA256" <<'REMOTE'
+          set -Eeuo pipefail
+          root="$1"; archive="$2"; expected_sha="$3"; expected_manifest_sha="$4"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == 172.26.9.207 ]]
+          [[ "$root" == /opt/stay/incoming/r111f-v8-33119878249 ]]
+          if [[ ! -e "$root" && ! -L "$root" ]]; then
+            echo 'FAILED_V8_IDENTITY_STAGE=ALREADY_ABSENT'
+            exit 0
+          fi
+          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
+          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
+          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
+          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
+          [[ -f "$manifest" && ! -L "$manifest" ]]
+          [[ "$(sha256sum "$manifest" | awk '{print $1}')" == "$expected_manifest_sha" ]]
+          (cd "$root/release" && sha256sum -c \
+            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
+          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
+          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
+          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
+          find -P "$root" -xdev -type f -exec chmod u+rw {} +
+          rm -rf --one-file-system -- "$root"
+          [[ ! -e "$root" && ! -L "$root" ]]
+          echo 'FAILED_V8_IDENTITY_STAGE=CLEANED'
           REMOTE
       - name: Stage and independently verify immutable release
         shell: bash
