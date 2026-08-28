@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1i-i4g-deadline-3f4580ae943e'
+SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1j-production-hardening-6a04981799aa'
 DATABASE='/var/lib/stay/data/continuity.sqlite3'
 PARENT_FREEZE='/var/lib/stay/evidence/runtime-freezes/R110.json'
 HISTORICAL_FREEZE='/var/lib/stay/evidence/runtime-freezes/R108.json'
@@ -15,8 +15,10 @@ R110_72H="$R110_BENCHMARK_ROOT/72h.json"
 R110_BENCHMARK_STATE="$R110_BENCHMARK_ROOT/state.json"
 R110_BENCHMARK_SAMPLES="$R110_BENCHMARK_ROOT/samples.jsonl"
 R110_CLOSURE="$R110_BENCHMARK_ROOT/production-hardening-closure.json"
+FAILED_FORWARD_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R111-20260827T225532Z.PQqgvJ'
+FAILED_RECOVERY_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R111-RECOVERY-20260827T230134Z.yj5Jz9'
 RUNTIME_DROPIN='/etc/systemd/system/stay.service.d/p1-b0-resident-runtime.conf'
-ONE_SHOT_DROPIN='/etc/systemd/system/stay.service.d/p1-r111-cold-recovery-once.conf'
+ONE_SHOT_DROPIN='/etc/systemd/system/stay.service.d/p1-r113-cold-recovery-once.conf'
 SOCKET='/run/stay/resident-control.sock'
 SERVICE_CGROUP='/sys/fs/cgroup/system.slice/stay.service'
 BWRAP='/usr/local/libexec/stay-bwrap-sandbox'
@@ -60,6 +62,7 @@ RELEASE_AUXILIARY_FILES=(
   'deploy/live-physiology-transplant/p1-physiology-benchmark.js'
   'deploy/live-physiology-transplant/p1-production-hardening-fixture.js'
   'deploy/live-physiology-transplant/p1-production-hardening-forward.sh'
+  'deploy/live-physiology-transplant/p1-production-hardening-forward-recovery.sh'
   'deploy/live-physiology-transplant/p1-production-hardening-freeze.js'
   'deploy/live-physiology-transplant/p1-production-hardening-live-proof.js'
   'deploy/live-physiology-transplant/p1-production-hardening-preflight.js'
@@ -76,7 +79,6 @@ NEW_RELEASE=''
 TARGET_CREATED=0
 POINTER_CHANGED=0
 RESTART_COMMITTED=0
-CLOSURE_CREATED=0
 ONE_SHOT_CREATED=0
 FREEZE_INSTALLED=0
 NEW_BENCHMARK_STARTED=0
@@ -125,10 +127,18 @@ tree_digest() {
   )
 }
 
+evidence_digest() {
+  find "$1" -type f -print0 |
+    sort -z |
+    xargs -0 sha256sum |
+    sha256sum |
+    awk '{print $1}'
+}
+
 archive_failure_work() {
   if [[ -n "$WORK" && -d "$WORK" ]]; then
     local failed
-    failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R111-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+    failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R114-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
     rmdir -- "$failed"
     if mv -T "$WORK" "$failed" 2>/dev/null; then
       WORK=''
@@ -150,10 +160,7 @@ cleanup() {
 
   if [[ "$COMPLETED" -eq 0 && "$RESTART_COMMITTED" -eq 0 ]]; then
     if [[ "$POINTER_CHANGED" -eq 1 ]]; then point_current "$SOURCE_RELEASE" || true; fi
-    if [[ "$CLOSURE_CREATED" -eq 1 && -f "$R110_CLOSURE" && ! -L "$R110_CLOSURE" ]]; then
-      rm -f -- "$R110_CLOSURE"
-    fi
-    if [[ "$TARGET_CREATED" -eq 1 && "$NEW_RELEASE" == /opt/stay/releases/0.8.11.3-p1j-production-hardening-* && -d "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]]; then
+    if [[ "$TARGET_CREATED" -eq 1 && "$NEW_RELEASE" == /opt/stay/releases/0.8.11.3-p1k-r112-repair-* && -d "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]]; then
       rm -rf --one-file-system -- "$NEW_RELEASE"
     fi
     archive_failure_work
@@ -163,7 +170,7 @@ cleanup() {
     echo 'P1_PRODUCTION_HARDENING_FORWARD_POST_RESTART=LEFT_RUNNING_FOR_FORWARD_RECOVERY' >&2
   fi
 
-  if [[ -n "$CANDIDATE" && "$CANDIDATE" == /opt/stay/releases/.p1j-production-hardening.* && -d "$CANDIDATE" ]]; then
+  if [[ -n "$CANDIDATE" && "$CANDIDATE" == /opt/stay/releases/.p1k-r112-repair.* && -d "$CANDIDATE" ]]; then
     rm -rf --one-file-system -- "$CANDIDATE"
   fi
   if [[ -n "$WORK" && -d "$WORK" ]]; then
@@ -174,20 +181,31 @@ cleanup() {
 trap cleanup EXIT
 
 [[ "$EUID" -eq 0 ]] || abort root-required 1101
-[[ "${STAY_P1_PRODUCTION_HARDENING_AUTHORIZATION:-}" == 'HARDEN_R110F_EXACTLY_ONCE_RECOVER_AND_BENCHMARK_72H' ]] ||
+[[ "${STAY_P1_PRODUCTION_HARDENING_AUTHORIZATION:-}" == 'REPAIR_CONTAINED_R112_TO_R114F_AND_BENCHMARK_72H' ]] ||
   abort authorization-required 1102
 
 phase 'IMMUTABLE INPUTS'
 for file in "$DATABASE" "$PARENT_FREEZE" "$HISTORICAL_FREEZE" \
   "$R110_12H" "$R110_72H" "$R110_BENCHMARK_STATE" "$R110_BENCHMARK_SAMPLES" \
-  "$RUNTIME_DROPIN" "$BWRAP" "$SOURCE_MANIFEST"; do
+  "$R110_CLOSURE" "$RUNTIME_DROPIN" "$BWRAP" "$SOURCE_MANIFEST" \
+  "$SOURCE_RELEASE/P1_PRODUCTION_HARDENING_RELEASE.env"; do
   [[ -f "$file" && ! -L "$file" ]] || abort immutable-input-invalid 1103
 done
 [[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-control-socket-invalid 1104
 [[ ! -e "$ONE_SHOT_DROPIN" && ! -L "$ONE_SHOT_DROPIN" ]] || abort one-shot-dropin-already-exists 1105
-[[ ! -e "$R110_CLOSURE" && ! -L "$R110_CLOSURE" ]] || abort r110-closure-already-exists 1106
+for directory in "$FAILED_FORWARD_EVIDENCE" "$FAILED_RECOVERY_EVIDENCE"; do
+  [[ -d "$directory" && ! -L "$directory" ]] || abort failed-transition-evidence-invalid 1106
+done
 [[ "$(sha256sum "$R110_12H" | awk '{print $1}')" == '1fbf5e7b854204278a7ee7967dfc0c9016d1eeb5b281eb7a5289fd66d3b88007' ]] ||
   abort r110-12h-identity-mismatch 1107
+[[ "$(sha256sum "$R110_CLOSURE" | awk '{print $1}')" == '8b50e7c10af30a0772f40f77b257e18d11f5ae27d4e66001cd3b4a332362bb34' ]] ||
+  abort r110-closure-identity-mismatch 1107
+[[ "$(evidence_digest "$FAILED_FORWARD_EVIDENCE")" == '1c6785982bb0e8e73d0eac474c6d793417be2b5d5951e0d5e1d074838aea1155' &&
+   "$(evidence_digest "$FAILED_RECOVERY_EVIDENCE")" == 'cb225e46fe6be038ba9b448ce44649b18ab23d9f41cbf72369ab5208664cb506' ]] ||
+  abort failed-transition-evidence-identity-mismatch 1107
+[[ "$(sha256sum "$SOURCE_RELEASE/P1_PRODUCTION_HARDENING_RELEASE.env" | awk '{print $1}')" == \
+   'fe6876fd7807a7a970e3d8b36bf3a52e1e6ae57d904397c80a64855ed8a16854' ]] ||
+  abort source-release-contract-identity-mismatch 1107
 [[ "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]] || abort unexpected-current-release 1108
 [[ "$(systemctl show stay.service -p ActiveState --value)" == active &&
    "$(systemctl show stay.service -p SubState --value)" == running ]] || abort stay-service-not-running 1109
@@ -225,7 +243,7 @@ observed_overlay="$({
     printf '%s  %s\n' "$(sha256sum "$STAGE_ROOT/$file" | awk '{print $1}')" "$file"
   done
 } | sha256sum | awk '{print $1}')"
-NEW_RELEASE="/opt/stay/releases/0.8.11.3-p1j-production-hardening-${observed_overlay:0:12}"
+NEW_RELEASE="/opt/stay/releases/0.8.11.3-p1k-r112-repair-${observed_overlay:0:12}"
 [[ ! -e "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]] || abort target-release-already-exists 1114
 
 observed_ip="$(ip -o -4 addr show scope global |
@@ -239,11 +257,11 @@ before_health="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1
   abort health-unavailable 1116
 before_meta="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8787/__stay/meta)" ||
   abort metadata-unavailable 1117
-[[ "$(json_field "$before_health" ok)" == true && "$(json_field "$before_health" revision)" == 110 ]] ||
-  abort health-not-r110 1118
-[[ "$(json_field "$before_meta" revision)" == 110 &&
-   "$(json_field "$before_meta" revisionFrozen)" == true &&
-   "$(json_field "$before_meta" revisionLabel)" == R110F ]] || abort metadata-not-r110f 1119
+[[ "$(json_field "$before_health" ok)" == true && "$(json_field "$before_health" revision)" == 112 ]] ||
+  abort health-not-r112 1118
+[[ "$(json_field "$before_meta" revision)" == 112 &&
+   "$(json_field "$before_meta" revisionFrozen)" == false &&
+   "$(json_field "$before_meta" revisionLabel)" == R112 ]] || abort metadata-not-contained-r112 1119
 [[ "$(proc_value "$before_pid" STAY_TRUSTED_TIME_PULSE_INTERVAL_MS)" == 250 &&
    "$(proc_value "$before_pid" STAY_TRUSTED_ORGANISM_TIME_PULSE_INTERVAL_MS)" == 60000 &&
    "$(proc_value "$before_pid" STAY_REQUIRE_CGROUPS)" == 1 &&
@@ -273,19 +291,20 @@ cat > "$WORK/service.before.env" <<EOF
 MAIN_PID=$before_pid
 SYSTEMD_NRESTARTS=$before_restarts
 CURRENT_RELEASE=$SOURCE_RELEASE
-RUNTIME_REVISION=110
+RUNTIME_REVISION=112
 EOF
 STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$CONTROL_CLIENT" status resident:sntss > \
   "$WORK/sntss.before.json" || abort sntss-before-status-unavailable 1121
 STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$CONTROL_CLIENT" status resident:chronobiology > \
   "$WORK/chronobiology.before.json" || abort chronobiology-before-status-unavailable 1122
-STAY_DATABASE="$DATABASE" node "$LIVE_PROOF" before \
+STAY_DATABASE="$DATABASE" node "$LIVE_PROOF" repair-before \
   "$WORK/sntss.before.json" "$WORK/chronobiology.before.json" > \
-  "$WORK/recovery.before.json" || abort r110-recovery-baseline-invalid 1123
-node "$LIVE_PROOF" closure \
-  "$R110_12H" "$R110_72H" "$R110_BENCHMARK_STATE" "$R110_BENCHMARK_SAMPLES" > \
-  "$WORK/r110-closure.json" ||
-  abort r110-closure-invalid 1124
+  "$WORK/recovery.before.json" || abort r112-repair-baseline-invalid 1123
+install -o root -g root -m 0400 "$R110_CLOSURE" "$WORK/r110-closure.json"
+find "$FAILED_FORWARD_EVIDENCE" -type f -print0 | sort -z | xargs -0 sha256sum > \
+  "$WORK/failed-forward-evidence.sha256"
+find "$FAILED_RECOVERY_EVIDENCE" -type f -print0 | sort -z | xargs -0 sha256sum > \
+  "$WORK/failed-recovery-evidence.sha256"
 install -o root -g root -m 0400 "$RUNTIME_DROPIN" "$WORK/runtime-dropin.before"
 install -o root -g root -m 0400 "$R110_12H" "$WORK/r110-12h.json"
 install -o root -g root -m 0400 "$R110_72H" "$WORK/r110-72h.json"
@@ -300,8 +319,8 @@ EXEC_MAIN_START_MONOTONIC=$benchmark_start_mono
 EXEC_MAIN_EXIT_MONOTONIC=$benchmark_exit_mono
 EOF
 
-phase 'BUILD IMMUTABLE R111 CANDIDATE'
-CANDIDATE="$(mktemp -d /opt/stay/releases/.p1j-production-hardening.XXXXXX)"
+phase 'BUILD IMMUTABLE R114 REPAIR CANDIDATE'
+CANDIDATE="$(mktemp -d /opt/stay/releases/.p1k-r112-repair.XXXXXX)"
 cp -a --reflink=auto "$SOURCE_RELEASE/." "$CANDIDATE/"
 chmod --reference="$SOURCE_RELEASE" "$CANDIDATE"
 chown --reference="$SOURCE_RELEASE" "$CANDIDATE"
@@ -350,6 +369,7 @@ runuser -u staydeploy -- env -i \
   STAY_BWRAP="$BWRAP" \
   STAY_REQUIRE_CORE_PACKAGE_POLICY=1 \
   STAY_REQUIRE_CGROUPS=0 \
+  STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 \
   /usr/local/bin/node \
   "$CANDIDATE/deploy/live-physiology-transplant/p1-production-hardening-preflight.js" \
   --candidate-inspection-only > "$WORK/entry-path-preflight.json" ||
@@ -366,6 +386,7 @@ runuser -u staydeploy -- env -i \
   STAY_BWRAP="$BWRAP" \
   STAY_REQUIRE_CORE_PACKAGE_POLICY=1 \
   STAY_REQUIRE_CGROUPS=0 \
+  STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 \
   /usr/local/bin/node \
   "$CANDIDATE/deploy/live-physiology-transplant/p1-production-hardening-preflight.js" > \
   "$WORK/preflight.json" || abort os-sandbox-preflight-failed 1130
@@ -375,8 +396,11 @@ runuser -u staydeploy -- env -i \
 cat > "$CANDIDATE/P1_PRODUCTION_HARDENING_RELEASE.env" <<EOF
 P1_PRODUCTION_HARDENING_RELEASE=PASS
 PARENT_RELEASE=$SOURCE_RELEASE
-PARENT_REVISION=R110F
-TARGET_REVISION=R111F
+LAST_ACCEPTED_FROZEN_REVISION=R110F
+PARENT_REVISION=R112
+TARGET_REVISION=R114F
+FAILED_R111_TRANSITION_EVIDENCE=SEALED
+INTERMEDIATE_COLD_RECOVERY_REVISION=R113
 PRODUCTION_OVERLAY_SHA256=sha256:$observed_overlay
 FROZEN_I4_TREE_SHA256=sha256:$source_i4_digest
 SNTSS_VERSION=0.5.0-i4g1
@@ -405,19 +429,12 @@ CANDIDATE=''
 TARGET_CREATED=1
 chmod -R a-w "$NEW_RELEASE"
 
-phase 'SEAL COMPLETED FAILED R110F BENCHMARK'
-[[ "$(systemctl show stay-p1-physiology-benchmark.service -p ActiveState --value)" == inactive &&
-   "$(systemctl show stay-p1-physiology-benchmark.service -p Result --value)" == success ]] ||
-  abort r110-benchmark-terminal-state-changed 1125
-install -o root -g root -m 0400 "$WORK/r110-closure.json" "$R110_CLOSURE"
-CLOSURE_CREATED=1
-
-phase 'ONE-SHOT COLD RECOVERY AND SINGLE SERVICE RESTART'
-cat > "$WORK/p1-r111-cold-recovery-once.conf" <<'EOF'
+phase 'ONE-SHOT R113 COLD RECOVERY AND SINGLE SERVICE RESTART'
+cat > "$WORK/p1-r113-cold-recovery-once.conf" <<'EOF'
 [Service]
-Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=111
+Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=113
 EOF
-install_atomic "$WORK/p1-r111-cold-recovery-once.conf" "$ONE_SHOT_DROPIN" 0644
+install_atomic "$WORK/p1-r113-cold-recovery-once.conf" "$ONE_SHOT_DROPIN" 0644
 ONE_SHOT_CREATED=1
 one_shot_sha256="$(sha256sum "$ONE_SHOT_DROPIN" | awk '{print $1}')"
 
@@ -440,13 +457,13 @@ done
 after_pid="$(systemctl show stay.service -p MainPID --value)"
 after_restarts="$(systemctl show stay.service -p NRestarts --value)"
 [[ "$(json_field "$after_health" ok 2>/dev/null || true)" == true &&
-   "$(json_field "$after_health" revision 2>/dev/null || true)" == 111 &&
+   "$(json_field "$after_health" revision 2>/dev/null || true)" == 114 &&
    "$after_pid" != "$before_pid" &&
    "$after_restarts" == "$before_restarts" &&
    "$(readlink -f /opt/stay/current)" == "$NEW_RELEASE" ]] ||
-  abort restarted-r111-runtime-invalid 1135
-[[ "$(proc_value "$after_pid" STAY_RECOVER_COLD_RESIDENTS_AT_REVISION)" == 111 ]] ||
-  abort one-shot-recovery-contract-not-consumed 1136
+  abort restarted-r114-runtime-invalid 1135
+[[ "$(proc_value "$after_pid" STAY_RECOVER_COLD_RESIDENTS_AT_REVISION)" == 113 ]] ||
+  abort one-shot-r113-recovery-contract-not-consumed 1136
 
 rm -f -- "$ONE_SHOT_DROPIN"
 ONE_SHOT_CREATED=0
@@ -473,7 +490,7 @@ done
 printf '%s\n' "$after_sntss" > "$WORK/sntss.after-recovery.json"
 printf '%s\n' "$after_chronobiology" > "$WORK/chronobiology.after-recovery.json"
 printf '%s\n' "$after_health" > "$WORK/health.after-recovery.json"
-STAY_DATABASE="$DATABASE" STAY_RECOVERY_SERVICE_RESTARTS=1 node "$LIVE_PROOF" recovery \
+STAY_DATABASE="$DATABASE" STAY_RECOVERY_SERVICE_RESTARTS=1 node "$LIVE_PROOF" repair-recovery \
   "$WORK/recovery.before.json" \
   "$WORK/sntss.after-recovery.json" \
   "$WORK/chronobiology.after-recovery.json" > \
@@ -487,27 +504,29 @@ STAY_REQUIRE_CGROUPS=1 STAY_CGROUP_DELEGATE_SUBGROUP=stay-kernel \
 for step in $(seq 1 26); do
   sleep 5
   if (( step % 2 == 0 )); then
-    echo "R111_LIVE_GATE_PROGRESS_SECONDS=$((step * 5))"
+    echo "R114_LIVE_GATE_PROGRESS_SECONDS=$((step * 5))"
   fi
 done
 STAY_REQUIRE_CGROUPS=1 STAY_CGROUP_DELEGATE_SUBGROUP=stay-kernel \
   STAY_DATABASE="$DATABASE" STAY_SERVICE_CGROUP="$SERVICE_CGROUP" \
   node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-physiology-benchmark.js" sample > \
   "$WORK/soak.end.json" || abort soak-end-sample-failed 1141
-node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-live-proof.js" \
+STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 node \
+  "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-live-proof.js" \
   soak "$WORK/soak.start.json" "$WORK/soak.end.json" > \
   "$WORK/soak.proof.json" || abort bounded-live-soak-failed 1142
 
-phase 'DURABLE STATE AND R111 FREEZE'
+phase 'DURABLE STATE AND R114 FREEZE'
 STAY_DATABASE="$DATABASE" node \
   "$NEW_RELEASE/deploy/live-physiology-transplant/p1-sntss-i4g-live-state.js" \
-  111 "$HISTORICAL_FREEZE" > "$WORK/i4g-live-state.json" ||
+  114 "$HISTORICAL_FREEZE" > "$WORK/i4g-live-state.json" ||
   abort durable-i4g-state-invalid 1143
 cp "$WORK/soak.end.json" "$WORK/final.sample.json"
 runtime_dropin_sha256="$(sha256sum "$RUNTIME_DROPIN" | awk '{print $1}')"
-target_freeze='/var/lib/stay/evidence/runtime-freezes/R111.json'
+target_freeze='/var/lib/stay/evidence/runtime-freezes/R114.json'
 [[ ! -e "$target_freeze" && ! -L "$target_freeze" ]] || abort target-freeze-already-exists 1144
-node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-freeze.js" capture \
+STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 node \
+  "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-freeze.js" capture \
   --sample "$WORK/final.sample.json" \
   --state "$WORK/i4g-live-state.json" \
   --parent "$PARENT_FREEZE" \
@@ -525,10 +544,11 @@ node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-fre
   --restarts "$after_restarts" \
   --captured-at "$(date -u +'%Y-%m-%dT%H:%M:%S.%NZ')" > \
   "$WORK/freeze.json" || abort freeze-capture-failed 1145
-node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-freeze.js" \
+STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 node \
+  "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-freeze.js" \
   verify "$WORK/freeze.json" > "$WORK/freeze-summary.env" ||
   abort freeze-verification-failed 1146
-temporary_freeze="$(mktemp "$(dirname "$target_freeze")/.R111.XXXXXX")"
+temporary_freeze="$(mktemp "$(dirname "$target_freeze")/.R114.XXXXXX")"
 install -o root -g staydeploy -m 0440 "$WORK/freeze.json" "$temporary_freeze"
 if ! ln "$temporary_freeze" "$target_freeze"; then
   rm -f -- "$temporary_freeze"
@@ -536,23 +556,24 @@ if ! ln "$temporary_freeze" "$target_freeze"; then
 fi
 rm -f -- "$temporary_freeze"
 FREEZE_INSTALLED=1
-node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-freeze.js" \
+STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 node \
+  "$NEW_RELEASE/deploy/live-physiology-transplant/p1-production-hardening-freeze.js" \
   verify "$target_freeze" >/dev/null || abort installed-freeze-invalid 1148
 
 final_meta=''
 for _ in $(seq 1 30); do
   final_meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta 2>/dev/null || true)"
-  if [[ "$(json_field "$final_meta" revisionLabel 2>/dev/null || true)" == R111F ]]; then break; fi
+  if [[ "$(json_field "$final_meta" revisionLabel 2>/dev/null || true)" == R114F ]]; then break; fi
   sleep 1
 done
-[[ "$(json_field "$final_meta" revision)" == 111 &&
+[[ "$(json_field "$final_meta" revision)" == 114 &&
    "$(json_field "$final_meta" revisionFrozen)" == true &&
-   "$(json_field "$final_meta" revisionLabel)" == R111F ]] ||
+   "$(json_field "$final_meta" revisionLabel)" == R114F ]] ||
   abort final-frozen-metadata-invalid 1149
 printf '%s\n' "$final_meta" > "$WORK/meta.final.json"
 
 phase 'START CLEAN V3 72-HOUR BENCHMARK'
-benchmark_root='/var/lib/stay/evidence/physiology-benchmark/R111F'
+benchmark_root='/var/lib/stay/evidence/physiology-benchmark/R114F'
 [[ ! -e "$benchmark_root" && ! -L "$benchmark_root" ]] || abort benchmark-target-already-exists 1150
 install -d -o root -g root -m 0700 "$benchmark_root"
 install -d -o root -g root -m 0755 "$(dirname "$BENCHMARK_SCRIPT")"
@@ -562,7 +583,7 @@ install_atomic "$NEW_RELEASE/deploy/live-physiology-transplant/p1-resident-contr
   "$CONTROL_SCRIPT" 0500
 cat > "$WORK/benchmark.service" <<EOF
 [Unit]
-Description=STAY R111F BSF SNTSS I4-G1 Chronobiology production-hardening 72-hour benchmark
+Description=STAY R114F BSF SNTSS I4-G1 Chronobiology contained-repair 72-hour benchmark
 After=stay.service
 Requires=stay.service
 StartLimitIntervalSec=3600
@@ -613,7 +634,7 @@ const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const { observedFailures } = require(process.argv[3]);
 if (!(
   state.format === 'stay-physiology-benchmark-state-v3' &&
-  state.runtimeRevision === 111 &&
+  state.runtimeRevision === 114 &&
   state.collectorStarts === 1 &&
   state.collectorRestarts === 0 &&
   state.failures === 0 &&
@@ -643,12 +664,14 @@ chronobiology_generation="$(json_field "$after_chronobiology" resident.checkpoin
 
 cat > "$WORK/result.env" <<EOF
 P1_PRODUCTION_HARDENING_FORWARD_RESULT=PASS
-RUNTIME_REVISION_BEFORE=110
-RUNTIME_REVISION_AFTER=111
-REVISION_LABEL=R111F
+RUNTIME_REVISION_BEFORE=112
+COLD_RECOVERY_REVISION=113
+RUNTIME_REVISION_AFTER=114
+REVISION_LABEL=R114F
 CURRENT_RELEASE=$NEW_RELEASE
 SERVICE_RESTARTS_THIS_FORWARD=ONE
 R110F_BENCHMARK=CLOSED_AS_FAILED_DIAGNOSTIC_EVIDENCE_RETAINED
+FAILED_R111_TRANSITION_EVIDENCE=SEALED_AND_RETAINED
 R110F_12H_EVIDENCE_SHA256=sha256:1fbf5e7b854204278a7ee7967dfc0c9016d1eeb5b281eb7a5289fd66d3b88007
 SNTSS_BIOLOGICAL_PACKAGE_CHANGED=NO
 SNTSS_RESOURCE_CONTRACT_CHANGED=NO
@@ -684,7 +707,7 @@ BENCHMARK_72H_DUE_UTC=$benchmark_due_72h
 FETUS_CONTINUITY=PASS
 EOF
 
-final_evidence="$EVIDENCE_ROOT/R111F-$(date -u +'%Y%m%dT%H%M%SZ')"
+final_evidence="$EVIDENCE_ROOT/R114F-$(date -u +'%Y%m%dT%H%M%SZ')"
 mv -T "$WORK" "$final_evidence"
 WORK=''
 chmod -R a-w "$final_evidence"

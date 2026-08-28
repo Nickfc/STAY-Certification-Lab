@@ -197,6 +197,7 @@ class CoreHostClient extends EventEmitter {
         serialization: 'advanced',
         execArgv: [
           '--disable-sigusr1',
+          '--jitless',
           `--max-old-space-size=${memoryPlan.supervisorOldSpaceMiB}`,
           `--max-semi-space-size=${memoryPlan.supervisorSemiSpaceMiB}`,
           ...(this.expectedManifest?.coreId === 'fetus-legacy'

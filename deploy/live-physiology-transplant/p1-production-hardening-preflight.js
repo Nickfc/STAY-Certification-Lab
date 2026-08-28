@@ -21,9 +21,18 @@ const EXPECTED_PARENT_FREEZE = 'sha256:78021d86da8038e298fedb46b7371a46e1bc1e4d1
 const ACCELERATED_PULSE_COUNT = 5_000;
 const SUSTAINED_PULSE_INTERVAL_MS = 50;
 const CANDIDATE_INSPECTION_ONLY = '--candidate-inspection-only';
+const MIB = 1024 * 1024;
 
 function fail(message, code = 'P1_PRODUCTION_HARDENING_PREFLIGHT') {
   throw Object.assign(new Error(message), { code });
+}
+
+function targetRevision() {
+  const value = Number(process.env.STAY_PRODUCTION_HARDENING_TARGET_REVISION || 111);
+  if (![111, 114].includes(value)) {
+    fail('production-hardening target revision is invalid', 'P1_PREFLIGHT_REVISION');
+  }
+  return value;
 }
 
 function sha256(bytes) {
@@ -127,11 +136,12 @@ async function inspectFrozenI4() {
 }
 
 async function proveFrozenI4(live) {
+  const revision = targetRevision();
   const definition = await inspectFrozenI4();
   const client = new CoreHostClient({
     modulePath: definition.modulePath,
     expectedManifest: definition.manifest,
-    instanceId: 'p1-r111-i4g-preflight',
+    instanceId: `p1-r${revision}-i4g-preflight`,
     mode: 'standby',
     logger: silentLogger(),
     policy: {
@@ -171,7 +181,7 @@ async function proveFrozenI4(live) {
     );
     const anchorWallClock = Number(initial.trustedTime?.lastWallClockMs) + 60_000;
     const anchored = await client.dispatch({
-      id: 'p1-r111-preflight-anchor',
+      id: `p1-r${revision}-preflight-anchor`,
       sequence: 1,
       class: 'durable',
       topic: 'runtime.time.pulse',
@@ -179,18 +189,18 @@ async function proveFrozenI4(live) {
       ledger: { durable: true },
       payload: {
         wallClockMs: anchorWallClock,
-        runtimeRevision: 111,
+        runtimeRevision: revision,
         pulseSequence: 1,
         clockStatus: 'trusted'
       },
-      meta: { sourceCore: 'living-kernel', authorityEpoch: 111 }
-    }, { eventSequence: 1, eventId: 'p1-r111-preflight-anchor' });
+      meta: { sourceCore: 'living-kernel', authorityEpoch: revision }
+    }, { eventSequence: 1, eventId: `p1-r${revision}-preflight-anchor` });
     client.setRecoveryState(anchored.checkpoint, 5);
     const acceleratedStartedAt = Date.now();
     let advanced = null;
     for (let index = 1; index <= ACCELERATED_PULSE_COUNT; index += 1) {
       const wallClockMs = anchorWallClock + index * 250;
-      const eventId = `p1-r111-preflight-pulse-${index + 1}`;
+      const eventId = `p1-r${revision}-preflight-pulse-${index + 1}`;
       advanced = await client.dispatch({
         id: eventId,
         sequence: index + 1,
@@ -200,11 +210,11 @@ async function proveFrozenI4(live) {
         ledger: { durable: true },
         payload: {
           wallClockMs,
-          runtimeRevision: 111,
+          runtimeRevision: revision,
           pulseSequence: index + 1,
           clockStatus: 'trusted'
         },
-        meta: { sourceCore: 'living-kernel', authorityEpoch: 111 }
+        meta: { sourceCore: 'living-kernel', authorityEpoch: revision }
       }, { eventSequence: index + 1, eventId });
       client.setRecoveryState(advanced.checkpoint, 5);
       if (index < ACCELERATED_PULSE_COUNT) {
@@ -230,6 +240,8 @@ async function proveFrozenI4(live) {
       'P1_PREFLIGHT_I4_INDIVIDUALITY'
     );
     const host = client.status();
+    const memoryPlan = host.resourceGovernor?.policy?.memoryPlan;
+    const supervisorRssBytes = Number(host.resourceGovernor?.latest?.rssBytes);
     const hostDiagnostic = JSON.stringify({
       generation: client.generation,
       lifecycle: host.lifecycle,
@@ -248,6 +260,11 @@ async function proveFrozenI4(live) {
       outputs === 0 && client.generation === 1 &&
       acceleratedElapsedMs >= (ACCELERATED_PULSE_COUNT - 1) * SUSTAINED_PULSE_INTERVAL_MS &&
       host.resourceGovernor?.lastAction == null &&
+      Number(memoryPlan?.supervisorHardBytes) === 64 * MIB &&
+      Number(memoryPlan?.supervisorOldSpaceMiB) === 12 &&
+      Number(memoryPlan?.supervisorSemiSpaceMiB) === 1 &&
+      Number.isFinite(supervisorRssBytes) && supervisorRssBytes > 0 &&
+      supervisorRssBytes < 64 * MIB &&
       host.deadlineContract?.eventAndCheckpointCombined === true &&
       host.deadlineContract?.outputsReleasedAfterCheckpoint === true &&
       host.deadlineContract?.declaredHandlerTimeoutMs === 250 &&
@@ -264,7 +281,9 @@ async function proveFrozenI4(live) {
       endingClock: startingClock + 1_250_000,
       pulseCount: ACCELERATED_PULSE_COUNT,
       outputs,
+      targetRevision: revision,
       hostGeneration: client.generation,
+      supervisorRssBytes,
       osSandboxRequired: process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1',
       acceleratedWorkload: {
         pacing: 'UNIFORM_COMMIT_AWARE',
@@ -367,6 +386,7 @@ async function main(args = process.argv.slice(2)) {
       format: 'stay-production-hardening-entry-path-v1',
       result: 'PASS',
       releaseRoot: RELEASE_ROOT,
+      targetRevision: targetRevision(),
       osSandboxRequired: true,
       packagePolicyRequired: true,
       cgroupMutationDisabled: true,
@@ -384,6 +404,7 @@ async function main(args = process.argv.slice(2)) {
     result: 'PASS',
     capturedAt: new Date().toISOString(),
     releaseRoot: RELEASE_ROOT,
+    targetRevision: targetRevision(),
     liveDatabaseReadOnly: true,
     i4,
     faultContainment

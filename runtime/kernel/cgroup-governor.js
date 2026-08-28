@@ -126,6 +126,91 @@ async function processDescendants(rootPid, io = fs) {
   return [...discovered];
 }
 
+function processVanished(error) {
+  return error?.code === 'ENOENT' || error?.code === 'ESRCH';
+}
+
+async function liveProcessIds(pids, io = fs) {
+  const live = [];
+  for (const pid of pids) {
+    try {
+      await io.readFile(`/proc/${pid}/stat`, 'utf8');
+      live.push(pid);
+    } catch (error) {
+      if (!processVanished(error)) throw error;
+    }
+  }
+  return live;
+}
+
+async function attachPayloadProcesses(directory, candidates, io = fs) {
+  const processFile = path.posix.join(directory, 'cgroup.procs');
+  const pids = [...new Set(
+    candidates
+      .map(Number)
+      .filter(value => Number.isSafeInteger(value) && value > 0)
+  )].sort((left, right) => left - right);
+
+  if (pids.length === 0) {
+    throw Object.assign(new Error('Core payload process tree is empty'), {
+      code: 'CGROUP_PAYLOAD_TREE_EMPTY'
+    });
+  }
+
+  /*
+   * A bubblewrap launch tree may shed a short-lived setup process between the
+   * /proc traversal and the cgroup.procs write. ESRCH for that vanished PID is
+   * not evidence that the surviving payload escaped containment. Move every
+   * observed process, then prove that every still-live member is in the exact
+   * payload cgroup before the worker receives its initialization request.
+   */
+  for (const pid of pids) {
+    try {
+      await io.writeFile(processFile, String(pid));
+    } catch (error) {
+      if (!processVanished(error)) throw error;
+    }
+  }
+
+  let live = await liveProcessIds(pids, io);
+  if (live.length === 0) {
+    throw Object.assign(new Error('Core payload process tree exited before containment proof'), {
+      code: 'CGROUP_PAYLOAD_TREE_EXITED'
+    });
+  }
+
+  const members = new Set(
+    String(await io.readFile(processFile, 'utf8'))
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(Number)
+      .filter(value => Number.isSafeInteger(value) && value > 0)
+  );
+  const escaped = live.filter(pid => !members.has(pid));
+  if (escaped.length > 0) {
+    const stillEscaped = await liveProcessIds(escaped, io);
+    if (stillEscaped.length > 0) {
+      throw Object.assign(
+        new Error(`Core payload containment proof failed for pids: ${stillEscaped.join(',')}`),
+        {
+          code: 'CGROUP_PAYLOAD_UNCONTAINED',
+          pids: stillEscaped
+        }
+      );
+    }
+    const vanished = new Set(escaped);
+    live = live.filter(pid => !vanished.has(pid));
+  }
+
+  if (live.length === 0) {
+    throw Object.assign(new Error('Core payload process tree exited during containment proof'), {
+      code: 'CGROUP_PAYLOAD_TREE_EXITED'
+    });
+  }
+  return live;
+}
+
 async function quiesceCgroup(
   directory,
   {
@@ -306,11 +391,7 @@ class CgroupGovernor {
       for (const root of roots) {
         for (const pid of await processDescendants(root)) pids.add(pid);
       }
-      if (pids.size === 0) throw new Error('Core payload process tree is empty');
-      for (const pid of [...pids].sort((left, right) => left - right)) {
-        await fs.writeFile(path.posix.join(this.directory, 'cgroup.procs'), String(pid));
-      }
-      this.payloadPids = [...pids].sort((left, right) => left - right);
+      this.payloadPids = await attachPayloadProcesses(this.directory, [...pids]);
       this.lastError = null;
       return true;
     } catch (error) {
@@ -418,5 +499,6 @@ module.exports = {
   prepareDelegatedHierarchy,
   prepareDelegatedRoot,
   processDescendants,
+  attachPayloadProcesses,
   quiesceCgroup
 };

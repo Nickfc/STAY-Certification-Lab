@@ -4,7 +4,9 @@
 const fs = require('node:fs');
 const { FORMAT, sealRevisionFreeze, validateRevisionFreeze } = require('../../runtime/revision-freeze');
 
-const REVISION = 111;
+const REVISION = Number(process.env.STAY_PRODUCTION_HARDENING_TARGET_REVISION || 111);
+if (![111, 114].includes(REVISION)) throw new Error('production-hardening target revision is invalid');
+const REVISION_LABEL = `R${REVISION}F`;
 const PARENT_REVISION = 110;
 const PARENT_RECORD_SHA256 = 'sha256:da7ad05dd0044754b81d599617d03a86d4cc31e208e39710d167f15c8c163989';
 const R110_12H_SHA256 = 'sha256:1fbf5e7b854204278a7ee7967dfc0c9016d1eeb5b281eb7a5289fd66d3b88007';
@@ -77,6 +79,13 @@ function assertResidentContainment(sample, residentId, cgroupName) {
     Number(memory?.cgroupHardBytes) === 96 * MIB &&
     Number(memory?.supervisorSoftBytes) === 48 * MIB &&
     Number(memory?.supervisorHardBytes) === 64 * MIB &&
+    (REVISION !== 114 || (
+      Number(memory?.supervisorOldSpaceMiB) === 12 &&
+      Number(memory?.supervisorSemiSpaceMiB) === 1 &&
+      Number(host?.resourceGovernor?.latest?.process?.rssBytes) > 0 &&
+      Number(host?.resourceGovernor?.latest?.process?.rssBytes) < 64 * MIB &&
+      host?.resourceGovernor?.lastAction == null
+    )) &&
     Number(memory?.totalHardEnvelopeBytes) === 160 * MIB &&
     cgroup?.ambiguous === false && Number(cgroup?.activeLeafCount) === 1 &&
     cgroup?.memoryHigh === String(64 * MIB) &&
@@ -109,6 +118,7 @@ function assertResidentContainment(sample, residentId, cgroupName) {
   if (!valid) fail(`${residentId} containment contract is invalid`, 'P1_PRODUCTION_HARDENING_FREEZE_CONTAINMENT');
   return {
     supervisorPid,
+    supervisorRssBytes: Number(host?.resourceGovernor?.latest?.process?.rssBytes),
     payloadProcesses: [...payloadProcesses],
     cgroupDirectory: cgroup.directory,
     memoryPlan: memory,
@@ -127,6 +137,46 @@ function assertFoundation({ sample, state, parent, recovery, preflight, closure,
   const chronobiology = sample?.residents?.chronobiology;
   const individuality = state?.individuality;
   const queue = sntss?.queue;
+  const recoveryValid = REVISION === 111
+    ? recovery?.format === 'stay-production-hardening-recovery-proof-v1' &&
+      recovery?.result === 'PASS' && recovery?.before?.runtimeRevision === PARENT_REVISION &&
+      recovery?.before?.status === 'RESYNC_REQUIRED' && recovery?.after?.runtimeRevision === REVISION &&
+      recovery?.after?.status === 'RUNNING' && recovery?.after?.running === true &&
+      recovery?.before?.instanceId === recovery?.after?.instanceId &&
+      Number(recovery?.after?.checkpointGeneration) > Number(recovery?.before?.checkpointGeneration) &&
+      recovery?.inventedBiologicalTime === false &&
+      Number.isSafeInteger(Number(recovery?.serviceRestarts)) &&
+      Number(recovery.serviceRestarts) >= 1 && Number(recovery.serviceRestarts) <= 2 &&
+      recovery?.maintenanceFailuresDuringRecovery === 0 &&
+      recovery?.outboxPublicationFailuresDuringRecovery === 0 &&
+      recovery?.coreHostFaultsDuringRecovery === 0 &&
+      recovery?.resyncRequiredDuringRecovery === 0 &&
+      recovery?.deliveryRetriesDuringRecovery === 0 &&
+      recovery?.duplicateResyncGroupsDuringRecovery === 0
+    : recovery?.format === 'stay-production-hardening-contained-repair-proof-v1' &&
+      recovery?.result === 'PASS' && recovery?.sourceRevision === 112 &&
+      recovery?.coldRecoveryRevision === 113 && recovery?.completedRevision === REVISION &&
+      Number.isSafeInteger(Number(recovery?.serviceRestarts)) &&
+      Number(recovery.serviceRestarts) >= 1 && Number(recovery.serviceRestarts) <= 2 &&
+      recovery?.payloadLimitsChanged === false &&
+      recovery?.deadlinesChanged === false && recovery?.authorityChanged === false &&
+      ['sntss', 'chronobiology'].every(key =>
+        recovery?.[key]?.before?.status === 'QUARANTINED' &&
+        recovery?.[key]?.after?.runtimeRevision === REVISION &&
+        recovery?.[key]?.after?.status === 'RUNNING' && recovery?.[key]?.after?.running === true &&
+        recovery?.[key]?.before?.instanceId === recovery?.[key]?.after?.instanceId &&
+        Number(recovery?.[key]?.after?.checkpointGeneration) >
+          Number(recovery?.[key]?.before?.checkpointGeneration) &&
+        recovery?.[key]?.inventedBiologicalTime === false &&
+        Number(recovery?.[key]?.abandonedCount) === 0
+      ) &&
+      recovery?.maintenanceFailuresDuringRecovery === 0 &&
+      recovery?.outboxPublicationFailuresDuringRecovery === 0 &&
+      recovery?.coreHostFaultsDuringRecovery === 0 &&
+      recovery?.resyncRequiredDuringRecovery === 0 &&
+      recovery?.deliveryRetriesDuringRecovery === 0 &&
+      recovery?.quarantinesDuringRecovery === 0 &&
+      recovery?.duplicateResyncGroupsDuringRecovery === 0;
 
   const valid = sample?.health?.ok === true && Number(sample.health.revision) === REVISION &&
     Number(sample?.meta?.revision) === REVISION && sample?.meta?.revisionFrozen === false &&
@@ -176,22 +226,9 @@ function assertFoundation({ sample, state, parent, recovery, preflight, closure,
     Number(queue?.contract?.settlementGraceMs) === 5000 &&
     Number(queue?.contract?.recoveryTimeoutMs) === 15000 &&
     Number(queue?.contract?.maxAttempts) === 3 &&
-    recovery?.format === 'stay-production-hardening-recovery-proof-v1' &&
-    recovery?.result === 'PASS' && recovery?.before?.runtimeRevision === PARENT_REVISION &&
-    recovery?.before?.status === 'RESYNC_REQUIRED' && recovery?.after?.runtimeRevision === REVISION &&
-    recovery?.after?.status === 'RUNNING' && recovery?.after?.running === true &&
-    recovery?.before?.instanceId === recovery?.after?.instanceId &&
-    Number(recovery?.after?.checkpointGeneration) > Number(recovery?.before?.checkpointGeneration) &&
-    recovery?.inventedBiologicalTime === false &&
-    Number.isSafeInteger(Number(recovery?.serviceRestarts)) &&
-    Number(recovery.serviceRestarts) >= 1 && Number(recovery.serviceRestarts) <= 2 &&
-    recovery?.maintenanceFailuresDuringRecovery === 0 &&
-    recovery?.outboxPublicationFailuresDuringRecovery === 0 &&
-    recovery?.coreHostFaultsDuringRecovery === 0 &&
-    recovery?.resyncRequiredDuringRecovery === 0 &&
-    recovery?.deliveryRetriesDuringRecovery === 0 &&
-    recovery?.duplicateResyncGroupsDuringRecovery === 0 &&
+    recoveryValid &&
     preflight?.format === 'stay-production-hardening-preflight-v1' && preflight?.result === 'PASS' &&
+    Number(preflight?.targetRevision) === REVISION &&
     preflight?.liveDatabaseReadOnly === true && preflight?.i4?.outputs === 0 &&
     Number(preflight?.i4?.pulseCount) === 5000 &&
     Number(preflight?.i4?.endingClock) - Number(preflight?.i4?.startingClock) === 1250000 &&
@@ -225,7 +262,7 @@ function assertFoundation({ sample, state, parent, recovery, preflight, closure,
     Number(soak?.failedDeliveries) === 0 && soak?.sqliteQuickCheck === 'ok' &&
     hash(closure?.recordSha256) &&
     hash(input.overlaySha256) && hash(input.runtimeDropinSha256) && hash(input.oneShotDropinSha256);
-  if (!valid) fail('R111 production-hardening foundation is invalid', 'P1_PRODUCTION_HARDENING_FREEZE_CONTRACT');
+  if (!valid) fail(`R${REVISION} production-hardening foundation is invalid`, 'P1_PRODUCTION_HARDENING_FREEZE_CONTRACT');
 
   const sntssContainment = assertResidentContainment(sample, 'sntss', 'sntss');
   const chronobiologyContainment = assertResidentContainment(sample, 'chronobiology', 'chronobiology');
@@ -246,10 +283,51 @@ function createRecord(input) {
   const soak = readJson(input.soak, 'live soak proof');
   const proven = assertFoundation({ sample, state, parent, recovery, preflight, closure, soak, input });
   const { sntss, chronobiology, individuality } = proven;
+  const recoveryRecord = REVISION === 111 ? {
+    sourceRevision: PARENT_REVISION,
+    completedRevision: REVISION,
+    mode: 'ONE_SHOT_COLD_RESYNCHRONIZATION',
+    serviceRestarts: Number(recovery.serviceRestarts),
+    residentInstancePreserved: true,
+    checkpointGenerationBefore: Number(recovery.before.checkpointGeneration),
+    checkpointGenerationAfter: Number(recovery.after.checkpointGeneration),
+    checkpointHashBefore: recovery.before.checkpointHash,
+    checkpointHashAtFirstRunningObservation: recovery.after.checkpointHash,
+    abandonedPendingDeliveries: Number(recovery.abandonedCount || 0),
+    maintenanceFailuresDuringRecovery: 0,
+    outboxPublicationFailuresDuringRecovery: 0,
+    coreHostFaultsDuringRecovery: 0,
+    resyncRequiredDuringRecovery: 0,
+    deliveryRetriesDuringRecovery: 0,
+    duplicateResyncGroupsDuringRecovery: 0,
+    inventedBiologicalTime: false
+  } : {
+    sourceRevision: 112,
+    coldRecoveryRevision: 113,
+    completedRevision: REVISION,
+    mode: 'REVISION_FENCED_CONTAINED_REPAIR',
+    serviceRestarts: Number(recovery.serviceRestarts),
+    residentInstancePreserved: true,
+    sntss: recovery.sntss,
+    chronobiology: recovery.chronobiology,
+    abandonedPendingDeliveries: 0,
+    maintenanceFailuresDuringRecovery: 0,
+    outboxPublicationFailuresDuringRecovery: 0,
+    coreHostFaultsDuringRecovery: 0,
+    resyncRequiredDuringRecovery: 0,
+    deliveryRetriesDuringRecovery: 0,
+    duplicateResyncGroupsDuringRecovery: 0,
+    inventedBiologicalTime: false,
+    payloadLimitsChanged: false,
+    deadlinesChanged: false,
+    authorityChanged: false
+  };
 
   return sealRevisionFreeze({
     format: FORMAT,
-    freezeType: 'P1_PRODUCTION_HARDENING_EXACTLY_ONCE_RECOVERY',
+    freezeType: REVISION === 111
+      ? 'P1_PRODUCTION_HARDENING_EXACTLY_ONCE_RECOVERY'
+      : 'P1_PRODUCTION_HARDENING_CONTAINED_REPAIR',
     result: 'PASS',
     acceptance: 'ACCEPTED',
     capturedAt: input.capturedAt,
@@ -261,7 +339,7 @@ function createRecord(input) {
     },
     runtime: {
       revision: REVISION,
-      revisionLabel: 'R111F',
+      revisionLabel: REVISION_LABEL,
       version: sample.health.version,
       release: input.release,
       mainPid: Number(input.mainPid),
@@ -291,6 +369,7 @@ function createRecord(input) {
       terminalStateConsumerDeactivationRecoveryAtomic: true,
       persistenceWriteFailuresStickyForProcessLifetime: true,
       publicRunningRequiresLiveHealthyUnit: true,
+      containedRepairFromFailedR111Transition: REVISION === 114,
       preflightResult: preflight.result,
       boundedLiveSoak: soak
     },
@@ -325,25 +404,7 @@ function createRecord(input) {
       sntss: proven.sntssContainment,
       chronobiology: proven.chronobiologyContainment
     },
-    recovery: {
-      sourceRevision: PARENT_REVISION,
-      completedRevision: REVISION,
-      mode: 'ONE_SHOT_COLD_RESYNCHRONIZATION',
-      serviceRestarts: Number(recovery.serviceRestarts),
-      residentInstancePreserved: true,
-      checkpointGenerationBefore: Number(recovery.before.checkpointGeneration),
-      checkpointGenerationAfter: Number(recovery.after.checkpointGeneration),
-      checkpointHashBefore: recovery.before.checkpointHash,
-      checkpointHashAtFirstRunningObservation: recovery.after.checkpointHash,
-      abandonedPendingDeliveries: Number(recovery.abandonedCount || 0),
-      maintenanceFailuresDuringRecovery: 0,
-      outboxPublicationFailuresDuringRecovery: 0,
-      coreHostFaultsDuringRecovery: 0,
-      resyncRequiredDuringRecovery: 0,
-      deliveryRetriesDuringRecovery: 0,
-      duplicateResyncGroupsDuringRecovery: 0,
-      inventedBiologicalTime: false
-    },
+    recovery: recoveryRecord,
     historicalContinuity: {
       anchoredToR108F: true,
       r108FreezeRecordSha256: state.historicalContinuity.r108FreezeRecordSha256,
@@ -415,11 +476,31 @@ function createRecord(input) {
 }
 
 function verify(record) {
-  return validateRevisionFreeze(record, REVISION) &&
-    record.freezeType === 'P1_PRODUCTION_HARDENING_EXACTLY_ONCE_RECOVERY' &&
+  const containedRepairValid = REVISION !== 114 || (
+    record.hardening?.containedRepairFromFailedR111Transition === true &&
+    record.recovery?.sourceRevision === 112 &&
+    record.recovery?.coldRecoveryRevision === 113 &&
+    record.recovery?.completedRevision === 114 &&
+    Number.isSafeInteger(Number(record.recovery?.serviceRestarts)) &&
+    Number(record.recovery.serviceRestarts) >= 1 &&
+    Number(record.recovery.serviceRestarts) <= 2 &&
+    record.recovery?.payloadLimitsChanged === false &&
+    record.recovery?.deadlinesChanged === false &&
+    record.recovery?.authorityChanged === false &&
+    ['sntss', 'chronobiology'].every(key =>
+      Number(record.containment?.[key]?.memoryPlan?.supervisorOldSpaceMiB) === 12 &&
+      Number(record.containment?.[key]?.memoryPlan?.supervisorSemiSpaceMiB) === 1 &&
+      Number(record.containment?.[key]?.supervisorRssBytes) > 0 &&
+      Number(record.containment?.[key]?.supervisorRssBytes) < 64 * MIB
+    )
+  );
+  return containedRepairValid && validateRevisionFreeze(record, REVISION) &&
+    record.freezeType === (REVISION === 111
+      ? 'P1_PRODUCTION_HARDENING_EXACTLY_ONCE_RECOVERY'
+      : 'P1_PRODUCTION_HARDENING_CONTAINED_REPAIR') &&
     record.parentFreeze?.revision === PARENT_REVISION &&
     record.parentFreeze?.recordSha256 === PARENT_RECORD_SHA256 &&
-    record.runtime?.revisionLabel === 'R111F' &&
+    record.runtime?.revisionLabel === REVISION_LABEL &&
     record.hardening?.biologicalPackageChanged === false &&
     record.hardening?.biologicalResourceContractChanged === false &&
     record.hardening?.eventCheckpointCommitFence === 'COMBINED_WORKER_OPERATION' &&
@@ -486,11 +567,11 @@ async function main(argv = process.argv.slice(2)) {
   }
   if (mode === 'verify' && rest.length === 1) {
     const record = readJson(rest[0], 'freeze record');
-    if (!verify(record)) fail('R111 production-hardening freeze verification failed', 'P1_PRODUCTION_HARDENING_FREEZE_VERIFY');
+    if (!verify(record)) fail(`R${REVISION} production-hardening freeze verification failed`, 'P1_PRODUCTION_HARDENING_FREEZE_VERIFY');
     process.stdout.write([
       'P1_PRODUCTION_HARDENING_FREEZE_RESULT=PASS',
-      'RUNTIME_REVISION=111',
-      'REVISION_LABEL=R111F',
+      `RUNTIME_REVISION=${REVISION}`,
+      `REVISION_LABEL=${REVISION_LABEL}`,
       'BSF_MODE=LIVE',
       'SNTSS_MODE=SHADOW',
       'SNTSS_VERSION=0.5.0-i4g1',
