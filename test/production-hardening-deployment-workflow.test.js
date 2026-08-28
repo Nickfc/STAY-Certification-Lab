@@ -46,12 +46,12 @@ const bootstrap = fs.readFileSync(
 test('R114F deployment is manual-only and pins the immutable Git and archive identities', () => {
   assert.match(workflow, /^\s{2}workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /^\s{2}(push|pull_request|schedule):/m);
-  assert.match(workflow, /RELEASE_TAG: r114f-v11/);
-  assert.match(workflow, /RELEASE_COMMIT: da57f5f83bc9dc0aaf448a65129b3f3f6dfdac04/);
-  assert.match(workflow, /RELEASE_TREE: a4f341f50af964b56bc8d605dff3e7c344df4fba/);
-  assert.match(workflow, /ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V11_BUNDLE_20260828\.tar\.gz/);
-  assert.match(workflow, /ARCHIVE_SHA256: 39bef53eb7c424da6eb6c039203ee8bfb79ad4c37d6bc6ac09b011c8aa6550de/);
-  assert.match(workflow, /TARGET_RELEASE: \/opt\/stay\/releases\/0\.8\.11\.3-p1k-r112-repair-be652198320b/);
+  assert.match(workflow, /RELEASE_TAG: r114f-v12/);
+  assert.match(workflow, /RELEASE_COMMIT: 101bac700e6498ef9021f8e61ba0c1e66411d4fd/);
+  assert.match(workflow, /RELEASE_TREE: 97d94e09be6c78b72f26a888818a228076244fe0/);
+  assert.match(workflow, /ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V12_BUNDLE_20260828\.tar\.gz/);
+  assert.match(workflow, /ARCHIVE_SHA256: e20a48594be06ad8ff8336410ea0bf9cf65af5777b9f560f0fb2c538d0b0365f/);
+  assert.match(workflow, /TARGET_RELEASE: \/opt\/stay\/releases\/0\.8\.11\.3-p1k-r112-repair-0aa05cea80aa/);
   assert.match(workflow, /PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg\/MwMUS/);
   assert.match(workflow, /PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q/);
   assert.match(workflow, /printf '%s %s\\n' "\$PRODUCTION_PUBLIC_IPV4" "\$PRODUCTION_SSH_ED25519_KEY" > ~\/\.ssh\/known_hosts/);
@@ -120,6 +120,10 @@ test('R114F live preflight is non-mutating and binds the exact contained R112 ho
   assert.match(workflow, /FAILED_V9_PREFLIGHT_ARCHIVE_SHA256: 759be82dbd12ee93258d033e1a7a36667d21b50c793463d82d38b42db3d739d5/);
   assert.match(workflow, /FAILED_V9_PREFLIGHT_MANIFEST_SHA256: b8329ca509b47529ae62b07e3f2ab4108ebf70ec2b559341a6c5dc86bac41aaa/);
   assert.match(staleCleanup, /FAILED_V9_PREFLIGHT_STAGE=CLEANED/);
+  assert.match(workflow, /FAILED_V11_CANDIDATE_STAGE: \/opt\/stay\/incoming\/r114f-v11-33136236907/);
+  assert.match(workflow, /FAILED_V11_CANDIDATE_ARCHIVE_SHA256: 39bef53eb7c424da6eb6c039203ee8bfb79ad4c37d6bc6ac09b011c8aa6550de/);
+  assert.match(workflow, /FAILED_V11_CANDIDATE_MANIFEST_SHA256: d0b419e0cd24cf56112294e00d9132d875570d395d121bb711bccd8eff365063/);
+  assert.match(staleCleanup, /FAILED_V11_CANDIDATE_STAGE=CLEANED/);
   assert.match(staleCleanup, /! -user staydeploy/);
 });
 
@@ -191,10 +195,10 @@ test('R114F recovery retries only when no revision committed and otherwise refus
   assert.match(recovery, /revisionLabel\)" == R114F/);
 });
 
-test('R114F V11 mutation controller remains exact, bounded and forward-only', () => {
-  assert.match(workflow, /AUTHORIZE_R114F_V11_READ_ONLY_PREFLIGHT/);
-  assert.match(workflow, /AUTHORIZE_R114F_V11_CONTAINED_FORWARD_WITH_FENCED_RECOVERY/);
-  assert.match(workflow, /AUTHORIZE_R114F_V11_FORWARD_RECOVERY_ONLY/);
+test('R114F V12 mutation controller remains exact, bounded and forward-only', () => {
+  assert.match(workflow, /AUTHORIZE_R114F_V12_READ_ONLY_PREFLIGHT/);
+  assert.match(workflow, /AUTHORIZE_R114F_V12_CONTAINED_FORWARD_WITH_FENCED_RECOVERY/);
+  assert.match(workflow, /AUTHORIZE_R114F_V12_FORWARD_RECOVERY_ONLY/);
   assert.match(controller, /REPAIR_CONTAINED_R112_TO_R114F_AND_BENCHMARK_72H/);
   assert.match(controller, /FORWARD_RECOVER_R114_AND_COMPLETE_FREEZE_BENCHMARK/);
   assert.match(workflow,
@@ -211,17 +215,18 @@ test('R114F V11 mutation controller remains exact, bounded and forward-only', ()
   assert.match(controller, /P1_PRODUCTION_HARDENING_FORWARD_POST_RESTART=LEFT_RUNNING_FOR_FORWARD_RECOVERY/);
   assert.match(controller, /R114F_CONTROLLER_RECOVERY=AUTOMATIC/);
   assert.match(controller, /R114F_CONTROLLER_RESULT=PASS/);
-  assert.match(controller, /EXPECTED_R114F_ARCHIVE_SHA256="39bef53eb7c424da6eb6c039203ee8bfb79ad4c37d6bc6ac09b011c8aa6550de"/);
+  assert.match(controller, /EXPECTED_R114F_ARCHIVE_SHA256="e20a48594be06ad8ff8336410ea0bf9cf65af5777b9f560f0fb2c538d0b0365f"/);
   assert.match(controller,
     /"\$\(<"\$sidecar"\)" == "\$EXPECTED_R114F_ARCHIVE_SHA256 \*\$EXPECTED_R114F_ARCHIVE"/);
   assert.doesNotMatch(controller,
     /"\$\(<"\$sidecar"\)" == "\$EXPECTED_R114F_ARCHIVE_SHA256  \$EXPECTED_R114F_ARCHIVE"/);
-  assert.match(controller, /EXPECTED_R114F_MANIFEST_SHA256="d0b419e0cd24cf56112294e00d9132d875570d395d121bb711bccd8eff365063"/);
+  assert.match(controller, /EXPECTED_R114F_MANIFEST_SHA256="cb4f777e57f636b0894e0dd816a004fc2713da47b691cebdb681c1839e9bc396"/);
+  assert.match(controller, /EXPECTED_R114F_FORWARD_SHA256="685fd0d48579b24b09278b0ff537a4c9ab574e2f94d9c564439c40b6766946d2"/);
   assert.match(controller, /"\$\{#entries\[@\]\}" -eq 100/);
   assert.match(controller, /type f \| wc -l\)" -eq 85/);
   assert.match(controller, /wc -l < "\$manifest"\)" -eq 84/);
   assert.match(controller, /NR != 84/);
-  assert.match(controller, /\^r114f-v11-\[0-9\]\+\$/);
+  assert.match(controller, /\^r114f-v12-\[0-9\]\+\$/);
   assert.match(controller, /! -user staydeploy/);
   assert.match(controller, /prepare_r114f_private_release/);
   assert.match(controller, /install -o root -g root -m 0400 "\$source_archive" "\$private_archive"/);
@@ -242,39 +247,39 @@ test('R114F completion proves the frozen revision and active benchmark before bo
   assert.match(workflow, /PRAGMA quick_check/);
   assert.match(workflow, /R114F_LIVE_RESULT=PASS/);
   assert.match(workflow, /"\$current" == "\$target_release"/);
-  assert.match(workflow, /\^\/opt\/stay\/incoming\/r114f-v11-\[0-9\]\+\$/);
+  assert.match(workflow, /\^\/opt\/stay\/incoming\/r114f-v12-\[0-9\]\+\$/);
   assert.match(workflow, /rm -rf --one-file-system -- "\$root"/);
   assert.match(workflow, /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/);
 });
 
-test('R114F V12 controller bootstrap is source-sealed and preserves the narrow sudo boundary', () => {
+test('R114F V13 controller bootstrap is source-sealed and preserves the narrow sudo boundary', () => {
   assert.match(bootstrap, /^\s{2}workflow_dispatch:/m);
   assert.doesNotMatch(bootstrap, /^\s{2}(push|pull_request|schedule):/m);
-  assert.match(bootstrap, /AUTHORIZE_R114F_V12_PINNED_CONTROLLER_BOOTSTRAP/);
-  assert.match(bootstrap, /WRAPPER_SHA256: 9be9216e837d93e5286bd7e19cd27011fab2c15bbc79296122d42471bb306d55/);
-  assert.match(bootstrap, /INSTALLER_SHA256: 2b1875ace0260876edc3c8982c29015b7b0284357931e00818edb4b98a21ae69/);
+  assert.match(bootstrap, /AUTHORIZE_R114F_V13_PINNED_CONTROLLER_BOOTSTRAP/);
+  assert.match(bootstrap, /WRAPPER_SHA256: 99537254da2b48551b797478eb5e01bb6dc113e8f901505818031e697a9b43a0/);
+  assert.match(bootstrap, /INSTALLER_SHA256: 06c29ec9e005fc13e7792c040dca2b384042050a04cf8dfdaa36109607a4c26c/);
   assert.match(bootstrap, /PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q/);
   assert.match(bootstrap, /ssh-keygen -lf ~\/\.ssh\/known_hosts/);
   assert.doesNotMatch(bootstrap, /StrictHostKeyChecking=accept-new/);
-  assert.match(installer, /EXPECTED_WRAPPER_SHA256="9be9216e837d93e5286bd7e19cd27011fab2c15bbc79296122d42471bb306d55"/);
+  assert.match(installer, /EXPECTED_WRAPPER_SHA256="99537254da2b48551b797478eb5e01bb6dc113e8f901505818031e697a9b43a0"/);
   const secretFree = bootstrap.slice(
     bootstrap.indexOf('  validate-and-seal:'),
     bootstrap.indexOf('  stage-and-await-root-bridge:')
   );
   assert.doesNotMatch(secretFree, /STAY_DEPLOY_KEY|secrets\./);
-  assert.match(bootstrap, /\^\/opt\/stay\/incoming\/r114f-controller-v12-\[0-9\]\+\$/);
-  assert.match(bootstrap, /private=\\\$\(mktemp -d \/run\/stay-r114f-v12-bootstrap\.XXXXXX\)/);
+  assert.match(bootstrap, /\^\/opt\/stay\/incoming\/r114f-controller-v13-\[0-9\]\+\$/);
+  assert.match(bootstrap, /private=\\\$\(mktemp -d \/run\/stay-r114f-v13-bootstrap\.XXXXXX\)/);
   assert.match(bootstrap, /install -o root -g root -m 0555/);
-  assert.match(bootstrap, /P1_R114F_V12_CONTROLLER_BOOTSTRAP\.sha256/);
+  assert.match(bootstrap, /P1_R114F_V13_CONTROLLER_BOOTSTRAP\.sha256/);
   assert.match(bootstrap, /FAILED_BOOTSTRAP_STAGE: \/opt\/stay\/incoming\/r111f-controller-v8-33108449678/);
   assert.match(bootstrap, /FAILED_BOOTSTRAP_STAGE=CLEANED/);
   assert.match(bootstrap, /root_identity="\$\(stat -Lc '%U:%G' "\$root"\)"/);
   assert.match(bootstrap, /root_mode="\$\(stat -Lc '%a' "\$root"\)"/);
   assert.match(bootstrap, /"\$root_mode" == 700 \|\| "\$root_mode" == 2700/);
   assert.match(bootstrap, /FAILED_BOOTSTRAP_STAGE_MODE=/);
-  assert.match(bootstrap, /R114F_V12_CONTROLLER_STAGE_MODE=/);
+  assert.match(bootstrap, /R114F_V13_CONTROLLER_STAGE_MODE=/);
   assert.doesNotMatch(bootstrap, /staydeploy:staydeploy:700:1/);
-  assert.match(bootstrap, /R114F_V12_CONTROLLER_BOOTSTRAP=PASS/);
+  assert.match(bootstrap, /R114F_V13_CONTROLLER_BOOTSTRAP=PASS/);
   assert.match(bootstrap, /SUDOERS_SCOPE=STAYDEPLOY_TO_PINNED_P1_CONTROLLER_ONLY/);
   assert.doesNotMatch(bootstrap, /sudo -n \/usr\/bin\/systemd-run/);
   const sudoers = installer.match(/<<'SUDOERS'\n([\s\S]*?)\nSUDOERS/);

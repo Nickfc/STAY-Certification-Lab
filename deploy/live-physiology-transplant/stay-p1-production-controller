@@ -18,10 +18,10 @@ EXPECTED_ROLLBACK_MANIFEST_SHA256="f64ef28f5f3ea52b3688f18620a56888bcb106eb942b3
 EXPECTED_A1_MANIFEST_SHA256="2560288aeb764d093383378437c74937fb3d9a47922bb9afbde658e82f3e7904"
 EXPECTED_A1_INVENTORY_SHA256="2f4e51d998bd5c5294641e727e6673608b8c5137944f4acbf3ac55e6a1ead282"
 EXPECTED_A1_PROVENANCE_SHA256="ac7978f83f14d8614818e8f736f3ec452c40b4900a44cb1601e5fad5cdb4a0ee"
-EXPECTED_R114F_ARCHIVE="STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V11_BUNDLE_20260828.tar.gz"
-EXPECTED_R114F_ARCHIVE_SHA256="39bef53eb7c424da6eb6c039203ee8bfb79ad4c37d6bc6ac09b011c8aa6550de"
-EXPECTED_R114F_MANIFEST_SHA256="d0b419e0cd24cf56112294e00d9132d875570d395d121bb711bccd8eff365063"
-EXPECTED_R114F_FORWARD_SHA256="71eeca862f1212a5f618d9d87e6f6c32ae5712629333feafe2ebc60e26d3b2b0"
+EXPECTED_R114F_ARCHIVE="STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V12_BUNDLE_20260828.tar.gz"
+EXPECTED_R114F_ARCHIVE_SHA256="e20a48594be06ad8ff8336410ea0bf9cf65af5777b9f560f0fb2c538d0b0365f"
+EXPECTED_R114F_MANIFEST_SHA256="cb4f777e57f636b0894e0dd816a004fc2713da47b691cebdb681c1839e9bc396"
+EXPECTED_R114F_FORWARD_SHA256="685fd0d48579b24b09278b0ff537a4c9ab574e2f94d9c564439c40b6766946d2"
 EXPECTED_R114F_RECOVERY_SHA256="5a06e699a4acc5e304b8ac41be568f25d984e22132002954533899d453aca9a5"
 R114F_FORWARD_RUNTIME_SECONDS=1500
 R114F_RECOVERY_RUNTIME_SECONDS=900
@@ -121,7 +121,7 @@ validate_r114f_run_root() {
   [[ ! -L "$candidate" ]] || return 1
   parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
   [[ "$parent_real" == "$prefix_real" ]] || return 1
-  [[ "$(basename -- "$candidate")" =~ ^r114f-v11-[0-9]+$ ]] || return 1
+  [[ "$(basename -- "$candidate")" =~ ^r114f-v12-[0-9]+$ ]] || return 1
 }
 
 validate_plain_tree() {
@@ -556,18 +556,18 @@ main() {
         abort_controller 75 "AUTHORIZATION_FAILED" "rollback-b-authorization-missing"
       ;;
     harden-r114f)
-      [[ "$authorization" == "AUTHORIZE_R114F_V11_CONTAINED_FORWARD_WITH_FENCED_RECOVERY" ]] ||
+      [[ "$authorization" == "AUTHORIZE_R114F_V12_CONTAINED_FORWARD_WITH_FENCED_RECOVERY" ]] ||
         abort_controller 74 "AUTHORIZATION_FAILED" "r114f-forward-authorization-missing"
       ;;
     recover-r114f)
-      [[ "$authorization" == "AUTHORIZE_R114F_V11_FORWARD_RECOVERY_ONLY" ]] ||
+      [[ "$authorization" == "AUTHORIZE_R114F_V12_FORWARD_RECOVERY_ONLY" ]] ||
         abort_controller 75 "AUTHORIZATION_FAILED" "r114f-recovery-authorization-missing"
       ;;
     *) abort_controller 76 "OPERATION_REJECTED" "unsupported-operation" ;;
   esac
 
   if [[ "$operation" == "harden-r114f" || "$operation" == "recover-r114f" ]]; then
-    [[ "$requested_root" =~ ^/opt/stay/incoming/r114f-v11-[0-9]+$ ]] ||
+    [[ "$requested_root" =~ ^/opt/stay/incoming/r114f-v12-[0-9]+$ ]] ||
       abort_controller 77 "PATH_VALIDATION_FAILED" "invalid-r114f-run-root-pattern"
     validate_r114f_run_root "$requested_root" "$INCOMING_ROOT" ||
       abort_controller 77 "PATH_VALIDATION_FAILED" "invalid-r114f-run-root"
