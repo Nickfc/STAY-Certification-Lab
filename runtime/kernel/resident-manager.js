@@ -3754,10 +3754,20 @@ class ResidentManager {
 
     const coldQuarantine =
       allowColdQuarantine === true &&
-      resident.residencyId ===
-        'resident:sntss' &&
-      resident.coreId ===
-        'sntss' &&
+      (
+        (
+          resident.residencyId ===
+            'resident:sntss' &&
+          resident.coreId ===
+            'sntss'
+        ) ||
+        (
+          resident.residencyId ===
+            'resident:chronobiology' &&
+          resident.coreId ===
+            'chronobiology'
+        )
+      ) &&
       resident.status ===
         'QUARANTINED';
 

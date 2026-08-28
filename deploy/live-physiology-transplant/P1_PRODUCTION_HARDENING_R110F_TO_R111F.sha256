@@ -64,7 +64,7 @@ bd5b63fd3eeb81a4bda58655bf949f69542d27b0d659710e7eb4a658d8abbff8  ./runtime/kern
 9b1e526541e0873b001e7b9576cc055cd42b2e0c700e600cf583553f9b328322  ./runtime/kernel/protocol.js
 32dfa45ec59dc01ee4c00b4b301295efb48edb9ff625308a4abe65f83f7ac857  ./runtime/kernel/registry.js
 677b73e68f1dba6a27d4d2303313e95aa12110779f1507db15ad37e28619f14b  ./runtime/kernel/resident-control-socket.js
-0c1a8be306513446762280ec0a0e9c4c92ece3f51dec01321b1e3342a94edb44  ./runtime/kernel/resident-manager.js
+a0f5108c31b6c92d06d170f637b75570b8d64117514bf54a4472d282aacbcb3d  ./runtime/kernel/resident-manager.js
 46c7a51b8f256f3c6b9fdb1a183b087a676eace03c3c19d7d4cf05f3e0481429  ./runtime/kernel/resident-promotion-authority.js
 57d6205a6f55a37f2388e27bfcb7ae4bad3278003ed23fc3f837abd933c9508b  ./runtime/kernel/resource-governor.js
 d5d15eca9c003d796129e49a616311c64cfea9c2287d057291a671d23db0d063  ./runtime/kernel/revocation-aware-slot.js
@@ -81,4 +81,4 @@ cc8550998d2fd2ceaf11a17f98eec10b42df414188b059d674c83ee9c16ce270  ./runtime/ui/l
 88ab794b768111054b221acae8b11ae784be008761dd514021f19af8b42687f4  ./server.js
 5c31212b11a1f2c22d21f09ddf71272411cb5406c2105726e80bc7b9c54efe23  ./test/fixtures/stateful-core.js
 9661cac9c77ea30f5250adc8c668fe0f1d31e6ab14c818c8bd9037ff4ca7e391  ./test/production-hardening-entry-path.test.js
-c662f0966d6cc8e436b9990baee4baeb3ef2b23b6208c766aba9df68e92f6896  ./test/production-hardening.test.js
+51106fe5328a3555ce1364e7ca5f2ff5524ba48b556ceb71b5ab0f40525101f5  ./test/production-hardening.test.js

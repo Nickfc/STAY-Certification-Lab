@@ -4,14 +4,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   inspect:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      GH_TOKEN: ${{ github.token }}
+      PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+      PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
@@ -27,14 +28,16 @@ jobs:
           install -d -m 0700 ~/.ssh
           printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
           chmod 0600 ~/.ssh/stay_deploy
-          : > ~/.ssh/known_hosts
+          printf '%s %s\n' '35.157.242.167' "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
           chmod 0600 ~/.ssh/known_hosts
+          [[ "$(wc -l < ~/.ssh/known_hosts)" == 1 ]]
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
       - name: Capture read-only production state
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
+            -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             staydeploy@35.157.242.167 'bash -s' \
             > "$RUNNER_TEMP/state.env" <<'REMOTE'
@@ -123,19 +126,41 @@ jobs:
             console.log('DB_RESIDENT_COUNT=' + Number(db.prepare('SELECT COUNT(*) AS n FROM resident_instances').get().n));
             console.log('DB_SNTSS_COUNT=' + Number(db.prepare("SELECT COUNT(*) AS n FROM resident_instances WHERE residency_id='resident:sntss'").get().n));
             console.log('DB_PHYSIOLOGY_AUTHORITY_COUNT=' + Number(db.prepare("SELECT COUNT(*) AS n FROM authority WHERE core_id IN ('sntss','chronobiology')").get().n));
+            console.log('DB_CONSUMERS=' + JSON.stringify(db.prepare(`
+              SELECT consumer_id, core_id, required, active, cursor, authority_epoch
+              FROM biological_consumers
+              ORDER BY consumer_id
+            `).all()));
+            console.log('DB_PENDING_BY_CONSUMER=' + JSON.stringify(db.prepare(`
+              SELECT consumer_id, COUNT(*) count, MIN(sequence) first_sequence, MAX(sequence) last_sequence
+              FROM biological_deliveries
+              WHERE status='PENDING'
+              GROUP BY consumer_id
+              ORDER BY consumer_id
+            `).all()));
+            console.log('DB_RECENT_RECOVERY=' + JSON.stringify(db.prepare(`
+              SELECT id, type, core_id, detail_json, created_at
+              FROM recovery_records
+              ORDER BY id DESC
+              LIMIT 40
+            `).all()));
+            console.log('DB_RECENT_RESYNCHRONIZATIONS=' + JSON.stringify(db.prepare(`
+              SELECT resync_id, residency_id, from_cursor, to_cursor, abandoned_count,
+                     first_abandoned_sequence, last_abandoned_sequence, runtime_revision, created_at
+              FROM resident_resynchronizations
+              ORDER BY created_at DESC
+              LIMIT 10
+            `).all()));
             db.close();
           })().catch(e => { console.log('STATE_PROBE_ERROR=' + String(e.code || e.message || e).replace(/\s+/g,' ').slice(0,512)); process.exitCode=1; });
           NODE
           REMOTE
           cat "$RUNNER_TEMP/state.env"
-      - name: Publish live state
+      - name: Publish immutable diagnostic artifact
         if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          content="$(base64 -w0 "$RUNNER_TEMP/state.env")"
-          path_name='ops/p1-final-live-state.env'
-          old="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path_name?ref=main" --jq .sha 2>/dev/null || true)"
-          args=(--method PUT "repos/$GITHUB_REPOSITORY/contents/$path_name" -f message='Record final transplant live state' -f content="$content" -f branch=main)
-          [[ -z "$old" ]] || args+=(-f sha="$old")
-          gh api "${args[@]}" >/dev/null
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: p1-final-live-state-${{ github.run_id }}
+          path: ${{ runner.temp }}/state.env
+          if-no-files-found: error
+          retention-days: 30

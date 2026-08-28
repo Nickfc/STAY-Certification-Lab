@@ -548,6 +548,82 @@ test('cold recovery includes an authority-contained quarantined Chronobiology re
   }]);
 });
 
+test('resident manager cold recovery admits only the exact contained physiology residents', async () => {
+  async function recover(resident) {
+    const calls = [];
+    const mutable = { ...resident };
+    const manager = Object.create(ResidentManager.prototype);
+    manager.closed = false;
+    manager.units = new Map();
+    manager.stateStore = {
+      getResident: () => ({ ...mutable }),
+      readResidentCheckpoint: async () => ({ blobHash: 'sha256:' + 'a'.repeat(64) }),
+      resynchronizeResidentBiologicalConsumer(input) {
+        calls.push(['resynchronize', input]);
+        return {
+          resyncId: 'contained-cold-recovery',
+          abandonedCount: 7,
+          fromCursor: 41,
+          toCursor: 48
+        };
+      },
+      setResidentStatus(_residencyId, status) {
+        mutable.status = status;
+        calls.push(['status', status]);
+      },
+      recordRecovery(type, coreId, detail) {
+        calls.push(['recovery', type, coreId, detail]);
+      }
+    };
+    manager.validateBinding = () => {};
+    manager.inspect = async () => ({ definition: { manifest: { coreId: resident.coreId } } });
+    manager.verifyExistingIdentity = () => {};
+    manager.startUnit = async input => {
+      calls.push(['start', input.backfillInactiveGap, input.resident.status]);
+      return { contained: true };
+    };
+
+    const result = await manager.resynchronize(
+      resident.residencyId,
+      { identitySha256: 'sha256:' + 'b'.repeat(64) },
+      114,
+      { allowColdQuarantine: true }
+    );
+    return { calls, result };
+  }
+
+  for (const [residencyId, coreId] of [
+    ['resident:sntss', 'sntss'],
+    ['resident:chronobiology', 'chronobiology']
+  ]) {
+    const { calls, result } = await recover({
+      residencyId,
+      coreId,
+      status: 'QUARANTINED',
+      checkpointHash: 'sha256:' + 'a'.repeat(64),
+      moduleRelativePath: `cores/${coreId}/fixture.js`
+    });
+    assert.equal(result.record.abandonedCount, 7);
+    assert.deepEqual(calls.find(call => call[0] === 'start'), ['start', true, 'RECOVERING']);
+    assert.deepEqual(calls.find(call => call[0] === 'recovery').slice(0, 3), [
+      'recovery',
+      'resident.cold-quarantine-recovered',
+      coreId
+    ]);
+  }
+
+  await assert.rejects(
+    recover({
+      residencyId: 'resident:chronobiology',
+      coreId: 'sntss',
+      status: 'QUARANTINED',
+      checkpointHash: 'sha256:' + 'a'.repeat(64),
+      moduleRelativePath: 'cores/sntss/fixture.js'
+    }),
+    error => error.code === 'RESIDENT_RESYNC_STATE'
+  );
+});
+
 test('an authority-free empty outbox is quiet while an orphaned pending intent fails closed', () => {
   let pending = null;
   const store = Object.create(StateStore.prototype);
