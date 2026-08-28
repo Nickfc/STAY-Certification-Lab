@@ -1,5 +1,5 @@
-name: R114F V11 guarded contained recovery
-run-name: R114F V11 ${{ inputs.operation }} · ${{ github.actor }}
+name: R114F V12 guarded contained recovery
+run-name: R114F V12 ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -22,21 +22,21 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r114f-v11-production-hardening
+  group: stay-r114f-v12-production-hardening
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r114f-v11
-  RELEASE_COMMIT: da57f5f83bc9dc0aaf448a65129b3f3f6dfdac04
-  RELEASE_TREE: a4f341f50af964b56bc8d605dff3e7c344df4fba
-  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V11_BUNDLE_20260828.tar.gz
-  ARCHIVE_SHA256: 39bef53eb7c424da6eb6c039203ee8bfb79ad4c37d6bc6ac09b011c8aa6550de
+  RELEASE_TAG: r114f-v12
+  RELEASE_COMMIT: 101bac700e6498ef9021f8e61ba0c1e66411d4fd
+  RELEASE_TREE: 97d94e09be6c78b72f26a888818a228076244fe0
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V12_BUNDLE_20260828.tar.gz
+  ARCHIVE_SHA256: e20a48594be06ad8ff8336410ea0bf9cf65af5777b9f560f0fb2c538d0b0365f
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
   PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1j-production-hardening-6a04981799aa
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1k-r112-repair-be652198320b
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1k-r112-repair-0aa05cea80aa
   FAILED_READ_ONLY_STAGE: /opt/stay/incoming/r111f-v6-33097105865
   FAILED_READ_ONLY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V6_BUNDLE_20260827.tar.gz
   FAILED_READ_ONLY_ARCHIVE_SHA256: f1e668a63caca869c212a0e4d178d8e9829985fb29e77869a67a74b84c5634e3
@@ -51,6 +51,10 @@ env:
   FAILED_V9_PREFLIGHT_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V9_BUNDLE_20260828.tar.gz
   FAILED_V9_PREFLIGHT_ARCHIVE_SHA256: 759be82dbd12ee93258d033e1a7a36667d21b50c793463d82d38b42db3d739d5
   FAILED_V9_PREFLIGHT_MANIFEST_SHA256: b8329ca509b47529ae62b07e3f2ab4108ebf70ec2b559341a6c5dc86bac41aaa
+  FAILED_V11_CANDIDATE_STAGE: /opt/stay/incoming/r114f-v11-33136236907
+  FAILED_V11_CANDIDATE_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V11_BUNDLE_20260828.tar.gz
+  FAILED_V11_CANDIDATE_ARCHIVE_SHA256: 39bef53eb7c424da6eb6c039203ee8bfb79ad4c37d6bc6ac09b011c8aa6550de
+  FAILED_V11_CANDIDATE_MANIFEST_SHA256: d0b419e0cd24cf56112294e00d9132d875570d395d121bb711bccd8eff365063
 
 jobs:
   validate-immutable-release:
@@ -79,13 +83,13 @@ jobs:
           [[ "$(git rev-parse 'HEAD^{tree}')" == "$RELEASE_TREE" ]]
           case "$REQUESTED_OPERATION" in
             preflight)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V11_READ_ONLY_PREFLIGHT' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V12_READ_ONLY_PREFLIGHT' ]]
               ;;
             deploy)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V11_CONTAINED_FORWARD_WITH_FENCED_RECOVERY' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V12_CONTAINED_FORWARD_WITH_FENCED_RECOVERY' ]]
               ;;
             recover)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V11_FORWARD_RECOVERY_ONLY' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V12_FORWARD_RECOVERY_ONLY' ]]
               ;;
             *) exit 64 ;;
           esac
@@ -108,7 +112,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          root="/tmp/stay-r114f-v11-${GITHUB_RUN_ID}"
+          root="/tmp/stay-r114f-v12-${GITHUB_RUN_ID}"
           extract="$root/extract"
           install -d -m 0700 "$extract"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
@@ -315,11 +319,48 @@ jobs:
           [[ ! -e "$root" && ! -L "$root" ]]
           echo 'FAILED_V9_PREFLIGHT_STAGE=CLEANED'
           REMOTE
+      - name: Remove exact failed V11 candidate stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$FAILED_V11_CANDIDATE_STAGE" "$FAILED_V11_CANDIDATE_ARCHIVE" \
+            "$FAILED_V11_CANDIDATE_ARCHIVE_SHA256" "$FAILED_V11_CANDIDATE_MANIFEST_SHA256" <<'REMOTE'
+          set -Eeuo pipefail
+          root="$1"; archive="$2"; expected_sha="$3"; expected_manifest_sha="$4"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == 172.26.9.207 ]]
+          [[ "$root" == /opt/stay/incoming/r114f-v11-33136236907 ]]
+          if [[ ! -e "$root" && ! -L "$root" ]]; then
+            echo 'FAILED_V11_CANDIDATE_STAGE=ALREADY_ABSENT'
+            exit 0
+          fi
+          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
+          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
+          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
+          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
+          [[ -f "$manifest" && ! -L "$manifest" ]]
+          [[ "$(sha256sum "$manifest" | awk '{print $1}')" == "$expected_manifest_sha" ]]
+          (cd "$root/release" && sha256sum -c \
+            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
+          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
+          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
+          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
+          find -P "$root" -xdev -type f -exec chmod u+rw {} +
+          rm -rf --one-file-system -- "$root"
+          [[ ! -e "$root" && ! -L "$root" ]]
+          echo 'FAILED_V11_CANDIDATE_STAGE=CLEANED'
+          REMOTE
       - name: Stage and independently verify immutable release
         shell: bash
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r114f-v11-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r114f-v12-${GITHUB_RUN_ID}"
           printf 'RUN_ROOT=%s\n' "$run_root" >> "$GITHUB_ENV"
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
@@ -335,7 +376,7 @@ jobs:
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$ARCHIVE" "$ARCHIVE_SHA256" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; archive="$2"; expected_sha="$3"; extract="$root/release"
-          [[ "$root" =~ ^/opt/stay/incoming/r114f-v11-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r114f-v12-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
           (cd "$root" && sha256sum -c "$archive.sha256")
           mapfile -t entries < <(tar -tzf "$root/$archive")
@@ -365,7 +406,7 @@ jobs:
             > "$RUNNER_TEMP/preflight.raw" 2>&1 <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; source_release="$2"; release="$root/release"
-          [[ "$root" =~ ^/opt/stay/incoming/r114f-v11-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r114f-v12-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
           [[ "$observed" == 172.26.9.207 ]]
           before_service="$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)"
@@ -402,10 +443,10 @@ jobs:
         run: |
           set -euo pipefail
           controller_operation='harden-r114f'
-          expected_authorization='AUTHORIZE_R114F_V11_CONTAINED_FORWARD_WITH_FENCED_RECOVERY'
+          expected_authorization='AUTHORIZE_R114F_V12_CONTAINED_FORWARD_WITH_FENCED_RECOVERY'
           if [[ "$OPERATION" == recover ]]; then
             controller_operation='recover-r114f'
-            expected_authorization='AUTHORIZE_R114F_V11_FORWARD_RECOVERY_ONLY'
+            expected_authorization='AUTHORIZE_R114F_V12_FORWARD_RECOVERY_ONLY'
           fi
           [[ "$REQUESTED_AUTHORIZATION" == "$expected_authorization" ]]
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
@@ -516,7 +557,7 @@ jobs:
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$RUN_ROOT" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"
-          [[ "$root" =~ ^/opt/stay/incoming/r114f-v11-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r114f-v12-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 \) -print -quit)" ]]
           find -P "$root" -xdev -type d -exec chmod u+rwx {} +
           find -P "$root" -xdev -type f -exec chmod u+rw {} +
@@ -527,7 +568,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r114f-v11-${{ inputs.operation }}-${{ github.run_id }}
+          name: r114f-v12-${{ inputs.operation }}-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/preflight.raw
             ${{ runner.temp }}/operation.raw
