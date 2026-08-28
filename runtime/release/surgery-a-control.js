@@ -21,7 +21,7 @@ const IDENTITIES = Object.freeze({
   anchors: Object.freeze({
     biologicalSignallingFabric: '9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a',
     residentManager: '0c1a8be306513446762280ec0a0e9c4c92ece3f51dec01321b1e3342a94edb44',
-    stateStore: 'f9f16e9a913da79170fd8172ca088208ed4e8e56db6883dd6911aa848be39f27'
+    stateStore: '00e84f2bec072b35b13cd6e830728db0ce7635d93b8756f3e7d3622672e5bb9d'
   })
 });
 
