@@ -2604,6 +2604,44 @@ test('the release overlay promotes the complete CoreHost cohort atomically', asy
   }
 });
 
+test('the clean release inventory carries the focused runtime dependency closure', async () => {
+  const manifest = await fs.readFile(
+    path.join(
+      __dirname,
+      '..',
+      'deploy',
+      'live-physiology-transplant',
+      'P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256'
+    ),
+    'utf8'
+  );
+  const inventory = new Set(
+    manifest.trim().split(/\r?\n/).map(line => line.trim().split(/\s+/).at(-1).replace(/^\.\//, ''))
+  );
+
+  for (const relative of [
+    'runtime/compute/compute-fabric.js',
+    'runtime/index.js',
+    'runtime/kernel/biological-fabric.js',
+    'runtime/kernel/event-fabric.js',
+    'runtime/kernel/hardened-living-kernel.js',
+    'runtime/kernel/promotion-authority.js',
+    'runtime/kernel/registry.js',
+    'runtime/kernel/resident-promotion-authority.js',
+    'runtime/kernel/revocation-aware-slot.js',
+    'runtime/kernel/revocation-registry.js',
+    'runtime/kernel/shadow-evidence.js',
+    'runtime/kernel/slot.js',
+    'runtime/kernel/trusted-organism-time.js',
+    'runtime/kernel/upgrades.js'
+  ]) {
+    assert.ok(
+      inventory.has(relative),
+      `focused clean-extraction dependency is absent from the release inventory: ${relative}`
+    );
+  }
+});
+
 test('the frozen I4-G1 package retains exact physiology through the hardened commit fence', async t => {
   const pulseCount = 5_000;
   const sustainedPulseIntervalMs = 50;
