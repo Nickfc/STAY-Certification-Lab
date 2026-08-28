@@ -71,13 +71,14 @@ test('P1-B0-R4 post-restart gate executes exact inspection and signed promotion 
   assert.match(preflight, /REPAIRED_REVISION > 54/);
 });
 
-test('P1-B0-R5 privileged bridge exposes a separate fixed authorization and no implicit attach', () => {
+test('P1-B0-R5 historical repair remains fixed and is absent from the R116F controller', () => {
   const remote = read('deploy/live-physiology-transplant/p1-actions-remote-controller.sh');
   const wrapper = read('deploy/live-physiology-transplant/stay-p1-production-controller');
   assert.match(remote, /repair-b0-sandbox/);
   assert.match(remote, /STAY_B0_SANDBOX_REPAIR_AUTHORIZED/);
-  assert.match(wrapper, /AUTHORIZE_B0_SANDBOX_REPAIR_7D040592CCF1F149/);
-  assert.match(wrapper, /B0_SANDBOX_REPAIR_RESULT=PASS/);
+  assert.doesNotMatch(wrapper, /repair-b0-sandbox|AUTHORIZE_B0_SANDBOX_REPAIR|B0_SANDBOX_REPAIR_RESULT/);
+  assert.match(wrapper, /harden-r116f\)/);
+  assert.match(wrapper, /recover-r116f\)/);
   assert.doesNotMatch(remote.match(/repair-b0-sandbox\)[\s\S]*?;;/)?.[0] || '', /attach|surgery-b-execute/);
 });
 
@@ -114,8 +115,8 @@ test('P1-B0-R6 forward completion seals the exact revision-56 repair without ano
   assert.doesNotMatch(completion, /systemctl\s+(?:restart|stop|start|daemon-reload)|attach resident:|detach resident:|\/opt\/stay\/current.*(?:ln|mv)|continuity\.sqlite3.*(?:cp|mv)/);
   assert.match(remote, /complete-b0-sandbox-repair/);
   assert.match(remote, /STAY_B0_SANDBOX_REPAIR_COMPLETE_AUTHORIZED/);
-  assert.match(wrapper, /AUTHORIZE_B0_SANDBOX_REPAIR_COMPLETION_7D040592CCF1F149/);
-  assert.match(wrapper, /B0_SANDBOX_REPAIR_COMPLETION_RESULT=PASS/);
+  assert.doesNotMatch(wrapper,
+    /complete-b0-sandbox-repair|AUTHORIZE_B0_SANDBOX_REPAIR_COMPLETION|B0_SANDBOX_REPAIR_COMPLETION_RESULT/);
   assert.match(launcher, /complete-b0-sandbox-repair/);
   assert.match(bootstrap, /ROOT_MODE" == 700 \|\| "\$ROOT_MODE" == 2700/);
 });
