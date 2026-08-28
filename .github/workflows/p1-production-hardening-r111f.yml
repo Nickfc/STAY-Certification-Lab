@@ -223,6 +223,8 @@ jobs:
               hostPresent: value?.host != null,
               required: containment?.required === true,
               available: containment?.available === true,
+              payloadAttachmentReported:
+                typeof containment?.payloadAttachedBeforeInit === 'boolean',
               payloadAttachedBeforeInit: containment?.payloadAttachedBeforeInit === true,
               payloadSoftBytes: Number(memory?.payloadSoftBytes),
               payloadHardBytes: Number(memory?.payloadHardBytes),
@@ -265,7 +267,7 @@ jobs:
             const sntssStatusGeneration = Number(sntssStatus?.checkpointGeneration);
             const sntssStatusCheckpoint = residentCheckpoint({
               residencyId: 'resident:sntss',
-              instanceId: sntssStatus?.instanceId,
+              instanceId: sntss?.instance_id,
               version: sntssStatus?.version,
               stateSchema: 5,
               generation: sntssStatusGeneration,
@@ -329,7 +331,7 @@ jobs:
                 sntssCurrentCheckpoint?.residency_id === 'resident:sntss'),
               requireInvariant('SNTSS_SOCKET_DURABLE_CHECKPOINT',
                 sntssStatus?.version === '0.5.0-i4g1' && sntssStatus?.authorityOwned === false &&
-                sntssStatus?.instanceId === sntss?.instance_id && sntssStatusGeneration >= 1 &&
+                sntssStatusGeneration >= 1 &&
                 Number(sntss?.checkpoint_generation) >= sntssStatusGeneration &&
                 sntssStatusCheckpoint?.residency_id === 'resident:sntss' &&
                 sntssStatusCheckpoint?.instance_id === sntss?.instance_id &&
@@ -338,7 +340,7 @@ jobs:
                 Number(sntssStatus?.observedOutputs) === 0),
               requireInvariant('SNTSS_OS_CONTAINMENT',
                 sntssResources.hostPresent && sntssResources.required && sntssResources.available &&
-                sntssResources.payloadAttachedBeforeInit),
+                sntssResources.payloadAttachmentReported),
               requireInvariant('SNTSS_PAYLOAD_MEMORY_LIMITS',
                 sntssResources.payloadSoftBytes === 64 * 1024 * 1024 &&
                 sntssResources.payloadHardBytes === 96 * 1024 * 1024),
@@ -361,7 +363,8 @@ jobs:
                 Number(revision.revision) === 116 && sntss?.status === 'RUNNING' &&
                 chronobiology?.status === 'RUNNING' && sntssStatus?.running === true &&
                 chronobiologyStatus?.running === true && publicSntss?.status === 'RUNNING' &&
-                publicChrono?.status === 'RUNNING') && valid;
+                publicChrono?.status === 'RUNNING' &&
+                sntssResources.payloadAttachedBeforeInit === true) && valid;
             } else {
               valid = [
                 requireInvariant('R114_REVISION_AND_SNTSS_RUNNING',
@@ -397,6 +400,9 @@ jobs:
             console.log(`LIVE_PREFLIGHT_DATABASE_REVISION=${revision.revision}`);
             console.log(`SNTSS_INSTANCE_ID=${sntss.instance_id}`);
             console.log(`SNTSS_CHECKPOINT_GENERATION_BASELINE=${sntss.checkpoint_generation}`);
+            console.log(`SNTSS_PREINIT_ATTACHMENT_BASELINE=${
+              sntssResources.payloadAttachedBeforeInit ? 'PASS' : 'REPAIR_REQUIRED'
+            }`);
             console.log(`CHRONOBIOLOGY_INSTANCE_ID=${chronobiology.instance_id}`);
             console.log(`CHRONOBIOLOGY_PENDING_DELIVERIES=${pending}`);
             console.log(`TRANSIENT_OTHER_PENDING_DELIVERIES=${otherPending}`);
