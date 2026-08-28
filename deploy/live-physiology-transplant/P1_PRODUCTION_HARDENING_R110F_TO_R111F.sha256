@@ -34,7 +34,7 @@ fff2600be16213032d9ab97c82f7674dc9e403011ee85f7450e830db5bbda0e3  ./cores/sntss/
 71eeca862f1212a5f618d9d87e6f6c32ae5712629333feafe2ebc60e26d3b2b0  ./deploy/live-physiology-transplant/p1-production-hardening-forward.sh
 5763479e7163735949ae018fe863844d68de4787f47808b31669c4d1e0bc3dfa  ./deploy/live-physiology-transplant/p1-production-hardening-freeze.js
 ac325222ecb5b0234cba9c4756faad9b9a1e11c098b2861c9a23ee8f966b2a1a  ./deploy/live-physiology-transplant/p1-production-hardening-live-proof.js
-25b28fe200e757a5d1b363a885e04cebde473c9f364791a2d8df3bc97633f363  ./deploy/live-physiology-transplant/p1-production-hardening-preflight.js
+f470875b2b08cd315c4d0e8c1e6b253d74c888245616d0e93ae098c67567e153  ./deploy/live-physiology-transplant/p1-production-hardening-preflight.js
 ccbcd4164f5b5312ca7dfdf6131a964736b3344c80663c3eebc1218aea3b8ca8  ./deploy/live-physiology-transplant/p1-resident-control-client.js
 030db0fad1a018f31f565ebb7a645eede2e19cb27069c259b610f11e24ad65db  ./deploy/live-physiology-transplant/p1-sntss-i4g-live-state.js
 433430f1e360d1183e29e016978c9610fd1b2d1070aab5415facb39aab8896df  ./deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js
@@ -81,4 +81,4 @@ cc8550998d2fd2ceaf11a17f98eec10b42df414188b059d674c83ee9c16ce270  ./runtime/ui/l
 88ab794b768111054b221acae8b11ae784be008761dd514021f19af8b42687f4  ./server.js
 5c31212b11a1f2c22d21f09ddf71272411cb5406c2105726e80bc7b9c54efe23  ./test/fixtures/stateful-core.js
 9661cac9c77ea30f5250adc8c668fe0f1d31e6ab14c818c8bd9037ff4ca7e391  ./test/production-hardening-entry-path.test.js
-bbb32d5e670d921bbdeab05e754a0d59eb1d6f2d4ef2d2ea94a856af04f645d3  ./test/production-hardening.test.js
+2dd7e032bb489b39eabdc8f5034a6a14395c6be353c55a9c61487cce566584d8  ./test/production-hardening.test.js
