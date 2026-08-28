@@ -18,13 +18,13 @@ EXPECTED_ROLLBACK_MANIFEST_SHA256="f64ef28f5f3ea52b3688f18620a56888bcb106eb942b3
 EXPECTED_A1_MANIFEST_SHA256="2560288aeb764d093383378437c74937fb3d9a47922bb9afbde658e82f3e7904"
 EXPECTED_A1_INVENTORY_SHA256="2f4e51d998bd5c5294641e727e6673608b8c5137944f4acbf3ac55e6a1ead282"
 EXPECTED_A1_PROVENANCE_SHA256="ac7978f83f14d8614818e8f736f3ec452c40b4900a44cb1601e5fad5cdb4a0ee"
-EXPECTED_R111F_ARCHIVE="STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V8_BUNDLE_20260827.tar.gz"
-EXPECTED_R111F_ARCHIVE_SHA256="381be48f4bc037b2066d2bfdf8e4369c60e194a9e3e934e775e5a290e5f65586"
-EXPECTED_R111F_MANIFEST_SHA256="2371e103c15cab60073218606de20f3b8f7db7c2eeac52c24cd9545371100d0e"
-EXPECTED_R111F_FORWARD_SHA256="c66f7efb9b59974e3018848f3bd0f615fb14558b86dca7291fb057faed7a88a5"
-EXPECTED_R111F_RECOVERY_SHA256="c5d89b5b92706f761a374830020c5abd1665ab1c49f7ef7ffa12533bc6e0e0f4"
-R111F_FORWARD_RUNTIME_SECONDS=1500
-R111F_RECOVERY_RUNTIME_SECONDS=900
+EXPECTED_R114F_ARCHIVE="STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V9_BUNDLE_20260828.tar.gz"
+EXPECTED_R114F_ARCHIVE_SHA256="759be82dbd12ee93258d033e1a7a36667d21b50c793463d82d38b42db3d739d5"
+EXPECTED_R114F_MANIFEST_SHA256="b8329ca509b47529ae62b07e3f2ab4108ebf70ec2b559341a6c5dc86bac41aaa"
+EXPECTED_R114F_FORWARD_SHA256="71eeca862f1212a5f618d9d87e6f6c32ae5712629333feafe2ebc60e26d3b2b0"
+EXPECTED_R114F_RECOVERY_SHA256="5a06e699a4acc5e304b8ac41be568f25d984e22132002954533899d453aca9a5"
+R114F_FORWARD_RUNTIME_SECONDS=1500
+R114F_RECOVERY_RUNTIME_SECONDS=900
 
 declare -Ar CONTROLLER_HASHES=(
   [p1-actions-remote-controller.sh]="160eab82e246fc3a9eeaccdd84cd213a4ae8bb01a64c6b183e2a1ad8c0d9af19"
@@ -62,7 +62,7 @@ declare -Ar ANCHOR_HASHES=(
 )
 
 RUN_ROOT=""
-R111F_WORK_ROOT=""
+R114F_WORK_ROOT=""
 CLEANUP_ARMED=0
 CONTROLLER_STATUS=0
 CONTROLLER_FAILURE_CLASS="NONE"
@@ -114,14 +114,14 @@ validate_run_root() {
   [[ "$(basename -- "$candidate")" =~ ^p1-actions-[0-9]+$ ]] || return 1
 }
 
-validate_r111f_run_root() {
+validate_r114f_run_root() {
   local candidate="$1" prefix="$2" prefix_real parent_real
   [[ ! -L "$prefix" && -d "$prefix" ]] || return 1
   prefix_real="$(readlink -f -- "$prefix")" || return 1
   [[ ! -L "$candidate" ]] || return 1
   parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
   [[ "$parent_real" == "$prefix_real" ]] || return 1
-  [[ "$(basename -- "$candidate")" =~ ^r111f-v8-[0-9]+$ ]] || return 1
+  [[ "$(basename -- "$candidate")" =~ ^r114f-v9-[0-9]+$ ]] || return 1
 }
 
 validate_plain_tree() {
@@ -152,9 +152,9 @@ safe_cleanup() {
   [[ ! -e "$candidate" ]]
 }
 
-safe_cleanup_r111f_work_root() {
+safe_cleanup_r114f_work_root() {
   local candidate="$1"
-  [[ "$candidate" =~ ^/run/stay-r111f-controller\.[A-Za-z0-9]+$ ]] || return 97
+  [[ "$candidate" =~ ^/run/stay-r114f-controller\.[A-Za-z0-9]+$ ]] || return 97
   [[ ! -L "$candidate" && -d "$candidate" ]] || return 98
   [[ "$(stat -Lc '%U:%G' "$candidate")" == "root:root" ]] || return 99
   [[ -z "$(findmnt -rn -R -o TARGET "$candidate" 2>/dev/null || true)" ]] || return 100
@@ -177,8 +177,8 @@ finish_controller() {
     else
       CLEANUP_STATUS="FAIL_${cleanup_code}"
     fi
-  elif [[ -n "$R111F_WORK_ROOT" ]]; then
-    safe_cleanup_r111f_work_root "$R111F_WORK_ROOT"
+  elif [[ -n "$R114F_WORK_ROOT" ]]; then
+    safe_cleanup_r114f_work_root "$R114F_WORK_ROOT"
     cleanup_code=$?
     if [[ "$cleanup_code" -eq 0 ]]; then
       CLEANUP_STATUS="PASS"
@@ -347,7 +347,7 @@ verify_staged_identity() {
   verify_a1_release_identity "$a1_root" || return 1
 }
 
-verify_r111f_release_tree() {
+verify_r114f_release_tree() {
   local release="$1"
   local manifest_relative="deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
   local manifest="$release/$manifest_relative"
@@ -356,21 +356,21 @@ verify_r111f_release_tree() {
 
   [[ -d "$release" && ! -L "$release" ]] || return 1
   validate_plain_tree "$release" || return 1
-  verify_hash "$manifest" "$EXPECTED_R111F_MANIFEST_SHA256" || return 1
-  verify_hash "$forward" "$EXPECTED_R111F_FORWARD_SHA256" || return 1
-  verify_hash "$recovery" "$EXPECTED_R111F_RECOVERY_SHA256" || return 1
-  [[ "$(find -P "$release" -xdev -type f | wc -l)" -eq 71 ]] || return 1
-  [[ "$(wc -l < "$manifest")" -eq 70 ]] || return 1
+  verify_hash "$manifest" "$EXPECTED_R114F_MANIFEST_SHA256" || return 1
+  verify_hash "$forward" "$EXPECTED_R114F_FORWARD_SHA256" || return 1
+  verify_hash "$recovery" "$EXPECTED_R114F_RECOVERY_SHA256" || return 1
+  [[ "$(find -P "$release" -xdev -type f | wc -l)" -eq 85 ]] || return 1
+  [[ "$(wc -l < "$manifest")" -eq 84 ]] || return 1
   (
     set -Eeuo pipefail
     local expected_list actual_list
-    expected_list="$(mktemp /run/stay-r111f-expected.XXXXXX)"
-    actual_list="$(mktemp /run/stay-r111f-actual.XXXXXX)"
+    expected_list="$(mktemp /run/stay-r114f-expected.XXXXXX)"
+    actual_list="$(mktemp /run/stay-r114f-actual.XXXXXX)"
     trap 'rm -f -- "$expected_list" "$actual_list"' EXIT
     awk '
       NF != 2 || length($1) != 64 || $1 !~ /^[0-9a-f]+$/ || $2 !~ /^\.\/[A-Za-z0-9._\/-]+$/ { bad=1 }
       { sub(/^\.\//, "", $2); print $2 }
-      END { if (bad || NR != 70) exit 1 }
+      END { if (bad || NR != 84) exit 1 }
     ' "$manifest" | LC_ALL=C sort > "$expected_list"
     printf '%s\n' "$manifest_relative" >> "$expected_list"
     LC_ALL=C sort -o "$expected_list" "$expected_list"
@@ -380,8 +380,8 @@ verify_r111f_release_tree() {
   ) || return 1
 }
 
-verify_r111f_staged_identity() {
-  local archive="$RUN_ROOT/$EXPECTED_R111F_ARCHIVE"
+verify_r114f_staged_identity() {
+  local archive="$RUN_ROOT/$EXPECTED_R114F_ARCHIVE"
   local sidecar="$archive.sha256"
   local entry
   local -a entries=()
@@ -390,44 +390,44 @@ verify_r111f_staged_identity() {
   [[ "$(stat -c '%U' "$RUN_ROOT")" == "staydeploy" ]] || return 1
   [[ -z "$(find -P "$RUN_ROOT" -xdev ! -user staydeploy -print -quit)" ]] || return 1
   [[ -z "$(findmnt -rn -R -o TARGET "$RUN_ROOT" 2>/dev/null || true)" ]] || return 1
-  verify_hash "$archive" "$EXPECTED_R111F_ARCHIVE_SHA256" || return 1
+  verify_hash "$archive" "$EXPECTED_R114F_ARCHIVE_SHA256" || return 1
   [[ -f "$sidecar" && ! -L "$sidecar" ]] || return 1
-  [[ "$(<"$sidecar")" == "$EXPECTED_R111F_ARCHIVE_SHA256 *$EXPECTED_R111F_ARCHIVE" ]] || return 1
+  [[ "$(<"$sidecar")" == "$EXPECTED_R114F_ARCHIVE_SHA256 *$EXPECTED_R114F_ARCHIVE" ]] || return 1
 
   mapfile -t entries < <(tar -tzf "$archive") || return 1
-  [[ "${#entries[@]}" -eq 85 ]] || return 1
+  [[ "${#entries[@]}" -eq 100 ]] || return 1
   for entry in "${entries[@]}"; do
     [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]] || return 1
   done
   tar -tvzf "$archive" | awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }' || return 1
-  verify_r111f_release_tree "$RUN_ROOT/release"
+  verify_r114f_release_tree "$RUN_ROOT/release"
 }
 
-prepare_r111f_private_release() {
-  local source_archive="$RUN_ROOT/$EXPECTED_R111F_ARCHIVE"
+prepare_r114f_private_release() {
+  local source_archive="$RUN_ROOT/$EXPECTED_R114F_ARCHIVE"
   local private_archive
-  R111F_WORK_ROOT="$(mktemp -d /run/stay-r111f-controller.XXXXXX)" || return 1
-  [[ ! -L "$R111F_WORK_ROOT" && "$(stat -Lc '%U:%G:%a' "$R111F_WORK_ROOT")" == "root:root:700" ]] || return 1
-  private_archive="$R111F_WORK_ROOT/$EXPECTED_R111F_ARCHIVE"
+  R114F_WORK_ROOT="$(mktemp -d /run/stay-r114f-controller.XXXXXX)" || return 1
+  [[ ! -L "$R114F_WORK_ROOT" && "$(stat -Lc '%U:%G:%a' "$R114F_WORK_ROOT")" == "root:root:700" ]] || return 1
+  private_archive="$R114F_WORK_ROOT/$EXPECTED_R114F_ARCHIVE"
   install -o root -g root -m 0400 "$source_archive" "$private_archive" || return 1
-  verify_hash "$private_archive" "$EXPECTED_R111F_ARCHIVE_SHA256" || return 1
-  install -d -o root -g root -m 0500 "$R111F_WORK_ROOT/release" || return 1
-  tar -xzf "$private_archive" -C "$R111F_WORK_ROOT/release" || return 1
-  chown -R root:root "$R111F_WORK_ROOT/release" || return 1
-  find -P "$R111F_WORK_ROOT/release" -xdev -type d -exec chmod 0500 {} + || return 1
-  find -P "$R111F_WORK_ROOT/release" -xdev -type f -exec chmod 0400 {} + || return 1
-  [[ -z "$(find -P "$R111F_WORK_ROOT" -xdev ! -user root -print -quit)" ]] || return 1
-  verify_r111f_release_tree "$R111F_WORK_ROOT/release"
+  verify_hash "$private_archive" "$EXPECTED_R114F_ARCHIVE_SHA256" || return 1
+  install -d -o root -g root -m 0500 "$R114F_WORK_ROOT/release" || return 1
+  tar -xzf "$private_archive" -C "$R114F_WORK_ROOT/release" || return 1
+  chown -R root:root "$R114F_WORK_ROOT/release" || return 1
+  find -P "$R114F_WORK_ROOT/release" -xdev -type d -exec chmod 0500 {} + || return 1
+  find -P "$R114F_WORK_ROOT/release" -xdev -type f -exec chmod 0400 {} + || return 1
+  [[ -z "$(find -P "$R114F_WORK_ROOT" -xdev ! -user root -print -quit)" ]] || return 1
+  verify_r114f_release_tree "$R114F_WORK_ROOT/release"
 }
 
-run_bounded_r111f_script() {
+run_bounded_r114f_script() {
   local script="$1" authorization_name="$2" authorization_value="$3"
   local runtime_seconds="$4" output_file="$5"
   local timeout_bin child_status
   timeout_bin="$(readlink -f /usr/bin/timeout)" || return 125
   trusted_root_executable "$timeout_bin" || return 125
-  [[ "$runtime_seconds" == "$R111F_FORWARD_RUNTIME_SECONDS" ||
-     "$runtime_seconds" == "$R111F_RECOVERY_RUNTIME_SECONDS" ]] || return 125
+  [[ "$runtime_seconds" == "$R114F_FORWARD_RUNTIME_SECONDS" ||
+     "$runtime_seconds" == "$R114F_RECOVERY_RUNTIME_SECONDS" ]] || return 125
 
   set +e
   "$timeout_bin" --signal=TERM --kill-after=30s "${runtime_seconds}s" \
@@ -555,75 +555,75 @@ main() {
       [[ "$authorization" == "AUTHORIZE_ROLLBACK_B_PRESERVE_STATE_7D040592CCF1F149" ]] ||
         abort_controller 75 "AUTHORIZATION_FAILED" "rollback-b-authorization-missing"
       ;;
-    harden-r111f)
-      [[ "$authorization" == "AUTHORIZE_R111F_V8_FORWARD_WITH_FENCED_RECOVERY" ]] ||
-        abort_controller 74 "AUTHORIZATION_FAILED" "r111f-forward-authorization-missing"
+    harden-r114f)
+      [[ "$authorization" == "AUTHORIZE_R114F_V9_CONTAINED_FORWARD_WITH_FENCED_RECOVERY" ]] ||
+        abort_controller 74 "AUTHORIZATION_FAILED" "r114f-forward-authorization-missing"
       ;;
-    recover-r111f)
-      [[ "$authorization" == "AUTHORIZE_R111F_V8_FORWARD_RECOVERY_ONLY" ]] ||
-        abort_controller 75 "AUTHORIZATION_FAILED" "r111f-recovery-authorization-missing"
+    recover-r114f)
+      [[ "$authorization" == "AUTHORIZE_R114F_V9_FORWARD_RECOVERY_ONLY" ]] ||
+        abort_controller 75 "AUTHORIZATION_FAILED" "r114f-recovery-authorization-missing"
       ;;
     *) abort_controller 76 "OPERATION_REJECTED" "unsupported-operation" ;;
   esac
 
-  if [[ "$operation" == "harden-r111f" || "$operation" == "recover-r111f" ]]; then
-    [[ "$requested_root" =~ ^/opt/stay/incoming/r111f-v8-[0-9]+$ ]] ||
-      abort_controller 77 "PATH_VALIDATION_FAILED" "invalid-r111f-run-root-pattern"
-    validate_r111f_run_root "$requested_root" "$INCOMING_ROOT" ||
-      abort_controller 77 "PATH_VALIDATION_FAILED" "invalid-r111f-run-root"
+  if [[ "$operation" == "harden-r114f" || "$operation" == "recover-r114f" ]]; then
+    [[ "$requested_root" =~ ^/opt/stay/incoming/r114f-v9-[0-9]+$ ]] ||
+      abort_controller 77 "PATH_VALIDATION_FAILED" "invalid-r114f-run-root-pattern"
+    validate_r114f_run_root "$requested_root" "$INCOMING_ROOT" ||
+      abort_controller 77 "PATH_VALIDATION_FAILED" "invalid-r114f-run-root"
     [[ -d "$requested_root" ]] ||
-      abort_controller 78 "PATH_VALIDATION_FAILED" "r111f-run-root-missing"
+      abort_controller 78 "PATH_VALIDATION_FAILED" "r114f-run-root-missing"
     RUN_ROOT="$requested_root"
     CLEANUP_ARMED=0
     trap finish_controller EXIT
-    verify_r111f_staged_identity ||
-      abort_controller 80 "STAGED_IDENTITY_FAILED" "r111f-staged-identity-verification-failed"
-    prepare_r111f_private_release ||
-      abort_controller 80 "STAGED_IDENTITY_FAILED" "r111f-private-release-preparation-failed"
+    verify_r114f_staged_identity ||
+      abort_controller 80 "STAGED_IDENTITY_FAILED" "r114f-staged-identity-verification-failed"
+    prepare_r114f_private_release ||
+      abort_controller 80 "STAGED_IDENTITY_FAILED" "r114f-private-release-preparation-failed"
 
-    output_file="$(mktemp /run/stay-r111f-controller-output.XXXXXX)"
+    output_file="$(mktemp /run/stay-r114f-controller-output.XXXXXX)"
     : > "$output_file"
-    if [[ "$operation" == "harden-r111f" ]]; then
-      controller_script="$R111F_WORK_ROOT/release/deploy/live-physiology-transplant/p1-production-hardening-forward.sh"
+    if [[ "$operation" == "harden-r114f" ]]; then
+      controller_script="$R114F_WORK_ROOT/release/deploy/live-physiology-transplant/p1-production-hardening-forward.sh"
       expected_marker="P1_PRODUCTION_HARDENING_FORWARD_RESULT=PASS"
       set +e
-      run_bounded_r111f_script "$controller_script" \
+      run_bounded_r114f_script "$controller_script" \
         STAY_P1_PRODUCTION_HARDENING_AUTHORIZATION \
-        HARDEN_R110F_EXACTLY_ONCE_RECOVER_AND_BENCHMARK_72H \
-        "$R111F_FORWARD_RUNTIME_SECONDS" "$output_file"
+        REPAIR_CONTAINED_R112_TO_R114F_AND_BENCHMARK_72H \
+        "$R114F_FORWARD_RUNTIME_SECONDS" "$output_file"
       child_status=$?
       set -e
       if [[ "$child_status" -ne 0 ]] &&
          grep -Fxq 'P1_PRODUCTION_HARDENING_FORWARD_POST_RESTART=LEFT_RUNNING_FOR_FORWARD_RECOVERY' "$output_file"; then
-        echo 'R111F_CONTROLLER_RECOVERY=AUTOMATIC'
-        controller_script="$R111F_WORK_ROOT/release/deploy/live-physiology-transplant/p1-production-hardening-forward-recovery.sh"
+        echo 'R114F_CONTROLLER_RECOVERY=AUTOMATIC'
+        controller_script="$R114F_WORK_ROOT/release/deploy/live-physiology-transplant/p1-production-hardening-forward-recovery.sh"
         expected_marker="P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT=PASS"
         set +e
-        run_bounded_r111f_script "$controller_script" \
+        run_bounded_r114f_script "$controller_script" \
           STAY_P1_PRODUCTION_HARDENING_RECOVERY_AUTHORIZATION \
-          FORWARD_RECOVER_R111_AND_COMPLETE_FREEZE_BENCHMARK \
-          "$R111F_RECOVERY_RUNTIME_SECONDS" "$output_file"
+          FORWARD_RECOVER_R114_AND_COMPLETE_FREEZE_BENCHMARK \
+          "$R114F_RECOVERY_RUNTIME_SECONDS" "$output_file"
         child_status=$?
         set -e
       fi
     else
-      controller_script="$R111F_WORK_ROOT/release/deploy/live-physiology-transplant/p1-production-hardening-forward-recovery.sh"
+      controller_script="$R114F_WORK_ROOT/release/deploy/live-physiology-transplant/p1-production-hardening-forward-recovery.sh"
       expected_marker="P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT=PASS"
       set +e
-      run_bounded_r111f_script "$controller_script" \
+      run_bounded_r114f_script "$controller_script" \
         STAY_P1_PRODUCTION_HARDENING_RECOVERY_AUTHORIZATION \
-        FORWARD_RECOVER_R111_AND_COMPLETE_FREEZE_BENCHMARK \
-        "$R111F_RECOVERY_RUNTIME_SECONDS" "$output_file"
+        FORWARD_RECOVER_R114_AND_COMPLETE_FREEZE_BENCHMARK \
+        "$R114F_RECOVERY_RUNTIME_SECONDS" "$output_file"
       child_status=$?
       set -e
     fi
 
     if [[ "$child_status" -ne 0 ]]; then
       CONTROLLER_STATUS="$child_status"
-      if [[ "$operation" == "recover-r111f" || "$expected_marker" == "P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT=PASS" ]]; then
-        CONTROLLER_FAILURE_CLASS="R111F_RECOVERY_FAILED"
+      if [[ "$operation" == "recover-r114f" || "$expected_marker" == "P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT=PASS" ]]; then
+        CONTROLLER_FAILURE_CLASS="R114F_RECOVERY_FAILED"
       else
-        CONTROLLER_FAILURE_CLASS="R111F_FORWARD_FAILED"
+        CONTROLLER_FAILURE_CLASS="R114F_FORWARD_FAILED"
       fi
       rm -f -- "$output_file"
       exit "$child_status"
@@ -635,8 +635,8 @@ main() {
       exit 81
     }
     rm -f -- "$output_file"
-    echo "R111F_ROOT_EXECUTION_BOUND_SECONDS=$([[ "$operation" == harden-r111f ]] && echo "$R111F_FORWARD_RUNTIME_SECONDS" || echo "$R111F_RECOVERY_RUNTIME_SECONDS")"
-    echo 'R111F_CONTROLLER_RESULT=PASS'
+    echo "R114F_ROOT_EXECUTION_BOUND_SECONDS=$([[ "$operation" == harden-r114f ]] && echo "$R114F_FORWARD_RUNTIME_SECONDS" || echo "$R114F_RECOVERY_RUNTIME_SECONDS")"
+    echo 'R114F_CONTROLLER_RESULT=PASS'
     CONTROLLER_STATUS=0
     CONTROLLER_FAILURE_CLASS="NONE"
     return 0

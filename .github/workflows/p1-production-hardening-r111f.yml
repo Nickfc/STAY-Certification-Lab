@@ -1,11 +1,11 @@
-name: R111F V8 guarded production hardening
-run-name: R111F V8 ${{ inputs.operation }} · ${{ github.actor }}
+name: R114F V9 guarded contained recovery
+run-name: R114F V9 ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Fixed R111F operation
+        description: Fixed R114F operation
         required: true
         type: choice
         default: preflight
@@ -22,20 +22,21 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r111f-v8-production-hardening
+  group: stay-r114f-v9-production-hardening
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r111f-v8
-  RELEASE_COMMIT: b65509a3e29a29ff87f0b49ca2f52917af5bd2f1
-  RELEASE_TREE: 0a03f3cefe41e082845c312025b9c880021e9ef2
-  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V8_BUNDLE_20260827.tar.gz
-  ARCHIVE_SHA256: 381be48f4bc037b2066d2bfdf8e4369c60e194a9e3e934e775e5a290e5f65586
+  RELEASE_TAG: r114f-v9
+  RELEASE_COMMIT: 629c65f4299f1df2d68a328988b8b0a23cb76843
+  RELEASE_TREE: 1ea82928b108ec2a449d039c32cd0893299e0304
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V9_BUNDLE_20260828.tar.gz
+  ARCHIVE_SHA256: 759be82dbd12ee93258d033e1a7a36667d21b50c793463d82d38b42db3d739d5
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
   PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
-  SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1i-i4g-deadline-3f4580ae943e
+  SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1j-production-hardening-6a04981799aa
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1k-r112-repair-be652198320b
   FAILED_READ_ONLY_STAGE: /opt/stay/incoming/r111f-v6-33097105865
   FAILED_READ_ONLY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V6_BUNDLE_20260827.tar.gz
   FAILED_READ_ONLY_ARCHIVE_SHA256: f1e668a63caca869c212a0e4d178d8e9829985fb29e77869a67a74b84c5634e3
@@ -74,13 +75,13 @@ jobs:
           [[ "$(git rev-parse 'HEAD^{tree}')" == "$RELEASE_TREE" ]]
           case "$REQUESTED_OPERATION" in
             preflight)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V8_READ_ONLY_PREFLIGHT' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V9_READ_ONLY_PREFLIGHT' ]]
               ;;
             deploy)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V8_FORWARD_WITH_FENCED_RECOVERY' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V9_CONTAINED_FORWARD_WITH_FENCED_RECOVERY' ]]
               ;;
             recover)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R111F_V8_FORWARD_RECOVERY_ONLY' ]]
+              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V9_FORWARD_RECOVERY_ONLY' ]]
               ;;
             *) exit 64 ;;
           esac
@@ -103,7 +104,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          root="/tmp/stay-r111f-v8-${GITHUB_RUN_ID}"
+          root="/tmp/stay-r114f-v9-${GITHUB_RUN_ID}"
           extract="$root/extract"
           install -d -m 0700 "$extract"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
@@ -111,15 +112,15 @@ jobs:
           [[ "$(sha256sum "$root/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
           (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
           mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
-          (( ${#entries[@]} == 85 ))
+          (( ${#entries[@]} == 100 ))
           for entry in "${entries[@]}"; do
             [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]]
           done
           tar -tvzf "$root/$ARCHIVE" | awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }'
           tar -xzf "$root/$ARCHIVE" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" == 71 ]]
-          [[ "$(wc -l < "$extract/$manifest")" == 70 ]]
+          [[ "$(find "$extract" -type f | wc -l)" == 85 ]]
+          [[ "$(wc -l < "$extract/$manifest")" == 84 ]]
           (cd "$extract" && sha256sum -c "$manifest")
           { awk '{sub(/^\.\//,"",$2); print $2}' "$extract/$manifest"; echo "$manifest"; } | LC_ALL=C sort > "$root/expected"
           (cd "$extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/actual"
@@ -132,7 +133,7 @@ jobs:
             "$extract/test/production-hardening.test.js"
 
   production-operation:
-    name: Run host-guarded R111F operation
+    name: Run host-guarded R114F operation
     needs: validate-immutable-release
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -277,7 +278,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r111f-v8-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r114f-v9-${GITHUB_RUN_ID}"
           printf 'RUN_ROOT=%s\n' "$run_root" >> "$GITHUB_ENV"
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
@@ -293,11 +294,11 @@ jobs:
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$ARCHIVE" "$ARCHIVE_SHA256" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; archive="$2"; expected_sha="$3"; extract="$root/release"
-          [[ "$root" =~ ^/opt/stay/incoming/r111f-v8-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r114f-v9-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
           (cd "$root" && sha256sum -c "$archive.sha256")
           mapfile -t entries < <(tar -tzf "$root/$archive")
-          (( ${#entries[@]} == 85 ))
+          (( ${#entries[@]} == 100 ))
           for entry in "${entries[@]}"; do
             [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]]
           done
@@ -305,7 +306,7 @@ jobs:
           install -d -m 0700 "$extract"
           tar -xzf "$root/$archive" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" == 71 && "$(wc -l < "$extract/$manifest")" == 70 ]]
+          [[ "$(find "$extract" -type f | wc -l)" == 85 && "$(wc -l < "$extract/$manifest")" == 84 ]]
           (cd "$extract" && sha256sum -c "$manifest")
           find "$root" -type d -exec chmod 0700 {} +
           find "$root" -type f -exec chmod 0400 {} +
@@ -323,45 +324,47 @@ jobs:
             > "$RUNNER_TEMP/preflight.raw" 2>&1 <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; source_release="$2"; release="$root/release"
-          [[ "$root" =~ ^/opt/stay/incoming/r111f-v8-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r114f-v9-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
           [[ "$observed" == 172.26.9.207 ]]
           before_service="$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)"
           before_pointer="$(readlink -f /opt/stay/current)"
           before_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
           [[ "$before_pointer" == "$source_release" ]]
-          node -e 'const v=JSON.parse(process.argv[1]);if(v.ok!==true||v.revision!==110)process.exit(1)' "$before_health"
+          node -e 'const v=JSON.parse(process.argv[1]);if(v.ok!==true||v.revision!==112)process.exit(1)' "$before_health"
           env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_ENV=production \
             STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox \
             STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=0 \
+            STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 \
             /usr/local/bin/node "$release/deploy/live-physiology-transplant/p1-production-hardening-preflight.js" \
             --candidate-inspection-only > "$root/entry-path-preflight.json"
           env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_ENV=production \
             STAY_DATABASE=/var/lib/stay/data/continuity.sqlite3 \
             STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox \
             STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=0 \
+            STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 \
             /usr/local/bin/node "$release/deploy/live-physiology-transplant/p1-production-hardening-preflight.js" \
             > "$root/live-preflight.json"
           [[ "$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)" == "$before_service" ]]
           [[ "$(readlink -f /opt/stay/current)" == "$before_pointer" ]]
           after_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
-          node -e 'const v=JSON.parse(process.argv[1]);if(v.ok!==true||v.revision!==110)process.exit(1)' "$after_health"
-          echo 'R111F_LIVE_PREFLIGHT=PASS'
+          node -e 'const v=JSON.parse(process.argv[1]);if(v.ok!==true||v.revision!==112)process.exit(1)' "$after_health"
+          echo 'R114F_LIVE_PREFLIGHT=PASS'
           echo 'SERVICE_OPERATION=NO'
           echo 'CURRENT_POINTER_CHANGE=NO'
           echo 'AUTHORITY_CHANGE=NO'
           REMOTE
-          grep -E '^(R111F_LIVE_PREFLIGHT|SERVICE_OPERATION|CURRENT_POINTER_CHANGE|AUTHORITY_CHANGE)=' "$RUNNER_TEMP/preflight.raw"
+          grep -E '^(R114F_LIVE_PREFLIGHT|SERVICE_OPERATION|CURRENT_POINTER_CHANGE|AUTHORITY_CHANGE)=' "$RUNNER_TEMP/preflight.raw"
       - name: Invoke bounded forward or recovery operation
         if: inputs.operation != 'preflight'
         shell: bash
         run: |
           set -euo pipefail
-          controller_operation='harden-r111f'
-          expected_authorization='AUTHORIZE_R111F_V8_FORWARD_WITH_FENCED_RECOVERY'
+          controller_operation='harden-r114f'
+          expected_authorization='AUTHORIZE_R114F_V9_CONTAINED_FORWARD_WITH_FENCED_RECOVERY'
           if [[ "$OPERATION" == recover ]]; then
-            controller_operation='recover-r111f'
-            expected_authorization='AUTHORIZE_R111F_V8_FORWARD_RECOVERY_ONLY'
+            controller_operation='recover-r114f'
+            expected_authorization='AUTHORIZE_R114F_V9_FORWARD_RECOVERY_ONLY'
           fi
           [[ "$REQUESTED_AUTHORIZATION" == "$expected_authorization" ]]
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
@@ -377,26 +380,35 @@ jobs:
           set -e
           cat "$RUNNER_TEMP/operation.raw"
           [[ "$operation_status" -eq 0 ]]
-          grep -Fx 'R111F_CONTROLLER_RESULT=PASS' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'R114F_CONTROLLER_RESULT=PASS' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'CONTROLLER_DISPATCH_STATUS=0' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'CONTROLLER_FAILURE_CLASS=NONE' "$RUNNER_TEMP/operation.raw"
           grep -Eq '^(P1_PRODUCTION_HARDENING_FORWARD_RESULT|P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT)=PASS$' "$RUNNER_TEMP/operation.raw"
-      - name: Verify live R111F result
+          grep -Fx 'RUNTIME_REVISION=114' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'REVISION_LABEL=R114F' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'BSF_STATUS=FUNCTIONAL' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'SNTSS_AUTHORITY=NONE' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'SNTSS_OUTPUT_COUNT=0' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'CHRONOBIOLOGY_AUTHORITY=NONE' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'FETUS_CONTINUITY=PASS' "$RUNNER_TEMP/operation.raw"
+          grep -Fx "CURRENT_RELEASE=$TARGET_RELEASE" "$RUNNER_TEMP/operation.raw"
+      - name: Verify live R114F result
         if: inputs.operation != 'preflight'
         shell: bash
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' > "$RUNNER_TEMP/live-result.raw" <<'REMOTE'
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$TARGET_RELEASE" > "$RUNNER_TEMP/live-result.raw" <<'REMOTE'
           set -Eeuo pipefail
+          target_release="$1"
           observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
           [[ "$observed" == 172.26.9.207 ]]
           health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
           meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
-          node -e 'const h=JSON.parse(process.argv[1]),m=JSON.parse(process.argv[2]);if(h.ok!==true||h.revision!==111||m.revision!==111||m.revisionFrozen!==true||m.revisionLabel!=="R111F")process.exit(1)' "$health" "$meta"
+          node -e 'const h=JSON.parse(process.argv[1]),m=JSON.parse(process.argv[2]);if(h.ok!==true||h.revision!==114||m.revision!==114||m.revisionFrozen!==true||m.revisionLabel!=="R114F")process.exit(1)' "$health" "$meta"
           current="$(readlink -f /opt/stay/current)"
-          [[ "$current" == /opt/stay/releases/0.8.11.3-p1j-production-hardening-* ]]
+          [[ "$current" == "$target_release" ]]
           [[ "$(systemctl is-active stay.service)" == active ]]
           [[ "$(systemctl is-active stay-p1-physiology-benchmark.service)" == active ]]
           /usr/local/bin/node - <<'NODE'
@@ -446,9 +458,9 @@ jobs:
             console.log('PHYSIOLOGY_AUTHORITY_CONTAINMENT=PASS');
           })().catch(error => { console.error(error); process.exitCode = 1; });
           NODE
-          echo 'R111F_LIVE_RESULT=PASS'
-          echo 'RUNTIME_REVISION=111'
-          echo 'REVISION_LABEL=R111F'
+          echo 'R114F_LIVE_RESULT=PASS'
+          echo 'RUNTIME_REVISION=114'
+          echo 'REVISION_LABEL=R114F'
           echo "CURRENT_RELEASE=$current"
           echo 'BENCHMARK_SERVICE=ACTIVE'
           REMOTE
@@ -463,7 +475,7 @@ jobs:
             staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$RUN_ROOT" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"
-          [[ "$root" =~ ^/opt/stay/incoming/r111f-v8-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r114f-v9-[0-9]+$ && ! -L "$root" && -d "$root" ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 \) -print -quit)" ]]
           find -P "$root" -xdev -type d -exec chmod u+rwx {} +
           find -P "$root" -xdev -type f -exec chmod u+rw {} +
@@ -474,7 +486,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r111f-v8-${{ inputs.operation }}-${{ github.run_id }}
+          name: r114f-v9-${{ inputs.operation }}-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/preflight.raw
             ${{ runner.temp }}/operation.raw
