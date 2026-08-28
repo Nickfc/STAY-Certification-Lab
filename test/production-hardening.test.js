@@ -39,6 +39,7 @@ const { StateStore } = require('../runtime/kernel/state-store');
 const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION } = require('../runtime/kernel/protocol');
 const benchmark = require('../deploy/live-physiology-transplant/p1-physiology-benchmark');
 const liveProof = require('../deploy/live-physiology-transplant/p1-production-hardening-live-proof');
+const productionPreflight = require('../deploy/live-physiology-transplant/p1-production-hardening-preflight');
 const fixture = require('./fixtures/stateful-core');
 
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'stateful-core.js');
@@ -328,6 +329,38 @@ test('CPU intervention requires sustained evidence without widening the kernel q
   assert.equal(cgroupActions, 0, 'kernel-enforced CPU accounting must not trigger destructive duplicate enforcement');
   assert.equal(cgroupGovernor.status().latest.cpuKernelEnforced, true);
   assert.equal(cgroupGovernor.lastWarning.type, 'soft-payload-cpu-throttle');
+});
+
+test('the accelerated physiology proof backpressures before the unchanged CPU fence', () => {
+  const resourceGovernor = {
+    policy: { hardCpuDuty: 0.2, sampleIntervalMs: 2000 },
+    latest: {
+      cpuDuty: 0.12,
+      cpuEvidence: { ready: true, averageDuty: 0.12 }
+    }
+  };
+  const ordinary = productionPreflight.sustainedPulsePacing({
+    dispatchElapsedMs: 6,
+    resourceGovernor
+  });
+  assert.equal(ordinary.hardCpuDuty, 0.2);
+  assert.equal(ordinary.targetCpuDuty, 0.1);
+  assert.equal(ordinary.delayMs, 54);
+  assert.equal(ordinary.approachingHardFence, false);
+
+  const pressured = productionPreflight.sustainedPulsePacing({
+    dispatchElapsedMs: 20,
+    resourceGovernor: {
+      ...resourceGovernor,
+      latest: {
+        cpuDuty: 0.19,
+        cpuEvidence: { ready: true, averageDuty: 0.16 }
+      }
+    }
+  });
+  assert.equal(pressured.hardCpuDuty, 0.2);
+  assert.equal(pressured.delayMs, 2050);
+  assert.equal(pressured.approachingHardFence, true);
 });
 
 test('resource sampling is single-flight and recovery establishes one clean baseline', async () => {
@@ -2733,6 +2766,7 @@ test('the frozen I4-G1 package retains exact physiology through the hardened com
   let final;
   for (let index = 1; index <= pulseCount; index += 1) {
     const wallClockMs = anchorAt + index * 250;
+    const dispatchStartedAt = Date.now();
     final = await client.dispatch({
       id: `pulse-${index + 1}`,
       sequence: index + 3,
@@ -2755,7 +2789,17 @@ test('the frozen I4-G1 package retains exact physiology through the hardened com
      */
     client.setRecoveryState(final.checkpoint, 5);
     if (index < pulseCount) {
-      await delay(sustainedPulseIntervalMs);
+      const host = client.status();
+      assert.equal(
+        host.resourceGovernor.lastAction,
+        null,
+        `resource hard action during sustained proof: ${JSON.stringify(host.resourceGovernor)}`
+      );
+      const pacing = productionPreflight.sustainedPulsePacing({
+        dispatchElapsedMs: Date.now() - dispatchStartedAt,
+        resourceGovernor: host.resourceGovernor
+      });
+      await delay(pacing.delayMs);
     }
   }
   const acceleratedElapsedMs = Date.now() - acceleratedStartedAt;
@@ -2777,6 +2821,7 @@ test('the frozen I4-G1 package retains exact physiology through the hardened com
   assert.equal(final.checkpoint.individuality.genesisEventId, 'genesis');
   assert.equal(outputs, 0);
   assert.ok(acceleratedElapsedMs >= (pulseCount - 1) * sustainedPulseIntervalMs);
+  assert.ok(acceleratedElapsedMs <= (pulseCount * 250) / 2);
 
   await client.stop();
   replayClient = new CoreHostClient({

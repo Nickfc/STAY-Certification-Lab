@@ -20,6 +20,10 @@ const EXPECTED_POLICY = 'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb20
 const EXPECTED_PARENT_FREEZE = 'sha256:78021d86da8038e298fedb46b7371a46e1bc1e4d1cb0624205a864877ca22875';
 const ACCELERATED_PULSE_COUNT = 5_000;
 const SUSTAINED_PULSE_INTERVAL_MS = 50;
+const MINIMUM_CERTIFIED_ACCELERATION_FACTOR = 2;
+const CPU_PACING_TARGET_RATIO = 0.5;
+const CPU_BACKPRESSURE_THRESHOLD_RATIO = 0.75;
+const CPU_BACKPRESSURE_SAMPLE_MARGIN_MS = 50;
 const CANDIDATE_INSPECTION_ONLY = '--candidate-inspection-only';
 const MIB = 1024 * 1024;
 
@@ -116,6 +120,43 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function sustainedPulsePacing({ dispatchElapsedMs, resourceGovernor } = {}) {
+  const elapsedMs = Math.max(0, Number(dispatchElapsedMs) || 0);
+  const policy = resourceGovernor?.policy || {};
+  const latest = resourceGovernor?.latest || {};
+  const hardCpuDuty = Number(policy.hardCpuDuty);
+  const sampleIntervalMs = Number(policy.sampleIntervalMs);
+  assert(
+    Number.isFinite(hardCpuDuty) && hardCpuDuty > 0 && hardCpuDuty <= 1 &&
+    Number.isFinite(sampleIntervalMs) && sampleIntervalMs >= 250,
+    'I4-G1 resource pacing contract is invalid',
+    'P1_PREFLIGHT_I4_PACING_POLICY'
+  );
+  const targetCpuDuty = hardCpuDuty * CPU_PACING_TARGET_RATIO;
+  const observedAverageDuty = latest.cpuEvidence?.averageDuty;
+  const observedInstantDuty = latest.cpuDuty;
+  const averageReady = latest.cpuEvidence?.ready === true &&
+    Number.isFinite(observedAverageDuty);
+  const approachingHardFence =
+    (averageReady && observedAverageDuty >= hardCpuDuty * CPU_BACKPRESSURE_THRESHOLD_RATIO) ||
+    (Number.isFinite(observedInstantDuty) && observedInstantDuty >= hardCpuDuty);
+  const workAwareDelayMs = Math.max(
+    SUSTAINED_PULSE_INTERVAL_MS,
+    Math.ceil(elapsedMs / targetCpuDuty) - elapsedMs
+  );
+  const delayMs = approachingHardFence
+    ? Math.max(workAwareDelayMs, sampleIntervalMs + CPU_BACKPRESSURE_SAMPLE_MARGIN_MS)
+    : workAwareDelayMs;
+  return Object.freeze({
+    delayMs,
+    targetCpuDuty,
+    hardCpuDuty,
+    approachingHardFence,
+    observedAverageDuty: averageReady ? observedAverageDuty : null,
+    observedInstantDuty: Number.isFinite(observedInstantDuty) ? observedInstantDuty : null
+  });
+}
+
 function assertExecutionBoundary() {
   assert(process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1', 'OS sandbox must be required', 'P1_PREFLIGHT_OS_SANDBOX');
   assert(process.env.STAY_REQUIRE_CORE_PACKAGE_POLICY === '1', 'package policy must be required', 'P1_PREFLIGHT_PACKAGE_POLICY');
@@ -198,9 +239,12 @@ async function proveFrozenI4(live) {
     client.setRecoveryState(anchored.checkpoint, 5);
     const acceleratedStartedAt = Date.now();
     let advanced = null;
+    let maximumPulseDelayMs = 0;
+    let resourceBackpressureEvents = 0;
     for (let index = 1; index <= ACCELERATED_PULSE_COUNT; index += 1) {
       const wallClockMs = anchorWallClock + index * 250;
       const eventId = `p1-r${revision}-preflight-pulse-${index + 1}`;
+      const dispatchStartedAt = Date.now();
       advanced = await client.dispatch({
         id: eventId,
         sequence: index + 1,
@@ -218,7 +262,24 @@ async function proveFrozenI4(live) {
       }, { eventSequence: index + 1, eventId });
       client.setRecoveryState(advanced.checkpoint, 5);
       if (index < ACCELERATED_PULSE_COUNT) {
-        await delay(SUSTAINED_PULSE_INTERVAL_MS);
+        const host = client.status();
+        assert(
+          client.generation === 1 && host.resourceGovernor?.lastAction == null,
+          `I4-G1 crossed a hard resource fence during sustained preflight: ${JSON.stringify({
+            generation: client.generation,
+            lifecycle: host.lifecycle,
+            lastExit: host.lastExit,
+            resourceGovernor: host.resourceGovernor
+          })}`,
+          'P1_PREFLIGHT_I4_RESOURCE_FENCE'
+        );
+        const pacing = sustainedPulsePacing({
+          dispatchElapsedMs: Date.now() - dispatchStartedAt,
+          resourceGovernor: host.resourceGovernor
+        });
+        maximumPulseDelayMs = Math.max(maximumPulseDelayMs, pacing.delayMs);
+        if (pacing.approachingHardFence) resourceBackpressureEvents += 1;
+        await delay(pacing.delayMs);
       }
     }
     const acceleratedElapsedMs = Date.now() - acceleratedStartedAt;
@@ -259,6 +320,8 @@ async function proveFrozenI4(live) {
     assert(
       outputs === 0 && client.generation === 1 &&
       acceleratedElapsedMs >= (ACCELERATED_PULSE_COUNT - 1) * SUSTAINED_PULSE_INTERVAL_MS &&
+      acceleratedElapsedMs <=
+        (ACCELERATED_PULSE_COUNT * 250) / MINIMUM_CERTIFIED_ACCELERATION_FACTOR &&
       host.resourceGovernor?.lastAction == null &&
       Number(memoryPlan?.supervisorHardBytes) === 64 * MIB &&
       Number(memoryPlan?.supervisorOldSpaceMiB) === 12 &&
@@ -286,9 +349,14 @@ async function proveFrozenI4(live) {
       supervisorRssBytes,
       osSandboxRequired: process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1',
       acceleratedWorkload: {
-        pacing: 'UNIFORM_COMMIT_AWARE',
-        pulseIntervalMs: SUSTAINED_PULSE_INTERVAL_MS,
+        pacing: 'RESOURCE_AWARE_COMMIT_FENCED',
+        baselinePulseDelayMs: SUSTAINED_PULSE_INTERVAL_MS,
         maximumAccelerationFactor: 250 / SUSTAINED_PULSE_INTERVAL_MS,
+        minimumCertifiedAccelerationFactor: MINIMUM_CERTIFIED_ACCELERATION_FACTOR,
+        cpuPacingTargetDuty: Number(host.resourceGovernor?.policy?.hardCpuDuty) *
+          CPU_PACING_TARGET_RATIO,
+        resourceBackpressureEvents,
+        maximumPulseDelayMs,
         recoveryWatermarkAdvancedPerCheckpoint: true,
         elapsedMs: acceleratedElapsedMs,
         resourceGovernorHardAction: host.resourceGovernor?.lastAction || null,
@@ -421,6 +489,7 @@ module.exports = {
   assertExecutionBoundary,
   inspectFrozenI4,
   readLiveCheckpoint,
+  sustainedPulsePacing,
   proveFrozenI4,
   proveFaultContainment,
   main
