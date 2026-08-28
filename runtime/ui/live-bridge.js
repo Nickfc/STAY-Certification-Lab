@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { readRevisionFreeze } = require('../revision-freeze');
+const { projectObservationChips } = require('./chip-projection');
 
 const SCRIPT_URL = '/__stay/live-runtime-badge.js';
 
@@ -32,6 +33,35 @@ function publicMetadata(status, releaseVersion) {
   const bsfLedger = status.biologicalLedger || status.health?.biologicalLedger || null;
   const bsfOk = status.health?.persistence?.ok !== false &&
     bsfLedger?.protocol === 'stay-biological-ledger-v1';
+  const systems = [{
+    id: 'bsf',
+    label: 'BSF',
+    mode: 'LIVE',
+    status: bsfOk ? 'RUNNING' : 'DEGRADED',
+    running: bsfOk,
+    healthOk: bsfOk,
+    protocol: bsfLedger?.protocol || null,
+    events: Number(bsfLedger?.events || 0),
+    pendingDeliveries: Number(bsfLedger?.pendingDeliveries || 0),
+    activeConsumers: Number(bsfLedger?.activeConsumers || 0)
+  }];
+  const residents = residentStatus.filter(Boolean).map((resident) => ({
+    residencyId: resident.residencyId,
+    coreId: resident.coreId,
+    version: resident.version,
+    status: resident.status,
+    lifecycle: resident.lifecycle || resident.status || null,
+    running: resident.running === true || resident.status === 'RUNNING',
+    mode: resident.coreId === 'chronobiology' ||
+      (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
+      ? 'SHADOW'
+      : 'NEUTRAL',
+    authorityOwned: resident.authorityOwned === true,
+    checkpointGeneration: Number(resident.checkpointGeneration || 0),
+    handledEvents: Number(resident.handledEvents || 0),
+    observedOutputs: Number(resident.observedOutputs || 0),
+    healthOk: resident.health?.ok !== false
+  }));
   return {
     ok: Boolean(status.health ? status.health.ok : true),
     releaseVersion,
@@ -41,34 +71,9 @@ function publicMetadata(status, releaseVersion) {
     revisionLabel: revisionFreeze.label,
     updatedAt: new Date().toISOString(),
     cores: flattenCoreStatus(status),
-    systems: [{
-      id: 'bsf',
-      label: 'BSF',
-      mode: 'LIVE',
-      status: bsfOk ? 'RUNNING' : 'DEGRADED',
-      running: bsfOk,
-      healthOk: bsfOk,
-      protocol: bsfLedger?.protocol || null,
-      events: Number(bsfLedger?.events || 0),
-      pendingDeliveries: Number(bsfLedger?.pendingDeliveries || 0),
-      activeConsumers: Number(bsfLedger?.activeConsumers || 0)
-    }],
-    residents: residentStatus.filter(Boolean).map((resident) => ({
-      residencyId: resident.residencyId,
-      coreId: resident.coreId,
-      version: resident.version,
-      status: resident.status,
-      running: resident.status === 'RUNNING',
-      mode: resident.coreId === 'chronobiology' ||
-        (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
-        ? 'SHADOW'
-        : 'NEUTRAL',
-      authorityOwned: resident.authorityOwned === true,
-      checkpointGeneration: Number(resident.checkpointGeneration || 0),
-      handledEvents: Number(resident.handledEvents || 0),
-      observedOutputs: Number(resident.observedOutputs || 0),
-      healthOk: resident.health?.ok !== false
-    }))
+    systems,
+    residents,
+    chipProjection: projectObservationChips({ systems, residents })
   };
 }
 
@@ -102,7 +107,10 @@ function createLiveBridge({ kernel, releaseVersion, badgePath = path.join(__dirn
       meta.systems.map((system) => [system.id, system.mode, system.status, system.healthOk,
         system.events, system.pendingDeliveries, system.activeConsumers]),
       meta.residents.map((resident) => [resident.residencyId, resident.version, resident.status,
-        resident.mode, resident.checkpointGeneration, resident.handledEvents, resident.observedOutputs])
+        resident.mode, resident.checkpointGeneration, resident.handledEvents, resident.observedOutputs]),
+      meta.chipProjection.lifecycle.map((chip) => [chip.chipId, chip.state, chip.lifecycle,
+        chip.checkpointGeneration, chip.handledEvents, chip.outputs]),
+      meta.chipProjection.roadmap.map((entry) => [entry.roadmapId, entry.stage])
     ]);
   }
 

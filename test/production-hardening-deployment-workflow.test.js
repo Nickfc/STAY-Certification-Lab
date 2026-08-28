@@ -156,20 +156,26 @@ test('R114F contained repair remains anchored to the exact completed R110F failu
   assert.match(liveProof, /Number\(state\.samples\) === Number\(sampleLedgerRecords\)/);
 });
 
-test('R114F repair is fenced to the exact contained R112 failure state and one R113 cold boot', () => {
-  assert.match(forward, /SOURCE_RELEASE='\/opt\/stay\/releases\/0\.8\.11\.3-p1j-production-hardening-6a04981799aa'/);
+test('R116F backlog repair is fenced to the exact contained R114 state and one R115 cold boot', () => {
+  assert.match(forward, /SOURCE_RELEASE='\/opt\/stay\/releases\/0\.8\.11\.3-p1k-r112-repair-37b0c95c6b68'/);
   assert.match(forward, /FAILED-R111-20260827T225532Z\.PQqgvJ/);
   assert.match(forward, /FAILED-R111-RECOVERY-20260827T230134Z\.yj5Jz9/);
   assert.match(forward, /1c6785982bb0e8e73d0eac474c6d793417be2b5d5951e0d5e1d074838aea1155/);
   assert.match(forward, /cb225e46fe6be038ba9b448ce44649b18ab23d9f41cbf72369ab5208664cb506/);
-  assert.match(forward, /'REPAIR_CONTAINED_R112_TO_R114F_AND_BENCHMARK_72H'/);
-  assert.match(forward, /revision\)" == 112/);
-  assert.match(forward, /revisionLabel\)" == R112/);
-  assert.match(forward, /Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=113/);
+  assert.match(forward, /'REPAIR_CONTAINED_R114_BACKLOG_TO_R116F_AND_BENCHMARK_72H'/);
+  assert.match(forward, /revision\)" == 114/);
+  assert.match(forward, /revisionLabel\)" == R114/);
+  assert.match(forward, /Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=115/);
   assert.match(forward, /systemctl restart stay\.service/);
-  assert.match(forward, /revision 2>\/dev\/null \|\| true\)" == 114/);
-  assert.match(forward, /TARGET_REVISION=R114F/);
-  assert.match(forward, /STAY_PRODUCTION_HARDENING_TARGET_REVISION=114/);
+  assert.match(forward, /durable_revision" == 114/);
+  assert.match(forward, /PRE_DURABLE_ADVANCEMENT_POINTER_RESTORED/);
+  assert.match(forward, /revision 2>\/dev\/null \|\| true\)" == 116/);
+  assert.match(forward, /TARGET_REVISION=R116F/);
+  assert.match(forward, /STAY_PRODUCTION_HARDENING_TARGET_REVISION=116/);
+  assert.match(forward, /CHRONOBIOLOGY_PENDING_REPLAY=BOUNDED_ZERO_ABANDONMENT/);
+  assert.match(forward, /CHRONOBIOLOGY_PENDING_REPLAY_MAXIMUM=8192/);
+  assert.match(forward, /backlog-repair-before/);
+  assert.match(forward, /backlog-repair-recovery/);
   assert.match(preflight, /supervisorRssBytes < 64 \* MIB/);
   assert.match(preflight, /Number\(memoryPlan\?\.supervisorOldSpaceMiB\) === 12/);
   assert.match(preflight, /Number\(memoryPlan\?\.supervisorSemiSpaceMiB\) === 1/);
@@ -185,16 +191,16 @@ test('R114F repair is fenced to the exact contained R112 failure state and one R
   assert.match(freeze, /recovery\?\.authorityChanged === false/);
 });
 
-test('R114F recovery retries only when no revision committed and otherwise refuses advancement', () => {
-  assert.match(recovery, /'FORWARD_RECOVER_R114_AND_COMPLETE_FREEZE_BENCHMARK'/);
-  assert.match(recovery, /durable_revision" == 114/);
-  assert.match(recovery, /r114-generation-not-live-restart-would-advance-revision/);
-  assert.match(recovery, /R114_RUNNING_GENERATION_PROVED_NO_RESTART/);
-  assert.match(recovery, /durable_revision" == 112/);
-  assert.match(recovery, /FIRST_START_COMMITTED_NO_REVISION_SAFE_R113_RETRY/);
-  assert.match(recovery, /systemctl restart stay\.service/);
-  assert.match(recovery, /recovery_restarts=2/);
-  assert.match(recovery, /revisionLabel\)" == R114F/);
+test('R116F recovery completes only the exact running generation without another restart', () => {
+  assert.match(recovery, /'FORWARD_RECOVER_R116_AND_COMPLETE_FREEZE_BENCHMARK'/);
+  assert.match(recovery, /durable_revision" == 116/);
+  assert.match(recovery, /r116-generation-not-live-restart-forbidden/);
+  assert.match(recovery, /R116_RUNNING_GENERATION_PROVED_NO_RESTART/);
+  assert.match(recovery, /one-shot-dropin-identity-mismatch/);
+  assert.doesNotMatch(recovery, /systemctl restart stay\.service/);
+  assert.doesNotMatch(recovery, /recovery_restarts=2/);
+  assert.match(recovery, /revisionLabel\)" == R116F/);
+  assert.match(recovery, /backlog-repair-recovery/);
 });
 
 test('R114F V12 mutation controller remains exact, bounded and forward-only', () => {

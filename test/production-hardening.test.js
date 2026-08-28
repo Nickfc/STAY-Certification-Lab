@@ -40,6 +40,13 @@ const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION } = require('../runtime/kernel/protoc
 const benchmark = require('../deploy/live-physiology-transplant/p1-physiology-benchmark');
 const liveProof = require('../deploy/live-physiology-transplant/p1-production-hardening-live-proof');
 const productionPreflight = require('../deploy/live-physiology-transplant/p1-production-hardening-preflight');
+const {
+  CHIP_STATES,
+  lifecycleState,
+  projectObservationChips
+} = require('../runtime/ui/chip-projection');
+const { publicMetadata } = require('../server');
+const { publicMetadata: bridgePublicMetadata } = require('../runtime/ui/live-bridge');
 const fixture = require('./fixtures/stateful-core');
 
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'stateful-core.js');
@@ -548,6 +555,58 @@ test('cold recovery includes an authority-contained quarantined Chronobiology re
   }]);
 });
 
+test('failed cold Chronobiology recovery restores quarantine without abandoning its consumer', async () => {
+  const recoveryRecords = [];
+  let status = 'QUARANTINED';
+  const kernel = Object.create(require('../runtime/kernel/living-kernel').LivingKernel.prototype);
+  kernel.runtimeRevision = 115;
+  kernel.statusCache = {};
+  kernel.stateStore = {
+    getResident(residencyId) {
+      return residencyId === 'resident:chronobiology'
+        ? { residencyId, coreId: 'chronobiology', status }
+        : null;
+    },
+    setResidentStatus(residencyId, nextStatus) {
+      assert.equal(residencyId, 'resident:chronobiology');
+      status = nextStatus;
+    },
+    recordRecovery(type, coreId, detail) {
+      recoveryRecords.push({ type, coreId, detail });
+    }
+  };
+  kernel.ensureOrganismBinding = async () => ({
+    identitySha256: 'sha256:' + '1'.repeat(64)
+  });
+  kernel.ensureResidentManager = () => ({
+    async resynchronize() {
+      status = 'RECOVERING';
+      throw Object.assign(new Error('contained replay fixture failed'), {
+        code: 'COLD_REPLAY_FAILURE_FIXTURE'
+      });
+    }
+  });
+
+  const previous = process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION;
+  process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION = '115';
+  try {
+    assert.deepEqual(await kernel.recoverColdFailedResidents(), [{
+      residencyId: 'resident:chronobiology',
+      recovered: false,
+      coldRecovery: true,
+      code: 'COLD_REPLAY_FAILURE_FIXTURE'
+    }]);
+  } finally {
+    if (previous == null) delete process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION;
+    else process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION = previous;
+  }
+  assert.equal(status, 'QUARANTINED');
+  assert.equal(recoveryRecords.length, 1);
+  assert.equal(recoveryRecords[0].type, 'resident.cold-recovery-failed');
+  assert.equal(recoveryRecords[0].coreId, 'chronobiology');
+  assert.equal(recoveryRecords[0].detail.expectedRevision, 115);
+});
+
 test('resident manager cold recovery admits only the exact contained physiology residents', async () => {
   async function recover(resident) {
     const calls = [];
@@ -563,6 +622,16 @@ test('resident manager cold recovery admits only the exact contained physiology 
         return {
           resyncId: 'contained-cold-recovery',
           abandonedCount: 7,
+          fromCursor: 41,
+          toCursor: 48
+        };
+      },
+      beginResidentColdBacklogReplay(input) {
+        calls.push(['cold-backlog-begin', input]);
+        mutable.status = 'RECOVERING';
+        return {
+          abandonedCount: 0,
+          pendingCount: 7,
           fromCursor: 41,
           toCursor: 48
         };
@@ -603,11 +672,18 @@ test('resident manager cold recovery admits only the exact contained physiology 
       checkpointHash: 'sha256:' + 'a'.repeat(64),
       moduleRelativePath: `cores/${coreId}/fixture.js`
     });
-    assert.equal(result.record.abandonedCount, 7);
-    assert.deepEqual(calls.find(call => call[0] === 'start'), ['start', true, 'RECOVERING']);
+    const chronologyPreserved = coreId === 'chronobiology';
+    assert.equal(result.record.abandonedCount, chronologyPreserved ? 0 : 7);
+    assert.deepEqual(calls.find(call => call[0] === 'start'), [
+      'start',
+      !chronologyPreserved,
+      'RECOVERING'
+    ]);
     assert.deepEqual(calls.find(call => call[0] === 'recovery').slice(0, 3), [
       'recovery',
-      'resident.cold-quarantine-recovered',
+      chronologyPreserved
+        ? 'resident.cold-backlog-replayed'
+        : 'resident.cold-quarantine-recovered',
       coreId
     ]);
   }
@@ -622,6 +698,456 @@ test('resident manager cold recovery admits only the exact contained physiology 
     }),
     error => error.code === 'RESIDENT_RESYNC_STATE'
   );
+});
+
+test('contained Chronobiology cold replay pages through the unchanged database window', async () => {
+  const events = Array.from({ length: 4164 }, (_, index) => ({
+    sequence: index + 1,
+    topic: 'runtime.time.pulse'
+  }));
+  const limits = [];
+  const manager = Object.create(ResidentManager.prototype);
+  manager.markResyncRequired = () => {
+    throw new Error('contained replay unexpectedly crossed its fixed bound');
+  };
+  manager.stateStore = {
+    listPendingBiologicalEvents(_residencyId, limit) {
+      limits.push(limit);
+      return events.slice(0, limit);
+    },
+    getBiologicalDelivery() {
+      return { status: 'PENDING' };
+    },
+    getResident() {
+      return { status: 'RECOVERING' };
+    }
+  };
+  const unit = {
+    residencyId: 'resident:chronobiology',
+    manifest: { coreId: 'chronobiology', inputs: ['runtime.time.pulse'] },
+    queue: {
+      async enqueue(event) {
+        assert.equal(events[0].sequence, event.sequence);
+        events.shift();
+      }
+    },
+    ignoredEvents: 0
+  };
+
+  const replay = await manager.replayPendingBiologicalEvents(unit, 8192);
+  assert.deepEqual(replay, { replayed: 4164, ignored: 0 });
+  assert.equal(events.length, 0);
+  assert.deepEqual(limits, [1024, 1024, 1024, 1024, 1024]);
+});
+
+test('ordinary resident replay still fails closed at the unchanged 1024-event window', async () => {
+  const manager = Object.create(ResidentManager.prototype);
+  const events = Array.from({ length: 1024 }, (_, index) => ({
+    sequence: index + 1,
+    topic: 'runtime.time.pulse'
+  }));
+  let marked = null;
+  manager.stateStore = {
+    listPendingBiologicalEvents: () => events
+  };
+  manager.markResyncRequired = (_unit, error) => {
+    marked = error.code;
+  };
+  await assert.rejects(
+    manager.replayPendingBiologicalEvents({
+      residencyId: 'resident:sntss',
+      manifest: { coreId: 'sntss' }
+    }),
+    error => error.code === 'RESIDENT_REPLAY_BOUNDED'
+  );
+  assert.equal(marked, 'RESIDENT_REPLAY_BOUNDED');
+});
+
+test('observation chip states follow the fixed fail-closed precedence', () => {
+  assert.deepEqual(CHIP_STATES, [
+    'QUARANTINED', 'OFFLINE', 'RECOVERING', 'DEGRADED', 'LIVE', 'SHADOW', 'NEUTRAL'
+  ]);
+  assert.equal(lifecycleState({
+    status: 'QUARANTINED', lifecycle: 'RECOVERING', running: false,
+    healthOk: false, mode: 'LIVE'
+  }), 'QUARANTINED');
+  assert.equal(lifecycleState({
+    status: 'OFFLINE', lifecycle: 'RECOVERING', running: true,
+    healthOk: false, mode: 'LIVE'
+  }), 'OFFLINE');
+  assert.equal(lifecycleState({
+    status: 'RECOVERING', running: true, healthOk: false, mode: 'LIVE'
+  }), 'RECOVERING');
+  assert.equal(lifecycleState({
+    status: 'DEGRADED', running: true, healthOk: true, mode: 'LIVE'
+  }), 'DEGRADED');
+  assert.equal(lifecycleState({ status: 'RUNNING', running: true, mode: 'LIVE' }), 'LIVE');
+  assert.equal(lifecycleState({ status: 'RUNNING', running: true, mode: 'SHADOW' }), 'SHADOW');
+  assert.equal(lifecycleState({ status: 'RUNNING', running: true, mode: 'UNKNOWN' }), 'NEUTRAL');
+});
+
+test('chip projection keeps quarantined residents visible and separates non-live roadmap labels', () => {
+  const projection = projectObservationChips({
+    systems: [{
+      id: 'bsf', label: 'BSF', mode: 'LIVE', status: 'RUNNING', running: true,
+      healthOk: true, events: 99
+    }],
+    residents: [{
+      residencyId: 'resident:sntss', coreId: 'sntss', version: '0.5.0-i4g1',
+      mode: 'SHADOW', status: 'RUNNING', lifecycle: 'running', running: true,
+      healthOk: true, checkpointGeneration: 12, handledEvents: 34, observedOutputs: 0
+    }, {
+      residencyId: 'resident:chronobiology', coreId: 'chronobiology',
+      version: '1.0.0-c3rc.1', mode: 'SHADOW', status: 'QUARANTINED',
+      lifecycle: 'failed', running: false, healthOk: false,
+      checkpointGeneration: 5115, handledEvents: 0, observedOutputs: 0
+    }, {
+      residencyId: 'resident:metab', coreId: 'metab', version: '0.1.0-lab',
+      mode: 'NEUTRAL', status: 'RUNNING', lifecycle: 'running', running: true,
+      healthOk: true, observedOutputs: 0
+    }]
+  });
+  assert.equal(projection.schema, 'stay-observation-chips-v1');
+  assert.equal(projection.source, 'VALIDATED_RUNTIME_METADATA');
+  assert.equal(projection.observationOnly, true);
+  assert.deepEqual(projection.mutationEndpoints, []);
+  assert.deepEqual(
+    projection.lifecycle.map(chip => [chip.coreId, chip.state]),
+    [['bsf', 'LIVE'], ['sntss', 'SHADOW'], ['chronobiology', 'QUARANTINED'], ['metab', 'NEUTRAL']]
+  );
+  assert.equal(projection.lifecycle[1].version, '0.5.0-i4g1');
+  assert.equal(projection.lifecycle[1].checkpointGeneration, 12);
+  assert.equal(projection.lifecycle[1].handledEvents, 34);
+  assert.equal(projection.lifecycle[1].outputs, 0);
+  assert.deepEqual(
+    projection.roadmap.map(entry => [entry.coreId, entry.stage, entry.nonLive]),
+    [['homeos', 'PLANNED', true], ['intero', 'PLANNED', true]]
+  );
+  const recovered = projectObservationChips({
+    systems: [{ id: 'bsf', mode: 'LIVE', status: 'RUNNING', running: true }],
+    residents: [{
+      residencyId: 'resident:chronobiology', coreId: 'chronobiology',
+      version: '1.0.0-c3rc.1', mode: 'SHADOW', status: 'RUNNING',
+      running: true, healthOk: true
+    }]
+  }).lifecycle.find(chip => chip.coreId === 'chronobiology');
+  const quarantined = projection.lifecycle.find(chip => chip.coreId === 'chronobiology');
+  assert.equal(recovered.chipId, quarantined.chipId);
+  assert.equal(recovered.state, 'SHADOW');
+});
+
+test('public metadata adds the read-only chip projection without replacing legacy arrays', () => {
+  const meta = publicMetadata({
+    kernel: { runtimeRevision: 114 },
+    cores: [],
+    biologicalLedger: {
+      protocol: 'stay-biological-ledger-v1', events: 9,
+      pendingDeliveries: 3, activeConsumers: 2
+    },
+    health: { ok: false, persistence: { ok: true, writeFailureCount: 0 } },
+    residencies: [{
+      residencyId: 'resident:sntss', coreId: 'sntss', version: '0.5.0-i4g1',
+      status: 'RUNNING', running: true, lifecycle: 'running', authorityOwned: false,
+      checkpointGeneration: 7, handledEvents: 8, observedOutputs: 0,
+      health: { ok: true }
+    }, {
+      residencyId: 'resident:chronobiology', coreId: 'chronobiology',
+      version: '1.0.0-c3rc.1', status: 'QUARANTINED', running: false,
+      lifecycle: 'failed', authorityOwned: false, checkpointGeneration: 5115,
+      handledEvents: 0, observedOutputs: 0, health: { ok: false }
+    }]
+  });
+  assert.equal(meta.systems[0].id, 'bsf');
+  assert.equal(meta.residents.length, 2);
+  assert.deepEqual(
+    meta.chipProjection.lifecycle.map(chip => `${chip.label} · ${chip.state}`),
+    ['BSF · LIVE', 'SNTSS · SHADOW', 'CHRONOBIOLOGY · QUARANTINED']
+  );
+  assert.deepEqual(
+    meta.chipProjection.roadmap.map(entry => `${entry.label} · ${entry.stage}`),
+    ['METAB · PLANNED', 'HOMEOS · PLANNED', 'INTERO · PLANNED']
+  );
+  const bridgeMeta = bridgePublicMetadata({
+    kernel: { runtimeRevision: 114 },
+    cores: [],
+    biologicalLedger: { protocol: 'stay-biological-ledger-v1' },
+    health: { ok: true, persistence: { ok: true } },
+    residencies: meta.residents
+  }, '0.8.11.3');
+  assert.deepEqual(
+    bridgeMeta.chipProjection.lifecycle.map(chip => `${chip.label} · ${chip.state}`),
+    ['BSF · LIVE', 'SNTSS · SHADOW', 'CHRONOBIOLOGY · QUARANTINED']
+  );
+});
+
+test('chip clients retain safe fallback, escaping, keyboard, mobile wrapping and stale evidence', async () => {
+  for (const relative of [
+    '../runtime/ui/live-badge.js',
+    '../runtime/ui/live-runtime-badge.js'
+  ]) {
+    const source = await fs.readFile(path.join(__dirname, relative), 'utf8');
+    assert.match(source, /safeProjection\(meta, systems, residents\)/);
+    assert.match(source, /stay-observation-chips-v1/);
+    assert.match(source, /\[&<>"'\]/);
+    assert.match(source, /event\.key === 'Escape'/);
+    assert.match(source, /aria-label/);
+    assert.match(source, /data-state/);
+    assert.match(source, /dataset\.stale = 'true'/);
+    assert.match(source, /flex-wrap:\s*wrap/);
+    assert.match(source, /pointer-events:\s*none/);
+    assert.match(source, /\['metab', 'homeos', 'intero'\]/);
+    assert.doesNotMatch(source, /residents\.filter\([^\n]*running === true/);
+  }
+});
+
+async function coldBacklogFixture(t, pendingCount = 3) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-cold-backlog-replay-'));
+  const store = new StateStore(root);
+  await store.init();
+  t.after(async () => {
+    store.close();
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const hash = character => `sha256:${character.repeat(64)}`;
+  store.registerResident({
+    residencyId: 'resident:chronobiology',
+    coreId: 'chronobiology',
+    role: 'optional-shadow',
+    instanceId: 'chronobiology-cold-replay-fixture',
+    version: '1.0.0-c3rc.1',
+    stateSchema: 2,
+    moduleRelativePath: 'cores/chronobiology/c3/index.js',
+    moduleHash: hash('1'),
+    manifestHash: hash('2'),
+    packagePolicyHash: hash('3'),
+    organismIdentityHash: hash('4')
+  });
+  const checkpoint = await store.commitResidentCheckpoint({
+    residencyId: 'resident:chronobiology',
+    instanceId: 'chronobiology-cold-replay-fixture',
+    version: '1.0.0-c3rc.1',
+    stateSchema: 2,
+    state: { stateSchema: 2, generation: 1 }
+  });
+  store.registerBiologicalConsumer({
+    consumerId: 'resident:chronobiology',
+    coreId: 'chronobiology',
+    topics: ['runtime.trusted-organism-time.pulse'],
+    required: false,
+    authorityEpoch: 0
+  });
+  store.db.prepare(`
+    UPDATE biological_consumers SET checkpoint_hash=?
+    WHERE consumer_id='resident:chronobiology'
+  `).run(checkpoint.blobHash);
+  store.setResidentStatus('resident:chronobiology', 'QUARANTINED');
+  for (let index = 0; index < Math.min(pendingCount, 3); index += 1) {
+    store.appendBiologicalEvent({
+      topic: 'runtime.trusted-organism-time.pulse',
+      payload: { trustedTimeUs: (index + 1) * 1_000_000 },
+      eventClass: 'durable',
+      at: Date.now() + index
+    });
+  }
+
+  if (pendingCount > 3) {
+    const digest = '0'.repeat(64);
+    store.db.prepare(`
+      WITH RECURSIVE sequence(value) AS (
+        VALUES(4)
+        UNION ALL
+        SELECT value + 1 FROM sequence WHERE value < ?
+      )
+      INSERT INTO biological_events(
+        sequence, event_id, topic, event_class, at_ms, deadline_at_ms,
+        envelope_json, envelope_sha256, payload_sha256, provenance_sha256,
+        deduplication_key, deduplication_sha256, created_at
+      )
+      SELECT value, 'cold-bulk-' || value,
+        'runtime.trusted-organism-time.pulse', 'durable', value, NULL,
+        '{}', ?, ?, ?, NULL, ?, 'fixture'
+      FROM sequence
+    `).run(pendingCount, digest, digest, digest, digest);
+    store.db.prepare(`
+      INSERT INTO biological_deliveries(sequence, consumer_id)
+      SELECT sequence, 'resident:chronobiology'
+      FROM biological_events
+      WHERE sequence BETWEEN 4 AND ?
+    `).run(pendingCount);
+  }
+
+  return { store, checkpoint };
+}
+
+test('cold backlog replay begins atomically without acknowledging Chronobiology debt', async t => {
+  const { store, checkpoint } = await coldBacklogFixture(t);
+  const consumer = store.db.prepare(`
+    SELECT active, required, authority_epoch authorityEpoch,
+      checkpoint_hash checkpointHash
+    FROM biological_consumers
+    WHERE consumer_id='resident:chronobiology'
+  `).get();
+  assert.equal(consumer.active, 1);
+  assert.equal(consumer.required, 0);
+  assert.equal(consumer.authorityEpoch, 0);
+  assert.equal(consumer.checkpointHash, checkpoint.blobHash);
+  const resident = store.getResident('resident:chronobiology');
+  assert.equal(resident.coreId, 'chronobiology');
+  assert.equal(resident.status, 'QUARANTINED');
+  assert.equal(resident.checkpointHash, checkpoint.blobHash);
+  assert.equal(store.countPendingBiologicalEvents('resident:chronobiology'), 3);
+  assert.equal(store.db.prepare(
+    "SELECT COUNT(*) count FROM authority WHERE core_id='chronobiology'"
+  ).get().count, 0);
+  assert.equal(store.db.prepare(`
+    SELECT COUNT(*) count FROM biological_outbox_intents
+    WHERE producer_core_id='chronobiology' AND status='PENDING'
+  `).get().count, 0);
+
+  const began = store.beginResidentColdBacklogReplay({
+    residencyId: 'resident:chronobiology',
+    coreId: 'chronobiology',
+    checkpointHash: checkpoint.blobHash,
+    runtimeRevision: 115,
+    maximumPending: 8192
+  });
+  assert.match(began.replayId, /^[0-9a-f-]{36}$/);
+  assert.equal(began.pendingCount, 3);
+  assert.equal(began.abandonedCount, 0);
+  assert.equal(store.getResident('resident:chronobiology').status, 'RECOVERING');
+  assert.equal(store.countPendingBiologicalEvents('resident:chronobiology'), 3);
+  assert.equal(store.db.prepare(`
+    SELECT COUNT(*) count
+    FROM biological_deliveries
+    WHERE consumer_id='resident:chronobiology' AND status='ACKED'
+  `).get().count, 0);
+  assert.equal(store.db.prepare(`
+    SELECT COUNT(*) count
+    FROM recovery_records
+    WHERE type='resident.cold-backlog-replay-begin' AND core_id='chronobiology'
+  `).get().count, 1);
+});
+
+test('cold backlog admission rejects identity drift and pending debt above 8192 without mutation', async t => {
+  const { store, checkpoint } = await coldBacklogFixture(t, 8193);
+  const checkpointHash = checkpoint.blobHash;
+  const attempt = () => store.beginResidentColdBacklogReplay({
+    residencyId: 'resident:chronobiology',
+    coreId: 'chronobiology',
+    checkpointHash,
+    runtimeRevision: 115,
+    maximumPending: 8192
+  });
+
+  assert.throws(attempt, error => error.code === 'RESIDENT_COLD_REPLAY_STATE');
+  assert.equal(store.getResident('resident:chronobiology').status, 'QUARANTINED');
+  assert.equal(store.getResident('resident:chronobiology').checkpointHash, checkpointHash);
+  assert.equal(store.countPendingBiologicalEvents('resident:chronobiology'), 8193);
+  assert.equal(store.db.prepare(`
+    SELECT active FROM biological_consumers WHERE consumer_id='resident:chronobiology'
+  `).get().active, 1);
+  assert.equal(store.db.prepare(`
+    SELECT COUNT(*) count FROM recovery_records
+    WHERE type='resident.cold-backlog-replay-begin' AND core_id='chronobiology'
+  `).get().count, 0);
+
+  store.db.prepare(`
+    UPDATE biological_consumers SET checkpoint_hash=?
+    WHERE consumer_id='resident:chronobiology'
+  `).run('f'.repeat(64));
+  assert.throws(attempt, error => error.code === 'RESIDENT_COLD_REPLAY_STATE');
+  assert.equal(store.getResident('resident:chronobiology').status, 'QUARANTINED');
+  assert.equal(store.countPendingBiologicalEvents('resident:chronobiology'), 8193);
+});
+
+test('cold backlog admission requires an active zero-authority consumer and empty output debt', async t => {
+  const { store, checkpoint } = await coldBacklogFixture(t);
+  const input = {
+    residencyId: 'resident:chronobiology',
+    coreId: 'chronobiology',
+    checkpointHash: checkpoint.blobHash,
+    runtimeRevision: 115,
+    maximumPending: 8192
+  };
+  const expectPreservedRejection = () => {
+    assert.throws(
+      () => store.beginResidentColdBacklogReplay(input),
+      error => error.code === 'RESIDENT_COLD_REPLAY_STATE'
+    );
+    assert.equal(store.getResident(input.residencyId).status, 'QUARANTINED');
+    assert.equal(store.getResident(input.residencyId).checkpointHash, input.checkpointHash);
+    assert.equal(store.countPendingBiologicalEvents(input.residencyId), 3);
+  };
+
+  store.db.prepare(`
+    UPDATE biological_consumers SET active=0
+    WHERE consumer_id='resident:chronobiology'
+  `).run();
+  expectPreservedRejection();
+  store.db.prepare(`
+    UPDATE biological_consumers SET active=1
+    WHERE consumer_id='resident:chronobiology'
+  `).run();
+
+  store.setInitialAuthority({
+    coreId: 'chronobiology',
+    instanceId: 'forbidden-authority-fixture',
+    version: '1.0.0-c3rc.1',
+    epoch: 1
+  });
+  expectPreservedRejection();
+  store.db.prepare("DELETE FROM authority WHERE core_id='chronobiology'").run();
+
+  store.db.prepare(`
+    INSERT INTO biological_outbox_intents(
+      producer_event_id, producer_core_id, producer_instance_id, producer_version,
+      authority_epoch, producer_stream_id, stream_sequence, transition_id,
+      cause_sequence, output_index, topic, proposal_sha256, intent_json,
+      intent_sha256, checkpoint_id, checkpoint_hash, checkpoint_generation,
+      status, created_at
+    ) VALUES(?, 'chronobiology', ?, '1.0.0-c3rc.1', 1, ?, 1, ?, 1, 1,
+      'chronobiology.fixture', ?, '{}', ?, ?, ?, 1, 'PENDING', 'fixture')
+  `).run(
+    'cold-output-fixture',
+    'chronobiology-cold-replay-fixture',
+    'chronobiology:fixture',
+    'cold-transition-fixture',
+    '0'.repeat(64),
+    '0'.repeat(64),
+    checkpoint.checkpointId,
+    checkpoint.blobHash
+  );
+  expectPreservedRejection();
+});
+
+test('cold backlog startup failure preserves the active consumer for revision-fenced retry', async () => {
+  const before = (await processDescendants(process.pid)).sort((a, b) => a - b);
+  let deactivations = 0;
+  const stateStore = {
+    async commitResidentCheckpoint() { return { blobHash: 'fixture-checkpoint' }; },
+    registerBiologicalConsumer() { return { activationBackfilled: 0 }; },
+    getResident() { return { status: 'RECOVERING' }; },
+    deactivateBiologicalConsumer() { deactivations += 1; }
+  };
+  const { manager, resident, binding, inspected } = fixtureResidentManager(stateStore);
+  manager.replayFinalizedResidentEvents = async () => {
+    throw Object.assign(new Error('forced contained replay failure'), {
+      code: 'COLD_REPLAY_FAILURE_FIXTURE'
+    });
+  };
+  await assert.rejects(
+    manager.startUnit({
+      resident,
+      inspected,
+      binding,
+      replayDebtLimit: 8192,
+      preserveConsumerOnFailure: true
+    }),
+    error => error.code === 'COLD_REPLAY_FAILURE_FIXTURE'
+  );
+  assert.equal(deactivations, 0);
+  assert.equal(manager.units.has(resident.residencyId), false);
+  await assertNoNewDescendants(before);
 });
 
 test('an authority-free empty outbox is quiet while an orphaned pending intent fails closed', () => {
@@ -2695,6 +3221,10 @@ test('the release overlay promotes the complete CoreHost cohort atomically', asy
     forward.indexOf('RELEASE_AUXILIARY_FILES=(')
   );
   for (const relative of [
+    'runtime/ui/chip-projection.js',
+    'runtime/ui/live-badge.js',
+    'runtime/ui/live-bridge.js',
+    'runtime/ui/live-runtime-badge.js',
     'runtime/core-host/host.js',
     'runtime/core-host/host-legacy.js',
     'runtime/core-host/sandbox-host.js',

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const { FORMAT, sealRevisionFreeze, validateRevisionFreeze } = require('../../runtime/revision-freeze');
 
 const REVISION = Number(process.env.STAY_PRODUCTION_HARDENING_TARGET_REVISION || 111);
-if (![111, 114].includes(REVISION)) throw new Error('production-hardening target revision is invalid');
+if (![111, 114, 116].includes(REVISION)) throw new Error('production-hardening target revision is invalid');
 const REVISION_LABEL = `R${REVISION}F`;
 const PARENT_REVISION = 110;
 const PARENT_RECORD_SHA256 = 'sha256:da7ad05dd0044754b81d599617d03a86d4cc31e208e39710d167f15c8c163989';
@@ -79,7 +79,7 @@ function assertResidentContainment(sample, residentId, cgroupName) {
     Number(memory?.cgroupHardBytes) === 96 * MIB &&
     Number(memory?.supervisorSoftBytes) === 48 * MIB &&
     Number(memory?.supervisorHardBytes) === 64 * MIB &&
-    (REVISION !== 114 || (
+    (REVISION === 111 || (
       Number(memory?.supervisorOldSpaceMiB) === 12 &&
       Number(memory?.supervisorSemiSpaceMiB) === 1 &&
       Number(host?.resourceGovernor?.latest?.process?.rssBytes) > 0 &&
@@ -153,7 +153,8 @@ function assertFoundation({ sample, state, parent, recovery, preflight, closure,
       recovery?.resyncRequiredDuringRecovery === 0 &&
       recovery?.deliveryRetriesDuringRecovery === 0 &&
       recovery?.duplicateResyncGroupsDuringRecovery === 0
-    : recovery?.format === 'stay-production-hardening-contained-repair-proof-v1' &&
+    : REVISION === 114
+      ? recovery?.format === 'stay-production-hardening-contained-repair-proof-v1' &&
       recovery?.result === 'PASS' && recovery?.sourceRevision === 112 &&
       recovery?.coldRecoveryRevision === 113 && recovery?.completedRevision === REVISION &&
       Number.isSafeInteger(Number(recovery?.serviceRestarts)) &&
@@ -176,7 +177,37 @@ function assertFoundation({ sample, state, parent, recovery, preflight, closure,
       recovery?.resyncRequiredDuringRecovery === 0 &&
       recovery?.deliveryRetriesDuringRecovery === 0 &&
       recovery?.quarantinesDuringRecovery === 0 &&
-      recovery?.duplicateResyncGroupsDuringRecovery === 0;
+      recovery?.duplicateResyncGroupsDuringRecovery === 0
+      : recovery?.format === 'stay-production-hardening-contained-backlog-repair-proof-v1' &&
+        recovery?.result === 'PASS' && recovery?.sourceRevision === 114 &&
+        recovery?.coldRecoveryRevision === 115 && recovery?.completedRevision === REVISION &&
+        Number(recovery?.serviceRestarts) === 1 &&
+        recovery?.payloadLimitsChanged === false && recovery?.deadlinesChanged === false &&
+        recovery?.authorityChanged === false &&
+        recovery?.sntss?.before?.status === 'RUNNING' &&
+        recovery?.sntss?.after?.runtimeRevision === REVISION &&
+        recovery?.sntss?.after?.status === 'RUNNING' && recovery?.sntss?.after?.running === true &&
+        recovery?.sntss?.before?.instanceId === recovery?.sntss?.after?.instanceId &&
+        Number(recovery?.sntss?.after?.checkpointGeneration) >
+          Number(recovery?.sntss?.before?.checkpointGeneration) &&
+        recovery?.chronobiology?.before?.status === 'QUARANTINED' &&
+        recovery?.chronobiology?.after?.runtimeRevision === REVISION &&
+        recovery?.chronobiology?.after?.status === 'RUNNING' &&
+        recovery?.chronobiology?.after?.running === true &&
+        recovery?.chronobiology?.before?.instanceId === recovery?.chronobiology?.after?.instanceId &&
+        Number(recovery?.chronobiology?.after?.checkpointGeneration) >
+          Number(recovery?.chronobiology?.before?.checkpointGeneration) &&
+        Number(recovery?.chronobiology?.replayedPendingCount) > 0 &&
+        Number(recovery?.chronobiology?.replayedPendingCount) <= 8192 &&
+        Number(recovery?.chronobiology?.abandonedCount) === 0 &&
+        recovery?.chronobiology?.inventedBiologicalTime === false &&
+        recovery?.maintenanceFailuresDuringRecovery === 0 &&
+        recovery?.outboxPublicationFailuresDuringRecovery === 0 &&
+        recovery?.coreHostFaultsDuringRecovery === 0 &&
+        recovery?.resyncRequiredDuringRecovery === 0 &&
+        recovery?.deliveryRetriesDuringRecovery === 0 &&
+        recovery?.quarantinesDuringRecovery === 0 &&
+        recovery?.duplicateResyncGroupsDuringRecovery === 0;
 
   const valid = sample?.health?.ok === true && Number(sample.health.revision) === REVISION &&
     Number(sample?.meta?.revision) === REVISION && sample?.meta?.revisionFrozen === false &&
@@ -302,8 +333,8 @@ function createRecord(input) {
     duplicateResyncGroupsDuringRecovery: 0,
     inventedBiologicalTime: false
   } : {
-    sourceRevision: 112,
-    coldRecoveryRevision: 113,
+    sourceRevision: Number(recovery.sourceRevision),
+    coldRecoveryRevision: Number(recovery.coldRecoveryRevision),
     completedRevision: REVISION,
     mode: 'REVISION_FENCED_CONTAINED_REPAIR',
     serviceRestarts: Number(recovery.serviceRestarts),
@@ -369,7 +400,8 @@ function createRecord(input) {
       terminalStateConsumerDeactivationRecoveryAtomic: true,
       persistenceWriteFailuresStickyForProcessLifetime: true,
       publicRunningRequiresLiveHealthyUnit: true,
-      containedRepairFromFailedR111Transition: REVISION === 114,
+      containedRepairFromFailedR111Transition: REVISION >= 114,
+      containedChronobiologyBacklogReplay: REVISION === 116,
       preflightResult: preflight.result,
       boundedLiveSoak: soak
     },
@@ -476,14 +508,14 @@ function createRecord(input) {
 }
 
 function verify(record) {
-  const containedRepairValid = REVISION !== 114 || (
+  const containedRepairValid = REVISION === 111 || (
     record.hardening?.containedRepairFromFailedR111Transition === true &&
-    record.recovery?.sourceRevision === 112 &&
-    record.recovery?.coldRecoveryRevision === 113 &&
-    record.recovery?.completedRevision === 114 &&
+    record.recovery?.sourceRevision === (REVISION === 114 ? 112 : 114) &&
+    record.recovery?.coldRecoveryRevision === (REVISION === 114 ? 113 : 115) &&
+    record.recovery?.completedRevision === REVISION &&
     Number.isSafeInteger(Number(record.recovery?.serviceRestarts)) &&
     Number(record.recovery.serviceRestarts) >= 1 &&
-    Number(record.recovery.serviceRestarts) <= 2 &&
+    Number(record.recovery.serviceRestarts) <= (REVISION === 116 ? 1 : 2) &&
     record.recovery?.payloadLimitsChanged === false &&
     record.recovery?.deadlinesChanged === false &&
     record.recovery?.authorityChanged === false &&
@@ -493,7 +525,13 @@ function verify(record) {
       Number(record.containment?.[key]?.supervisorRssBytes) > 0 &&
       Number(record.containment?.[key]?.supervisorRssBytes) < 64 * MIB
     )
-  );
+  ) && (REVISION !== 116 || (
+    record.hardening?.containedChronobiologyBacklogReplay === true &&
+    Number(record.recovery?.chronobiology?.replayedPendingCount) > 0 &&
+    Number(record.recovery?.chronobiology?.replayedPendingCount) <= 8192 &&
+    Number(record.recovery?.chronobiology?.abandonedCount) === 0 &&
+    record.recovery?.chronobiology?.inventedBiologicalTime === false
+  ));
   return containedRepairValid && validateRevisionFreeze(record, REVISION) &&
     record.freezeType === (REVISION === 111
       ? 'P1_PRODUCTION_HARDENING_EXACTLY_ONCE_RECOVERY'

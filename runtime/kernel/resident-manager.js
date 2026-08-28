@@ -1083,7 +1083,9 @@ class ResidentManager {
     binding,
     checkpoint = null,
     finalizedReplay = [],
-    backfillInactiveGap = false
+    backfillInactiveGap = false,
+    replayDebtLimit = 1023,
+    preserveConsumerOnFailure = false
   }) {
     const manifest =
       inspected.definition
@@ -1512,7 +1514,8 @@ class ResidentManager {
       await this.replayFinalizedResidentEvents(unit);
 
       await this.replayPendingBiologicalEvents(
-        unit
+        unit,
+        replayDebtLimit
       );
 
       /*
@@ -1616,7 +1619,10 @@ class ResidentManager {
        * stop routing new events to this absent unit. Its cursor and immutable
        * PENDING deliveries remain available to the next recovery attempt.
        */
-      if (unit.consumerActivated) {
+      if (
+        unit.consumerActivated &&
+        !preserveConsumerOnFailure
+      ) {
         try {
           this.stateStore
             .deactivateBiologicalConsumer(
@@ -3771,6 +3777,13 @@ class ResidentManager {
       resident.status ===
         'QUARANTINED';
 
+    const containedChronobiologyBacklog =
+      coldQuarantine &&
+      resident.residencyId ===
+        'resident:chronobiology' &&
+      resident.coreId ===
+        'chronobiology';
+
     if (
       resident.status !==
         'RESYNC_REQUIRED' &&
@@ -3836,13 +3849,25 @@ class ResidentManager {
     }
 
     const record =
-      this.stateStore
-        .resynchronizeResidentBiologicalConsumer({
-          residencyId,
-          checkpointHash:
-            checkpoint.blobHash,
-          runtimeRevision
-        });
+      containedChronobiologyBacklog
+        ? this.stateStore
+            .beginResidentColdBacklogReplay({
+              residencyId,
+              coreId:
+                resident.coreId,
+              checkpointHash:
+                checkpoint.blobHash,
+              runtimeRevision,
+              maximumPending:
+                8192
+            })
+        : this.stateStore
+            .resynchronizeResidentBiologicalConsumer({
+              residencyId,
+              checkpointHash:
+                checkpoint.blobHash,
+              runtimeRevision
+            });
 
     /*
      * The physiology checkpoint itself is not
@@ -3864,11 +3889,13 @@ class ResidentManager {
       );
     }
 
-    this.stateStore
-      .setResidentStatus(
-        residencyId,
-        'RECOVERING'
-      );
+    if (!containedChronobiologyBacklog) {
+      this.stateStore
+        .setResidentStatus(
+          residencyId,
+          'RECOVERING'
+        );
+    }
 
     const restarted =
       await this.startUnit({
@@ -3880,19 +3907,32 @@ class ResidentManager {
         inspected,
         binding,
         checkpoint,
-        backfillInactiveGap: true
+        backfillInactiveGap:
+          !containedChronobiologyBacklog,
+        replayDebtLimit:
+          containedChronobiologyBacklog
+            ? 8192
+            : 1023,
+        preserveConsumerOnFailure:
+          containedChronobiologyBacklog
       });
 
     this.stateStore
       .recordRecovery(
-        coldQuarantine
-          ? 'resident.cold-quarantine-recovered'
+        containedChronobiologyBacklog
+          ? 'resident.cold-backlog-replayed'
+          : coldQuarantine
+            ? 'resident.cold-quarantine-recovered'
           : 'resident.resynchronized',
         resident.coreId,
         {
           residencyId,
           resyncId:
-            record.resyncId,
+            record.resyncId ||
+            null,
+          replayId:
+            record.replayId ||
+            null,
           abandonedCount:
             record.abandonedCount,
           fromCursor:
@@ -3902,7 +3942,11 @@ class ResidentManager {
           runtimeRevision,
           coldQuarantine,
           inventedBiologicalTime:
-            false
+            false,
+          replayedPendingCount:
+            containedChronobiologyBacklog
+              ? record.pendingCount
+              : 0
         }
       );
 
@@ -3915,7 +3959,8 @@ class ResidentManager {
 
 
   async replayPendingBiologicalEvents(
-    unit
+    unit,
+    maximumEvents = 1023
   ) {
     /*
      * 1023 is deliberate.
@@ -3926,51 +3971,67 @@ class ResidentManager {
      * window and must not be silently consumed as
      * an unbounded workload.
      */
-    const pending =
-      this.stateStore
-        .listPendingBiologicalEvents(
-          unit.residencyId,
-          1024
+    const pagedColdReplay =
+      Number.isSafeInteger(maximumEvents) &&
+      maximumEvents > 1023 &&
+      maximumEvents <= 8192 &&
+      unit.residencyId ===
+        'resident:chronobiology' &&
+      unit.manifest.coreId ===
+        'chronobiology';
+    let processed = 0;
+    let replayed = 0;
+    let ignored = 0;
+
+    while (true) {
+      const pending =
+        this.stateStore
+          .listPendingBiologicalEvents(
+            unit.residencyId,
+            1024
+          );
+
+      if (!pending.length) break;
+
+      if (
+        pending.length >= 1024 &&
+        !pagedColdReplay
+      ) {
+        const error =
+          Object.assign(
+            new Error(
+              'resident pending-delivery replay exceeds L0 bounded window'
+            ),
+            {
+              code:
+                'RESIDENT_REPLAY_BOUNDED'
+            }
+          );
+
+
+        this.markResyncRequired(
+          unit,
+          error,
+          pending[0] || null
         );
 
 
-    if (
-      pending.length >= 1024
-    ) {
-      const error =
-        Object.assign(
-          new Error(
-            'resident pending-delivery replay exceeds L0 bounded window'
-          ),
-          {
-            code:
-              'RESIDENT_REPLAY_BOUNDED'
-          }
+        throw error;
+      }
+
+      if (processed + pending.length > maximumEvents) {
+        const error = Object.assign(
+          new Error('contained cold backlog replay exceeds its fixed total bound'),
+          { code: 'RESIDENT_COLD_REPLAY_BOUNDED' }
         );
+        this.markResyncRequired(unit, error, pending[0] || null);
+        throw error;
+      }
 
-
-      this.markResyncRequired(
-        unit,
-        error,
-        pending[0] || null
-      );
-
-
-      throw error;
-    }
-
-
-    let replayed =
-      0;
-
-    let ignored =
-      0;
-
-
-    for (
-      const event
-      of pending
-    ) {
+      for (
+        const event
+        of pending
+      ) {
       const delivery =
         this.stateStore
           .getBiologicalDelivery(
@@ -4061,6 +4122,10 @@ class ResidentManager {
 
       replayed +=
         1;
+      }
+
+      processed += pending.length;
+      if (!pagedColdReplay || pending.length < 1024) break;
     }
 
 

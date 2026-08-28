@@ -37,15 +37,34 @@
 
   const badge = document.createElement('button');
   badge.type = 'button';
+  badge.id = 'stay-live-runtime-button';
+  badge.setAttribute('aria-expanded', 'false');
+  badge.setAttribute('aria-controls', 'stay-live-runtime-panel');
+  badge.setAttribute('aria-label', 'Open STAY living runtime status');
   badge.textContent = 'STAY · connecting…';
   badge.style.cssText = 'border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(12,15,19,.84);backdrop-filter:blur(14px);color:inherit;padding:8px 11px;font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-shadow:0 8px 28px rgba(0,0,0,.28);cursor:pointer;';
   host.appendChild(badge);
 
   const physiologyHost = document.createElement('div');
   physiologyHost.id = 'stay-physiology-strip';
-  physiologyHost.setAttribute('aria-label', 'STAY live physiology status');
-  physiologyHost.style.cssText = 'display:none;position:fixed;z-index:2147483646;left:20px;top:158px;align-items:center;flex-wrap:wrap;justify-content:flex-start;gap:6px;max-width:calc(100vw - 40px);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:white;pointer-events:none;';
+  physiologyHost.setAttribute('aria-live', 'polite');
+  physiologyHost.setAttribute('aria-label', 'STAY physiology and non-live roadmap');
+  physiologyHost.style.cssText = 'display:none;position:fixed;z-index:2147483646;left:20px;top:158px;flex-direction:column;align-items:flex-start;gap:5px;max-width:calc(100vw - 28px);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:white;pointer-events:none;';
   document.body.appendChild(physiologyHost);
+
+  const lifecycleRail = document.createElement('div');
+  lifecycleRail.id = 'stay-lifecycle-chips';
+  lifecycleRail.setAttribute('role', 'list');
+  lifecycleRail.setAttribute('aria-label', 'STAY resident lifecycle status');
+  lifecycleRail.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-start;gap:6px;max-width:100%;';
+  physiologyHost.appendChild(lifecycleRail);
+
+  const roadmapRail = document.createElement('div');
+  roadmapRail.id = 'stay-roadmap-labels';
+  roadmapRail.setAttribute('role', 'list');
+  roadmapRail.setAttribute('aria-label', 'STAY non-live system roadmap');
+  roadmapRail.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-start;gap:6px;max-width:100%;';
+  physiologyHost.appendChild(roadmapRail);
 
   function positionPhysiologyHost() {
     const candidates = [...document.querySelectorAll('h1,h2,[class*="brand"],[class*="logo"],header *')];
@@ -65,6 +84,10 @@
   window.addEventListener('resize', positionPhysiologyHost);
 
   const panel = document.createElement('div');
+  panel.id = 'stay-live-runtime-panel';
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-label', 'STAY living runtime details');
+  panel.setAttribute('aria-hidden', 'true');
   panel.style.cssText = 'display:none;position:absolute;top:42px;right:0;width:360px;max-width:calc(100vw - 28px);border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(12,15,19,.94);backdrop-filter:blur(18px);color:inherit;padding:12px;font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-shadow:0 12px 42px rgba(0,0,0,.36);';
   host.appendChild(panel);
 
@@ -120,7 +143,21 @@
   let latestMeta = null;
   let previousFingerprint = '';
 
-  const esc = (v) => String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const esc = (v) => String(v).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+  const chipOrder = ['bsf', 'sntss', 'chronobiology', 'metab', 'homeos', 'intero'];
+  const chipStates = new Set(['QUARANTINED', 'OFFLINE', 'RECOVERING', 'DEGRADED', 'LIVE', 'SHADOW', 'NEUTRAL']);
+  const roadmapStages = new Set(['PLANNED', 'LAB BUILD', 'LAB QUALIFIED']);
+  const statePresentation = {
+    QUARANTINED: { symbol: '⛔', color: '#ff9a9a' },
+    OFFLINE: { symbol: '○', color: '#aeb5c2' },
+    RECOVERING: { symbol: '↻', color: '#ffd37d' },
+    DEGRADED: { symbol: '△', color: '#ffb36b' },
+    LIVE: { symbol: '●', color: '#8debb2' },
+    SHADOW: { symbol: '◐', color: '#c8a7ff' },
+    NEUTRAL: { symbol: '◇', color: '#89e5ff' }
+  };
   const revisionLabel = (meta) => {
     if (typeof meta?.revisionLabel === 'string' && /^R[0-9]+F?$/.test(meta.revisionLabel)) return meta.revisionLabel;
     return `R${meta?.revision ?? '?'}${meta?.revisionFrozen === true ? 'F' : ''}`;
@@ -133,32 +170,119 @@
     badge.textContent = `${latestMeta.ok === false ? '○' : '●'} LIVE · v${latestMeta.version || '?'} · ${revisionLabel(latestMeta)} · ${engine} ${selectedPercent}%`;
   }
 
-  function renderPhysiology(systems, residents) {
-    const liveSystems = systems.filter((system) => system && system.running === true);
-    const present = residents.filter((resident) => resident && resident.running === true);
-    const chips = liveSystems.map((system) => {
-      const color = '#8debb2';
-      const label = String(system.label || system.id || 'SYSTEM').toUpperCase();
-      return `<span style="border:1px solid ${color}55;border-radius:999px;background:${color}16;color:${color};padding:4px 7px;font-size:9px;letter-spacing:.05em;white-space:nowrap"><b>● ${esc(label)}</b> · ${esc(system.mode || 'LIVE')}</span>`;
-    }).concat(present.map((resident) => {
-      const shadow = resident.mode === 'SHADOW';
-      const color = shadow ? '#c8a7ff' : '#89e5ff';
-      const label = resident.coreId === 'chronobiology' ? 'CHRONOBIOLOGY' : String(resident.coreId || resident.residencyId || 'RESIDENT').toUpperCase();
-      return `<span style="border:1px solid ${color}55;border-radius:999px;background:${color}16;color:${color};padding:4px 7px;font-size:9px;letter-spacing:.05em;white-space:nowrap"><b>● ${esc(label)}</b> · ${esc(resident.mode || 'NEUTRAL')}</span>`;
-    }));
-    physiologyHost.style.display = chips.length ? 'flex' : 'none';
-    physiologyHost.innerHTML = chips.join('');
+  function localState(item) {
+    const status = String(item?.status || 'UNKNOWN').toUpperCase();
+    const lifecycle = String(item?.lifecycle || '').toUpperCase();
+    const mode = String(item?.mode || 'NEUTRAL').toUpperCase();
+    if (status === 'QUARANTINED' || lifecycle === 'QUARANTINED') return 'QUARANTINED';
+    if (['OFFLINE', 'DETACHED', 'STOPPED'].includes(status) || lifecycle === 'OFFLINE') return 'OFFLINE';
+    if (['RECOVERING', 'STARTING'].includes(status) || lifecycle === 'RECOVERING') return 'RECOVERING';
+    if (['DEGRADED', 'RESYNC_REQUIRED'].includes(status) || lifecycle === 'DEGRADED' || item?.healthOk === false) return 'DEGRADED';
+    if (item?.running === false) return 'OFFLINE';
+    if (item?.running === true && mode === 'LIVE') return 'LIVE';
+    if (item?.running === true && mode === 'SHADOW') return 'SHADOW';
+    return 'NEUTRAL';
+  }
+
+  function localChip(item, kind) {
+    const coreId = String(item?.coreId || item?.id || item?.residencyId || 'unknown')
+      .replace(/^resident:/, '').toLowerCase();
+    const state = localState(item);
+    return {
+      coreId,
+      label: String(item?.label || coreId).toUpperCase(),
+      state,
+      mode: String(item?.mode || 'NEUTRAL').toUpperCase(),
+      lifecycle: String(item?.lifecycle || item?.status || 'UNKNOWN').toUpperCase(),
+      healthReason: state === 'QUARANTINED' ? 'RESIDENT_QUARANTINED'
+        : state === 'OFFLINE' ? 'RUNTIME_NOT_RUNNING'
+        : state === 'RECOVERING' ? 'BOUNDED_RECOVERY_ACTIVE'
+        : state === 'DEGRADED' ? 'RUNTIME_HEALTH_DEGRADED'
+        : `${state}_HEALTHY`,
+      version: item?.version || null,
+      checkpointGeneration: Number(item?.checkpointGeneration || 0),
+      handledEvents: Number(item?.handledEvents || item?.events || 0),
+      outputs: Number(item?.observedOutputs || 0),
+      sourceKind: kind.toUpperCase()
+    };
+  }
+
+  function safeProjection(meta, systems, residents) {
+    const supplied = meta?.chipProjection;
+    let lifecycle;
+    let roadmap;
+    if (
+      supplied?.schema === 'stay-observation-chips-v1' &&
+      supplied.observationOnly === true &&
+      Array.isArray(supplied.lifecycle) &&
+      Array.isArray(supplied.roadmap)
+    ) {
+      lifecycle = supplied.lifecycle.filter(value => value && typeof value === 'object').map(value => ({
+        ...value,
+        coreId: String(value.coreId || 'unknown').toLowerCase(),
+        label: String(value.label || value.coreId || 'UNKNOWN').toUpperCase(),
+        state: chipStates.has(String(value.state).toUpperCase())
+          ? String(value.state).toUpperCase()
+          : 'NEUTRAL'
+      }));
+      roadmap = supplied.roadmap.filter(value => value && typeof value === 'object').map(value => ({
+        coreId: String(value.coreId || 'unknown').toLowerCase(),
+        label: String(value.label || value.coreId || 'UNKNOWN').toUpperCase(),
+        stage: roadmapStages.has(String(value.stage).toUpperCase())
+          ? String(value.stage).toUpperCase()
+          : 'PLANNED'
+      }));
+    } else {
+      lifecycle = systems.filter(Boolean).map(value => localChip(value, 'system'))
+        .concat(residents.filter(Boolean).map(value => localChip(value, 'resident')));
+      const born = new Set(lifecycle.map(value => value.coreId));
+      roadmap = ['metab', 'homeos', 'intero'].filter(coreId => !born.has(coreId)).map(coreId => ({
+        coreId, label: coreId.toUpperCase(), stage: 'PLANNED'
+      }));
+    }
+    const born = new Set(lifecycle.map(value => value.coreId));
+    roadmap = roadmap.filter(value => !born.has(value.coreId));
+    const order = value => {
+      const index = chipOrder.indexOf(value.coreId);
+      return index < 0 ? chipOrder.length : index;
+    };
+    lifecycle.sort((left, right) => order(left) - order(right));
+    roadmap.sort((left, right) => order(left) - order(right));
+    return { lifecycle, roadmap };
+  }
+
+  function renderPhysiology(systems, residents, projection) {
+    const lifecycleHtml = projection.lifecycle.map((chip) => {
+      const state = chipStates.has(String(chip.state).toUpperCase())
+        ? String(chip.state).toUpperCase()
+        : 'NEUTRAL';
+      const presentation = statePresentation[state];
+      const aria = `${chip.label || chip.coreId} lifecycle ${state}; ${chip.healthReason || 'health unknown'}`;
+      return `<span role="listitem" aria-label="${esc(aria)}" data-core-id="${esc(chip.coreId)}" data-state="${esc(state)}" style="border:1px solid ${presentation.color}66;border-radius:999px;background:${presentation.color}17;color:${presentation.color};padding:4px 7px;font-size:9px;letter-spacing:.05em;white-space:nowrap"><b>${presentation.symbol} ${esc(chip.label || chip.coreId || 'UNKNOWN')}</b> · ${esc(state)}</span>`;
+    }).join('');
+    const roadmapHtml = projection.roadmap.map((entry) =>
+      `<span role="listitem" aria-label="${esc(`${entry.label} non-live roadmap ${entry.stage}`)}" data-core-id="${esc(entry.coreId)}" data-roadmap-stage="${esc(entry.stage)}" style="border:1px dashed rgba(255,255,255,.28);border-radius:999px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.68);padding:4px 7px;font-size:9px;letter-spacing:.05em;white-space:nowrap"><b>${esc(entry.label)}</b> · ${esc(entry.stage)}</span>`
+    ).join('');
+    physiologyHost.style.display = lifecycleHtml || roadmapHtml ? 'flex' : 'none';
+    lifecycleRail.style.display = lifecycleHtml ? 'flex' : 'none';
+    roadmapRail.style.display = roadmapHtml ? 'flex' : 'none';
+    lifecycleRail.innerHTML = lifecycleHtml;
+    roadmapRail.innerHTML = roadmapHtml;
     positionPhysiologyHost();
+    const chipsByCore = new Map(projection.lifecycle.map(chip => [chip.coreId, chip]));
     systemsEl.innerHTML = systems.length
       ? `<div style="opacity:.55;margin-bottom:5px;letter-spacing:.08em">BIOLOGICAL FABRIC</div>${systems.map((system) => {
-          const ok = system.running && system.healthOk !== false;
-          return `<div style="margin-top:6px"><span style="color:${ok ? '#8debb2' : '#ff9a9a'}">${ok ? '●' : '○'}</span> ${esc(system.label || system.id || 'system')} · ${esc(system.mode || 'LIVE')} · ${esc(system.status || 'UNKNOWN')} · E${Number(system.events || 0).toLocaleString()} · P${Number(system.pendingDeliveries || 0).toLocaleString()} · C${Number(system.activeConsumers || 0).toLocaleString()}</div>`;
+          const chip = chipsByCore.get(String(system.id || '').toLowerCase()) || localChip(system, 'system');
+          const presentation = statePresentation[chip.state] || statePresentation.NEUTRAL;
+          return `<div style="margin-top:6px"><span style="color:${presentation.color}">${presentation.symbol}</span> ${esc(system.label || system.id || 'system')} · ${esc(system.mode || 'LIVE')} · lifecycle ${esc(chip.lifecycle)} · ${esc(chip.state)} · E${Number(system.events || 0).toLocaleString()} · P${Number(system.pendingDeliveries || 0).toLocaleString()} · C${Number(system.activeConsumers || 0).toLocaleString()} · ${esc(chip.healthReason)}</div>`;
         }).join('')}`
       : '<div style="opacity:.55">Biological fabric unavailable</div>';
     residentsEl.innerHTML = residents.length
       ? `<div style="opacity:.55;margin-bottom:5px;letter-spacing:.08em">RESIDENT PHYSIOLOGY</div>${residents.map((resident) => {
-          const ok = resident.running && resident.healthOk !== false;
-          return `<div style="margin-top:6px"><span style="color:${ok ? '#8debb2' : '#ff9a9a'}">${ok ? '●' : '○'}</span> ${esc(resident.coreId || resident.residencyId)} <b>v${esc(resident.version || '?')}</b> · ${esc(resident.mode || 'NEUTRAL')} · ${esc(resident.status || 'UNKNOWN')} · G${Number(resident.checkpointGeneration || 0).toLocaleString()} · E${Number(resident.handledEvents || 0).toLocaleString()} · O${Number(resident.observedOutputs || 0).toLocaleString()}</div>`;
+          const coreId = String(resident.coreId || resident.residencyId || '').replace(/^resident:/, '').toLowerCase();
+          const chip = chipsByCore.get(coreId) || localChip(resident, 'resident');
+          const presentation = statePresentation[chip.state] || statePresentation.NEUTRAL;
+          return `<div style="margin-top:6px"><span style="color:${presentation.color}">${presentation.symbol}</span> ${esc(resident.coreId || resident.residencyId)} <b>v${esc(resident.version || '?')}</b> · ${esc(resident.mode || 'NEUTRAL')} · lifecycle ${esc(chip.lifecycle)} · ${esc(chip.state)} · G${Number(resident.checkpointGeneration || 0).toLocaleString()} · E${Number(resident.handledEvents || 0).toLocaleString()} · O${Number(resident.observedOutputs || 0).toLocaleString()} · ${esc(chip.healthReason)}</div>`;
         }).join('')}`
       : '<div style="opacity:.55">No resident physiology attached</div>';
   }
@@ -214,9 +338,22 @@
   }
 
   badge.addEventListener('click', () => {
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    const open = panel.style.display === 'none';
+    panel.style.display = open ? 'block' : 'none';
+    panel.setAttribute('aria-hidden', String(!open));
+    badge.setAttribute('aria-expanded', String(open));
+    badge.setAttribute('aria-label', `${open ? 'Close' : 'Open'} STAY living runtime status`);
     updateComputeReadout();
-    if (panel.style.display !== 'none') refresh();
+    if (open) refresh();
+  });
+  badge.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && panel.style.display !== 'none') {
+      panel.style.display = 'none';
+      panel.setAttribute('aria-hidden', 'true');
+      badge.setAttribute('aria-expanded', 'false');
+      badge.setAttribute('aria-label', 'Open STAY living runtime status');
+      badge.focus();
+    }
   });
 
   engineSelect.addEventListener('change', () => {
@@ -283,7 +420,8 @@
       const cores = Array.isArray(meta.cores) ? meta.cores : [];
       const systems = Array.isArray(meta.systems) ? meta.systems : [];
       const residents = Array.isArray(meta.residents) ? meta.residents : [];
-      const fingerprint = JSON.stringify([meta.version, meta.revision, meta.revisionFrozen, meta.revisionLabel, meta.ok, cores, systems, residents]);
+      const projection = safeProjection(meta, systems, residents);
+      const fingerprint = JSON.stringify([meta.version, meta.revision, meta.revisionFrozen, meta.revisionLabel, meta.ok, cores, systems, residents, projection]);
 
       updateBadge();
       versionEl.textContent = `v${meta.version || '?'}`;
@@ -295,7 +433,9 @@
           : '';
         return `<div style="margin-top:6px">${esc(c.id)} <b>v${esc(c.version)}</b> · ${esc(c.mode || 'active')}${memory}</div>`;
       }).join('');
-      renderPhysiology(systems, residents);
+      physiologyHost.dataset.stale = 'false';
+      physiologyHost.setAttribute('aria-label', 'STAY physiology and non-live roadmap');
+      renderPhysiology(systems, residents, projection);
       updateComputeReadout();
 
       if (previousFingerprint && previousFingerprint !== fingerprint && badge.animate) {
@@ -304,6 +444,8 @@
       previousFingerprint = fingerprint;
     } catch {
       badge.textContent = previousFingerprint ? 'STAY · reconnecting…' : 'STAY · connecting…';
+      physiologyHost.dataset.stale = 'true';
+      physiologyHost.setAttribute('aria-label', 'STAY physiology and non-live roadmap; temporarily stale while reconnecting');
     }
   }
 
