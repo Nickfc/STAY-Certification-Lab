@@ -72,6 +72,14 @@ test('R116F live preflight occurs before staging and is mutation-free', () => {
   assert.match(livePreflight, /0\.5\.0-i4g1/);
   assert.match(livePreflight, /status === 'QUARANTINED'/);
   assert.match(livePreflight, /pending >= 1 && pending <= 8192/);
+  assert.match(livePreflight, /CHRONOBIOLOGY_BOUNDED_DEBT/);
+  assert.match(livePreflight, /R116F_PREFLIGHT_FAILED_INVARIANT=/);
+  assert.match(livePreflight, /FROM checkpoints/);
+  assert.match(livePreflight,
+    /sntssStatusCheckpoint\?\.blob_hash === sntssStatus\?\.checkpointHash/);
+  assert.match(livePreflight,
+    /Number\(sntss\?\.checkpoint_generation\) >= sntssStatusGeneration/);
+  assert.doesNotMatch(livePreflight, /pending === allPending/);
   assert.match(workflow, /EXPECTED_CHRONOBIOLOGY_CHECKPOINT: 81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae/);
   assert.match(livePreflight, /sntssStatus\?\.instanceId === sntss\?\.instance_id/);
   assert.match(livePreflight, /fetusAuthority\?\.version === '0\.6\.0'/);

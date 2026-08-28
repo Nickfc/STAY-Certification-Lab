@@ -243,6 +243,36 @@ jobs:
             `).get(residencyId);
             const sntss = resident('resident:sntss');
             const chronobiology = resident('resident:chronobiology');
+            const checkpoint = ({ coreId, instanceId, version, stateSchema, generation, hash }) => {
+              if (![coreId, instanceId, version, hash].every(
+                value => typeof value === 'string' && value.length > 0
+              ) || !Number.isSafeInteger(stateSchema) || stateSchema < 1 ||
+                !Number.isSafeInteger(generation) || generation < 1) return null;
+              return database.prepare(`
+                SELECT checkpoint_id, core_id, instance_id, version, state_schema,
+                       generation, blob_hash
+                FROM checkpoints
+                WHERE core_id=? AND instance_id=? AND version=? AND state_schema=?
+                  AND generation=? AND blob_hash=?
+              `).get(coreId, instanceId, version, stateSchema, generation, hash);
+            };
+            const sntssStatusGeneration = Number(sntssStatus?.checkpointGeneration);
+            const sntssStatusCheckpoint = checkpoint({
+              coreId: 'sntss',
+              instanceId: sntssStatus?.instanceId,
+              version: sntssStatus?.version,
+              stateSchema: 5,
+              generation: sntssStatusGeneration,
+              hash: sntssStatus?.checkpointHash
+            });
+            const sntssCurrentCheckpoint = checkpoint({
+              coreId: 'sntss',
+              instanceId: sntss?.instance_id,
+              version: sntss?.version,
+              stateSchema: Number(sntss?.state_schema),
+              generation: Number(sntss?.checkpoint_generation),
+              hash: sntss?.checkpoint_hash
+            });
             const consumer = database.prepare(`
               SELECT consumer_id, core_id, required, active, authority_epoch, checkpoint_hash
               FROM biological_consumers WHERE consumer_id='resident:chronobiology'
@@ -253,8 +283,8 @@ jobs:
             `).get();
             const pending = scalar(database,
               "SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id='resident:chronobiology' AND status='PENDING'");
-            const allPending = scalar(database,
-              "SELECT COUNT(*) value FROM biological_deliveries WHERE status='PENDING'");
+            const otherPending = scalar(database,
+              "SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id<>'resident:chronobiology' AND status='PENDING'");
             const failed = scalar(database,
               "SELECT COUNT(*) value FROM biological_deliveries WHERE status='FAILED'");
             const pendingOutbox = scalar(database,
@@ -270,58 +300,88 @@ jobs:
               value => value.residencyId === 'resident:chronobiology'
             );
             const fetus = meta.cores?.find(value => value.id === 'fetus-legacy');
-            const common = health.ok === true && quickCheck === 'ok' &&
-              bsf?.mode === 'LIVE' && bsf?.status === 'RUNNING' && bsf?.running === true &&
-              bsf?.healthOk === true && fetus?.version === '0.6.0' && fetus?.ok === true &&
-              fetus?.memoryGuardian?.status === 'healthy' &&
-              Number(fetus?.memoryGuardian?.warnAtMiB) === 192 &&
-              Number(fetus?.memoryGuardian?.recycleAtMiB) === 256 &&
-              sntss?.version === '0.5.0-i4g1' && Number(sntss?.state_schema) === 5 &&
-              sntssStatus?.version === '0.5.0-i4g1' && sntssStatus?.authorityOwned === false &&
-              sntssStatus?.instanceId === sntss?.instance_id &&
-              sntssStatus?.checkpointHash === sntss?.checkpoint_hash &&
-              Number(sntssStatus?.checkpointGeneration) === Number(sntss?.checkpoint_generation) &&
-              Number(sntssStatus?.observedOutputs) === 0 && resourceContract(sntssStatus) &&
-              publicSntss?.mode === 'SHADOW' && authority === 0 && sntssOutputs === 0 &&
-              pendingOutbox === 0 && failed === 0 &&
-              fetusAuthority?.core_id === 'fetus-legacy' &&
-              fetusAuthority?.version === '0.6.0' &&
-              typeof fetusAuthority?.instance_id === 'string' && fetusAuthority.instance_id.length > 0;
+            const failures = [];
+            const requireInvariant = (name, value) => {
+              if (!value) failures.push(name);
+              return Boolean(value);
+            };
+            const common = [
+              requireInvariant('HEALTH_DATABASE_BSF',
+                health.ok === true && quickCheck === 'ok' &&
+                bsf?.mode === 'LIVE' && bsf?.status === 'RUNNING' && bsf?.running === true &&
+                bsf?.healthOk === true),
+              requireInvariant('FETUS_SURFACE_AND_LIMITS',
+                fetus?.version === '0.6.0' && fetus?.ok === true &&
+                fetus?.memoryGuardian?.status === 'healthy' &&
+                Number(fetus?.memoryGuardian?.warnAtMiB) === 192 &&
+                Number(fetus?.memoryGuardian?.recycleAtMiB) === 256),
+              requireInvariant('SNTSS_DATABASE_IDENTITY',
+                sntss?.version === '0.5.0-i4g1' && Number(sntss?.state_schema) === 5 &&
+                typeof sntss?.instance_id === 'string' && sntss.instance_id.length > 0 &&
+                Number(sntss?.checkpoint_generation) >= 1 && sntssCurrentCheckpoint?.core_id === 'sntss'),
+              requireInvariant('SNTSS_SOCKET_DURABLE_CHECKPOINT',
+                sntssStatus?.version === '0.5.0-i4g1' && sntssStatus?.authorityOwned === false &&
+                sntssStatus?.instanceId === sntss?.instance_id && sntssStatusGeneration >= 1 &&
+                Number(sntss?.checkpoint_generation) >= sntssStatusGeneration &&
+                sntssStatusCheckpoint?.core_id === 'sntss' &&
+                sntssStatusCheckpoint?.instance_id === sntss?.instance_id &&
+                Number(sntssStatusCheckpoint?.generation) === sntssStatusGeneration &&
+                sntssStatusCheckpoint?.blob_hash === sntssStatus?.checkpointHash &&
+                Number(sntssStatus?.observedOutputs) === 0),
+              requireInvariant('SNTSS_RESOURCE_CONTRACT', resourceContract(sntssStatus)),
+              requireInvariant('SNTSS_PUBLIC_SHADOW', publicSntss?.mode === 'SHADOW'),
+              requireInvariant('ZERO_AUTHORITY_OUTPUT_AND_FAILURES',
+                authority === 0 && sntssOutputs === 0 && pendingOutbox === 0 && failed === 0),
+              requireInvariant('FETUS_AUTHORITY',
+                fetusAuthority?.core_id === 'fetus-legacy' &&
+                fetusAuthority?.version === '0.6.0' &&
+                typeof fetusAuthority?.instance_id === 'string' && fetusAuthority.instance_id.length > 0)
+            ].every(Boolean);
             let valid = common;
             if (operation === 'recover') {
-              valid &&= Number(health.revision) === 116 && Number(meta.revision) === 116 &&
+              valid = requireInvariant('R116_RECOVERY_STATE',
+                Number(health.revision) === 116 && Number(meta.revision) === 116 &&
                 Number(revision.revision) === 116 && sntss?.status === 'RUNNING' &&
                 chronobiology?.status === 'RUNNING' && sntssStatus?.running === true &&
                 chronobiologyStatus?.running === true && publicSntss?.status === 'RUNNING' &&
-                publicChrono?.status === 'RUNNING';
+                publicChrono?.status === 'RUNNING') && valid;
             } else {
-              valid &&= Number(health.revision) === 114 && Number(meta.revision) === 114 &&
-                meta.revisionFrozen === false && meta.revisionLabel === 'R114' &&
-                Number(revision.revision) === 114 && sntss?.status === 'RUNNING' &&
-                sntssStatus?.status === 'RUNNING' && sntssStatus?.running === true &&
-                sntssStatus?.health?.ok === true && publicSntss?.status === 'RUNNING' &&
-                publicSntss?.running === true && publicSntss?.healthOk === true &&
-                chronobiology?.version === '1.0.0-c3rc.1' &&
-                chronobiology?.instance_id === expectedChronoInstance &&
-                chronobiology?.checkpoint_hash === expectedChronoCheckpoint &&
-                chronobiology?.status === 'QUARANTINED' &&
-                chronobiologyStatus?.status === 'QUARANTINED' &&
-                chronobiologyStatus?.running === false &&
-                chronobiologyStatus?.authorityOwned === false &&
-                Number(chronobiologyStatus?.observedOutputs) === 0 &&
-                publicChrono?.status === 'QUARANTINED' && publicChrono?.running === false &&
-                consumer?.consumer_id === 'resident:chronobiology' &&
-                consumer?.core_id === 'chronobiology' && Number(consumer?.required) === 0 &&
-                Number(consumer?.active) === 1 && Number(consumer?.authority_epoch) === 0 &&
-                consumer?.checkpoint_hash === expectedChronoCheckpoint &&
-                pending >= 1 && pending <= 8192 && pending === allPending;
+              valid = [
+                requireInvariant('R114_REVISION_AND_SNTSS_RUNNING',
+                  Number(health.revision) === 114 && Number(meta.revision) === 114 &&
+                  meta.revisionFrozen === false && meta.revisionLabel === 'R114' &&
+                  Number(revision.revision) === 114 && sntss?.status === 'RUNNING' &&
+                  sntssStatus?.status === 'RUNNING' && sntssStatus?.running === true &&
+                  sntssStatus?.health?.ok === true && publicSntss?.status === 'RUNNING' &&
+                  publicSntss?.running === true && publicSntss?.healthOk === true),
+                requireInvariant('CHRONOBIOLOGY_QUARANTINE_IDENTITY',
+                  chronobiology?.version === '1.0.0-c3rc.1' &&
+                  chronobiology?.instance_id === expectedChronoInstance &&
+                  chronobiology?.checkpoint_hash === expectedChronoCheckpoint &&
+                  chronobiology?.status === 'QUARANTINED' &&
+                  chronobiologyStatus?.status === 'QUARANTINED' &&
+                  chronobiologyStatus?.running === false &&
+                  chronobiologyStatus?.authorityOwned === false &&
+                  Number(chronobiologyStatus?.observedOutputs) === 0 &&
+                  publicChrono?.status === 'QUARANTINED' && publicChrono?.running === false),
+                requireInvariant('CHRONOBIOLOGY_CONSUMER_FENCE',
+                  consumer?.consumer_id === 'resident:chronobiology' &&
+                  consumer?.core_id === 'chronobiology' && Number(consumer?.required) === 0 &&
+                  Number(consumer?.active) === 1 && Number(consumer?.authority_epoch) === 0 &&
+                  consumer?.checkpoint_hash === expectedChronoCheckpoint),
+                requireInvariant('CHRONOBIOLOGY_BOUNDED_DEBT', pending >= 1 && pending <= 8192)
+              ].every(Boolean) && valid;
             }
-            if (!valid) process.exit(1);
+            if (!valid) {
+              for (const failure of failures) console.error(`R116F_PREFLIGHT_FAILED_INVARIANT=${failure}`);
+              process.exit(1);
+            }
             console.log(`LIVE_PREFLIGHT_DATABASE_REVISION=${revision.revision}`);
             console.log(`SNTSS_INSTANCE_ID=${sntss.instance_id}`);
             console.log(`SNTSS_CHECKPOINT_GENERATION_BASELINE=${sntss.checkpoint_generation}`);
             console.log(`CHRONOBIOLOGY_INSTANCE_ID=${chronobiology.instance_id}`);
             console.log(`CHRONOBIOLOGY_PENDING_DELIVERIES=${pending}`);
+            console.log(`TRANSIENT_OTHER_PENDING_DELIVERIES=${otherPending}`);
             console.log(`FETUS_AUTHORITY_IDENTITY=${[
               fetusAuthority.core_id, fetusAuthority.instance_id, fetusAuthority.version,
               fetusAuthority.epoch, fetusAuthority.barrier_sequence
