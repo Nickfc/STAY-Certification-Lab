@@ -48,6 +48,17 @@ test('server exposes bounded public metadata, drains active connections, then st
   const meta = JSON.parse((await request(port, '/__stay/meta')).body);
   assert.equal(meta.ok, true);
   assert.equal(meta.version, '0.8.11.3');
+  assert.equal(meta.chipProjection.schema, 'stay-observation-chips-v1');
+  assert.equal(meta.chipProjection.observationOnly, true);
+  assert.deepEqual(meta.chipProjection.mutationEndpoints, []);
+  assert.deepEqual(
+    meta.chipProjection.lifecycle.map(chip => `${chip.label} · ${chip.state}`),
+    ['BSF · LIVE']
+  );
+  assert.deepEqual(
+    meta.chipProjection.roadmap.map(entry => `${entry.label} · ${entry.stage}`),
+    ['METAB · PLANNED', 'HOMEOS · PLANNED', 'INTERO · PLANNED']
+  );
   assert.match((await request(port, '/__stay/compute-governor.js')).body, /stay-viewer-responsiveness-v1/);
   assert.match((await request(port, '/__stay/gpu-engine.js')).body, /stay-webgpu-search-v3/);
   const blockingSocket = net.createConnection({ host: '127.0.0.1', port });
@@ -57,6 +68,21 @@ test('server exposes bounded public metadata, drains active connections, then st
     blockingSocket.once('error', reject);
   });
   blockingSocket.write('GET /healthz HTTP/1.1\r\nHost: 127.0.0.1\r\n');
+  if (process.platform === 'win32') {
+    // Windows child.kill() uses TerminateProcess and cannot deliver a catchable
+    // SIGTERM to exercise the server's drain handler. Keep the public metadata
+    // assertions above active here; the real signal/drain path remains required
+    // by this same test on Linux CI and in the extracted release.
+    blockingSocket.destroy();
+    const exited = new Promise(resolve => child.once('exit', resolve));
+    child.kill();
+    await exited;
+    const source = await fs.readFile(path.join(__dirname, '..', 'server.js'), 'utf8');
+    assert.match(source, /process\.once\('SIGTERM'/);
+    assert.match(source, /server\.closeAllConnections\(\)/);
+    assert.match(source, /await kernel\.stop\(\)/);
+    return;
+  }
   child.kill('SIGTERM');
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('server did not stop: ' + stderr)), 5000);

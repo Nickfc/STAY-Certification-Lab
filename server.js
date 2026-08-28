@@ -6,6 +6,7 @@ const http = require('node:http');
 const pkg = require('./package.json');
 const { LivingKernel } = require('./runtime');
 const { readRevisionFreeze } = require('./runtime/revision-freeze');
+const { projectObservationChips } = require('./runtime/ui/chip-projection');
 
 const STAY_VERSION = pkg.stayVersion || pkg.version;
 const dataDir = process.env.STAY_DATA_DIR || path.join(process.cwd(), '.stay-data');
@@ -51,6 +52,7 @@ function publicMetadata(status) {
     coreId: resident.coreId,
     version: resident.version,
     status: resident.status,
+    lifecycle: resident.lifecycle || resident.status || null,
     running: resident.running === true,
     mode: resident.coreId === 'chronobiology' ||
       (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
@@ -78,6 +80,7 @@ function publicMetadata(status) {
     activeConsumers: Number(bsfLedger?.activeConsumers || 0),
     writeFailures: Number(status.health?.persistence?.writeFailureCount || 0)
   }];
+  const chipProjection = projectObservationChips({ systems, residents });
   return {
     ok: status.health ? status.health.ok : true,
     version: STAY_VERSION,
@@ -87,7 +90,8 @@ function publicMetadata(status) {
     updatedAt: new Date().toISOString(),
     cores,
     systems,
-    residents
+    residents,
+    chipProjection
   };
 }
 

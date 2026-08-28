@@ -15,10 +15,13 @@ const R110_SAMPLES_SHA256 = '53cbbffc750534c5e5aadc056845f31bf88afc4f850cd1e2380
 const R110_TERMINAL_SAMPLES = 4311;
 const BENCHMARK_72H_MS = 72 * 60 * 60 * 1000;
 const MIB = 1024 * 1024;
+const EXPECTED_CHRONOBIOLOGY_INSTANCE = 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a';
+const EXPECTED_CHRONOBIOLOGY_POLICY = 'sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820';
+const EXPECTED_CHRONOBIOLOGY_CHECKPOINT = '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae';
 
 function targetRevision() {
   const value = Number(process.env.STAY_PRODUCTION_HARDENING_TARGET_REVISION || 111);
-  if (![111, 114].includes(value)) {
+  if (![111, 114, 116].includes(value)) {
     fail('production-hardening target revision is invalid', 'P1_PRODUCTION_HARDENING_REVISION');
   }
   return value;
@@ -77,6 +80,12 @@ function databaseSnapshot() {
       ORDER BY residency_id
     `).all();
     const sntss = residents.find(row => row.residency_id === 'resident:sntss') || null;
+    const chronobiologyConsumer = one(`
+      SELECT consumer_id, core_id, required, active, cursor, authority_epoch,
+        checkpoint_hash
+      FROM biological_consumers
+      WHERE consumer_id='resident:chronobiology'
+    `);
     const checkpoint = sntss ? one(`
       SELECT generation, version, state_schema, blob_hash, created_at
       FROM resident_checkpoints
@@ -100,11 +109,13 @@ function databaseSnapshot() {
       quickCheck: one('PRAGMA quick_check')?.quick_check || null,
       runtimeRevision: Number(revision.revision),
       residents,
+      chronobiologyConsumer,
       checkpoint: checkpoint ? {
         ...checkpoint,
         blobDigestMatches: Boolean(blob && digest(blob) === checkpoint.blob_hash)
       } : null,
       pendingDeliveries: value("SELECT COUNT(*) value FROM biological_deliveries WHERE status='PENDING'"),
+      chronobiologyPendingDeliveries: value("SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id='resident:chronobiology' AND status='PENDING'"),
       failedDeliveries: value("SELECT COUNT(*) value FROM biological_deliveries WHERE status='FAILED'"),
       pendingOutboxIntents: value("SELECT COUNT(*) value FROM biological_outbox_intents WHERE status='PENDING'"),
       sntssAuthorityRows: value("SELECT COUNT(*) value FROM authority WHERE core_id='sntss'"),
@@ -330,8 +341,17 @@ function captureRepairBefore(sntssStatusFile, chronobiologyStatusFile) {
     sntssStatus?.status === 'QUARANTINED' && sntssStatus?.running === false &&
     sntssStatus?.authorityOwned === false && Number(sntssStatus?.observedOutputs) === 0 &&
     chronobiology?.version === '1.0.0-c3rc.1' && chronobiology?.status === 'QUARANTINED' &&
+    chronobiology?.instance_id === EXPECTED_CHRONOBIOLOGY_INSTANCE &&
+    chronobiology?.module_relative_path === 'cores/chronobiology/c3/index.js' &&
+    chronobiology?.package_policy_hash === EXPECTED_CHRONOBIOLOGY_POLICY &&
+    chronobiology?.checkpoint_hash === EXPECTED_CHRONOBIOLOGY_CHECKPOINT &&
     chronobiologyStatus?.status === 'QUARANTINED' && chronobiologyStatus?.running === false &&
     chronobiologyStatus?.authorityOwned === false && Number(chronobiologyStatus?.observedOutputs) === 0 &&
+    database.chronobiologyConsumer?.core_id === 'chronobiology' &&
+    Number(database.chronobiologyConsumer?.required) === 0 &&
+    Number(database.chronobiologyConsumer?.active) === 1 &&
+    Number(database.chronobiologyConsumer?.authority_epoch) === 0 &&
+    database.chronobiologyConsumer?.checkpoint_hash === EXPECTED_CHRONOBIOLOGY_CHECKPOINT &&
     sntssResync?.detail?.runtimeRevision === 111 &&
     sntssResync?.detail?.inventedBiologicalTime === false &&
     Number(sntssResync?.detail?.abandonedCount) === 0 &&
@@ -468,6 +488,177 @@ function repairRecoveryProof(beforeFile, sntssStatusFile, chronobiologyStatusFil
     serviceRestarts,
     sntss: recoveryResident(before.sntss, sntss, sntssResync),
     chronobiology: recoveryResident(before.chronobiology, chronobiology, chronobiologyResync),
+    maintenanceFailuresDuringRecovery: 0,
+    outboxPublicationFailuresDuringRecovery: 0,
+    coreHostFaultsDuringRecovery: 0,
+    resyncRequiredDuringRecovery: 0,
+    deliveryRetriesDuringRecovery: 0,
+    quarantinesDuringRecovery: 0,
+    duplicateResyncGroupsDuringRecovery: 0,
+    payloadLimitsChanged: false,
+    deadlinesChanged: false,
+    authorityChanged: false
+  };
+}
+
+function captureBacklogRepairBefore(sntssStatusFile, chronobiologyStatusFile) {
+  const sntssStatus = readJson(sntssStatusFile, 'SNTSS status')?.resident;
+  const chronobiologyStatus = readJson(chronobiologyStatusFile, 'Chronobiology status')?.resident;
+  const database = databaseSnapshot();
+  const sntss = database.residents.find(row => row.residency_id === 'resident:sntss');
+  const chronobiology = database.residents.find(row => row.residency_id === 'resident:chronobiology');
+  const failedColdRecovery = database.recentRecovery.find(row =>
+    row.type === 'resident.cold-recovery-failed' && row.core_id === 'chronobiology'
+  );
+  assert(
+    database.quickCheck === 'ok' && database.runtimeRevision === 114 &&
+    sntss?.version === '0.5.0-i4g1' && Number(sntss?.state_schema) === 5 &&
+    sntss?.status === 'RUNNING' && sntssStatus?.status === 'RUNNING' &&
+    sntssStatus?.running === true && sntssStatus?.health?.ok === true &&
+    sntssStatus?.authorityOwned === false && Number(sntssStatus?.observedOutputs) === 0 &&
+    chronobiology?.version === '1.0.0-c3rc.1' && chronobiology?.status === 'QUARANTINED' &&
+    chronobiologyStatus?.status === 'QUARANTINED' && chronobiologyStatus?.running === false &&
+    chronobiologyStatus?.authorityOwned === false && Number(chronobiologyStatus?.observedOutputs) === 0 &&
+    failedColdRecovery?.detail?.expectedRevision === 113 &&
+    failedColdRecovery?.detail?.code === 'RESIDENT_RESYNC_STATE' &&
+    database.chronobiologyPendingDeliveries > 0 &&
+    database.chronobiologyPendingDeliveries <= 8192 &&
+    database.pendingDeliveries === database.chronobiologyPendingDeliveries &&
+    database.pendingOutboxIntents === 0 && database.failedDeliveries === 0 &&
+    database.sntssAuthorityRows === 0 && database.chronobiologyAuthorityRows === 0 &&
+    database.sntssOutputRows === 0,
+    'contained R114 backlog-repair baseline is invalid',
+    'P1_PRODUCTION_HARDENING_R114_BACKLOG_BASELINE'
+  );
+  const resident = value => ({
+    instanceId: value.instance_id,
+    status: value.status,
+    checkpointGeneration: Number(value.checkpoint_generation),
+    checkpointHash: value.checkpoint_hash
+  });
+  return {
+    format: 'stay-production-hardening-backlog-repair-before-v1',
+    capturedAt: new Date().toISOString(),
+    runtimeRevision: 114,
+    sntss: resident(sntss),
+    chronobiology: resident(chronobiology),
+    chronobiologyPendingDeliveries: database.chronobiologyPendingDeliveries,
+    recentRecoveryHighWaterId: database.recoveryHighWaterId,
+    counters: {
+      maintenanceFailureRows: database.maintenanceFailureRows,
+      startupTeardownFailureRows: database.startupTeardownFailureRows,
+      detachTeardownFailureRows: database.detachTeardownFailureRows,
+      terminalTeardownFailureRows: database.terminalTeardownFailureRows,
+      shutdownCheckpointFailureRows: database.shutdownCheckpointFailureRows,
+      shutdownStopFailureRows: database.shutdownStopFailureRows,
+      outboxPendingRows: database.outboxPendingRows,
+      quarantinedRows: database.quarantinedRows,
+      kernelRecoveryFailedRows: database.kernelRecoveryFailedRows,
+      coldRecoveryFailedRows: database.coldRecoveryFailedRows,
+      sntssCoreHostFaults: database.sntssCoreHostFaults,
+      chronobiologyCoreHostFaults: database.chronobiologyCoreHostFaults,
+      sntssResyncRequiredRows: database.sntssResyncRequiredRows,
+      chronobiologyResyncRequiredRows: database.chronobiologyResyncRequiredRows,
+      sntssDeliveryRetryRows: database.sntssDeliveryRetryRows,
+      chronobiologyDeliveryRetryRows: database.chronobiologyDeliveryRetryRows,
+      duplicateResyncGroups: database.duplicateResyncGroups
+    }
+  };
+}
+
+function backlogRepairRecoveryProof(beforeFile, sntssStatusFile, chronobiologyStatusFile) {
+  const before = readJson(beforeFile, 'backlog repair before proof');
+  const sntssStatus = readJson(sntssStatusFile, 'SNTSS status')?.resident;
+  const chronobiologyStatus = readJson(chronobiologyStatusFile, 'Chronobiology status')?.resident;
+  const database = databaseSnapshot();
+  const sntss = database.residents.find(row => row.residency_id === 'resident:sntss');
+  const chronobiology = database.residents.find(row => row.residency_id === 'resident:chronobiology');
+  const begin = recoveryRecordAfter(
+    before.recentRecoveryHighWaterId, 'resident.cold-backlog-replay-begin', 'chronobiology'
+  );
+  const complete = recoveryRecordAfter(
+    before.recentRecoveryHighWaterId, 'resident.cold-backlog-replayed', 'chronobiology'
+  );
+  const forbiddenResync = recoveryRecordAfter(
+    before.recentRecoveryHighWaterId, 'resident.biological-resync', 'chronobiology'
+  );
+  const counters = before.counters || {};
+  const unchanged = [
+    'maintenanceFailureRows', 'startupTeardownFailureRows', 'detachTeardownFailureRows',
+    'terminalTeardownFailureRows', 'shutdownCheckpointFailureRows', 'shutdownStopFailureRows',
+    'outboxPendingRows', 'quarantinedRows', 'kernelRecoveryFailedRows', 'coldRecoveryFailedRows',
+    'sntssCoreHostFaults', 'chronobiologyCoreHostFaults',
+    'sntssResyncRequiredRows', 'chronobiologyResyncRequiredRows',
+    'sntssDeliveryRetryRows', 'chronobiologyDeliveryRetryRows', 'duplicateResyncGroups'
+  ];
+  const healthy = (status, coreId) => status?.coreId === coreId &&
+    status?.status === 'RUNNING' && status?.running === true && status?.health?.ok === true &&
+    status?.authorityOwned === false && !status?.terminalPersistenceError && !status?.teardownError &&
+    status?.host?.osContainment?.required === true && status?.host?.osContainment?.available === true &&
+    status?.host?.osContainment?.payloadAttachedBeforeInit === true &&
+    Number(status?.host?.resourceGovernor?.policy?.memoryPlan?.payloadSoftBytes) === 64 * MIB &&
+    Number(status?.host?.resourceGovernor?.policy?.memoryPlan?.payloadHardBytes) === 96 * MIB &&
+    Number(status?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorHardBytes) === 64 * MIB &&
+    Number(status?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorOldSpaceMiB) === 12 &&
+    Number(status?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorSemiSpaceMiB) === 1 &&
+    Number(status?.host?.resourceGovernor?.latest?.process?.rssBytes) > 0 &&
+    Number(status?.host?.resourceGovernor?.latest?.process?.rssBytes) < 64 * MIB &&
+    status?.host?.resourceGovernor?.lastAction == null;
+  const serviceRestarts = Number(process.env.STAY_RECOVERY_SERVICE_RESTARTS || 1);
+  assert(
+    before.format === 'stay-production-hardening-backlog-repair-before-v1' &&
+    before.runtimeRevision === 114 && serviceRestarts === 1 &&
+    database.quickCheck === 'ok' && database.runtimeRevision === 116 &&
+    sntss?.instance_id === before.sntss?.instanceId && sntss?.status === 'RUNNING' &&
+    Number(sntss?.checkpoint_generation) > Number(before.sntss?.checkpointGeneration) &&
+    chronobiology?.instance_id === before.chronobiology?.instanceId &&
+    chronobiology?.status === 'RUNNING' &&
+    Number(chronobiology?.checkpoint_generation) > Number(before.chronobiology?.checkpointGeneration) &&
+    healthy(sntssStatus, 'sntss') && healthy(chronobiologyStatus, 'chronobiology') &&
+    Number(sntssStatus?.observedOutputs) === 0 &&
+    begin?.detail?.runtimeRevision === 115 && complete?.detail?.runtimeRevision === 115 &&
+    Number(begin?.detail?.pendingCount) === Number(before.chronobiologyPendingDeliveries) &&
+    Number(complete?.detail?.replayedPendingCount) === Number(before.chronobiologyPendingDeliveries) &&
+    typeof begin?.detail?.replayId === 'string' && begin.detail.replayId.length > 0 &&
+    complete?.detail?.replayId === begin.detail.replayId &&
+    begin?.detail?.checkpointHash === before.chronobiology?.checkpointHash &&
+    Number(begin?.detail?.abandonedCount) === 0 && Number(complete?.detail?.abandonedCount) === 0 &&
+    begin?.detail?.inventedBiologicalTime === false &&
+    complete?.detail?.inventedBiologicalTime === false && forbiddenResync == null &&
+    unchanged.every(key => Number(database[key]) === Number(counters[key])) &&
+    database.pendingOutboxIntents === 0 && database.failedDeliveries === 0 &&
+    database.pendingDeliveries <= 32 && database.sntssAuthorityRows === 0 &&
+    database.chronobiologyAuthorityRows === 0 && database.sntssOutputRows === 0,
+    'R114 to R116 contained backlog recovery proof is invalid',
+    'P1_PRODUCTION_HARDENING_R116_RECOVERY_PROOF'
+  );
+  const after = current => ({
+    runtimeRevision: 116,
+    status: current.status,
+    running: true,
+    instanceId: current.instance_id,
+    checkpointGeneration: Number(current.checkpoint_generation),
+    checkpointHash: current.checkpoint_hash
+  });
+  return {
+    format: 'stay-production-hardening-contained-backlog-repair-proof-v1',
+    result: 'PASS',
+    capturedAt: new Date().toISOString(),
+    sourceRevision: 114,
+    coldRecoveryRevision: 115,
+    completedRevision: 116,
+    serviceRestarts,
+    sntss: { before: before.sntss, after: after(sntss) },
+    chronobiology: {
+      before: before.chronobiology,
+      after: after(chronobiology),
+      backlogReplayBeginRecordId: Number(begin.id),
+      backlogReplayCompletionRecordId: Number(complete.id),
+      backlogReplayId: begin.detail.replayId,
+      replayedPendingCount: Number(complete.detail.replayedPendingCount),
+      abandonedCount: 0,
+      inventedBiologicalTime: false
+    },
     maintenanceFailuresDuringRecovery: 0,
     outboxPublicationFailuresDuringRecovery: 0,
     coreHostFaultsDuringRecovery: 0,
@@ -713,6 +904,14 @@ function main(argv = process.argv.slice(2)) {
     process.stdout.write(JSON.stringify(repairRecoveryProof(rest[0], rest[1], rest[2])) + '\n');
     return;
   }
+  if (mode === 'backlog-repair-before' && rest.length === 2) {
+    process.stdout.write(JSON.stringify(captureBacklogRepairBefore(rest[0], rest[1])) + '\n');
+    return;
+  }
+  if (mode === 'backlog-repair-recovery' && rest.length === 3) {
+    process.stdout.write(JSON.stringify(backlogRepairRecoveryProof(rest[0], rest[1], rest[2])) + '\n');
+    return;
+  }
   if (mode === 'closure' && rest.length === 4) {
     process.stdout.write(JSON.stringify(makeClosure(...rest)) + '\n');
     return;
@@ -721,7 +920,7 @@ function main(argv = process.argv.slice(2)) {
     process.stdout.write(JSON.stringify(soakProof(rest[0], rest[1])) + '\n');
     return;
   }
-  fail('before, recovery, repair-before, repair-recovery, closure, or soak arguments are required', 'P1_PRODUCTION_HARDENING_LIVE_PROOF_USAGE');
+  fail('before, recovery, repair-before, repair-recovery, backlog-repair-before, backlog-repair-recovery, closure, or soak arguments are required', 'P1_PRODUCTION_HARDENING_LIVE_PROOF_USAGE');
 }
 
 if (require.main === module) {
@@ -738,6 +937,8 @@ module.exports = {
   recoveryProof,
   captureRepairBefore,
   repairRecoveryProof,
+  captureBacklogRepairBefore,
+  backlogRepairRecoveryProof,
   makeClosure,
   validateTerminalBenchmark,
   soakProof

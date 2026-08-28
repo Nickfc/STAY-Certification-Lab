@@ -18,6 +18,9 @@ const I4_MODULE = path.join(RELEASE_ROOT, 'cores/sntss/i4g/index.js');
 const FIXTURE_MODULE = path.join(__dirname, 'p1-production-hardening-fixture.js');
 const EXPECTED_POLICY = 'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d';
 const EXPECTED_PARENT_FREEZE = 'sha256:78021d86da8038e298fedb46b7371a46e1bc1e4d1cb0624205a864877ca22875';
+const EXPECTED_CHRONOBIOLOGY_INSTANCE = 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a';
+const EXPECTED_CHRONOBIOLOGY_POLICY = 'sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820';
+const EXPECTED_CHRONOBIOLOGY_CHECKPOINT = '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae';
 const ACCELERATED_PULSE_COUNT = 5_000;
 const SUSTAINED_PULSE_INTERVAL_MS = 50;
 const MINIMUM_CERTIFIED_ACCELERATION_FACTOR = 2;
@@ -33,7 +36,7 @@ function fail(message, code = 'P1_PRODUCTION_HARDENING_PREFLIGHT') {
 
 function targetRevision() {
   const value = Number(process.env.STAY_PRODUCTION_HARDENING_TARGET_REVISION || 111);
-  if (![111, 114].includes(value)) {
+  if (![111, 114, 116].includes(value)) {
     fail('production-hardening target revision is invalid', 'P1_PREFLIGHT_REVISION');
   }
   return value;
@@ -48,6 +51,7 @@ function assert(condition, message, code) {
 }
 
 function readLiveCheckpoint() {
+  const revision = targetRevision();
   const database = new DatabaseSync(DATABASE, { open: true, readOnly: true });
   database.exec('PRAGMA query_only=ON');
   try {
@@ -106,7 +110,83 @@ function readLiveCheckpoint() {
       'live I4-G1 checkpoint physiology identity is invalid',
       'P1_PREFLIGHT_CHECKPOINT_IDENTITY'
     );
-    return { resident, checkpoint, state };
+    let chronobiologyAdmission = null;
+    if (revision === 116) {
+      const chronobiology = database.prepare(`
+        SELECT r.residency_id, r.instance_id, r.core_id, r.version,
+          r.state_schema, r.module_relative_path, r.package_policy_hash,
+          r.status, r.checkpoint_generation, r.checkpoint_hash,
+          c.required, c.active, c.authority_epoch,
+          c.checkpoint_hash consumer_checkpoint_hash,
+          (SELECT COUNT(*) FROM biological_deliveries d
+            WHERE d.consumer_id=r.residency_id AND d.status='PENDING') pending_count,
+          (SELECT COUNT(*) FROM authority a
+            WHERE a.core_id=r.core_id) authority_count,
+          (SELECT COUNT(*) FROM biological_outbox_intents o
+            WHERE o.producer_core_id=r.core_id AND o.status='PENDING') pending_output_count
+        FROM resident_instances r
+        JOIN biological_consumers c ON c.consumer_id=r.residency_id
+        WHERE r.residency_id='resident:chronobiology'
+      `).get() || null;
+      assert(
+        chronobiology?.instance_id === EXPECTED_CHRONOBIOLOGY_INSTANCE &&
+        chronobiology.core_id === 'chronobiology' &&
+        chronobiology.version === '1.0.0-c3rc.1' &&
+        Number(chronobiology.state_schema) === 2 &&
+        chronobiology.module_relative_path === 'cores/chronobiology/c3/index.js' &&
+        chronobiology.package_policy_hash === EXPECTED_CHRONOBIOLOGY_POLICY &&
+        chronobiology.status === 'QUARANTINED' &&
+        chronobiology.checkpoint_hash === EXPECTED_CHRONOBIOLOGY_CHECKPOINT &&
+        chronobiology.consumer_checkpoint_hash === EXPECTED_CHRONOBIOLOGY_CHECKPOINT &&
+        Number(chronobiology.required) === 0 && Number(chronobiology.active) === 1 &&
+        Number(chronobiology.authority_epoch) === 0 &&
+        Number(chronobiology.pending_count) >= 1 &&
+        Number(chronobiology.pending_count) <= 8192 &&
+        Number(chronobiology.authority_count) === 0 &&
+        Number(chronobiology.pending_output_count) === 0,
+        'live Chronobiology backlog admission tuple is invalid',
+        'P1_PREFLIGHT_CHRONOBIOLOGY_ADMISSION'
+      );
+      const chronobiologyCheckpoint = database.prepare(`
+        SELECT generation, blob_hash
+        FROM resident_checkpoints
+        WHERE residency_id=? AND generation=? AND blob_hash=?
+      `).get(
+        chronobiology.residency_id,
+        chronobiology.checkpoint_generation,
+        chronobiology.checkpoint_hash
+      ) || null;
+      assert(
+        chronobiologyCheckpoint?.blob_hash === EXPECTED_CHRONOBIOLOGY_CHECKPOINT,
+        'live Chronobiology checkpoint row is missing',
+        'P1_PREFLIGHT_CHRONOBIOLOGY_CHECKPOINT'
+      );
+      const chronobiologyBlobPath = path.join(
+        path.dirname(DATABASE),
+        'blobs',
+        'sha256',
+        EXPECTED_CHRONOBIOLOGY_CHECKPOINT.slice(0, 2),
+        EXPECTED_CHRONOBIOLOGY_CHECKPOINT
+      );
+      const chronobiologyBytes = fs.readFileSync(chronobiologyBlobPath);
+      assert(
+        sha256(chronobiologyBytes) === `sha256:${EXPECTED_CHRONOBIOLOGY_CHECKPOINT}`,
+        'live Chronobiology checkpoint digest is invalid',
+        'P1_PREFLIGHT_CHRONOBIOLOGY_CHECKPOINT_DIGEST'
+      );
+      chronobiologyAdmission = {
+        residencyId: chronobiology.residency_id,
+        instanceId: chronobiology.instance_id,
+        version: chronobiology.version,
+        checkpointGeneration: Number(chronobiology.checkpoint_generation),
+        checkpointHash: chronobiology.checkpoint_hash,
+        pendingCount: Number(chronobiology.pending_count),
+        consumerActive: true,
+        authorityOwned: false,
+        pendingOutputs: 0
+      };
+    }
+    return { resident, checkpoint, state, chronobiologyAdmission };
   } finally {
     database.close();
   }
@@ -474,6 +554,7 @@ async function main(args = process.argv.slice(2)) {
     releaseRoot: RELEASE_ROOT,
     targetRevision: targetRevision(),
     liveDatabaseReadOnly: true,
+    chronobiologyAdmission: live.chronobiologyAdmission,
     i4,
     faultContainment
   };

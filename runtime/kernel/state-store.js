@@ -23,14 +23,27 @@ async function fsyncDirectory(dirPath) {
   finally { await handle?.close(); }
 }
 
-async function atomicWrite(filePath, data, mode = 0o600) {
+async function atomicWrite(filePath, data, mode = 0o600, { acceptIdenticalExisting = false } = {}) {
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   const tmp = `${filePath}.${process.pid}.${Date.now()}.${crypto.randomBytes(4).toString('hex')}.tmp`;
   const handle = await fs.open(tmp, 'wx', mode);
   try { await handle.writeFile(data); await handle.sync(); }
   finally { await handle.close(); }
-  await fs.rename(tmp, filePath);
+  try {
+    await fs.rename(tmp, filePath);
+  } catch (error) {
+    let identicalExisting = false;
+    if (acceptIdenticalExisting && ['EEXIST', 'EPERM'].includes(error.code)) {
+      try {
+        const existing = await fs.readFile(filePath);
+        const intended = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        identicalExisting = existing.equals(intended);
+      } catch {}
+    }
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    if (!identicalExisting) throw error;
+  }
   await fsyncDirectory(dir);
 }
 
@@ -7190,6 +7203,120 @@ class StateStore {
   }
 
 
+  beginResidentColdBacklogReplay({
+    residencyId,
+    coreId,
+    checkpointHash,
+    runtimeRevision,
+    maximumPending
+  }) {
+    if (
+      residencyId !== 'resident:chronobiology' ||
+      coreId !== 'chronobiology' ||
+      !/^[0-9a-f]{64}$/.test(String(checkpointHash || '')) ||
+      !Number.isSafeInteger(runtimeRevision) ||
+      runtimeRevision < 1 ||
+      !Number.isSafeInteger(maximumPending) ||
+      maximumPending < 1 ||
+      maximumPending > 8192
+    ) {
+      throw Object.assign(
+        new Error('cold backlog replay contract is invalid'),
+        { code: 'RESIDENT_COLD_REPLAY_CONTRACT' }
+      );
+    }
+
+    const at = new Date().toISOString();
+    const replayId = crypto.randomUUID();
+    let result;
+    try {
+      result = this.withTransaction(() => {
+        const resident = this.db.prepare(`
+          SELECT residency_id, core_id, status, checkpoint_hash
+          FROM resident_instances
+          WHERE residency_id=?
+        `).get(residencyId);
+        const consumer = this.db.prepare(`
+          SELECT consumer_id, core_id, required, active, cursor, authority_epoch,
+            checkpoint_hash
+          FROM biological_consumers
+          WHERE consumer_id=?
+        `).get(residencyId);
+        const pending = this.db.prepare(`
+          SELECT COUNT(*) count, MIN(sequence) minimum, MAX(sequence) maximum
+          FROM biological_deliveries
+          WHERE consumer_id=? AND status='PENDING'
+        `).get(residencyId);
+        const authorityCount = Number(this.db.prepare(`
+          SELECT COUNT(*) count FROM authority WHERE core_id=?
+        `).get(coreId)?.count || 0);
+        const pendingOutputCount = Number(this.db.prepare(`
+          SELECT COUNT(*) count
+          FROM biological_outbox_intents
+          WHERE producer_core_id=? AND status='PENDING'
+        `).get(coreId)?.count || 0);
+        const pendingCount = Number(pending?.count || 0);
+
+        if (
+          resident?.core_id !== coreId ||
+          resident?.status !== 'QUARANTINED' ||
+          resident?.checkpoint_hash !== checkpointHash ||
+          consumer?.core_id !== coreId ||
+          Number(consumer?.required) !== 0 ||
+          Number(consumer?.active) !== 1 ||
+          Number(consumer?.authority_epoch) !== 0 ||
+          consumer?.checkpoint_hash !== checkpointHash ||
+          authorityCount !== 0 ||
+          pendingOutputCount !== 0 ||
+          pendingCount < 1 ||
+          pendingCount > maximumPending
+        ) {
+          throw Object.assign(
+            new Error('cold backlog replay state is not contained'),
+            { code: 'RESIDENT_COLD_REPLAY_STATE' }
+          );
+        }
+
+        const detail = {
+          replayId,
+          residencyId,
+          checkpointHash,
+          runtimeRevision,
+          pendingCount,
+          firstPendingSequence: pending?.minimum == null ? null : Number(pending.minimum),
+          lastPendingSequence: pending?.maximum == null ? null : Number(pending.maximum),
+          fromCursor: Number(consumer.cursor) || 0,
+          maximumPending,
+          abandonedCount: 0,
+          inventedBiologicalTime: false,
+          authorityChanged: false
+        };
+        const updated = this.db.prepare(`
+          UPDATE resident_instances
+          SET status='RECOVERING', updated_at=?
+          WHERE residency_id=? AND status='QUARANTINED'
+        `).run(at, residencyId);
+        if (updated.changes !== 1) {
+          throw Object.assign(
+            new Error('cold backlog replay lost the resident fence'),
+            { code: 'RESIDENT_IDENTITY_CONFLICT' }
+          );
+        }
+        this.db.prepare(`
+          INSERT INTO recovery_records(type, core_id, detail_json, created_at)
+          VALUES('resident.cold-backlog-replay-begin', ?, ?, ?)
+        `).run(coreId, JSON.stringify(detail), at);
+        return detail;
+      });
+    } catch (error) {
+      this.markWriteFailure(error);
+      throw error;
+    }
+    this.markWriteSuccess();
+    return result;
+  }
+
+
   listResidentResynchronizations(
     residencyId
   ) {
@@ -7284,6 +7411,14 @@ class StateStore {
     return this.db.prepare(`SELECT e.* FROM biological_events e JOIN biological_deliveries d ON d.sequence=e.sequence
       WHERE d.consumer_id=? AND d.status='PENDING' ORDER BY e.sequence LIMIT ?`).all(consumerId, boundedLimit)
       .map(row => this.biologicalEventFromRow(row, false));
+  }
+
+  countPendingBiologicalEvents(consumerId) {
+    return Number(this.db.prepare(`
+      SELECT COUNT(*) count
+      FROM biological_deliveries
+      WHERE consumer_id=? AND status='PENDING'
+    `).get(consumerId)?.count || 0);
   }
 
   biologicalLedgerStatus() {
@@ -7459,7 +7594,9 @@ class StateStore {
     const bytes = Buffer.isBuffer(value) ? value : Buffer.from(typeof value === 'string' ? value : JSON.stringify(value));
     const hash = sha256(bytes);
     const filePath = this.blobPath(hash);
-    if (!(await exists(filePath))) await atomicWrite(filePath, bytes, 0o600);
+    if (!(await exists(filePath))) {
+      await atomicWrite(filePath, bytes, 0o600, { acceptIdenticalExisting: true });
+    }
     const verified = await sha256File(filePath);
     if (verified !== hash) throw Object.assign(new Error('content-addressed blob verification failed'), { code: 'BLOB_INTEGRITY' });
     return { hash, byteLength: bytes.length, path: filePath };

@@ -26,21 +26,30 @@
         color: rgba(255,255,255,.92);
         pointer-events: auto;
       }
-      .physiology {
+      .rails {
         display: none;
         position: fixed;
         left: var(--stay-physiology-left, 20px);
         top: var(--stay-physiology-top, 158px);
         z-index: 2147483646;
-        flex-wrap: wrap;
+        flex-direction: column;
+        align-items: flex-start;
         justify-content: flex-start;
-        gap: 6px;
-        max-width: calc(100vw - 40px);
+        gap: 5px;
+        max-width: calc(100vw - 28px);
         pointer-events: none;
       }
-      .physiology.visible { display: flex; }
-      .chip { border: 1px solid rgba(141,235,178,.35); border-radius: 999px; background: rgba(141,235,178,.09); color: #8debb2; padding: 4px 7px; font-size: 9px; letter-spacing: .05em; white-space: nowrap; }
-      .chip.shadow { border-color: rgba(200,167,255,.35); background: rgba(200,167,255,.09); color: #c8a7ff; }
+      .rails.visible { display: flex; }
+      .rail { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 6px; max-width: 100%; }
+      .chip { border: 1px solid currentColor; border-radius: 999px; padding: 4px 7px; font-size: 9px; letter-spacing: .05em; white-space: nowrap; }
+      .chip.live { background: rgba(141,235,178,.09); color: #8debb2; }
+      .chip.shadow { background: rgba(200,167,255,.09); color: #c8a7ff; }
+      .chip.quarantined { background: rgba(255,154,154,.09); color: #ff9a9a; }
+      .chip.offline { background: rgba(174,181,194,.08); color: #aeb5c2; }
+      .chip.recovering { background: rgba(255,211,125,.09); color: #ffd37d; }
+      .chip.degraded { background: rgba(255,179,107,.09); color: #ffb36b; }
+      .chip.neutral { background: rgba(137,229,255,.07); color: #89e5ff; }
+      .roadmap { border: 1px dashed rgba(255,255,255,.28); border-radius: 999px; background: rgba(255,255,255,.04); color: rgba(255,255,255,.68); padding: 4px 7px; font-size: 9px; letter-spacing: .05em; white-space: nowrap; }
       button {
         appearance: none;
         border: 1px solid rgba(255,255,255,.14);
@@ -77,7 +86,7 @@
       .row { display: flex; justify-content: space-between; gap: 14px; padding: 5px 0; font-size: 11px; border-top: 1px solid rgba(255,255,255,.07); }
       .row:first-of-type { border-top: 0; }
       .key { opacity: .62; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .value { text-align: right; white-space: nowrap; }
+      .value { text-align: right; white-space: normal; overflow-wrap: anywhere; }
       .healthy { color: #a9ffbb; }
       .unhealthy { color: #ffaaa8; }
       .foot { margin-top: 9px; font: 10px/1.35 system-ui, sans-serif; opacity: .45; }
@@ -85,13 +94,16 @@
       @keyframes flash { 0% { transform: scale(1.07); } 100% { transform: scale(1); } }
       @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
     </style>
-    <div class="physiology" id="physiology" aria-label="STAY live physiology status"></div>
+    <div class="rails" id="rails" aria-live="polite" aria-label="STAY physiology and non-live roadmap">
+      <div class="rail" id="physiology" role="list" aria-label="STAY resident lifecycle status"></div>
+      <div class="rail" id="roadmap" role="list" aria-label="STAY non-live system roadmap"></div>
+    </div>
     <div class="wrap">
-      <button id="badge" type="button" aria-expanded="false" title="STAY Living Runtime status">
+      <button id="badge" type="button" aria-expanded="false" aria-controls="panel" aria-label="Open STAY living runtime status" title="STAY Living Runtime status">
         <span class="dot wait" id="dot"></span>
         <span id="label">STAY · connecting…</span>
       </button>
-      <div class="panel" id="panel">
+      <div class="panel" id="panel" role="region" aria-label="STAY living runtime details" aria-hidden="true">
         <div class="title">Living Runtime</div>
         <div id="details"></div>
         <div class="foot" id="foot">Waiting for runtime…</div>
@@ -104,7 +116,9 @@
   const label = root.getElementById('label');
   const details = root.getElementById('details');
   const foot = root.getElementById('foot');
+  const rails = root.getElementById('rails');
   const physiology = root.getElementById('physiology');
+  const roadmap = root.getElementById('roadmap');
   let lastFingerprint = '';
   let lastMessageAt = 0;
 
@@ -112,6 +126,17 @@
     const open = !panel.classList.contains('open');
     panel.classList.toggle('open', open);
     badge.setAttribute('aria-expanded', String(open));
+    badge.setAttribute('aria-label', `${open ? 'Close' : 'Open'} STAY living runtime status`);
+    panel.setAttribute('aria-hidden', String(!open));
+  });
+  badge.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && panel.classList.contains('open')) {
+      panel.classList.remove('open');
+      badge.setAttribute('aria-expanded', 'false');
+      badge.setAttribute('aria-label', 'Open STAY living runtime status');
+      panel.setAttribute('aria-hidden', 'true');
+      badge.focus();
+    }
   });
 
   function escapeHtml(value) {
@@ -126,6 +151,93 @@
   function row(key, value, ok) {
     const cls = ok === true ? 'healthy' : ok === false ? 'unhealthy' : '';
     return `<div class="row"><span class="key">${escapeHtml(key)}</span><span class="value ${cls}">${escapeHtml(value)}</span></div>`;
+  }
+
+  const chipOrder = ['bsf', 'sntss', 'chronobiology', 'metab', 'homeos', 'intero'];
+  const chipStates = new Set(['QUARANTINED', 'OFFLINE', 'RECOVERING', 'DEGRADED', 'LIVE', 'SHADOW', 'NEUTRAL']);
+  const roadmapStages = new Set(['PLANNED', 'LAB BUILD', 'LAB QUALIFIED']);
+  const stateSymbols = {
+    QUARANTINED: '⛔', OFFLINE: '○', RECOVERING: '↻', DEGRADED: '△',
+    LIVE: '●', SHADOW: '◐', NEUTRAL: '◇'
+  };
+
+  function localState(item) {
+    const status = String(item?.status || 'UNKNOWN').toUpperCase();
+    const lifecycle = String(item?.lifecycle || '').toUpperCase();
+    const mode = String(item?.mode || 'NEUTRAL').toUpperCase();
+    if (status === 'QUARANTINED' || lifecycle === 'QUARANTINED') return 'QUARANTINED';
+    if (['OFFLINE', 'DETACHED', 'STOPPED'].includes(status) || lifecycle === 'OFFLINE') return 'OFFLINE';
+    if (['RECOVERING', 'STARTING'].includes(status) || lifecycle === 'RECOVERING') return 'RECOVERING';
+    if (['DEGRADED', 'RESYNC_REQUIRED'].includes(status) || lifecycle === 'DEGRADED' || item?.healthOk === false) return 'DEGRADED';
+    if (item?.running === false) return 'OFFLINE';
+    if (item?.running === true && mode === 'LIVE') return 'LIVE';
+    if (item?.running === true && mode === 'SHADOW') return 'SHADOW';
+    return 'NEUTRAL';
+  }
+
+  function localChip(item, sourceKind) {
+    const coreId = String(item?.coreId || item?.id || item?.residencyId || 'unknown')
+      .replace(/^resident:/, '').toLowerCase();
+    const state = localState(item);
+    return {
+      coreId,
+      label: String(item?.label || coreId).toUpperCase(),
+      state,
+      mode: String(item?.mode || 'NEUTRAL').toUpperCase(),
+      lifecycle: String(item?.lifecycle || item?.status || 'UNKNOWN').toUpperCase(),
+      healthReason: state === 'QUARANTINED' ? 'RESIDENT_QUARANTINED'
+        : state === 'OFFLINE' ? 'RUNTIME_NOT_RUNNING'
+        : state === 'RECOVERING' ? 'BOUNDED_RECOVERY_ACTIVE'
+        : state === 'DEGRADED' ? 'RUNTIME_HEALTH_DEGRADED'
+        : `${state}_HEALTHY`,
+      version: item?.version || null,
+      checkpointGeneration: Number(item?.checkpointGeneration || 0),
+      handledEvents: Number(item?.handledEvents || item?.events || 0),
+      outputs: Number(item?.observedOutputs || 0),
+      sourceKind
+    };
+  }
+
+  function safeProjection(meta, systems, residents) {
+    const supplied = meta?.chipProjection;
+    let lifecycle;
+    let roadmapEntries;
+    if (
+      supplied?.schema === 'stay-observation-chips-v1' && supplied.observationOnly === true &&
+      Array.isArray(supplied.lifecycle) && Array.isArray(supplied.roadmap)
+    ) {
+      lifecycle = supplied.lifecycle.filter(value => value && typeof value === 'object').map(value => ({
+        ...value,
+        coreId: String(value.coreId || 'unknown').toLowerCase(),
+        label: String(value.label || value.coreId || 'UNKNOWN').toUpperCase(),
+        state: chipStates.has(String(value.state).toUpperCase())
+          ? String(value.state).toUpperCase()
+          : 'NEUTRAL'
+      }));
+      roadmapEntries = supplied.roadmap.filter(value => value && typeof value === 'object').map(value => ({
+        coreId: String(value.coreId || 'unknown').toLowerCase(),
+        label: String(value.label || value.coreId || 'UNKNOWN').toUpperCase(),
+        stage: roadmapStages.has(String(value.stage).toUpperCase())
+          ? String(value.stage).toUpperCase()
+          : 'PLANNED'
+      }));
+    } else {
+      lifecycle = systems.filter(Boolean).map(value => localChip(value, 'SYSTEM'))
+        .concat(residents.filter(Boolean).map(value => localChip(value, 'RESIDENT')));
+      const born = new Set(lifecycle.map(value => value.coreId));
+      roadmapEntries = ['metab', 'homeos', 'intero']
+        .filter(coreId => !born.has(coreId))
+        .map(coreId => ({ coreId, label: coreId.toUpperCase(), stage: 'PLANNED' }));
+    }
+    const born = new Set(lifecycle.map(value => value.coreId));
+    roadmapEntries = roadmapEntries.filter(value => !born.has(value.coreId));
+    const order = value => {
+      const index = chipOrder.indexOf(value.coreId);
+      return index < 0 ? chipOrder.length : index;
+    };
+    lifecycle.sort((left, right) => order(left) - order(right));
+    roadmapEntries.sort((left, right) => order(left) - order(right));
+    return { lifecycle, roadmap: roadmapEntries };
   }
 
   function positionPhysiology() {
@@ -146,7 +258,8 @@
     const cores = Array.isArray(meta.cores) ? meta.cores : [];
     const systems = Array.isArray(meta.systems) ? meta.systems : [];
     const residents = Array.isArray(meta.residents) ? meta.residents : [];
-    const fingerprint = JSON.stringify([meta.releaseVersion, meta.kernelVersion, meta.revision, meta.revisionFrozen, meta.revisionLabel, cores.map((c) => [c.id, c.version, c.mode, c.ok]), systems.map((s) => [s.id, s.mode, s.status, s.healthOk]), residents.map((r) => [r.residencyId, r.version, r.status, r.mode])]);
+    const projection = safeProjection(meta, systems, residents);
+    const fingerprint = JSON.stringify([meta.releaseVersion, meta.kernelVersion, meta.revision, meta.revisionFrozen, meta.revisionLabel, cores.map((c) => [c.id, c.version, c.mode, c.ok]), systems.map((s) => [s.id, s.mode, s.status, s.healthOk]), residents.map((r) => [r.residencyId, r.version, r.status, r.mode]), projection]);
     const changed = Boolean(lastFingerprint && fingerprint !== lastFingerprint);
     lastFingerprint = fingerprint;
 
@@ -159,20 +272,32 @@
     for (const core of cores) {
       html += row(core.id || 'core', `v${core.version || '?'} · ${core.mode || 'active'}`, core.ok !== false);
     }
-    for (const system of systems) {
-      html += row(system.label || system.id || 'system', `${system.mode || 'LIVE'} · ${system.status || 'UNKNOWN'}`, system.running && system.healthOk !== false);
-    }
-    for (const resident of residents) {
-      html += row(resident.coreId || resident.residencyId || 'resident', `v${resident.version || '?'} · ${resident.mode || 'NEUTRAL'} · ${resident.status || 'UNKNOWN'}`, resident.running && resident.healthOk !== false);
+    for (const chip of projection.lifecycle) {
+      const version = chip.version ? `v${chip.version} · ` : '';
+      html += row(
+        chip.label || chip.coreId || 'resident',
+        `${version}${chip.mode || 'NEUTRAL'} · lifecycle ${chip.lifecycle || 'UNKNOWN'} · ${chip.state} · G${Number(chip.checkpointGeneration || 0).toLocaleString()} · E${Number(chip.handledEvents || 0).toLocaleString()} · O${Number(chip.outputs || 0).toLocaleString()} · ${chip.healthReason || 'HEALTH_UNKNOWN'}`,
+        ['LIVE', 'SHADOW', 'NEUTRAL'].includes(chip.state)
+      );
     }
     details.innerHTML = html;
-    const chips = systems.filter((system) => system?.running === true).map((system) =>
-      `<span class="chip"><b>● ${escapeHtml(String(system.label || system.id || 'SYSTEM').toUpperCase())}</b> · ${escapeHtml(system.mode || 'LIVE')}</span>`
-    ).concat(residents.filter((resident) => resident?.running === true).map((resident) =>
-      `<span class="chip ${resident.mode === 'SHADOW' ? 'shadow' : ''}"><b>● ${escapeHtml(String(resident.coreId || resident.residencyId || 'RESIDENT').toUpperCase())}</b> · ${escapeHtml(resident.mode || 'NEUTRAL')}</span>`
-    ));
-    physiology.classList.toggle('visible', chips.length > 0);
+    const chips = projection.lifecycle.map((chip) => {
+      const state = chipStates.has(String(chip.state).toUpperCase())
+        ? String(chip.state).toUpperCase()
+        : 'NEUTRAL';
+      const aria = `${chip.label || chip.coreId} lifecycle ${state}; ${chip.healthReason || 'health unknown'}`;
+      return `<span role="listitem" class="chip ${state.toLowerCase()}" aria-label="${escapeHtml(aria)}" data-core-id="${escapeHtml(chip.coreId)}" data-state="${escapeHtml(state)}"><b>${stateSymbols[state]} ${escapeHtml(chip.label || chip.coreId || 'UNKNOWN')}</b> · ${escapeHtml(state)}</span>`;
+    });
+    const roadmapLabels = projection.roadmap.map((entry) =>
+      `<span role="listitem" class="roadmap" aria-label="${escapeHtml(`${entry.label} non-live roadmap ${entry.stage}`)}" data-core-id="${escapeHtml(entry.coreId)}" data-roadmap-stage="${escapeHtml(entry.stage)}"><b>${escapeHtml(entry.label)}</b> · ${escapeHtml(entry.stage)}</span>`
+    );
+    rails.classList.toggle('visible', chips.length + roadmapLabels.length > 0);
+    rails.dataset.stale = 'false';
+    rails.setAttribute('aria-label', 'STAY physiology and non-live roadmap');
+    physiology.style.display = chips.length ? 'flex' : 'none';
+    roadmap.style.display = roadmapLabels.length ? 'flex' : 'none';
     physiology.innerHTML = chips.join('');
+    roadmap.innerHTML = roadmapLabels.join('');
     positionPhysiology();
     foot.textContent = `Live stream · ${new Date(meta.updatedAt || Date.now()).toLocaleTimeString()}`;
 
@@ -187,6 +312,8 @@
     if (Date.now() - lastMessageAt < 5000) return;
     dot.className = 'dot wait';
     label.textContent = lastFingerprint ? 'STAY · reconnecting…' : 'STAY · connecting…';
+    rails.dataset.stale = 'true';
+    rails.setAttribute('aria-label', 'STAY physiology and non-live roadmap; temporarily stale while reconnecting');
   }
 
   function start() {

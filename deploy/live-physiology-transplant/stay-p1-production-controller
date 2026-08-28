@@ -423,20 +423,20 @@ prepare_r114f_private_release() {
 run_bounded_r114f_script() {
   local script="$1" authorization_name="$2" authorization_value="$3"
   local runtime_seconds="$4" output_file="$5"
-  local timeout_bin child_status
+  local timeout_bin
   timeout_bin="$(readlink -f /usr/bin/timeout)" || return 125
   trusted_root_executable "$timeout_bin" || return 125
   [[ "$runtime_seconds" == "$R114F_FORWARD_RUNTIME_SECONDS" ||
      "$runtime_seconds" == "$R114F_RECOVERY_RUNTIME_SECONDS" ]] || return 125
 
-  set +e
-  "$timeout_bin" --signal=TERM --kill-after=30s "${runtime_seconds}s" \
-    /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    "$authorization_name=$authorization_value" \
-    /bin/bash "$script" 2>&1 | tee -a "$output_file"
-  child_status=${PIPESTATUS[0]}
-  set -e
-  return "$child_status"
+  (
+    set +e
+    "$timeout_bin" --signal=TERM --kill-after=30s "${runtime_seconds}s" \
+      /usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+      "$authorization_name=$authorization_value" \
+      /bin/bash "$script" 2>&1 | tee -a "$output_file"
+    exit "${PIPESTATUS[0]}"
+  )
 }
 
 biological_sentinel() {
