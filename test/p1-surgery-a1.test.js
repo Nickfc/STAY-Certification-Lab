@@ -90,17 +90,15 @@ test('P1-A1-07 production scripts are fixed, guarded, forward-only and attach no
   assert.match(rollback, /CANONICAL_FORWARD_STATE_PRESERVED=YES/);
 });
 
-test('P1-A1-08 narrow wrapper and Actions expose only fixed A.1 operations with distinct authorization', () => {
+test('P1-A1-08 historical A.1 workflow stays fixed while the installed controller advances narrowly', () => {
   const wrapper = fs.readFileSync(path.join(ROOT, 'deploy/live-physiology-transplant/stay-p1-production-controller'), 'utf8');
   const installer = fs.readFileSync(path.join(ROOT, 'deploy/live-physiology-transplant/install-p1-production-controller.sh'), 'utf8');
   const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/stage-lightsail-0.7.yml'), 'utf8');
-  assert.match(wrapper, /preflight-a1\)/);
-  assert.match(wrapper, /surgery-a1\)/);
-  assert.match(wrapper, /rollback-a1\)/);
-  assert.match(wrapper, /AUTHORIZE_SURGERY_A1_RESIDENT_CONTROL_7D040592CCF1F149/);
-  assert.match(wrapper, /AUTHORIZE_ROLLBACK_A1_FORWARD_STATE_7D040592CCF1F149/);
-  assert.match(wrapper, /verify_a1_release_identity/);
-  assert.match(wrapper, /stay-release-inventory-v1/);
+  assert.match(wrapper, /harden-r116f\)/);
+  assert.match(wrapper, /recover-r116f\)/);
+  assert.doesNotMatch(wrapper, /preflight-a1\)|surgery-a1\)|rollback-a1\)/);
+  assert.match(wrapper, /EXPECTED_R116F_RELEASE_COMMIT/);
+  assert.match(wrapper, /verify_r116f_staged_identity/);
   assert.doesNotMatch(wrapper, /systemd-run|sudo\s+.*(?:bash|node|systemctl|cp|mv|rm)/);
   assert.match(installer, /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.match(workflow, /- preflight-a1/);

@@ -1,11 +1,11 @@
-name: R114F V12 guarded contained recovery
-run-name: R114F V12 ${{ inputs.operation }} · ${{ github.actor }}
+name: R116F V15 guarded bounded recovery
+run-name: R116F V15 ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Fixed R114F operation
+        description: Fixed R116F operation
         required: true
         type: choice
         default: preflight
@@ -22,43 +22,31 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r114f-v12-production-hardening
+  group: stay-r116f-v15-production-hardening
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r114f-v12
-  RELEASE_COMMIT: 101bac700e6498ef9021f8e61ba0c1e66411d4fd
-  RELEASE_TREE: 97d94e09be6c78b72f26a888818a228076244fe0
-  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V12_BUNDLE_20260828.tar.gz
-  ARCHIVE_SHA256: e20a48594be06ad8ff8336410ea0bf9cf65af5777b9f560f0fb2c538d0b0365f
+  RELEASE_TAG: r116f-v14
+  RELEASE_COMMIT: cbf047e3fb42acdb504119c8be6a102fa32c3860
+  RELEASE_TREE: 54ed5645470b9aff7c44187247c79c555737bcd7
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R114_TO_R116F_V14_BUNDLE_20260828.tar.gz
+  ARCHIVE_SHA256: 8836a624c7fa65a9c82f2de163679b0eaa12b5bf864a72ca16326dda54247b0a
+  SIDECAR_SHA256: 68012479cd3fc368f3d6ea81dc5f6510c16f3b5eeed7b37f499012d7392510d1
+  MANIFEST_SHA256: 647ffe294b9a462ef4a3ff44e8303adf6e069fc122e4df7e0eed3976b4c5ee94
+  FORWARD_SHA256: 49ef71c9c4eac735e42a53d628fd2030197e23309e8fc27b105987e549c49751
+  RECOVERY_SHA256: 4347510b5eb52f99707ae57c6904e2631838dfa6efe418ca4f4afdfa686c5dec
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
   PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
-  SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1j-production-hardening-6a04981799aa
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1k-r112-repair-37b0c95c6b68
-  FAILED_READ_ONLY_STAGE: /opt/stay/incoming/r111f-v6-33097105865
-  FAILED_READ_ONLY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V6_BUNDLE_20260827.tar.gz
-  FAILED_READ_ONLY_ARCHIVE_SHA256: f1e668a63caca869c212a0e4d178d8e9829985fb29e77869a67a74b84c5634e3
-  FAILED_V7_FORWARD_STAGE: /opt/stay/incoming/r111f-v7-33114548848
-  FAILED_V7_FORWARD_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V7_BUNDLE_20260827.tar.gz
-  FAILED_V7_FORWARD_ARCHIVE_SHA256: 59d8c9f971189690a3ac51befe588a9eb6d8d1d88206cb406a8b2312b06bf01b
-  FAILED_V8_IDENTITY_STAGE: /opt/stay/incoming/r111f-v8-33119878249
-  FAILED_V8_IDENTITY_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R110F_TO_R111F_V8_BUNDLE_20260827.tar.gz
-  FAILED_V8_IDENTITY_ARCHIVE_SHA256: 381be48f4bc037b2066d2bfdf8e4369c60e194a9e3e934e775e5a290e5f65586
-  FAILED_V8_IDENTITY_MANIFEST_SHA256: 2371e103c15cab60073218606de20f3b8f7db7c2eeac52c24cd9545371100d0e
-  FAILED_V9_PREFLIGHT_STAGE: /opt/stay/incoming/r114f-v9-33132185185
-  FAILED_V9_PREFLIGHT_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V9_BUNDLE_20260828.tar.gz
-  FAILED_V9_PREFLIGHT_ARCHIVE_SHA256: 759be82dbd12ee93258d033e1a7a36667d21b50c793463d82d38b42db3d739d5
-  FAILED_V9_PREFLIGHT_MANIFEST_SHA256: b8329ca509b47529ae62b07e3f2ab4108ebf70ec2b559341a6c5dc86bac41aaa
-  FAILED_V11_CANDIDATE_STAGE: /opt/stay/incoming/r114f-v11-33136236907
-  FAILED_V11_CANDIDATE_ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R112_TO_R114F_V11_BUNDLE_20260828.tar.gz
-  FAILED_V11_CANDIDATE_ARCHIVE_SHA256: 39bef53eb7c424da6eb6c039203ee8bfb79ad4c37d6bc6ac09b011c8aa6550de
-  FAILED_V11_CANDIDATE_MANIFEST_SHA256: d0b419e0cd24cf56112294e00d9132d875570d395d121bb711bccd8eff365063
+  SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1k-r112-repair-37b0c95c6b68
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1l-r114-backlog-repair-cb26a2ae203f
+  EXPECTED_CHRONOBIOLOGY_INSTANCE: f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a
+  EXPECTED_CHRONOBIOLOGY_CHECKPOINT: 81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae
 
 jobs:
   validate-immutable-release:
-    name: Validate immutable release without production credentials
+    name: Validate immutable R116F release without production credentials
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -82,15 +70,9 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
           [[ "$(git rev-parse 'HEAD^{tree}')" == "$RELEASE_TREE" ]]
           case "$REQUESTED_OPERATION" in
-            preflight)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V12_READ_ONLY_PREFLIGHT' ]]
-              ;;
-            deploy)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V12_CONTAINED_FORWARD_WITH_FENCED_RECOVERY' ]]
-              ;;
-            recover)
-              [[ "$REQUESTED_AUTHORIZATION" == 'AUTHORIZE_R114F_V12_FORWARD_RECOVERY_ONLY' ]]
-              ;;
+            preflight) [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R116F_V15_READ_ONLY_PREFLIGHT ]] ;;
+            deploy) [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R116F_V15_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]] ;;
+            recover) [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R116F_V15_FORWARD_RECOVERY_ONLY ]] ;;
             *) exit 64 ;;
           esac
       - name: Install required OS sandbox
@@ -112,36 +94,46 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          root="/tmp/stay-r114f-v12-${GITHUB_RUN_ID}"
+          root="/tmp/stay-r116f-v14-${GITHUB_RUN_ID}"
           extract="$root/extract"
           install -d -m 0700 "$extract"
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" --dir "$root"
           [[ "$(sha256sum "$root/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
           (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
           mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
-          (( ${#entries[@]} == 100 ))
+          (( ${#entries[@]} == 102 ))
           for entry in "${entries[@]}"; do
             [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]]
           done
           tar -tvzf "$root/$ARCHIVE" | awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }'
           tar -xzf "$root/$ARCHIVE" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" == 85 ]]
-          [[ "$(wc -l < "$extract/$manifest")" == 84 ]]
+          [[ "$(find -P "$extract" -type f | wc -l)" == 87 ]]
+          [[ "$(wc -l < "$extract/$manifest")" == 86 ]]
+          [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-production-hardening-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-production-hardening-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
           (cd "$extract" && sha256sum -c "$manifest")
-          { awk '{sub(/^\.\//,"",$2); print $2}' "$extract/$manifest"; echo "$manifest"; } | LC_ALL=C sort > "$root/expected"
+          { awk '{sub(/^\.\//,"",$2); print $2}' "$extract/$manifest"; echo "$manifest"; } | \
+            LC_ALL=C sort > "$root/expected"
           (cd "$extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/actual"
           cmp "$root/expected" "$root/actual"
-          while IFS= read -r relative; do cmp "$extract/$relative" "$GITHUB_WORKSPACE/$relative"; done < "$root/expected"
-          while IFS= read -r file; do node --check "$file" >/dev/null; done < <(find "$extract" -type f -name '*.js' | LC_ALL=C sort)
+          while IFS= read -r relative; do
+            cmp "$extract/$relative" "$GITHUB_WORKSPACE/$relative"
+          done < "$root/expected"
+          while IFS= read -r file; do node --check "$file" >/dev/null; done < \
+            <(find "$extract" -type f -name '*.js' | LC_ALL=C sort)
+          while IFS= read -r file; do bash -n "$file"; done < \
+            <(find "$extract" -type f -name '*.sh' | LC_ALL=C sort)
           find "$extract" -type d -exec chmod a+rx {} +
           STAY_BWRAP=/usr/local/bin/stay-ci-bwrap node --test --test-concurrency=1 \
             "$extract/test/production-hardening-entry-path.test.js" \
             "$extract/test/production-hardening.test.js"
 
   production-operation:
-    name: Run host-guarded R114F operation
+    name: Run host-guarded R116F operation
     needs: validate-immutable-release
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -150,7 +142,8 @@ jobs:
       OPERATION: ${{ inputs.operation }}
       REQUESTED_AUTHORIZATION: ${{ inputs.authorization }}
     steps:
-      - name: Download exact release assets
+      - name: Download exact release assets for a mutating operation
+        if: inputs.operation != 'preflight'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -160,6 +153,7 @@ jobs:
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" --dir release-assets
           [[ "$(sha256sum "release-assets/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
           (cd release-assets && sha256sum -c "$ARCHIVE.sha256")
       - name: Prepare deployment key
         shell: bash
@@ -173,280 +167,251 @@ jobs:
           printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
           chmod 0600 ~/.ssh/known_hosts
           [[ "$(wc -l < ~/.ssh/known_hosts)" == 1 ]]
-          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
-      - name: Remove exact failed read-only stage
-        if: inputs.operation == 'preflight'
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == \
+            "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
+      - name: Run mutation-free live preflight before any host staging
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
-            "$FAILED_READ_ONLY_STAGE" "$FAILED_READ_ONLY_ARCHIVE" "$FAILED_READ_ONLY_ARCHIVE_SHA256" <<'REMOTE'
-          set -Eeuo pipefail
-          root="$1"; archive="$2"; expected_sha="$3"
-          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
-          [[ "$observed" == 172.26.9.207 ]]
-          [[ "$root" == /opt/stay/incoming/r111f-v6-33097105865 ]]
-          if [[ ! -e "$root" && ! -L "$root" ]]; then
-            echo 'FAILED_READ_ONLY_STAGE=ALREADY_ABSENT'
-            exit 0
-          fi
-          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
-          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
-          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
-          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
-          [[ -f "$manifest" && ! -L "$manifest" ]]
-          (cd "$root/release" && sha256sum -c \
-            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
-          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
-          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
-          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
-          find -P "$root" -xdev -type f -exec chmod u+rw {} +
-          rm -rf --one-file-system -- "$root"
-          [[ ! -e "$root" && ! -L "$root" ]]
-          echo 'FAILED_READ_ONLY_STAGE=CLEANED'
-          REMOTE
-      - name: Remove exact failed V7 forward stage
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
-            "$FAILED_V7_FORWARD_STAGE" "$FAILED_V7_FORWARD_ARCHIVE" "$FAILED_V7_FORWARD_ARCHIVE_SHA256" <<'REMOTE'
-          set -Eeuo pipefail
-          root="$1"; archive="$2"; expected_sha="$3"
-          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
-          [[ "$observed" == 172.26.9.207 ]]
-          [[ "$root" == /opt/stay/incoming/r111f-v7-33114548848 ]]
-          if [[ ! -e "$root" && ! -L "$root" ]]; then
-            echo 'FAILED_V7_FORWARD_STAGE=ALREADY_ABSENT'
-            exit 0
-          fi
-          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
-          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
-          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
-          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
-          [[ -f "$manifest" && ! -L "$manifest" ]]
-          [[ "$(sha256sum "$manifest" | awk '{print $1}')" == 48530ec7f678519e58a576a29242177e89636e80124b270ab1d95ce17fcff9c7 ]]
-          (cd "$root/release" && sha256sum -c \
-            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
-          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
-          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
-          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
-          find -P "$root" -xdev -type f -exec chmod u+rw {} +
-          rm -rf --one-file-system -- "$root"
-          [[ ! -e "$root" && ! -L "$root" ]]
-          echo 'FAILED_V7_FORWARD_STAGE=CLEANED'
-          REMOTE
-      - name: Remove exact failed V8 identity stage
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
-            "$FAILED_V8_IDENTITY_STAGE" "$FAILED_V8_IDENTITY_ARCHIVE" \
-            "$FAILED_V8_IDENTITY_ARCHIVE_SHA256" "$FAILED_V8_IDENTITY_MANIFEST_SHA256" <<'REMOTE'
-          set -Eeuo pipefail
-          root="$1"; archive="$2"; expected_sha="$3"; expected_manifest_sha="$4"
-          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
-          [[ "$observed" == 172.26.9.207 ]]
-          [[ "$root" == /opt/stay/incoming/r111f-v8-33119878249 ]]
-          if [[ ! -e "$root" && ! -L "$root" ]]; then
-            echo 'FAILED_V8_IDENTITY_STAGE=ALREADY_ABSENT'
-            exit 0
-          fi
-          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
-          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
-          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
-          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
-          [[ -f "$manifest" && ! -L "$manifest" ]]
-          [[ "$(sha256sum "$manifest" | awk '{print $1}')" == "$expected_manifest_sha" ]]
-          (cd "$root/release" && sha256sum -c \
-            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
-          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
-          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
-          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
-          find -P "$root" -xdev -type f -exec chmod u+rw {} +
-          rm -rf --one-file-system -- "$root"
-          [[ ! -e "$root" && ! -L "$root" ]]
-          echo 'FAILED_V8_IDENTITY_STAGE=CLEANED'
-          REMOTE
-      - name: Remove exact failed V9 preflight stage
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
-            "$FAILED_V9_PREFLIGHT_STAGE" "$FAILED_V9_PREFLIGHT_ARCHIVE" \
-            "$FAILED_V9_PREFLIGHT_ARCHIVE_SHA256" "$FAILED_V9_PREFLIGHT_MANIFEST_SHA256" <<'REMOTE'
-          set -Eeuo pipefail
-          root="$1"; archive="$2"; expected_sha="$3"; expected_manifest_sha="$4"
-          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
-          [[ "$observed" == 172.26.9.207 ]]
-          [[ "$root" == /opt/stay/incoming/r114f-v9-33132185185 ]]
-          if [[ ! -e "$root" && ! -L "$root" ]]; then
-            echo 'FAILED_V9_PREFLIGHT_STAGE=ALREADY_ABSENT'
-            exit 0
-          fi
-          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
-          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
-          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
-          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
-          [[ -f "$manifest" && ! -L "$manifest" ]]
-          [[ "$(sha256sum "$manifest" | awk '{print $1}')" == "$expected_manifest_sha" ]]
-          (cd "$root/release" && sha256sum -c \
-            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
-          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
-          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
-          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
-          find -P "$root" -xdev -type f -exec chmod u+rw {} +
-          rm -rf --one-file-system -- "$root"
-          [[ ! -e "$root" && ! -L "$root" ]]
-          echo 'FAILED_V9_PREFLIGHT_STAGE=CLEANED'
-          REMOTE
-      - name: Remove exact failed V11 candidate stage
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
-            "$FAILED_V11_CANDIDATE_STAGE" "$FAILED_V11_CANDIDATE_ARCHIVE" \
-            "$FAILED_V11_CANDIDATE_ARCHIVE_SHA256" "$FAILED_V11_CANDIDATE_MANIFEST_SHA256" <<'REMOTE'
-          set -Eeuo pipefail
-          root="$1"; archive="$2"; expected_sha="$3"; expected_manifest_sha="$4"
-          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
-          [[ "$observed" == 172.26.9.207 ]]
-          [[ "$root" == /opt/stay/incoming/r114f-v11-33136236907 ]]
-          if [[ ! -e "$root" && ! -L "$root" ]]; then
-            echo 'FAILED_V11_CANDIDATE_STAGE=ALREADY_ABSENT'
-            exit 0
-          fi
-          [[ ! -L "$root" && -d "$root" && "$(stat -c '%U' "$root")" == staydeploy ]]
-          [[ -f "$root/$archive" && ! -L "$root/$archive" ]]
-          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
-          manifest="$root/release/deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256"
-          [[ -f "$manifest" && ! -L "$manifest" ]]
-          [[ "$(sha256sum "$manifest" | awk '{print $1}')" == "$expected_manifest_sha" ]]
-          (cd "$root/release" && sha256sum -c \
-            deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256 >/dev/null)
-          [[ -z "$(findmnt -rn -R -o TARGET "$root" 2>/dev/null || true)" ]]
-          [[ -z "$(find -P "$root" -xdev -type l -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev -type f -links +1 -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -type d ! -type f -print -quit)" ]]
-          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
-          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
-          find -P "$root" -xdev -type f -exec chmod u+rw {} +
-          rm -rf --one-file-system -- "$root"
-          [[ ! -e "$root" && ! -L "$root" ]]
-          echo 'FAILED_V11_CANDIDATE_STAGE=CLEANED'
-          REMOTE
-      - name: Stage and independently verify immutable release
-        shell: bash
-        run: |
-          set -euo pipefail
-          run_root="/opt/stay/incoming/r114f-v12-${GITHUB_RUN_ID}"
-          printf 'RUN_ROOT=%s\n' "$run_root" >> "$GITHUB_ENV"
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
-            "set -euo pipefail; observed=\$(ip -o -4 addr show scope global | awk '{a=\$4;sub(/\\/.*/,\"\",a);print a}' | sort -u); [[ \"\$observed\" == '$PRODUCTION_PRIVATE_IPV4' ]]; test ! -e '$run_root'; install -d -m 0700 '$run_root'"
-          scp -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            "release-assets/$ARCHIVE" "release-assets/$ARCHIVE.sha256" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$ARCHIVE" "$ARCHIVE_SHA256" <<'REMOTE'
-          set -Eeuo pipefail
-          root="$1"; archive="$2"; expected_sha="$3"; extract="$root/release"
-          [[ "$root" =~ ^/opt/stay/incoming/r114f-v12-[0-9]+$ && ! -L "$root" && -d "$root" ]]
-          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
-          (cd "$root" && sha256sum -c "$archive.sha256")
-          mapfile -t entries < <(tar -tzf "$root/$archive")
-          (( ${#entries[@]} == 100 ))
-          for entry in "${entries[@]}"; do
-            [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]]
-          done
-          tar -tvzf "$root/$archive" | awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }'
-          install -d -m 0700 "$extract"
-          tar -xzf "$root/$archive" -C "$extract"
-          manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" == 85 && "$(wc -l < "$extract/$manifest")" == 84 ]]
-          (cd "$extract" && sha256sum -c "$manifest")
-          find "$root" -type d -exec chmod 0700 {} +
-          find "$root" -type f -exec chmod 0400 {} +
-          echo 'REMOTE_RELEASE_VALIDATION=PASS'
-          REMOTE
-      - name: Run mutation-free live preflight
-        if: inputs.operation != 'recover'
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$RUN_ROOT" "$SOURCE_RELEASE" \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$OPERATION" "$SOURCE_RELEASE" "$TARGET_RELEASE" \
+            "$EXPECTED_CHRONOBIOLOGY_INSTANCE" "$EXPECTED_CHRONOBIOLOGY_CHECKPOINT" \
             > "$RUNNER_TEMP/preflight.raw" 2>&1 <<'REMOTE'
           set -Eeuo pipefail
-          root="$1"; source_release="$2"; release="$root/release"
-          [[ "$root" =~ ^/opt/stay/incoming/r114f-v12-[0-9]+$ && ! -L "$root" && -d "$root" ]]
+          operation="$1"; source_release="$2"; target_release="$3"
+          chronobiology_instance="$4"; chronobiology_checkpoint="$5"
           observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
           [[ "$observed" == 172.26.9.207 ]]
           before_service="$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)"
           before_pointer="$(readlink -f /opt/stay/current)"
           before_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
-          [[ "$before_pointer" == "$source_release" ]]
-          node -e 'const v=JSON.parse(process.argv[1]);if(v.ok!==true||v.revision!==112)process.exit(1)' "$before_health"
-          env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_ENV=production \
-            STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox \
-            STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=0 \
-            STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 \
-            /usr/local/bin/node "$release/deploy/live-physiology-transplant/p1-production-hardening-preflight.js" \
-            --candidate-inspection-only > "$root/entry-path-preflight.json"
-          env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_ENV=production \
-            STAY_DATABASE=/var/lib/stay/data/continuity.sqlite3 \
-            STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox \
-            STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=0 \
-            STAY_PRODUCTION_HARDENING_TARGET_REVISION=114 \
-            /usr/local/bin/node "$release/deploy/live-physiology-transplant/p1-production-hardening-preflight.js" \
-            > "$root/live-preflight.json"
+          before_meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          [[ "$(systemctl is-active stay.service)" == active ]]
+          /usr/local/bin/node - "$before_health" "$before_meta" "$operation" \
+            "$chronobiology_instance" "$chronobiology_checkpoint" <<'NODE'
+          'use strict';
+          const net = require('node:net');
+          const { DatabaseSync } = require('node:sqlite');
+          const [healthText, metaText, operation, expectedChronoInstance, expectedChronoCheckpoint] =
+            process.argv.slice(2);
+          const health = JSON.parse(healthText);
+          const meta = JSON.parse(metaText);
+          const status = residencyId => new Promise((resolve, reject) => {
+            const socket = net.createConnection('/run/stay/resident-control.sock');
+            socket.setEncoding('utf8');
+            let body = '';
+            const timer = setTimeout(() => socket.destroy(new Error('status timeout')), 10000);
+            socket.once('connect', () => socket.write(JSON.stringify({
+              format: 'stay-resident-control-v1', operation: 'status', residencyId
+            }) + '\n'));
+            socket.on('data', chunk => { body += chunk; });
+            socket.once('end', () => {
+              clearTimeout(timer);
+              try { resolve(JSON.parse(body)?.resident); } catch (error) { reject(error); }
+            });
+            socket.once('error', reject);
+          });
+          const scalar = (database, sql, ...parameters) =>
+            Number(database.prepare(sql).get(...parameters)?.value || 0);
+          const resourceContract = value =>
+            value?.host?.osContainment?.required === true &&
+            value?.host?.osContainment?.available === true &&
+            value?.host?.osContainment?.payloadAttachedBeforeInit === true &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.payloadSoftBytes) === 64 * 1024 * 1024 &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.payloadHardBytes) === 96 * 1024 * 1024 &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorHardBytes) === 64 * 1024 * 1024 &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorOldSpaceMiB) === 12 &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorSemiSpaceMiB) === 1;
+          (async () => {
+            const sntssStatus = await status('resident:sntss');
+            const chronobiologyStatus = await status('resident:chronobiology');
+            const database = new DatabaseSync('/var/lib/stay/data/continuity.sqlite3', {
+              open: true, readOnly: true
+            });
+            database.exec('PRAGMA query_only=ON');
+            const quickCheck = database.prepare('PRAGMA quick_check').get()?.quick_check;
+            const revision = JSON.parse(database.prepare(
+              "SELECT json FROM metadata WHERE key='life:runtime-revision'"
+            ).get()?.json || '{}');
+            const resident = residencyId => database.prepare(`
+              SELECT residency_id, instance_id, core_id, version, state_schema,
+                     package_policy_hash, status, checkpoint_generation, checkpoint_hash
+              FROM resident_instances WHERE residency_id=?
+            `).get(residencyId);
+            const sntss = resident('resident:sntss');
+            const chronobiology = resident('resident:chronobiology');
+            const consumer = database.prepare(`
+              SELECT consumer_id, core_id, required, active, authority_epoch, checkpoint_hash
+              FROM biological_consumers WHERE consumer_id='resident:chronobiology'
+            `).get();
+            const fetusAuthority = database.prepare(`
+              SELECT core_id, instance_id, version, epoch, barrier_sequence
+              FROM authority WHERE core_id='fetus-legacy'
+            `).get();
+            const pending = scalar(database,
+              "SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id='resident:chronobiology' AND status='PENDING'");
+            const allPending = scalar(database,
+              "SELECT COUNT(*) value FROM biological_deliveries WHERE status='PENDING'");
+            const failed = scalar(database,
+              "SELECT COUNT(*) value FROM biological_deliveries WHERE status='FAILED'");
+            const pendingOutbox = scalar(database,
+              "SELECT COUNT(*) value FROM biological_outbox_intents WHERE status='PENDING'");
+            const sntssOutputs = scalar(database,
+              "SELECT COUNT(*) value FROM biological_outbox_intents WHERE producer_core_id='sntss'");
+            const authority = scalar(database,
+              "SELECT COUNT(*) value FROM authority WHERE core_id IN ('sntss','chronobiology')");
+            database.close();
+            const bsf = meta.systems?.find(value => value.id === 'bsf');
+            const publicSntss = meta.residents?.find(value => value.residencyId === 'resident:sntss');
+            const publicChrono = meta.residents?.find(
+              value => value.residencyId === 'resident:chronobiology'
+            );
+            const fetus = meta.cores?.find(value => value.id === 'fetus-legacy');
+            const common = health.ok === true && quickCheck === 'ok' &&
+              bsf?.mode === 'LIVE' && bsf?.status === 'RUNNING' && bsf?.running === true &&
+              bsf?.healthOk === true && fetus?.version === '0.6.0' && fetus?.ok === true &&
+              fetus?.memoryGuardian?.status === 'healthy' &&
+              Number(fetus?.memoryGuardian?.warnAtMiB) === 192 &&
+              Number(fetus?.memoryGuardian?.recycleAtMiB) === 256 &&
+              sntss?.version === '0.5.0-i4g1' && Number(sntss?.state_schema) === 5 &&
+              sntssStatus?.version === '0.5.0-i4g1' && sntssStatus?.authorityOwned === false &&
+              sntssStatus?.instanceId === sntss?.instance_id &&
+              sntssStatus?.checkpointHash === sntss?.checkpoint_hash &&
+              Number(sntssStatus?.checkpointGeneration) === Number(sntss?.checkpoint_generation) &&
+              Number(sntssStatus?.observedOutputs) === 0 && resourceContract(sntssStatus) &&
+              publicSntss?.mode === 'SHADOW' && authority === 0 && sntssOutputs === 0 &&
+              pendingOutbox === 0 && failed === 0 &&
+              fetusAuthority?.core_id === 'fetus-legacy' &&
+              fetusAuthority?.version === '0.6.0' &&
+              typeof fetusAuthority?.instance_id === 'string' && fetusAuthority.instance_id.length > 0;
+            let valid = common;
+            if (operation === 'recover') {
+              valid &&= Number(health.revision) === 116 && Number(meta.revision) === 116 &&
+                Number(revision.revision) === 116 && sntss?.status === 'RUNNING' &&
+                chronobiology?.status === 'RUNNING' && sntssStatus?.running === true &&
+                chronobiologyStatus?.running === true && publicSntss?.status === 'RUNNING' &&
+                publicChrono?.status === 'RUNNING';
+            } else {
+              valid &&= Number(health.revision) === 114 && Number(meta.revision) === 114 &&
+                meta.revisionFrozen === false && meta.revisionLabel === 'R114' &&
+                Number(revision.revision) === 114 && sntss?.status === 'RUNNING' &&
+                sntssStatus?.status === 'RUNNING' && sntssStatus?.running === true &&
+                sntssStatus?.health?.ok === true && publicSntss?.status === 'RUNNING' &&
+                publicSntss?.running === true && publicSntss?.healthOk === true &&
+                chronobiology?.version === '1.0.0-c3rc.1' &&
+                chronobiology?.instance_id === expectedChronoInstance &&
+                chronobiology?.checkpoint_hash === expectedChronoCheckpoint &&
+                chronobiology?.status === 'QUARANTINED' &&
+                chronobiologyStatus?.status === 'QUARANTINED' &&
+                chronobiologyStatus?.running === false &&
+                chronobiologyStatus?.authorityOwned === false &&
+                Number(chronobiologyStatus?.observedOutputs) === 0 &&
+                publicChrono?.status === 'QUARANTINED' && publicChrono?.running === false &&
+                consumer?.consumer_id === 'resident:chronobiology' &&
+                consumer?.core_id === 'chronobiology' && Number(consumer?.required) === 0 &&
+                Number(consumer?.active) === 1 && Number(consumer?.authority_epoch) === 0 &&
+                consumer?.checkpoint_hash === expectedChronoCheckpoint &&
+                pending >= 1 && pending <= 8192 && pending === allPending;
+            }
+            if (!valid) process.exit(1);
+            console.log(`LIVE_PREFLIGHT_DATABASE_REVISION=${revision.revision}`);
+            console.log(`SNTSS_INSTANCE_ID=${sntss.instance_id}`);
+            console.log(`SNTSS_CHECKPOINT_GENERATION_BASELINE=${sntss.checkpoint_generation}`);
+            console.log(`CHRONOBIOLOGY_INSTANCE_ID=${chronobiology.instance_id}`);
+            console.log(`CHRONOBIOLOGY_PENDING_DELIVERIES=${pending}`);
+            console.log(`FETUS_AUTHORITY_IDENTITY=${[
+              fetusAuthority.core_id, fetusAuthority.instance_id, fetusAuthority.version,
+              fetusAuthority.epoch, fetusAuthority.barrier_sequence
+            ].join(':')}`);
+            console.log('BSF_STATE=LIVE_RUNNING');
+            console.log('SNTSS_STATE=SHADOW_RUNNING');
+            console.log(`CHRONOBIOLOGY_STATE=${operation === 'recover' ? 'SHADOW_RUNNING' : 'QUARANTINED'}`);
+            console.log('FETUS_CONTINUITY=PASS');
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
+          if [[ "$operation" == recover ]]; then
+            [[ "$before_pointer" == "$target_release" ]]
+          else
+            [[ "$before_pointer" == "$source_release" ]]
+          fi
           [[ "$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)" == "$before_service" ]]
           [[ "$(readlink -f /opt/stay/current)" == "$before_pointer" ]]
           after_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
-          node -e 'const v=JSON.parse(process.argv[1]);if(v.ok!==true||v.revision!==112)process.exit(1)' "$after_health"
-          echo 'R114F_LIVE_PREFLIGHT=PASS'
+          after_meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          /usr/local/bin/node -e \
+            'const a=JSON.parse(process.argv[1]),b=JSON.parse(process.argv[2]);if(a.ok!==b.ok||a.revision!==b.revision)process.exit(1)' \
+            "$before_health" "$after_health"
+          /usr/local/bin/node -e \
+            'const a=JSON.parse(process.argv[1]),b=JSON.parse(process.argv[2]);if(a.revision!==b.revision||a.revisionFrozen!==b.revisionFrozen||a.revisionLabel!==b.revisionLabel)process.exit(1)' \
+            "$before_meta" "$after_meta"
+          echo 'R116F_LIVE_PREFLIGHT=PASS'
           echo 'SERVICE_OPERATION=NO'
           echo 'CURRENT_POINTER_CHANGE=NO'
+          echo 'STATESTORE_WRITE=NO'
+          echo 'RESIDENT_OPERATION=NO'
           echo 'AUTHORITY_CHANGE=NO'
           REMOTE
-          grep -E '^(R114F_LIVE_PREFLIGHT|SERVICE_OPERATION|CURRENT_POINTER_CHANGE|AUTHORITY_CHANGE)=' "$RUNNER_TEMP/preflight.raw"
+          cat "$RUNNER_TEMP/preflight.raw"
+          grep -Fx 'R116F_LIVE_PREFLIGHT=PASS' "$RUNNER_TEMP/preflight.raw"
+          grep -Fx 'SERVICE_OPERATION=NO' "$RUNNER_TEMP/preflight.raw"
+          grep -Fx 'CURRENT_POINTER_CHANGE=NO' "$RUNNER_TEMP/preflight.raw"
+          grep -Fx 'STATESTORE_WRITE=NO' "$RUNNER_TEMP/preflight.raw"
+          grep -Fx 'RESIDENT_OPERATION=NO' "$RUNNER_TEMP/preflight.raw"
+          grep -Fx 'AUTHORITY_CHANGE=NO' "$RUNNER_TEMP/preflight.raw"
+      - name: Stage and independently verify immutable release
+        if: inputs.operation != 'preflight'
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_root="/opt/stay/incoming/r116f-v14-${GITHUB_RUN_ID}"
+          printf 'RUN_ROOT=%s\n' "$run_root" >> "$GITHUB_ENV"
+          cat > release-assets/R116F_RELEASE.identity <<EOF
+          RELEASE_TAG=$RELEASE_TAG
+          RELEASE_COMMIT=$RELEASE_COMMIT
+          RELEASE_TREE=$RELEASE_TREE
+          ARCHIVE_SHA256=$ARCHIVE_SHA256
+          MANIFEST_SHA256=$MANIFEST_SHA256
+          FORWARD_SHA256=$FORWARD_SHA256
+          RECOVERY_SHA256=$RECOVERY_SHA256
+          EOF
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          # Fixed host identity and stage path are expanded locally.
+          # shellcheck disable=SC2029
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            "set -euo pipefail; observed=\$(ip -o -4 addr show scope global | awk '{a=\$4;sub(/\\/.*/,\"\",a);print a}' | sort -u); [[ \"\$observed\" == '$PRODUCTION_PRIVATE_IPV4' ]]; test ! -e '$run_root'; install -d -m 0700 '$run_root'"
+          scp "${ssh_options[@]}" \
+            "release-assets/$ARCHIVE" "release-assets/$ARCHIVE.sha256" \
+            release-assets/R116F_RELEASE.identity \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$run_root" "$ARCHIVE" "$ARCHIVE_SHA256" <<'REMOTE'
+          set -Eeuo pipefail
+          root="$1"; archive="$2"; expected_sha="$3"
+          [[ "$root" =~ ^/opt/stay/incoming/r116f-v14-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          expected=$'R116F_RELEASE.identity\n'"$archive"$'\n'"$archive.sha256"
+          [[ "$(find "$root" -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
+          [[ -z "$(find -P "$root" -xdev ! -user staydeploy -print -quit)" ]]
+          [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
+          [[ "$(sha256sum "$root/$archive" | awk '{print $1}')" == "$expected_sha" ]]
+          (cd "$root" && sha256sum -c "$archive.sha256")
+          find -P "$root" -xdev -type f -exec chmod 0400 {} +
+          echo 'REMOTE_RELEASE_STAGING=PASS'
+          REMOTE
       - name: Invoke bounded forward or recovery operation
         if: inputs.operation != 'preflight'
         shell: bash
         run: |
           set -euo pipefail
-          controller_operation='harden-r114f'
-          expected_authorization='AUTHORIZE_R114F_V12_CONTAINED_FORWARD_WITH_FENCED_RECOVERY'
+          controller_operation='harden-r116f'
+          expected_authorization='AUTHORIZE_R116F_V15_CONTAINED_FORWARD_WITH_FENCED_RECOVERY'
           if [[ "$OPERATION" == recover ]]; then
-            controller_operation='recover-r114f'
-            expected_authorization='AUTHORIZE_R114F_V12_FORWARD_RECOVERY_ONLY'
+            controller_operation='recover-r116f'
+            expected_authorization='AUTHORIZE_R116F_V15_FORWARD_RECOVERY_ONLY'
           fi
           [[ "$REQUESTED_AUTHORIZATION" == "$expected_authorization" ]]
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
@@ -462,46 +427,65 @@ jobs:
           set -e
           cat "$RUNNER_TEMP/operation.raw"
           [[ "$operation_status" -eq 0 ]]
-          grep -Fx 'R114F_CONTROLLER_RESULT=PASS' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'R116F_CONTROLLER_RESULT=PASS' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'CONTROLLER_DISPATCH_STATUS=0' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'CONTROLLER_FAILURE_CLASS=NONE' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'CONTROLLER_CLEANUP_STATUS=PASS' "$RUNNER_TEMP/operation.raw"
           grep -Eq '^(P1_PRODUCTION_HARDENING_FORWARD_RESULT|P1_PRODUCTION_HARDENING_FORWARD_RECOVERY_RESULT)=PASS$' "$RUNNER_TEMP/operation.raw"
-          grep -Fx 'RUNTIME_REVISION=114' "$RUNNER_TEMP/operation.raw"
-          grep -Fx 'REVISION_LABEL=R114F' "$RUNNER_TEMP/operation.raw"
+          grep -Eq '^RUNTIME_REVISION(_AFTER)?=116$' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'REVISION_LABEL=R116F' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'BSF_STATUS=FUNCTIONAL' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'SNTSS_AUTHORITY=NONE' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'SNTSS_OUTPUT_COUNT=0' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'CHRONOBIOLOGY_AUTHORITY=NONE' "$RUNNER_TEMP/operation.raw"
           grep -Fx 'FETUS_CONTINUITY=PASS' "$RUNNER_TEMP/operation.raw"
+          grep -Fx 'BENCHMARK_SERVICE=ACTIVE' "$RUNNER_TEMP/operation.raw"
           grep -Fx "CURRENT_RELEASE=$TARGET_RELEASE" "$RUNNER_TEMP/operation.raw"
-      - name: Verify live R114F result
+          if [[ "$OPERATION" == deploy ]]; then
+            grep -Fx 'SERVICE_RESTARTS_THIS_FORWARD=ONE' "$RUNNER_TEMP/operation.raw"
+          fi
+      - name: Verify live R116F acceptance and benchmark start
         if: inputs.operation != 'preflight'
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$TARGET_RELEASE" > "$RUNNER_TEMP/live-result.raw" <<'REMOTE'
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$TARGET_RELEASE" "$EXPECTED_CHRONOBIOLOGY_INSTANCE" \
+            > "$RUNNER_TEMP/live-result.raw" 2>&1 <<'REMOTE'
           set -Eeuo pipefail
-          target_release="$1"
+          target_release="$1"; expected_chronobiology_instance="$2"
           observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
           [[ "$observed" == 172.26.9.207 ]]
-          health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
-          meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
-          node -e 'const h=JSON.parse(process.argv[1]),m=JSON.parse(process.argv[2]);if(h.ok!==true||h.revision!==114||m.revision!==114||m.revisionFrozen!==true||m.revisionLabel!=="R114F")process.exit(1)' "$health" "$meta"
-          current="$(readlink -f /opt/stay/current)"
-          [[ "$current" == "$target_release" ]]
+          [[ "$(readlink -f /opt/stay/current)" == "$target_release" ]]
           [[ "$(systemctl is-active stay.service)" == active ]]
           [[ "$(systemctl is-active stay-p1-physiology-benchmark.service)" == active ]]
-          /usr/local/bin/node - <<'NODE'
+          benchmark_state=/var/lib/stay/evidence/physiology-benchmark/R116F/state.json
+          benchmark_samples=/var/lib/stay/evidence/physiology-benchmark/R116F/samples.jsonl
+          benchmark_attempts=/var/lib/stay/evidence/physiology-benchmark/R116F/collector-attempts.json
+          [[ -s "$benchmark_state" && -s "$benchmark_samples" && -s "$benchmark_attempts" ]]
+          health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
+          meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          /usr/local/bin/node - "$health" "$meta" "$benchmark_state" "$benchmark_samples" \
+            "$benchmark_attempts" "$expected_chronobiology_instance" <<'NODE'
           'use strict';
+          const fs = require('node:fs');
           const net = require('node:net');
           const { DatabaseSync } = require('node:sqlite');
+          const [healthText, metaText, stateFile, samplesFile, attemptsFile, expectedChronoInstance] =
+            process.argv.slice(2);
+          const health = JSON.parse(healthText);
+          const meta = JSON.parse(metaText);
+          const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+          const attempts = JSON.parse(fs.readFileSync(attemptsFile, 'utf8'));
+          const sampleCount = fs.readFileSync(samplesFile, 'utf8').trim().split('\n').filter(Boolean).length;
           const status = residencyId => new Promise((resolve, reject) => {
             const socket = net.createConnection('/run/stay/resident-control.sock');
             socket.setEncoding('utf8');
             let body = '';
-            const timer = setTimeout(() => socket.destroy(new Error('timeout')), 10000);
+            const timer = setTimeout(() => socket.destroy(new Error('status timeout')), 10000);
             socket.once('connect', () => socket.write(JSON.stringify({
               format: 'stay-resident-control-v1', operation: 'status', residencyId
             }) + '\n'));
@@ -512,63 +496,137 @@ jobs:
             });
             socket.once('error', reject);
           });
+          const healthyResident = (value, coreId) => value?.coreId === coreId &&
+            value?.status === 'RUNNING' && value?.running === true && value?.health?.ok === true &&
+            value?.authorityOwned === false && !value?.terminalPersistenceError &&
+            !value?.teardownError && value?.host?.osContainment?.required === true &&
+            value?.host?.osContainment?.available === true &&
+            value?.host?.osContainment?.payloadAttachedBeforeInit === true &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.payloadSoftBytes) === 64 * 1024 * 1024 &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.payloadHardBytes) === 96 * 1024 * 1024 &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorHardBytes) === 64 * 1024 * 1024 &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorOldSpaceMiB) === 12 &&
+            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorSemiSpaceMiB) === 1;
           (async () => {
             const sntss = await status('resident:sntss');
             const chronobiology = await status('resident:chronobiology');
-            if (!(
-              sntss?.running === true && sntss?.status === 'RUNNING' &&
-              sntss?.version === '0.5.0-i4g1' && Number(sntss?.stateSchema) === 5 &&
-              sntss?.health?.ok === true && sntss?.authorityOwned === false &&
-              Number(sntss?.observedOutputs) === 0 && sntss?.resyncRequired !== true &&
-              chronobiology?.running === true && chronobiology?.status === 'RUNNING' &&
-              chronobiology?.health?.ok === true && chronobiology?.authorityOwned === false
-            )) process.exit(1);
-            const database = new DatabaseSync('/var/lib/stay/data/continuity.sqlite3', { readOnly: true });
+            const database = new DatabaseSync('/var/lib/stay/data/continuity.sqlite3', {
+              open: true, readOnly: true
+            });
             database.exec('PRAGMA query_only=ON');
-            const scalar = sql => Number(database.prepare(sql).get().value);
-            const quickCheck = database.prepare('PRAGMA quick_check').get().quick_check;
-            const valid = quickCheck === 'ok' &&
-              scalar("SELECT COUNT(*) value FROM resident_instances") === 2 &&
-              scalar("SELECT COUNT(*) value FROM resident_instances WHERE residency_id='resident:sntss'") === 1 &&
+            const one = (sql, ...parameters) => database.prepare(sql).get(...parameters);
+            const scalar = (sql, ...parameters) => Number(one(sql, ...parameters)?.value || 0);
+            const quickCheck = one('PRAGMA quick_check')?.quick_check;
+            const dbSntss = one("SELECT * FROM resident_instances WHERE residency_id='resident:sntss'");
+            const dbChrono = one("SELECT * FROM resident_instances WHERE residency_id='resident:chronobiology'");
+            const fetusAuthority = one("SELECT core_id, instance_id, version, epoch, barrier_sequence FROM authority WHERE core_id='fetus-legacy'");
+            const replay = one(`
+              SELECT detail_json FROM recovery_records
+              WHERE type='resident.cold-backlog-replayed' AND core_id='chronobiology'
+              ORDER BY id DESC LIMIT 1
+            `);
+            const replayDetail = JSON.parse(replay?.detail_json || '{}');
+            const validDatabase = quickCheck === 'ok' && dbSntss?.status === 'RUNNING' &&
+              dbSntss?.version === '0.5.0-i4g1' && dbChrono?.status === 'RUNNING' &&
+              dbChrono?.instance_id === expectedChronoInstance &&
               scalar("SELECT COUNT(*) value FROM authority WHERE core_id IN ('sntss','chronobiology')") === 0 &&
               scalar("SELECT COUNT(*) value FROM biological_outbox_intents WHERE producer_core_id='sntss'") === 0 &&
               scalar("SELECT COUNT(*) value FROM biological_outbox_intents WHERE status='PENDING'") === 0 &&
-              scalar("SELECT COUNT(*) value FROM biological_deliveries WHERE status='FAILED'") === 0;
+              scalar("SELECT COUNT(*) value FROM biological_deliveries WHERE status='FAILED'") === 0 &&
+              scalar("SELECT COUNT(*) value FROM biological_deliveries WHERE status='PENDING'") <= 32 &&
+              Number(replayDetail.replayedPendingCount) >= 1 &&
+              Number(replayDetail.replayedPendingCount) <= 8192 &&
+              Number(replayDetail.abandonedCount) === 0 &&
+              replayDetail.inventedBiologicalTime === false;
             database.close();
+            const chips = meta.chipProjection;
+            const chip = coreId => chips?.lifecycle?.find(value => value.coreId === coreId);
+            const roadmap = coreId => chips?.roadmap?.find(value => value.coreId === coreId);
+            const fetus = meta.cores?.find(value => value.id === 'fetus-legacy');
+            const startedMs = Date.parse(state.startedAt);
+            const due12h = new Date(startedMs + 12 * 60 * 60 * 1000).toISOString();
+            const due72h = new Date(startedMs + 72 * 60 * 60 * 1000).toISOString();
+            const valid = health.ok === true && Number(health.revision) === 116 &&
+              Number(meta.revision) === 116 && meta.revisionFrozen === true &&
+              meta.revisionLabel === 'R116F' && healthyResident(sntss, 'sntss') &&
+              healthyResident(chronobiology, 'chronobiology') &&
+              sntss.version === '0.5.0-i4g1' && Number(sntss.observedOutputs) === 0 &&
+              chronobiology.instanceId === expectedChronoInstance && validDatabase &&
+              chips?.schema === 'stay-observation-chips-v1' && chips?.observationOnly === true &&
+              Array.isArray(chips?.mutationEndpoints) && chips.mutationEndpoints.length === 0 &&
+              chip('bsf')?.state === 'LIVE' && chip('sntss')?.state === 'SHADOW' &&
+              chip('chronobiology')?.state === 'SHADOW' &&
+              ['metab', 'homeos', 'intero'].every(id => roadmap(id)?.stage === 'PLANNED') &&
+              fetus?.version === '0.6.0' && fetus?.ok === true &&
+              state.format === 'stay-physiology-benchmark-state-v3' &&
+              Number(state.runtimeRevision) === 116 && Number(state.collectorStarts) === 1 &&
+              Number(state.collectorRestarts) === 0 && Number(state.failures) === 0 &&
+              Number(attempts.attempts) === 1 && Number(state.samples) === sampleCount &&
+              sampleCount >= 1 && Number.isFinite(startedMs);
             if (!valid) process.exit(1);
-            console.log('BSF_SNTSS_CHRONOBIOLOGY_CONTINUITY=PASS');
+            console.log(`CHRONOBIOLOGY_REPLAY_COUNT=${replayDetail.replayedPendingCount}`);
+            console.log('CHRONOBIOLOGY_ABANDONMENT=0');
+            console.log(`SNTSS_INSTANCE_ID=${dbSntss.instance_id}`);
+            console.log(`SNTSS_CHECKPOINT_GENERATION_ACCEPTED=${dbSntss.checkpoint_generation}`);
+            console.log(`CHRONOBIOLOGY_INSTANCE_ID=${dbChrono.instance_id}`);
+            console.log(`FETUS_AUTHORITY_IDENTITY=${[
+              fetusAuthority.core_id, fetusAuthority.instance_id, fetusAuthority.version,
+              fetusAuthority.epoch, fetusAuthority.barrier_sequence
+            ].join(':')}`);
+            console.log('SNTSS_OUTPUT_COUNT=0');
             console.log('PHYSIOLOGY_AUTHORITY_CONTAINMENT=PASS');
+            console.log('FETUS_CONTINUITY=PASS');
+            console.log('WEB_CHIPS=BSF_LIVE,SNTSS_SHADOW,CHRONOBIOLOGY_SHADOW');
+            console.log(`BENCHMARK_STARTED_AT_UTC=${state.startedAt}`);
+            console.log(`BENCHMARK_12H_DUE_UTC=${due12h}`);
+            console.log(`BENCHMARK_72H_DUE_UTC=${due72h}`);
+            console.log('BENCHMARK_COLLECTORS=1');
+            console.log('BENCHMARK_FAILURES=0');
           })().catch(error => { console.error(error); process.exitCode = 1; });
           NODE
-          echo 'R114F_LIVE_RESULT=PASS'
-          echo 'RUNTIME_REVISION=114'
-          echo 'REVISION_LABEL=R114F'
-          echo "CURRENT_RELEASE=$current"
+          echo "BENCHMARK_STATE_SHA256=sha256:$(sha256sum "$benchmark_state" | awk '{print $1}')"
+          echo "BENCHMARK_ATTEMPTS_SHA256=sha256:$(sha256sum "$benchmark_attempts" | awk '{print $1}')"
+          echo 'R116F_LIVE_RESULT=PASS'
+          echo 'RUNTIME_REVISION=116'
+          echo 'REVISION_LABEL=R116F'
+          echo "CURRENT_RELEASE=$target_release"
           echo 'BENCHMARK_SERVICE=ACTIVE'
           REMOTE
           cat "$RUNNER_TEMP/live-result.raw"
-      - name: Remove successful incoming stage
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$RUN_ROOT" <<'REMOTE'
-          set -Eeuo pipefail
-          root="$1"
-          [[ "$root" =~ ^/opt/stay/incoming/r114f-v12-[0-9]+$ && ! -L "$root" && -d "$root" ]]
-          [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 \) -print -quit)" ]]
-          find -P "$root" -xdev -type d -exec chmod u+rwx {} +
-          find -P "$root" -xdev -type f -exec chmod u+rw {} +
-          rm -rf --one-file-system -- "$root"
-          [[ ! -e "$root" ]]
-          REMOTE
+          grep -Fx 'R116F_LIVE_RESULT=PASS' "$RUNNER_TEMP/live-result.raw"
+          grep -Fx 'WEB_CHIPS=BSF_LIVE,SNTSS_SHADOW,CHRONOBIOLOGY_SHADOW' \
+            "$RUNNER_TEMP/live-result.raw"
+          grep -Fx 'BENCHMARK_COLLECTORS=1' "$RUNNER_TEMP/live-result.raw"
+          grep -Fx 'BENCHMARK_FAILURES=0' "$RUNNER_TEMP/live-result.raw"
+          if [[ "$OPERATION" == deploy ]]; then
+            baseline="$(sed -n 's/^CHRONOBIOLOGY_PENDING_DELIVERIES=//p' "$RUNNER_TEMP/preflight.raw")"
+            replayed="$(sed -n 's/^CHRONOBIOLOGY_REPLAY_COUNT=//p' "$RUNNER_TEMP/live-result.raw")"
+            [[ "$baseline" =~ ^[0-9]+$ && "$replayed" == "$baseline" ]]
+            sntss_before="$(sed -n 's/^SNTSS_INSTANCE_ID=//p' "$RUNNER_TEMP/preflight.raw")"
+            sntss_after="$(sed -n 's/^SNTSS_INSTANCE_ID=//p' "$RUNNER_TEMP/live-result.raw")"
+            sntss_generation_before="$(sed -n 's/^SNTSS_CHECKPOINT_GENERATION_BASELINE=//p' "$RUNNER_TEMP/preflight.raw")"
+            sntss_generation_after="$(sed -n 's/^SNTSS_CHECKPOINT_GENERATION_ACCEPTED=//p' "$RUNNER_TEMP/live-result.raw")"
+            chronobiology_before="$(sed -n 's/^CHRONOBIOLOGY_INSTANCE_ID=//p' "$RUNNER_TEMP/preflight.raw")"
+            chronobiology_after="$(sed -n 's/^CHRONOBIOLOGY_INSTANCE_ID=//p' "$RUNNER_TEMP/live-result.raw")"
+            fetus_before="$(sed -n 's/^FETUS_AUTHORITY_IDENTITY=//p' "$RUNNER_TEMP/preflight.raw")"
+            fetus_after="$(sed -n 's/^FETUS_AUTHORITY_IDENTITY=//p' "$RUNNER_TEMP/live-result.raw")"
+            [[ -n "$sntss_before" && "$sntss_after" == "$sntss_before" ]]
+            [[ "$sntss_generation_before" =~ ^[0-9]+$ &&
+              "$sntss_generation_after" =~ ^[0-9]+$ &&
+              "$sntss_generation_after" -gt "$sntss_generation_before" ]]
+            [[ -n "$chronobiology_before" && "$chronobiology_after" == "$chronobiology_before" ]]
+            [[ -n "$fetus_before" && "$fetus_after" == "$fetus_before" ]]
+            echo "CHRONOBIOLOGY_REPLAY_EQUALS_BASELINE=$replayed" | \
+              tee -a "$RUNNER_TEMP/live-result.raw"
+            echo "SNTSS_LINEAGE_AND_CHECKPOINT_PROGRESS=PASS" | tee -a "$RUNNER_TEMP/live-result.raw"
+            echo "CHRONOBIOLOGY_LINEAGE_CONTINUITY=PASS" | tee -a "$RUNNER_TEMP/live-result.raw"
+            echo "FETUS_AUTHORITY_CONTINUITY=PASS" | tee -a "$RUNNER_TEMP/live-result.raw"
+          fi
       - name: Upload execution evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r114f-v12-${{ inputs.operation }}-${{ github.run_id }}
+          name: r116f-v15-${{ inputs.operation }}-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/preflight.raw
             ${{ runner.temp }}/operation.raw

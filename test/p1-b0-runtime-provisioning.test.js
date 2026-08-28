@@ -6,7 +6,6 @@ const fsp = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { execFileSync } = require('node:child_process');
 const { LivingKernel } = require('../runtime');
 const { stableStringify } = require('../runtime/kernel/canonical-json');
 const { StateStore } = require('../runtime/kernel/state-store');
@@ -68,13 +67,13 @@ test('P1-B0-08 completion is fixed to the partial live state and performs no ser
   assert.doesNotMatch(complete, /systemctl (?:restart|stop|start|daemon-reload)|attach resident:|detach resident:|\b(?:INSERT|UPDATE|DELETE|BEGIN IMMEDIATE)\b|\/opt\/stay\/current.*(?:ln|mv)|continuity\.sqlite3.*(?:cp|mv)|snapshot.*restore/);
 });
 
-test('P1-B0-09 completion authorization is distinct and root wrapper applies service/pointer/biology sentinels', () => {
+test('P1-B0-09 historical completion remains sealed and is absent from the R116F controller', () => {
   const wrapper = fs.readFileSync(path.join(ROOT, 'deploy/live-physiology-transplant/stay-p1-production-controller'), 'utf8');
   const remote = fs.readFileSync(path.join(ROOT, 'deploy/live-physiology-transplant/p1-actions-remote-controller.sh'), 'utf8');
-  assert.match(wrapper, /AUTHORIZE_B0_COMPLETE_EXISTING_RUNTIME_7D040592CCF1F149/);
   assert.match(remote, /STAY_B0_COMPLETE_AUTHORIZED/);
-  assert.match(wrapper, /preflight-b0" \|\| "\$operation" == "complete-b0"/);
-  assert.doesNotMatch('AUTHORIZE_B0_COMPLETE_EXISTING_RUNTIME_7D040592CCF1F149', /TRUST_RUNTIME|ROLLBACK/);
+  assert.doesNotMatch(wrapper, /complete-b0|AUTHORIZE_B0_COMPLETE_EXISTING_RUNTIME/);
+  assert.match(wrapper, /harden-r116f\)/);
+  assert.match(wrapper, /recover-r116f\)/);
 });
 
 test('P1-B0-02 certificate request is exact zero-authority frozen contract', () => {
@@ -98,19 +97,24 @@ test('P1-B0-03 detached manifest accepts exact public material and rejects chang
   const names = ['release-authority-public.pem', 'resident-sntss.json'];
   const manifest = names.map(name => `${crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, name))).digest('hex')}  ${name}\n`).join('');
   await fsp.writeFile(path.join(dir, 'P1_B0_TRUST_MATERIAL.sha256'), manifest);
-  await fsp.writeFile(path.join(dir, 'P1_B0_TRUST_MATERIAL.sha256.sig'), crypto.sign(null, Buffer.from(manifest), privateKey));
-  execFileSync('openssl', ['pkeyutl', '-verify', '-pubin', '-rawin', '-inkey', path.join(dir, names[0]), '-in', path.join(dir, 'P1_B0_TRUST_MATERIAL.sha256'), '-sigfile', path.join(dir, 'P1_B0_TRUST_MATERIAL.sha256.sig')]);
-  execFileSync('sha256sum', ['-c', 'P1_B0_TRUST_MATERIAL.sha256'], { cwd: dir });
+  const signature = crypto.sign(null, Buffer.from(manifest), privateKey);
+  await fsp.writeFile(path.join(dir, 'P1_B0_TRUST_MATERIAL.sha256.sig'), signature);
+  assert.equal(crypto.verify(null, Buffer.from(manifest), publicKey, signature), true);
+  const manifestMatches = () => names.every(name => manifest.includes(
+    `${crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, name))).digest('hex')}  ${name}\n`
+  ));
+  assert.equal(manifestMatches(), true);
   await fsp.writeFile(path.join(dir, 'resident-sntss.json'), '{"changed":true}\n');
-  assert.throws(() => execFileSync('sha256sum', ['-c', 'P1_B0_TRUST_MATERIAL.sha256'], { cwd: dir, stdio: 'ignore' }));
+  assert.equal(manifestMatches(), false);
 });
 
-test('P1-B0-04 privileged controller exposes fixed B.0 operations and no private-key path', () => {
+test('P1-B0-04 historical B.0 inputs stay sealed but are not exposed by the R116F controller', () => {
   const remote = fs.readFileSync(path.join(ROOT, 'deploy/live-physiology-transplant/p1-actions-remote-controller.sh'), 'utf8');
   const wrapper = fs.readFileSync(path.join(ROOT, 'deploy/live-physiology-transplant/stay-p1-production-controller'), 'utf8');
-  assert.match(remote + wrapper, /preflight-b0[\s\S]*configure-b0[\s\S]*rollback-b0/);
-  assert.match(wrapper, /AUTHORIZE_B0_TRUST_RUNTIME_7D040592CCF1F149/);
-  assert.match(wrapper, /AUTHORIZE_ROLLBACK_B0_FORWARD_STATE_7D040592CCF1F149/);
+  assert.match(remote, /preflight-b0[\s\S]*configure-b0[\s\S]*rollback-b0/);
+  assert.doesNotMatch(wrapper, /preflight-b0|configure-b0|rollback-b0|AUTHORIZE_B0/);
+  assert.match(wrapper, /harden-r116f\)/);
+  assert.match(wrapper, /recover-r116f\)/);
   assert.doesNotMatch(remote + wrapper, /RELEASE_AUTHORITY_PRIVATE|PRIVATE_KEY_B64|private\.pem/);
 });
 
