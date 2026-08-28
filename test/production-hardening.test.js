@@ -2638,6 +2638,25 @@ test('the release overlay promotes the complete CoreHost cohort atomically', asy
 });
 
 test('the clean release inventory carries the focused runtime dependency closure', async () => {
+  const forward = await fs.readFile(
+    path.join(
+      __dirname,
+      '..',
+      'deploy',
+      'live-physiology-transplant',
+      'p1-production-hardening-forward.sh'
+    ),
+    'utf8'
+  );
+  const auxiliary = forward.slice(
+    forward.indexOf('RELEASE_AUXILIARY_FILES=('),
+    forward.indexOf("WORK=''", forward.indexOf('RELEASE_AUXILIARY_FILES=('))
+  );
+  assert.ok(
+    auxiliary.includes("'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256'"),
+    'the candidate builder must copy its checked-in dependency-closure sidecar'
+  );
+
   const manifest = await fs.readFile(
     path.join(
       __dirname,

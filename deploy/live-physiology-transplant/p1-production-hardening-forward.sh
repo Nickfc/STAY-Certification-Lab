@@ -59,6 +59,7 @@ PRODUCTION_OVERLAY_FILES=(
 )
 
 RELEASE_AUXILIARY_FILES=(
+  'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256'
   'deploy/live-physiology-transplant/p1-physiology-benchmark.js'
   'deploy/live-physiology-transplant/p1-production-hardening-fixture.js'
   'deploy/live-physiology-transplant/p1-production-hardening-forward.sh'
