@@ -216,15 +216,21 @@ jobs:
           });
           const scalar = (database, sql, ...parameters) =>
             Number(database.prepare(sql).get(...parameters)?.value || 0);
-          const resourceContract = value =>
-            value?.host?.osContainment?.required === true &&
-            value?.host?.osContainment?.available === true &&
-            value?.host?.osContainment?.payloadAttachedBeforeInit === true &&
-            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.payloadSoftBytes) === 64 * 1024 * 1024 &&
-            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.payloadHardBytes) === 96 * 1024 * 1024 &&
-            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorHardBytes) === 64 * 1024 * 1024 &&
-            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorOldSpaceMiB) === 12 &&
-            Number(value?.host?.resourceGovernor?.policy?.memoryPlan?.supervisorSemiSpaceMiB) === 1;
+          const resourceObservation = value => {
+            const containment = value?.host?.osContainment;
+            const memory = value?.host?.resourceGovernor?.policy?.memoryPlan;
+            return Object.freeze({
+              hostPresent: value?.host != null,
+              required: containment?.required === true,
+              available: containment?.available === true,
+              payloadAttachedBeforeInit: containment?.payloadAttachedBeforeInit === true,
+              payloadSoftBytes: Number(memory?.payloadSoftBytes),
+              payloadHardBytes: Number(memory?.payloadHardBytes),
+              supervisorHardBytes: Number(memory?.supervisorHardBytes),
+              supervisorOldSpaceMiB: Number(memory?.supervisorOldSpaceMiB),
+              supervisorSemiSpaceMiB: Number(memory?.supervisorSemiSpaceMiB)
+            });
+          };
           (async () => {
             const sntssStatus = await status('resident:sntss');
             const chronobiologyStatus = await status('resident:chronobiology');
@@ -243,30 +249,30 @@ jobs:
             `).get(residencyId);
             const sntss = resident('resident:sntss');
             const chronobiology = resident('resident:chronobiology');
-            const checkpoint = ({ coreId, instanceId, version, stateSchema, generation, hash }) => {
-              if (![coreId, instanceId, version, hash].every(
+            const residentCheckpoint = ({ residencyId, instanceId, version, stateSchema, generation, hash }) => {
+              if (![residencyId, instanceId, version, hash].every(
                 value => typeof value === 'string' && value.length > 0
               ) || !Number.isSafeInteger(stateSchema) || stateSchema < 1 ||
                 !Number.isSafeInteger(generation) || generation < 1) return null;
               return database.prepare(`
-                SELECT checkpoint_id, core_id, instance_id, version, state_schema,
+                SELECT checkpoint_id, residency_id, instance_id, version, state_schema,
                        generation, blob_hash
-                FROM checkpoints
-                WHERE core_id=? AND instance_id=? AND version=? AND state_schema=?
+                FROM resident_checkpoints
+                WHERE residency_id=? AND instance_id=? AND version=? AND state_schema=?
                   AND generation=? AND blob_hash=?
-              `).get(coreId, instanceId, version, stateSchema, generation, hash);
+              `).get(residencyId, instanceId, version, stateSchema, generation, hash);
             };
             const sntssStatusGeneration = Number(sntssStatus?.checkpointGeneration);
-            const sntssStatusCheckpoint = checkpoint({
-              coreId: 'sntss',
+            const sntssStatusCheckpoint = residentCheckpoint({
+              residencyId: 'resident:sntss',
               instanceId: sntssStatus?.instanceId,
               version: sntssStatus?.version,
               stateSchema: 5,
               generation: sntssStatusGeneration,
               hash: sntssStatus?.checkpointHash
             });
-            const sntssCurrentCheckpoint = checkpoint({
-              coreId: 'sntss',
+            const sntssCurrentCheckpoint = residentCheckpoint({
+              residencyId: 'resident:sntss',
               instanceId: sntss?.instance_id,
               version: sntss?.version,
               stateSchema: Number(sntss?.state_schema),
@@ -300,6 +306,7 @@ jobs:
               value => value.residencyId === 'resident:chronobiology'
             );
             const fetus = meta.cores?.find(value => value.id === 'fetus-legacy');
+            const sntssResources = resourceObservation(sntssStatus);
             const failures = [];
             const requireInvariant = (name, value) => {
               if (!value) failures.push(name);
@@ -318,17 +325,27 @@ jobs:
               requireInvariant('SNTSS_DATABASE_IDENTITY',
                 sntss?.version === '0.5.0-i4g1' && Number(sntss?.state_schema) === 5 &&
                 typeof sntss?.instance_id === 'string' && sntss.instance_id.length > 0 &&
-                Number(sntss?.checkpoint_generation) >= 1 && sntssCurrentCheckpoint?.core_id === 'sntss'),
+                Number(sntss?.checkpoint_generation) >= 1 &&
+                sntssCurrentCheckpoint?.residency_id === 'resident:sntss'),
               requireInvariant('SNTSS_SOCKET_DURABLE_CHECKPOINT',
                 sntssStatus?.version === '0.5.0-i4g1' && sntssStatus?.authorityOwned === false &&
                 sntssStatus?.instanceId === sntss?.instance_id && sntssStatusGeneration >= 1 &&
                 Number(sntss?.checkpoint_generation) >= sntssStatusGeneration &&
-                sntssStatusCheckpoint?.core_id === 'sntss' &&
+                sntssStatusCheckpoint?.residency_id === 'resident:sntss' &&
                 sntssStatusCheckpoint?.instance_id === sntss?.instance_id &&
                 Number(sntssStatusCheckpoint?.generation) === sntssStatusGeneration &&
                 sntssStatusCheckpoint?.blob_hash === sntssStatus?.checkpointHash &&
                 Number(sntssStatus?.observedOutputs) === 0),
-              requireInvariant('SNTSS_RESOURCE_CONTRACT', resourceContract(sntssStatus)),
+              requireInvariant('SNTSS_OS_CONTAINMENT',
+                sntssResources.hostPresent && sntssResources.required && sntssResources.available &&
+                sntssResources.payloadAttachedBeforeInit),
+              requireInvariant('SNTSS_PAYLOAD_MEMORY_LIMITS',
+                sntssResources.payloadSoftBytes === 64 * 1024 * 1024 &&
+                sntssResources.payloadHardBytes === 96 * 1024 * 1024),
+              requireInvariant('SNTSS_SUPERVISOR_MEMORY_LIMITS',
+                sntssResources.supervisorHardBytes === 64 * 1024 * 1024 &&
+                sntssResources.supervisorOldSpaceMiB === 12 &&
+                sntssResources.supervisorSemiSpaceMiB === 1),
               requireInvariant('SNTSS_PUBLIC_SHADOW', publicSntss?.mode === 'SHADOW'),
               requireInvariant('ZERO_AUTHORITY_OUTPUT_AND_FAILURES',
                 authority === 0 && sntssOutputs === 0 && pendingOutbox === 0 && failed === 0),
@@ -374,6 +391,7 @@ jobs:
             }
             if (!valid) {
               for (const failure of failures) console.error(`R116F_PREFLIGHT_FAILED_INVARIANT=${failure}`);
+              console.error(`SNTSS_RESOURCE_OBSERVED=${JSON.stringify(sntssResources)}`);
               process.exit(1);
             }
             console.log(`LIVE_PREFLIGHT_DATABASE_REVISION=${revision.revision}`);

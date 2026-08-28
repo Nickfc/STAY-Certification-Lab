@@ -74,7 +74,8 @@ test('R116F live preflight occurs before staging and is mutation-free', () => {
   assert.match(livePreflight, /pending >= 1 && pending <= 8192/);
   assert.match(livePreflight, /CHRONOBIOLOGY_BOUNDED_DEBT/);
   assert.match(livePreflight, /R116F_PREFLIGHT_FAILED_INVARIANT=/);
-  assert.match(livePreflight, /FROM checkpoints/);
+  assert.match(livePreflight, /FROM resident_checkpoints/);
+  assert.match(livePreflight, /WHERE residency_id=\?/);
   assert.match(livePreflight,
     /sntssStatusCheckpoint\?\.blob_hash === sntssStatus\?\.checkpointHash/);
   assert.match(livePreflight,
@@ -83,8 +84,12 @@ test('R116F live preflight occurs before staging and is mutation-free', () => {
   assert.match(workflow, /EXPECTED_CHRONOBIOLOGY_CHECKPOINT: 81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae/);
   assert.match(livePreflight, /sntssStatus\?\.instanceId === sntss\?\.instance_id/);
   assert.match(livePreflight, /fetusAuthority\?\.version === '0\.6\.0'/);
-  assert.match(livePreflight, /payloadSoftBytes\) === 64 \* 1024 \* 1024/);
-  assert.match(livePreflight, /supervisorOldSpaceMiB\) === 12/);
+  assert.match(livePreflight, /payloadSoftBytes === 64 \* 1024 \* 1024/);
+  assert.match(livePreflight, /supervisorOldSpaceMiB === 12/);
+  assert.match(livePreflight, /SNTSS_OS_CONTAINMENT/);
+  assert.match(livePreflight, /SNTSS_PAYLOAD_MEMORY_LIMITS/);
+  assert.match(livePreflight, /SNTSS_SUPERVISOR_MEMORY_LIMITS/);
+  assert.match(livePreflight, /SNTSS_RESOURCE_OBSERVED=/);
   assert.match(livePreflight, /R116F_LIVE_PREFLIGHT=PASS/);
   for (const marker of [
     'SERVICE_OPERATION=NO', 'CURRENT_POINTER_CHANGE=NO', 'STATESTORE_WRITE=NO',
