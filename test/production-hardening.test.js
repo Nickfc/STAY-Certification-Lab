@@ -3278,6 +3278,7 @@ test('the clean release inventory carries the focused runtime dependency closure
   );
 
   for (const relative of [
+    'package.json',
     'runtime/ui/chip-projection.js',
     'runtime/compute/compute-fabric.js',
     'runtime/index.js',
