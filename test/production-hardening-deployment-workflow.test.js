@@ -82,7 +82,8 @@ test('R116F live preflight occurs before staging and is mutation-free', () => {
     /Number\(sntss\?\.checkpoint_generation\) >= sntssStatusGeneration/);
   assert.doesNotMatch(livePreflight, /pending === allPending/);
   assert.match(workflow, /EXPECTED_CHRONOBIOLOGY_CHECKPOINT: 81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae/);
-  assert.match(livePreflight, /sntssStatus\?\.instanceId === sntss\?\.instance_id/);
+  assert.match(livePreflight, /instanceId: sntss\?\.instance_id/);
+  assert.doesNotMatch(livePreflight, /sntssStatus\?\.instanceId === sntss\?\.instance_id/);
   assert.match(livePreflight, /fetusAuthority\?\.version === '0\.6\.0'/);
   assert.match(livePreflight, /payloadSoftBytes === 64 \* 1024 \* 1024/);
   assert.match(livePreflight, /supervisorOldSpaceMiB === 12/);
@@ -90,6 +91,10 @@ test('R116F live preflight occurs before staging and is mutation-free', () => {
   assert.match(livePreflight, /SNTSS_PAYLOAD_MEMORY_LIMITS/);
   assert.match(livePreflight, /SNTSS_SUPERVISOR_MEMORY_LIMITS/);
   assert.match(livePreflight, /SNTSS_RESOURCE_OBSERVED=/);
+  assert.match(livePreflight, /SNTSS_PREINIT_ATTACHMENT_BASELINE=/);
+  assert.match(livePreflight, /'PASS' : 'REPAIR_REQUIRED'/);
+  assert.match(livePreflight,
+    /publicChrono\?\.status === 'RUNNING' &&\s+sntssResources\.payloadAttachedBeforeInit === true/);
   assert.match(livePreflight, /R116F_LIVE_PREFLIGHT=PASS/);
   for (const marker of [
     'SERVICE_OPERATION=NO', 'CURRENT_POINTER_CHANGE=NO', 'STATESTORE_WRITE=NO',
