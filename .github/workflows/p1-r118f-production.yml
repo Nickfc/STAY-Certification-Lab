@@ -146,7 +146,11 @@ jobs:
             esac
           done < "$root/actual"
           entry_extract="$(mktemp -d /tmp/stay-r118f-entry.XXXXXX)"
-          trap 'rm -rf -- "$entry_extract"' EXIT
+          cleanup_entry_extract() {
+            chmod -R u+w -- "$entry_extract" || true
+            rm -rf -- "$entry_extract"
+          }
+          trap cleanup_entry_extract EXIT
           cp -a "$extract/." "$entry_extract/"
           (cd "$entry_extract" && sha256sum -c "$manifest")
           (cd "$entry_extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/entry-actual"
