@@ -8,6 +8,50 @@ const test = require('node:test');
 
 const script = path.resolve(__dirname,
   '../deploy/live-physiology-transplant/p1-r118f-entry-preflight.js');
+const { transitionFailures } = require(script);
+
+test('R118F-ENTRY-00 bounded entry failures retain exact predicate evidence', () => {
+  const healthy = {
+    committedThroughUs: 36 * 3_600_000_000,
+    expectedCommittedThroughUs: 36 * 3_600_000_000,
+    healthOk: true,
+    elapsedMs: 999.999,
+    workerTransitionTimeoutMs: 250,
+    ipcTransitionTimeoutMs: 1000,
+    osSandboxRequired: true,
+    inspectorSandboxed: true,
+    payloadSandboxed: true,
+    cgroupRequired: true,
+    payloadCgroupRequired: true,
+    payloadCgroupAvailable: true,
+    payloadCpuMax: '20000 100000',
+    payloadMemoryHigh: String(64 * 1024 * 1024),
+    payloadMemoryMax: String(96 * 1024 * 1024),
+    payloadPidsMax: '16',
+    supervisorChargedToKernel: true,
+    payloadAttachedBeforeInit: true,
+    payloadProcessCount: 1,
+    observedOutputs: 0,
+    outputLimitPerEvent: 0,
+  };
+  assert.deepEqual(transitionFailures(healthy), []);
+  assert.deepEqual(transitionFailures({
+    ...healthy,
+    committedThroughUs: null,
+    healthOk: false,
+    elapsedMs: 1000,
+    inspectorSandboxed: false,
+    payloadCpuMax: '20001 100000',
+    observedOutputs: 1,
+  }), [
+    'COMMITTED_THROUGH_US',
+    'HEALTH',
+    'IPC_DEADLINE',
+    'OS_CONTAINMENT',
+    'PAYLOAD_CGROUP_CONTAINMENT',
+    'OUTPUT_LIMIT',
+  ]);
+});
 
 test('R118F-ENTRY-01 real CoreHost dispatch crosses the unchanged 36-hour gap', () => {
   const result = spawnSync(process.execPath, [script], {
@@ -38,15 +82,20 @@ test('R118F-ENTRY-01 real CoreHost dispatch crosses the unchanged 36-hour gap', 
   assert.equal(proof.hardRamMiB, 96);
 });
 
-test('R118F-ENTRY-02 guarded deployment includes an independent 20-percent quota entry path', () => {
+test('R118F-ENTRY-02 guarded deployment mirrors the independent payload quota topology', () => {
   const forwardPath = path.resolve(__dirname,
     '../deploy/live-physiology-transplant/p1-r118f-forward.sh');
   if (!fs.existsSync(forwardPath)) return;
   const forward = fs.readFileSync(forwardPath, 'utf8');
-  assert.match(forward, /systemd-run[\s\S]*CPUQuota=20%/);
+  assert.match(forward, /systemd-run[\s\S]*--property=Delegate=yes/);
   assert.match(forward, /p1-r118f-entry-preflight\.js/);
   assert.match(forward, /STAY_REQUIRE_OS_CORE_SANDBOX=1/);
+  assert.match(forward, /STAY_REQUIRE_CGROUPS=1/);
   assert.match(forward, /STAY_REQUIRE_CORE_PACKAGE_POLICY=1/);
+  assert.match(forward, /payloadCpuMax\)" == '20000 100000'/);
+  assert.match(forward, /supervisorChargedToKernel\)" == true/);
+  assert.match(forward, /payloadAttachedBeforeInit\)" == true/);
+  assert.doesNotMatch(forward, /--property=CPUQuota=20%/);
   assert.doesNotMatch(forward, /handlerTimeoutMs\s*[=:]\s*(?:25[1-9]|2[6-9][0-9]|[3-9][0-9]{2,})/);
 });
 
