@@ -70,6 +70,27 @@ OVERLAY_FILES=(
   'cores/chronobiology/c3r3/summary.js'
   'cores/chronobiology/c3r3/trig-table.js'
   'cores/chronobiology/c3r3/validation.js'
+  'cores/chronobiology/c3r4/aggregate.js'
+  'cores/chronobiology/c3r4/calibration-profile.js'
+  'cores/chronobiology/c3r4/coarse-free-run.js'
+  'cores/chronobiology/c3r4/entrainment.js'
+  'cores/chronobiology/c3r4/fixed-point.js'
+  'cores/chronobiology/c3r4/founder.js'
+  'cores/chronobiology/c3r4/index.js'
+  'cores/chronobiology/c3r4/local-ring-kernel.js'
+  'cores/chronobiology/c3r4/long-gap.js'
+  'cores/chronobiology/c3r4/oscillator.js'
+  'cores/chronobiology/c3r4/package-policy.json'
+  'cores/chronobiology/c3r4/phase-response.js'
+  'cores/chronobiology/c3r4/photic-calibration-profile.js'
+  'cores/chronobiology/c3r4/photic-transducer.js'
+  'cores/chronobiology/c3r4/schemas/phase-summary.schema.json'
+  'cores/chronobiology/c3r4/schemas/photic-evidence.schema.json'
+  'cores/chronobiology/c3r4/schemas/state.schema.json'
+  'cores/chronobiology/c3r4/state.js'
+  'cores/chronobiology/c3r4/summary.js'
+  'cores/chronobiology/c3r4/trig-table.js'
+  'cores/chronobiology/c3r4/validation.js'
   'runtime/kernel/core-host-client.js'
   'runtime/kernel/core-loader.js'
   'runtime/kernel/chronobiology-resident-contracts.js'
@@ -85,8 +106,11 @@ OVERLAY_FILES=(
   'deploy/live-physiology-transplant/p1-r118f-finalize.sh'
   'deploy/live-physiology-transplant/p1-r118f-forward.sh'
   'deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh'
+  'scripts/chronobiology-c3r4-performance-lab.js'
   'test/chronobiology-c3r2-performance-repair.test.js'
   'test/chronobiology-c3r3-jitless-performance-repair.test.js'
+  'test/chronobiology-c3r4-performance-lab.test.js'
+  'test/chronobiology-c3r4-topology-performance-repair.test.js'
   'test/core-host-supervisor-permissions.test.js'
   'test/core-loader-diagnostics.test.js'
   'test/p1-r118f-chronobiology-implementation-repair.test.js'
@@ -94,6 +118,7 @@ OVERLAY_FILES=(
   'test/production-hardening.test.js'
   'test/production-hardening-entry-path.test.js'
   'test/fixtures/stateful-core.js'
+  'tools/generate-c3r4-local-kernel.js'
 )
 
 WORK=''
@@ -222,7 +247,7 @@ cleanup() {
     revision="$(durable_runtime_revision 2>/dev/null || true)"
     if [[ "$revision" == 116 ]]; then
       version="$(resident_version 2>/dev/null || true)"
-      if [[ "$version" == 1.0.0-c3rc.3 && -n "$NEW_RELEASE" ]]; then
+      if [[ "$version" == 1.0.0-c3rc.4 && -n "$NEW_RELEASE" ]]; then
         node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js" \
           rollback "$DATABASE" "$NEW_RELEASE" >/dev/null 2>&1 || true
       fi
@@ -352,7 +377,8 @@ const path = require('node:path');
 const root = process.argv[2];
 const policy = require(path.join(root, 'runtime/kernel/package-policy.js'));
 for (const relative of ['cores/sntss/i4g/index.js', 'cores/chronobiology/c3/index.js',
-  'cores/chronobiology/c3r2/index.js', 'cores/chronobiology/c3r3/index.js']) {
+  'cores/chronobiology/c3r2/index.js', 'cores/chronobiology/c3r3/index.js',
+  'cores/chronobiology/c3r4/index.js']) {
   const modulePath = path.join(root, relative);
   const manifest = require(modulePath).manifest;
   const record = policy.enforcePackagePolicy(modulePath);
@@ -363,6 +389,8 @@ NODE
 if ! STAY_BWRAP="$BWRAP" node --test --test-concurrency=1 \
   "$CANDIDATE/test/chronobiology-c3r2-performance-repair.test.js" \
   "$CANDIDATE/test/chronobiology-c3r3-jitless-performance-repair.test.js" \
+  "$CANDIDATE/test/chronobiology-c3r4-performance-lab.test.js" \
+  "$CANDIDATE/test/chronobiology-c3r4-topology-performance-repair.test.js" \
   "$CANDIDATE/test/core-host-supervisor-permissions.test.js" \
   "$CANDIDATE/test/core-loader-diagnostics.test.js" \
   "$CANDIDATE/test/p1-r118f-chronobiology-implementation-repair.test.js" \
@@ -423,7 +451,7 @@ MANIFEST_SHA256=$STAY_R118F_MANIFEST_SHA256
 PRODUCTION_OVERLAY_SHA256=sha256:$overlay_digest
 SNTSS_TREE_SHA256=sha256:$source_sntss_digest
 HISTORICAL_CHRONOBIOLOGY_TREE_SHA256=sha256:$source_c3_digest
-CHRONOBIOLOGY_REPAIR_VERSION=1.0.0-c3rc.3
+CHRONOBIOLOGY_REPAIR_VERSION=1.0.0-c3rc.4
 CHRONOBIOLOGY_RESOURCE_LIMITS_CHANGED=NO
 CHRONOBIOLOGY_BIOLOGICAL_STATE_CHANGED=NO
 CHRONOBIOLOGY_ABANDONED_COUNT=0

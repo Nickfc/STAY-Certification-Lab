@@ -119,7 +119,7 @@ function resourceStatus(chrono = false) {
     observedOutputs: 0,
     declaredOutputs: chrono ? 1 : 0,
     handledEvents: 10,
-    health: chrono ? { ok: true, stage: 'c3-shadow-jitless-performance-repair' } : {
+    health: chrono ? { ok: true, stage: 'c3-shadow-jitless-topology-performance-repair' } : {
       ok: true, lineageSha256: EXPECTED_SNTSS.lineageSha256,
       biologicalOutputs: 0,
     },
@@ -258,6 +258,7 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     'cores/chronobiology/c3/index.js',
     'cores/chronobiology/c3r2/index.js',
     'cores/chronobiology/c3r3/index.js',
+    'cores/chronobiology/c3r4/index.js',
     'cores/sntss/neutral/index.js',
     'runtime/kernel/core-host-client.js',
     'runtime/kernel/core-loader.js',
@@ -270,6 +271,10 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     'deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js',
     'test/p1-r118f-entry-path.test.js',
     'test/chronobiology-c3r3-jitless-performance-repair.test.js',
+    'test/chronobiology-c3r4-topology-performance-repair.test.js',
+    'test/chronobiology-c3r4-performance-lab.test.js',
+    'scripts/chronobiology-c3r4-performance-lab.js',
+    'tools/generate-c3r4-local-kernel.js',
   ]) assert.equal(entries.has(required), true, required);
 });
 

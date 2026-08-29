@@ -26,7 +26,7 @@ test('R118F-ENTRY-01 real CoreHost dispatch crosses the unchanged 36-hour gap', 
   assert.equal(result.status, 0, result.stderr);
   const proof = JSON.parse(result.stdout);
   assert.equal(proof.result, 'PASS');
-  assert.equal(proof.version, '1.0.0-c3rc.3');
+  assert.equal(proof.version, '1.0.0-c3rc.4');
   assert.equal(proof.committedThroughUs, 36 * 3_600_000_000);
   assert.equal(proof.declaredHandlerTimeoutMs, 250);
   assert.equal(proof.workerTransitionTimeoutMs, 250);
