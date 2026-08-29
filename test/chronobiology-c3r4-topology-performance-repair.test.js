@@ -161,6 +161,23 @@ test('C3R4-NUM-01 combined response fast path is exact outside its rounding fenc
   assert.ok(fenced > 10_000, `insufficient exact-fallback coverage: ${fenced}`);
 });
 
+test('C3R4-NUM-02 zero coupling follows the exact reference path', () => {
+  const state = founder('C3RC.4 zero coupling');
+  const acquired = structuredClone(state.acquired);
+  for (const oscillator of acquired.oscillators) oscillator.phase_q = 0;
+  const expected = referenceOscillator.integratePopulationDuration(
+    acquired,
+    state.phenotype,
+    60_000_000,
+  );
+  const actual = repairedOscillator.integratePopulationDuration(
+    acquired,
+    state.phenotype,
+    60_000_000,
+  );
+  assert.equal(stableStringify(actual), stableStringify(expected));
+});
+
 test('C3R4-ENTRY-01 real --jitless biological path preserves the golden state inside the contract', () => {
   const script = String.raw`
     const crypto = require('node:crypto');
