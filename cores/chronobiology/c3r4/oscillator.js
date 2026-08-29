@@ -219,9 +219,14 @@ function compiledIntegrationPlan(phenotype, durationUs) {
   const sensitivityHigh = new Array(count);
   const sensitivityLow = new Array(count);
   const sensitivityScale = new Array(count);
+  const responseScale = new Array(count);
+  const responseRoundingGuard = new Array(count);
   const totalWeightScale = new Array(count);
   for (let unitId = 0; unitId < count; unitId += 1) {
     const founder = phenotype.oscillators[unitId];
+    if (!Number.isSafeInteger(totalWeights[unitId]) || totalWeights[unitId] < 1) {
+      fail('compiled oscillator coupling weight is invalid');
+    }
     intrinsics[unitId] = phaseAdvance(founder.intrinsic_period_us, durationUs);
     recoveries[unitId] = clamp(Number(roundDivide(
       BigInt(founder.amplitude_recovery_q) * BigInt(durationUs),
@@ -231,6 +236,9 @@ function compiledIntegrationPlan(phenotype, durationUs) {
     sensitivityHigh[unitId] = high;
     sensitivityLow[unitId] = founder.coupling_sensitivity_q - high * Q30_SPLIT;
     sensitivityScale[unitId] = founder.coupling_sensitivity_q * Q30_RECIPROCAL;
+    responseScale[unitId] = founder.coupling_sensitivity_q / totalWeights[unitId];
+    responseRoundingGuard[unitId] = founder.coupling_sensitivity_q
+      * (Q30_RECIPROCAL / 2) + ADAPTIVE_ROUNDING_GUARD;
     totalWeightScale[unitId] = Q30_ONE / totalWeights[unitId];
   }
 
@@ -249,6 +257,8 @@ function compiledIntegrationPlan(phenotype, durationUs) {
     sensitivityHigh,
     sensitivityLow,
     sensitivityScale,
+    responseScale,
+    responseRoundingGuard,
   };
 }
 
@@ -277,6 +287,8 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
     sensitivityHigh,
     sensitivityLow,
     sensitivityScale,
+    responseScale,
+    responseRoundingGuard,
   } = plan;
   let recoverAmplitudes = false;
   for (let unitId = 0; unitId < count; unitId += 1) {
@@ -365,58 +377,61 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
 
     for (let unitId = 0; unitId < count; unitId += 1) {
       const sum = sums[unitId];
-      const denominator = totalWeights[unitId];
-      let coupling = 0;
-      if (sum !== 0 && denominator !== 0) {
+      let response = 0;
+      if (sum !== 0) {
         const sign = sum < 0 ? -1 : 1;
-        const magnitude = sum < 0 ? -sum : sum;
-        let couplingMagnitude;
-        if (magnitude === denominator) {
-          couplingMagnitude = Q30_ONE;
+        const sumMagnitude = sum < 0 ? -sum : sum;
+        const scaledResponse = sumMagnitude * responseScale[unitId];
+        const responseFloor = scaledResponse | 0;
+        const responseFraction = scaledResponse - responseFloor;
+        const responseGuard = responseRoundingGuard[unitId];
+        let responseMagnitude;
+        if (responseFraction < 0.5 - responseGuard
+          || responseFraction > 0.5 + responseGuard) {
+          responseMagnitude = responseFloor + (responseFraction >= 0.5 ? 1 : 0);
         } else {
-          const scaledRatio = magnitude * totalWeightScale[unitId];
-          const ratioFloor = scaledRatio | 0;
-          const ratioFraction = scaledRatio - ratioFloor;
-          if (ratioFraction < 0.5 - ADAPTIVE_ROUNDING_GUARD
-            || ratioFraction > 0.5 + ADAPTIVE_ROUNDING_GUARD) {
-            couplingMagnitude = ratioFloor + (ratioFraction >= 0.5 ? 1 : 0);
+          const denominator = totalWeights[unitId];
+          let couplingMagnitude;
+          if (sumMagnitude === denominator) {
+            couplingMagnitude = Q30_ONE;
           } else {
-            const whole = magnitude >= denominator ? 1 : 0;
-            let remainder = magnitude - whole * denominator;
-            const firstScaled = remainder * Q30_SPLIT;
-            const high = Math.floor(firstScaled / denominator);
-            remainder = firstScaled - high * denominator;
-            const secondScaled = remainder * Q30_SPLIT;
-            const low = Math.floor(secondScaled / denominator);
-            remainder = secondScaled - low * denominator;
-            couplingMagnitude = whole * Q30_ONE + high * Q30_SPLIT + low
-              + (remainder * 2 >= denominator ? 1 : 0);
+            const scaledRatio = sumMagnitude * totalWeightScale[unitId];
+            const ratioFloor = scaledRatio | 0;
+            const ratioFraction = scaledRatio - ratioFloor;
+            if (ratioFraction < 0.5 - ADAPTIVE_ROUNDING_GUARD
+              || ratioFraction > 0.5 + ADAPTIVE_ROUNDING_GUARD) {
+              couplingMagnitude = ratioFloor + (ratioFraction >= 0.5 ? 1 : 0);
+            } else {
+              const whole = sumMagnitude >= denominator ? 1 : 0;
+              let remainder = sumMagnitude - whole * denominator;
+              const firstScaled = remainder * Q30_SPLIT;
+              const high = Math.floor(firstScaled / denominator);
+              remainder = firstScaled - high * denominator;
+              const secondScaled = remainder * Q30_SPLIT;
+              const low = Math.floor(secondScaled / denominator);
+              remainder = secondScaled - low * denominator;
+              couplingMagnitude = whole * Q30_ONE + high * Q30_SPLIT + low
+                + (remainder * 2 >= denominator ? 1 : 0);
+            }
+          }
+          const scaledProduct = couplingMagnitude * sensitivityScale[unitId];
+          const productFloor = scaledProduct | 0;
+          const productFraction = scaledProduct - productFloor;
+          if (productFraction < 0.5 - ADAPTIVE_ROUNDING_GUARD
+            || productFraction > 0.5 + ADAPTIVE_ROUNDING_GUARD) {
+            responseMagnitude = productFloor + (productFraction >= 0.5 ? 1 : 0);
+          } else {
+            const couplingHigh = couplingMagnitude >>> 15;
+            const couplingLow = couplingMagnitude & 0x7fff;
+            const exactHigh = couplingHigh * sensitivityHigh[unitId];
+            const exactLow = (couplingHigh * sensitivityLow[unitId]
+              + couplingLow * sensitivityHigh[unitId]) * Q30_SPLIT
+              + couplingLow * sensitivityLow[unitId];
+            responseMagnitude = exactHigh
+              + Math.floor((exactLow + 536_870_912) * Q30_RECIPROCAL);
           }
         }
-        coupling = sign * couplingMagnitude;
-      }
-
-      let response = 0;
-      if (coupling !== 0) {
-        const couplingMagnitude = coupling < 0 ? -coupling : coupling;
-        const scaledProduct = couplingMagnitude * sensitivityScale[unitId];
-        const productFloor = scaledProduct | 0;
-        const productFraction = scaledProduct - productFloor;
-        let magnitude;
-        if (productFraction < 0.5 - ADAPTIVE_ROUNDING_GUARD
-          || productFraction > 0.5 + ADAPTIVE_ROUNDING_GUARD) {
-          magnitude = productFloor + (productFraction >= 0.5 ? 1 : 0);
-        } else {
-          const couplingHigh = couplingMagnitude >>> 15;
-          const couplingLow = couplingMagnitude & 0x7fff;
-          const exactHigh = couplingHigh * sensitivityHigh[unitId];
-          const exactLow = (couplingHigh * sensitivityLow[unitId]
-            + couplingLow * sensitivityHigh[unitId]) * Q30_SPLIT
-            + couplingLow * sensitivityLow[unitId];
-          magnitude = exactHigh
-            + Math.floor((exactLow + 536_870_912) * Q30_RECIPROCAL);
-        }
-        response = coupling < 0 ? -magnitude : magnitude;
+        response = sign < 0 ? -responseMagnitude : responseMagnitude;
         if (response < -COUPLING_RESPONSE_LIMIT_Q30) {
           response = -COUPLING_RESPONSE_LIMIT_Q30;
         } else if (response > COUPLING_RESPONSE_LIMIT_Q30) {
