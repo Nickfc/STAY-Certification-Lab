@@ -401,13 +401,14 @@ if ! STAY_BWRAP="$BWRAP" node --test --test-concurrency=1 \
   abort candidate-focused-tests-failed 1719
 fi
 
-phase 'REAL BUBBLEWRAP ENTRY PATH AT INDEPENDENT 20-PERCENT CPU QUOTA'
+phase 'REAL BUBBLEWRAP ENTRY PATH AT INDEPENDENT 20-PERCENT PAYLOAD CPU QUOTA'
 if ! systemd-run --wait --pipe --collect --quiet \
-  --property=User=staydeploy --property=CPUQuota=20% \
+  --property=User=staydeploy --property=Delegate=yes \
+  --property=CPUAccounting=yes --property=MemoryAccounting=yes \
   /usr/bin/env -i \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP="$BWRAP" \
-    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=0 \
+    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 \
     /usr/local/bin/node "$CANDIDATE/deploy/live-physiology-transplant/p1-r118f-entry-preflight.js" \
     > "$WORK/entry-quota.proof.json"; then
   abort quota-entry-preflight-failed 1720
@@ -416,6 +417,16 @@ fi
   && "$(json_field "$(<"$WORK/entry-quota.proof.json")" hardCpuPercent)" == 20 \
   && "$(json_field "$(<"$WORK/entry-quota.proof.json")" inspectorSandboxed)" == true \
   && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadSandboxed)" == true \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" cgroupRequired)" == true \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadCgroupRequired)" == true \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadCgroupAvailable)" == true \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadCpuMax)" == '20000 100000' \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadMemoryHigh)" == 67108864 \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadMemoryMax)" == 100663296 \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadPidsMax)" == 16 \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" supervisorChargedToKernel)" == true \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadAttachedBeforeInit)" == true \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadProcessCount)" -ge 1 \
   && "$(json_field "$(<"$WORK/entry-quota.proof.json")" declaredHandlerTimeoutMs)" == 250 ]] ||
   abort quota-entry-preflight-invalid 1721
 

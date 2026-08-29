@@ -204,7 +204,16 @@ test('R118F-REL-02 freeze binds immutable release and acceptance evidence', t =>
   const record = freeze.capture({
     proof: write('proof.json', proof),
     preflight: write('preflight.json', { result: 'PASS' }),
-    'entry-proof': write('entry.json', { result: 'PASS', hardCpuPercent: 20, hardRamMiB: 96 }),
+    'entry-proof': write('entry.json', {
+      result: 'PASS', hardCpuPercent: 20, hardRamMiB: 96,
+      ipcTransitionTimeoutMs: 1000,
+      cgroupRequired: true, payloadCgroupRequired: true,
+      payloadCgroupAvailable: true, payloadCpuMax: '20000 100000',
+      payloadMemoryHigh: String(64 * 1024 * 1024),
+      payloadMemoryMax: String(96 * 1024 * 1024), payloadPidsMax: '16',
+      supervisorChargedToKernel: true, payloadAttachedBeforeInit: true,
+      payloadProcessCount: 1,
+    }),
     'service-proof': write('service.json', { beforePid: 100, afterPid: 200,
       beforeRestarts: 0, afterRestarts: 0, restartCommands: 1 }),
     release,
@@ -234,7 +243,10 @@ test('R118F-REL-03 scripts expose one restart, exact revision progression and no
   assert.equal((finalize.match(/systemctl restart stay\.service/g) || []).length, 0);
   assert.match(forward, /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=117/);
   assert.match(forward, /revision[^\n]*== 118|revision 2>\/dev\/null \|\| true\)" == 118/);
-  assert.match(forward, /CPUQuota=20%/);
+  assert.match(forward, /--property=Delegate=yes/);
+  assert.match(forward, /STAY_REQUIRE_CGROUPS=1/);
+  assert.match(forward, /payloadCpuMax\)" == '20000 100000'/);
+  assert.doesNotMatch(forward, /--property=CPUQuota=20%/);
   assert.equal(forward.includes('declaredHandlerTimeoutMs)" == 250'), true);
   assert.doesNotMatch(`${forward}\n${recovery}\n${finalize}`,
     /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=(?:11[8-9]|1[2-9][0-9])/);

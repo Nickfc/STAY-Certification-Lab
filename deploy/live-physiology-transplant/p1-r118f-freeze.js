@@ -73,6 +73,17 @@ function capture(values) {
     || entryProof.result !== 'PASS'
     || entryProof.hardCpuPercent !== 20
     || entryProof.hardRamMiB !== 96
+    || entryProof.cgroupRequired !== true
+    || entryProof.payloadCgroupRequired !== true
+    || entryProof.payloadCgroupAvailable !== true
+    || entryProof.payloadCpuMax !== '20000 100000'
+    || entryProof.payloadMemoryHigh !== String(64 * 1024 * 1024)
+    || entryProof.payloadMemoryMax !== String(96 * 1024 * 1024)
+    || entryProof.payloadPidsMax !== '16'
+    || entryProof.supervisorChargedToKernel !== true
+    || entryProof.payloadAttachedBeforeInit !== true
+    || !Number.isSafeInteger(entryProof.payloadProcessCount)
+    || entryProof.payloadProcessCount < 1
     || serviceProof.restartCommands !== 1) {
     fail('R118F acceptance evidence is incomplete', 'R118F_FREEZE_ACCEPTANCE');
   }
@@ -115,6 +126,15 @@ function capture(values) {
     authority: proof.authority,
     outputs: proof.outputs,
     resources: proof.resources,
+    entryPath: {
+      ipcTransitionTimeoutMs: entryProof.ipcTransitionTimeoutMs,
+      payloadCpuMax: entryProof.payloadCpuMax,
+      payloadMemoryHigh: entryProof.payloadMemoryHigh,
+      payloadMemoryMax: entryProof.payloadMemoryMax,
+      payloadPidsMax: entryProof.payloadPidsMax,
+      supervisorChargedToKernel: entryProof.supervisorChargedToKernel,
+      payloadAttachedBeforeInit: entryProof.payloadAttachedBeforeInit,
+    },
     bsf: proof.bsf,
     fetus: proof.fetus,
     chips: proof.chips,
@@ -140,6 +160,13 @@ function verify(record) {
     || record.authority?.chronobiology !== 'NONE'
     || record.outputs?.sntss !== 0
     || record.resources?.changed !== false
+    || record.entryPath?.ipcTransitionTimeoutMs !== 1000
+    || record.entryPath?.payloadCpuMax !== '20000 100000'
+    || record.entryPath?.payloadMemoryHigh !== String(64 * 1024 * 1024)
+    || record.entryPath?.payloadMemoryMax !== String(96 * 1024 * 1024)
+    || record.entryPath?.payloadPidsMax !== '16'
+    || record.entryPath?.supervisorChargedToKernel !== true
+    || record.entryPath?.payloadAttachedBeforeInit !== true
     || record.fetus?.status !== 'healthy'
     || record.chips?.chronobiology !== 'SHADOW') {
     fail('R118F freeze record failed verification', 'R118F_FREEZE_VERIFY');

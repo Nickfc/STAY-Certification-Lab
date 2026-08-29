@@ -119,11 +119,11 @@ f7667e2becc6b256f88709e09907773c10757bbb9c896e94262088d326ce905a  ./deploy/live-
 4b0926d2789923e4cf6123570919272274e214fea325b669a32ffd8c706a794d  ./deploy/live-physiology-transplant/p1-production-hardening-live-proof.js
 87c1826c0f50ecb1ab0fdc4b2c697f84fa527d701b83048e57771cea9adc214b  ./deploy/live-physiology-transplant/p1-production-hardening-preflight.js
 c3bb12d13d9255a8e9cae828c5381ca682a415daa5f7c05ffdedad55dffbf52c  ./deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js
-243616d9d02d32f95174abde30e3d1c0bb54eb96da27403ba4549ad687f0a8bc  ./deploy/live-physiology-transplant/p1-r118f-entry-preflight.js
+fe5deb6c2d163168e5dfed82d8acbcbdab91c623b9d49d6445150e22856231bb  ./deploy/live-physiology-transplant/p1-r118f-entry-preflight.js
 c21a1b3afc10382fd987fec29ebff6f69ea5876fe32f21a7c1bb78a7c2d0389a  ./deploy/live-physiology-transplant/p1-r118f-finalize.sh
 92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03  ./deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh
-af047e98b0f24b42290b29845b8df61015ac8362977009325b5526148101a845  ./deploy/live-physiology-transplant/p1-r118f-forward.sh
-4b0cd0523fa4b8e563b2c5d129b3b769ce459576f6ba224281327c86dcaf5ca1  ./deploy/live-physiology-transplant/p1-r118f-freeze.js
+77db4df6dd8f6bd9d5b6eeeea0881fa7bb97cb8881523ffded7849ff0a855c3b  ./deploy/live-physiology-transplant/p1-r118f-forward.sh
+6f53b355a12fdd0312f6d2771d8c4e19e273e47dd62529372f8ea5ace0767eb4  ./deploy/live-physiology-transplant/p1-r118f-freeze.js
 34183352f0e0794393d05c2f170cd5a67e0bb195131f0fcbc3694868d5fbe5bc  ./deploy/live-physiology-transplant/p1-r118f-live-proof.js
 ccbcd4164f5b5312ca7dfdf6131a964736b3344c80663c3eebc1218aea3b8ca8  ./deploy/live-physiology-transplant/p1-resident-control-client.js
 030db0fad1a018f31f565ebb7a645eede2e19cb27069c259b610f11e24ad65db  ./deploy/live-physiology-transplant/p1-sntss-i4g-live-state.js
@@ -181,8 +181,8 @@ cbefbf84d405f1bbc5347ecb8f87aec0aa2c8faad760829093be06099948801f  ./test/chronob
 f5c49fbf6fae4472ecc5d415211f6bd23ade3fb685d4e7c2d3b1e5aa5b3fe7cd  ./test/core-loader-diagnostics.test.js
 5c31212b11a1f2c22d21f09ddf71272411cb5406c2105726e80bc7b9c54efe23  ./test/fixtures/stateful-core.js
 5dbaf75283e2708706113822e05ed2d60ea55324677bf76d7d480ff6a197225b  ./test/p1-r118f-chronobiology-implementation-repair.test.js
-456a34586085a5cf56e95b3ccd1a4b9731ee83e272cf7a37f49362772b6e0942  ./test/p1-r118f-entry-path.test.js
-e2412cb127ca0c7260215b5cfd0fc039b5bf355b63de9a46c857eb12e0fb24aa  ./test/p1-r118f-release-contract.test.js
+7fe9f803724da46809470fe9dee0b3b61ade98a10dc5832105c29daac869da6d  ./test/p1-r118f-entry-path.test.js
+f7211e66befb282466f2a01eabfbc261faff051f51cf11ba39368e48d2502262  ./test/p1-r118f-release-contract.test.js
 9661cac9c77ea30f5250adc8c668fe0f1d31e6ab14c818c8bd9037ff4ca7e391  ./test/production-hardening-entry-path.test.js
 3031bc6ae51c0a209ef841d34a82be10b17296d07649ff682238d6c67179d2ca  ./test/production-hardening.test.js
 dd31f68721e0b35e6fb4da3d2d20dbc854252abe5f99bec7b2571d3b31615cba  ./tools/generate-c3r4-local-kernel.js

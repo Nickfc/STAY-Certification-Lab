@@ -8,6 +8,35 @@ const { CoreHostClient } = require('../../runtime/kernel/core-host-client');
 const { inspectCoreModule } = require('../../runtime/kernel/core-loader');
 
 const entrypoint = path.resolve(__dirname, '../../cores/chronobiology/c3r4/index.js');
+const EXPECTED_COMMITTED_THROUGH_US = 36 * 3_600_000_000;
+
+function transitionFailures(evidence) {
+  const failures = [];
+  if (evidence.committedThroughUs !== evidence.expectedCommittedThroughUs) {
+    failures.push('COMMITTED_THROUGH_US');
+  }
+  if (evidence.healthOk === false) failures.push('HEALTH');
+  if (evidence.elapsedMs >= evidence.ipcTransitionTimeoutMs) failures.push('IPC_DEADLINE');
+  if (evidence.osSandboxRequired
+    && (evidence.inspectorSandboxed !== true || evidence.payloadSandboxed !== true)) {
+    failures.push('OS_CONTAINMENT');
+  }
+  if (evidence.cgroupRequired
+    && (evidence.payloadCgroupRequired !== true
+      || evidence.payloadCgroupAvailable !== true
+      || evidence.payloadCpuMax !== '20000 100000'
+      || evidence.payloadMemoryHigh !== String(64 * 1024 * 1024)
+      || evidence.payloadMemoryMax !== String(96 * 1024 * 1024)
+      || evidence.payloadPidsMax !== '16'
+      || evidence.supervisorChargedToKernel !== true
+      || evidence.payloadAttachedBeforeInit !== true
+      || !Number.isSafeInteger(evidence.payloadProcessCount)
+      || evidence.payloadProcessCount < 1)) {
+    failures.push('PAYLOAD_CGROUP_CONTAINMENT');
+  }
+  if (evidence.observedOutputs > evidence.outputLimitPerEvent) failures.push('OUTPUT_LIMIT');
+  return Object.freeze(failures);
+}
 
 function binding() {
   return {
@@ -92,7 +121,7 @@ async function run() {
       eventSequence: 1,
       eventId: genesis.id,
     });
-    const gap = pulse(2, 36 * 3_600_000_000);
+    const gap = pulse(2, EXPECTED_COMMITTED_THROUGH_US);
     const started = performance.now();
     const result = await client.dispatch(gap, {
       coreId: manifest.coreId,
@@ -106,14 +135,40 @@ async function run() {
     const health = await client.health();
     const status = client.status();
     const osSandboxRequired = process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1';
-    if (state?.continuity?.committed_through_us !== 36 * 3_600_000_000
-      || health?.ok === false
-      || elapsedMs >= client.handlerTimeoutMs + 750
-      || (osSandboxRequired && (definition.sandboxed !== true
-        || status.osContainment?.payloadSandboxed !== true))
-      || outputs.length > manifest.resources.outputLimitPerEvent) {
-      throw Object.assign(new Error('R118F real entry path failed its bounded gap transition'), {
+    const cgroupRequired = process.env.STAY_REQUIRE_CGROUPS === '1';
+    const containment = status.osContainment || {};
+    const cgroupLimits = containment.limits || {};
+    const transitionEvidence = Object.freeze({
+      committedThroughUs: state?.continuity?.committed_through_us ?? null,
+      expectedCommittedThroughUs: EXPECTED_COMMITTED_THROUGH_US,
+      healthOk: health?.ok ?? null,
+      elapsedMs,
+      workerTransitionTimeoutMs: client.handlerTimeoutMs,
+      ipcTransitionTimeoutMs: client.handlerTimeoutMs + 750,
+      osSandboxRequired,
+      inspectorSandboxed: definition.sandboxed,
+      payloadSandboxed: containment.payloadSandboxed === true,
+      cgroupRequired,
+      payloadCgroupRequired: containment.required === true,
+      payloadCgroupAvailable: containment.available === true,
+      payloadCpuMax: cgroupLimits['cpu.max'] ?? null,
+      payloadMemoryHigh: cgroupLimits['memory.high'] ?? null,
+      payloadMemoryMax: cgroupLimits['memory.max'] ?? null,
+      payloadPidsMax: cgroupLimits['pids.max'] ?? null,
+      supervisorChargedToKernel: containment.supervisorChargedToKernel === true,
+      payloadAttachedBeforeInit: containment.payloadAttachedBeforeInit === true,
+      payloadProcessCount: Array.isArray(containment.payloadPids)
+        ? containment.payloadPids.length : 0,
+      observedOutputs: outputs.length,
+      outputLimitPerEvent: manifest.resources.outputLimitPerEvent,
+    });
+    const failures = transitionFailures(transitionEvidence);
+    if (failures.length > 0) {
+      const diagnostic = JSON.stringify({ failures, ...transitionEvidence });
+      throw Object.assign(new Error(
+        `R118F real entry path failed its bounded gap transition: ${diagnostic}`), {
         code: 'R118F_ENTRY_TRANSITION',
+        diagnostic,
       });
     }
     return Object.freeze({
@@ -122,15 +177,25 @@ async function run() {
       coreId: manifest.coreId,
       version: manifest.version,
       stateSchema: manifest.stateSchema,
-      committedThroughUs: state.continuity.committed_through_us,
-      observedOutputs: outputs.length,
-      elapsedMs,
+      committedThroughUs: transitionEvidence.committedThroughUs,
+      observedOutputs: transitionEvidence.observedOutputs,
+      elapsedMs: transitionEvidence.elapsedMs,
       declaredHandlerTimeoutMs: manifest.resources.handlerTimeoutMs,
-      workerTransitionTimeoutMs: client.handlerTimeoutMs,
-      ipcTransitionTimeoutMs: client.handlerTimeoutMs + 750,
-      osSandboxRequired: process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1',
-      inspectorSandboxed: definition.sandboxed,
-      payloadSandboxed: status.osContainment?.payloadSandboxed === true,
+      workerTransitionTimeoutMs: transitionEvidence.workerTransitionTimeoutMs,
+      ipcTransitionTimeoutMs: transitionEvidence.ipcTransitionTimeoutMs,
+      osSandboxRequired: transitionEvidence.osSandboxRequired,
+      inspectorSandboxed: transitionEvidence.inspectorSandboxed,
+      payloadSandboxed: transitionEvidence.payloadSandboxed,
+      cgroupRequired: transitionEvidence.cgroupRequired,
+      payloadCgroupRequired: transitionEvidence.payloadCgroupRequired,
+      payloadCgroupAvailable: transitionEvidence.payloadCgroupAvailable,
+      payloadCpuMax: transitionEvidence.payloadCpuMax,
+      payloadMemoryHigh: transitionEvidence.payloadMemoryHigh,
+      payloadMemoryMax: transitionEvidence.payloadMemoryMax,
+      payloadPidsMax: transitionEvidence.payloadPidsMax,
+      supervisorChargedToKernel: transitionEvidence.supervisorChargedToKernel,
+      payloadAttachedBeforeInit: transitionEvidence.payloadAttachedBeforeInit,
+      payloadProcessCount: transitionEvidence.payloadProcessCount,
       packagePolicyRequired: process.env.STAY_REQUIRE_CORE_PACKAGE_POLICY === '1',
       productionEligible: manifest.productionEligible,
       hardCpuPercent: manifest.resources.hardCpuPercent,
@@ -150,4 +215,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { run };
+module.exports = { run, transitionFailures };
