@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://chronobiology/state/v2",
+  "title": "STAY Chronobiology durable state v2",
+  "type": "object",
+  "required": ["schema", "mode", "binding", "genesis", "phenotype", "acquired", "continuity"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "chronobiology.state/v2" },
+    "mode": { "const": "NEUTRAL" },
+    "binding": { "type": ["object", "null"] },
+    "genesis": { "type": ["object", "null"] },
+    "phenotype": { "type": ["object", "null"] },
+    "acquired": { "type": ["object", "null"] },
+    "continuity": { "type": ["object", "null"] }
+  }
+}
