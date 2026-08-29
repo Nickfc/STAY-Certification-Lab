@@ -239,7 +239,14 @@ jobs:
           pid="$(systemctl show stay.service -p MainPID --value)"
           restarts="$(systemctl show stay.service -p NRestarts --value)"
           [[ "$pid" =~ ^[1-9][0-9]*$ && "$restarts" =~ ^[0-9]+$ ]]
-          [[ "$(sqlite3 /var/lib/stay/data/continuity.sqlite3 'PRAGMA quick_check;')" == ok ]]
+          node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
+          const { DatabaseSync } = require('node:sqlite');
+          const database = new DatabaseSync(process.argv[2], { open: true, readOnly: true });
+          try {
+            database.exec('PRAGMA query_only=ON');
+            if (String(database.prepare('PRAGMA quick_check').get()?.quick_check || '').toLowerCase() !== 'ok') process.exit(1);
+          } finally { database.close(); }
+          NODE
           meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
           sntss="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$source_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:sntss)"
           chrono="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$source_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:chronobiology)"
