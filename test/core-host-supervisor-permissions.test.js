@@ -88,6 +88,11 @@ test(
       clientSource,
       /env:\s*coreSupervisorEnvironment\(/
     );
+
+    assert.match(
+      clientSource,
+      /COREHOST_OS_SANDBOX_ATTESTATION/
+    );
   }
 );
 

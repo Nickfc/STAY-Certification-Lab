@@ -151,6 +151,7 @@ class CoreHostClient extends EventEmitter {
     this.recoveryStateSchema = expectedManifest?.stateSchema || null;
     this.payloadAttachmentGeneration = 0;
     this.payloadAttachmentTokens = new Set();
+    this.payloadSandboxed = false;
     this.lastHeartbeat = null;
     this.lastExit = null;
     this.generation = 0;
@@ -190,6 +191,7 @@ class CoreHostClient extends EventEmitter {
       throw Object.assign(new Error('CoreHost is already running'), { code: 'COREHOST_ALREADY_RUNNING' });
     }
     this.spawning = true;
+    this.payloadSandboxed = false;
     this.lifecycle = this.generation ? 'recovering' : 'starting';
     let child = null;
     try {
@@ -238,6 +240,15 @@ class CoreHostClient extends EventEmitter {
         workerInitTimeoutMs: initTimeoutMs,
         payloadAttachTimeoutMs: COREHOST_PAYLOAD_ATTACH_TIMEOUT_MS
       }, initTimeoutMs + COREHOST_PAYLOAD_ATTACH_TIMEOUT_MS + COREHOST_IPC_MARGIN_MS);
+      const osSandboxRequired = process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1'
+        && this.expectedManifest?.coreId !== 'fetus-legacy';
+      if (osSandboxRequired && result.sandboxed !== true) {
+        throw Object.assign(
+          new Error('required Core payload OS sandbox was not attested by the supervisor'),
+          { code: 'COREHOST_OS_SANDBOX_ATTESTATION' }
+        );
+      }
+      this.payloadSandboxed = result.sandboxed === true;
       if (result.payloadAttachmentAcknowledged === true) {
         if (
           this.cgroup.required &&
@@ -787,6 +798,7 @@ class CoreHostClient extends EventEmitter {
       resourceGovernor: this.governor.status(),
       osContainment: {
         ...this.cgroup.status(),
+        payloadSandboxed: this.payloadSandboxed,
         payloadAttachedBeforeInit:
           this.payloadAttachmentGeneration === this.generation &&
           this.generation > 0
