@@ -11,6 +11,7 @@ const {
   enforcePackagePolicy,
   verifyManifestAgainstPackagePolicy,
 } = require('../../runtime/kernel/package-policy');
+const { validateManifest } = require('../../runtime/kernel/manifest');
 
 const BASELINE = Object.freeze({
   runtimeRevision: 116,
@@ -22,7 +23,8 @@ const BASELINE = Object.freeze({
   stateSchema: 2,
   moduleRelativePath: 'cores/chronobiology/c3/index.js',
   moduleHash: 'sha256:60d15f828a58a0f3dd70a424b2bdb5a7e56c090efa7594c9bb141452439c8a9e',
-  manifestHash: 'sha256:e70cb4d3c7a73515027d04fbec6b0f8ea3608dcdf16be3ae89a061e34bd8e624',
+  releaseManifestHash: 'sha256:e70cb4d3c7a73515027d04fbec6b0f8ea3608dcdf16be3ae89a061e34bd8e624',
+  manifestHash: 'sha256:293db4a1e8e6ffd9a4360231ef328da6a648d957d5b04c105b05435c0d0ea7f3',
   packagePolicyHash: 'sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820',
   checkpointGeneration: 5116,
   checkpointHash: '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae',
@@ -35,7 +37,8 @@ const REPAIR = Object.freeze({
   stateSchema: 2,
   moduleRelativePath: 'cores/chronobiology/c3r4/index.js',
   moduleHash: 'sha256:f758f8f96aef70af9fa33b805945616d416b80d338cec1e243acc17ca7e6a58a',
-  manifestHash: 'sha256:a57e6529e47da7fa227ae5d6feeeacb974f1eea2a9ddf1cd982d438493c1a556',
+  releaseManifestHash: 'sha256:a57e6529e47da7fa227ae5d6feeeacb974f1eea2a9ddf1cd982d438493c1a556',
+  manifestHash: 'sha256:30786502c45427d9accd8fdcc418dabe9ed8d9bdaf8cc90d56df55783175211b',
   packagePolicyHash: 'sha256:b4a309490e276df8916475549c796f624c9bb06c4c34507beeddb03121dfbd3e',
   checkpointGeneration: 5117,
   checkpointId: 'chronobiology-c3r4-repair-f1e1ae54-5117',
@@ -66,6 +69,8 @@ function validateReleaseIdentity(releaseRoot) {
   const repaired = enforcePackagePolicy(repairEntrypoint);
   const historicalManifest = require(historicalEntrypoint).manifest;
   const repairedManifest = require(repairEntrypoint).manifest;
+  const historicalDurableManifest = validateManifest(historicalManifest);
+  const repairedDurableManifest = validateManifest(repairedManifest);
   const repairedState = require(path.join(path.dirname(repairEntrypoint), 'state.js'));
 
   verifyManifestAgainstPackagePolicy(historical, historicalManifest);
@@ -73,14 +78,20 @@ function validateReleaseIdentity(releaseRoot) {
 
   assert(`sha256:${sha256(fs.readFileSync(historicalEntrypoint))}` === BASELINE.moduleHash,
     'historical Chronobiology module identity changed', 'R118F_REPAIR_RELEASE_IDENTITY');
-  assert(canonicalHash(historicalManifest) === BASELINE.manifestHash,
+  assert(canonicalHash(historicalManifest) === BASELINE.releaseManifestHash,
     'historical Chronobiology manifest identity changed', 'R118F_REPAIR_RELEASE_IDENTITY');
+  assert(canonicalHash(historicalDurableManifest) === BASELINE.manifestHash,
+    'historical Chronobiology durable manifest identity changed',
+    'R118F_REPAIR_RELEASE_IDENTITY');
   assert(historical.policy.policyHash === BASELINE.packagePolicyHash,
     'historical Chronobiology package policy changed', 'R118F_REPAIR_RELEASE_IDENTITY');
   assert(`sha256:${sha256(fs.readFileSync(repairEntrypoint))}` === REPAIR.moduleHash,
     'repaired Chronobiology module identity changed', 'R118F_REPAIR_RELEASE_IDENTITY');
-  assert(canonicalHash(repairedManifest) === REPAIR.manifestHash,
+  assert(canonicalHash(repairedManifest) === REPAIR.releaseManifestHash,
     'repaired Chronobiology manifest identity changed', 'R118F_REPAIR_RELEASE_IDENTITY');
+  assert(canonicalHash(repairedDurableManifest) === REPAIR.manifestHash,
+    'repaired Chronobiology durable manifest identity changed',
+    'R118F_REPAIR_RELEASE_IDENTITY');
   assert(repaired.policy.policyHash === REPAIR.packagePolicyHash,
     'repaired Chronobiology package policy changed', 'R118F_REPAIR_RELEASE_IDENTITY');
   assert(repairedManifest.version === REPAIR.version

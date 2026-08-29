@@ -9,6 +9,7 @@ const test = require('node:test');
 const { DatabaseSync } = require('node:sqlite');
 
 const { stableStringify } = require('../runtime/kernel/canonical-json');
+const { validateManifest } = require('../runtime/kernel/manifest');
 const {
   BASELINE,
   REPAIR,
@@ -121,6 +122,16 @@ function read(databasePath, sql, ...parameters) {
 
 test('R118F-IMP-01 release identity preserves historical code, limits, routes and authority containment', () => {
   const { historicalManifest, repairedManifest } = validateReleaseIdentity(root);
+  assert.equal(`sha256:${sha256(stableStringify(historicalManifest))}`,
+    BASELINE.releaseManifestHash);
+  assert.equal(`sha256:${sha256(stableStringify(validateManifest(historicalManifest)))}`,
+    BASELINE.manifestHash);
+  assert.equal(`sha256:${sha256(stableStringify(repairedManifest))}`,
+    REPAIR.releaseManifestHash);
+  assert.equal(`sha256:${sha256(stableStringify(validateManifest(repairedManifest)))}`,
+    REPAIR.manifestHash);
+  assert.notEqual(BASELINE.releaseManifestHash, BASELINE.manifestHash);
+  assert.notEqual(REPAIR.releaseManifestHash, REPAIR.manifestHash);
   assert.equal(historicalManifest.version, BASELINE.version);
   assert.equal(repairedManifest.version, REPAIR.version);
   assert.equal(repairedManifest.productionEligible, false);
@@ -254,5 +265,24 @@ test('R118F-IMP-05 real preflight refuses a checkpoint blob that misses the immu
   const resident = read(data.databasePath,
     'SELECT * FROM resident_instances WHERE residency_id=?', BASELINE.residencyId);
   assert.equal(resident.version, BASELINE.version);
+  assert.equal(resident.checkpoint_generation, BASELINE.checkpointGeneration);
+});
+
+test('R118F-IMP-06 durable resident fence requires the normalized manifest identity', t => {
+  const data = fixture(t);
+  const database = new DatabaseSync(data.databasePath);
+  database.prepare(`
+    UPDATE resident_instances SET manifest_hash=? WHERE residency_id=?
+  `).run(BASELINE.releaseManifestHash, BASELINE.residencyId);
+  database.close();
+
+  assert.throws(() => preflightRepair({
+    databasePath: data.databasePath,
+    releaseRoot: root,
+  }), { code: 'R118F_REPAIR_RESIDENT_FENCE' });
+  const resident = read(data.databasePath,
+    'SELECT * FROM resident_instances WHERE residency_id=?', BASELINE.residencyId);
+  assert.equal(resident.version, BASELINE.version);
+  assert.equal(resident.manifest_hash, BASELINE.releaseManifestHash);
   assert.equal(resident.checkpoint_generation, BASELINE.checkpointGeneration);
 });
