@@ -30,7 +30,7 @@ function generate() {
   const sumStores = [];
   for (let left = 0; left < 64; left += 1) {
     phaseSlots.push(`  const phase${left} = phases[${left}];`);
-    sumSlots.push(`  let sum${left} = sums[${left}];`);
+    sumSlots.push(`  let sum${left} = 0;`);
     sumStores.push(`  sums[${left}] = sum${left};`);
     blocks.push(edgeBlock(left, (left + 1) & 63));
     blocks.push(edgeBlock(left, (left + 2) & 63));

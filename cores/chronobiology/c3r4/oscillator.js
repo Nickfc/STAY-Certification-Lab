@@ -311,9 +311,8 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
   }
 
   for (let step = 0; step < iterations; step += 1) {
-    sums.fill(0);
-    // The compiled-plan admission fence proves the generated fixed ring before
-    // its static endpoint kernel is allowed to touch biological state.
+    // The admission fence proves the static ring initializes and overwrites
+    // every sum slot before long-range accumulation can observe the buffer.
     accumulateLocalRing(phases, sums, SIN_VALUES_Q30, SIN_DELTA_Q30);
 
     for (let edgeId = 0; edgeId < generalEdgeCount; edgeId += 1) {
