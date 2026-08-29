@@ -188,9 +188,11 @@ function compiledIntegrationPlan(phenotype, durationUs) {
   }
   const edges = phenotype.coupling_graph.edges;
   let localEdgeCount = 0;
-  const generalEdges = [];
+  const generalLeftUnits = [];
+  const generalRightUnits = [];
   const generalWeightHigh = [];
   const generalWeightLow = [];
+  const generalWeightScale = [];
   const totalWeights = new Array(count).fill(0);
   for (const edge of edges) {
     const left = edge.left_unit_id;
@@ -199,10 +201,12 @@ function compiledIntegrationPlan(phenotype, durationUs) {
     if (weight === PROFILE.localEdgeWeightQ30) {
       localEdgeCount += 1;
     } else {
-      generalEdges.push((left | (right << 6)) + weight * Q30_RECIPROCAL);
+      generalLeftUnits.push(left);
+      generalRightUnits.push(right);
       const high = Math.floor(weight / Q30_SPLIT);
       generalWeightHigh.push(high);
       generalWeightLow.push(weight - high * Q30_SPLIT);
+      generalWeightScale.push(weight * Q30_RECIPROCAL);
     }
     totalWeights[left] += weight;
     totalWeights[right] += weight;
@@ -232,10 +236,12 @@ function compiledIntegrationPlan(phenotype, durationUs) {
 
   return {
     count,
-    generalEdgeCount: generalEdges.length,
-    generalEdges,
+    generalEdgeCount: generalLeftUnits.length,
+    generalLeftUnits,
+    generalRightUnits,
     generalWeightHigh,
     generalWeightLow,
+    generalWeightScale,
     totalWeights,
     totalWeightScale,
     intrinsics,
@@ -259,9 +265,11 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
   const {
     count,
     generalEdgeCount,
-    generalEdges,
+    generalLeftUnits,
+    generalRightUnits,
     generalWeightHigh,
     generalWeightLow,
+    generalWeightScale,
     totalWeights,
     totalWeightScale,
     intrinsics,
@@ -318,10 +326,8 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
     }
 
     for (let edgeId = 0; edgeId < generalEdgeCount; edgeId += 1) {
-      const edge = generalEdges[edgeId];
-      const units = edge | 0;
-      const left = units & 63;
-      const right = units >>> 6;
+      const left = generalLeftUnits[edgeId];
+      const right = generalRightUnits[edgeId];
       const phase = (phases[right] - phases[left]) >>> 0;
       const index = phase >>> 20;
       const fraction = phase & 0xf_ffff;
@@ -333,7 +339,7 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
       let response = 0;
       if (sine !== 0) {
         const sineMagnitude = sine < 0 ? -sine : sine;
-        const scaledProduct = sineMagnitude * (edge - units);
+        const scaledProduct = sineMagnitude * generalWeightScale[edgeId];
         const productFloor = scaledProduct | 0;
         const productFraction = scaledProduct - productFloor;
         let magnitude;
