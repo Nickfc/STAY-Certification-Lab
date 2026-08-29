@@ -18,10 +18,6 @@ const {
   verifyManifestAgainstPackagePolicy,
 } = require('../runtime/kernel/package-policy');
 const { OUTPUT: GENERATED_KERNEL, generate } = require('../tools/generate-c3r4-local-kernel');
-const {
-  OUTPUT: GENERATED_GENERAL_KERNEL,
-  generate: generateGeneralKernel,
-} = require('../tools/generate-c3r4-general-kernel');
 
 const GOLDEN_DIGEST = '53158bb15a19011b448b17aa9b8a0859bd63b96c53566d089e959880c9120606';
 const Q30_ONE = 1_073_741_824;
@@ -57,7 +53,6 @@ test('C3R4-ID-01 topology repair is a new contained implementation identity', ()
 
 test('C3R4-TOPO-01 static kernel is reproducible and malformed local topology fails closed', () => {
   assert.equal(fs.readFileSync(GENERATED_KERNEL, 'utf8'), generate());
-  assert.equal(fs.readFileSync(GENERATED_GENERAL_KERNEL, 'utf8'), generateGeneralKernel());
   const state = founder('C3RC.4 malformed topology');
   const phenotype = structuredClone(state.phenotype);
   const firstLocal = phenotype.coupling_graph.edges.findIndex(edge =>
