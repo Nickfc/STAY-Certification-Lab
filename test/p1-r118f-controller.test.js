@@ -119,6 +119,9 @@ test('R118F-BRIDGE-06 workflows bind the controller and immutable hosted release
   assert.match(productionWorkflow, /install -d -m 0700 "\$root" "\$extract"/);
   assert.match(productionWorkflow,
     /entry_extract="\$\(mktemp -d \/tmp\/stay-r118f-entry\.XXXXXX\)"/);
+  assert.match(productionWorkflow, /cleanup_entry_extract\(\) \{/);
+  assert.match(productionWorkflow, /chmod -R u\+w -- "\$entry_extract" \|\| true/);
+  assert.match(productionWorkflow, /trap cleanup_entry_extract EXIT/);
   assert.match(productionWorkflow, /\(cd "\$entry_extract" && sha256sum -c "\$manifest"\)/);
   assert.match(productionWorkflow, /find "\$entry_extract" -type f -exec chmod a-w,a\+r/);
   assert.match(productionWorkflow, /find "\$entry_extract" -type d -exec chmod a-w,a\+rx/);
