@@ -287,7 +287,6 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
   }
 
   for (let step = 0; step < iterations; step += 1) {
-    sums.fill(0);
     // Founder reconstruction proves the fixed 64-node local ±1/±2 ring before
     // this plan is admitted. Deriving those endpoints removes 256 interpreter
     // array reads per quantum while the founder-specific long-range graph
@@ -365,6 +364,7 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
 
     for (let unitId = 0; unitId < count; unitId += 1) {
       const sum = sums[unitId];
+      sums[unitId] = 0;
       const denominator = totalWeights[unitId];
       let coupling = 0;
       if (sum !== 0 && denominator !== 0) {
