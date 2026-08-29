@@ -13,7 +13,10 @@ const {
   sinQ30,
   wrapPhase,
 } = require('./fixed-point');
-const { accumulateLocalRing } = require('./local-ring-kernel');
+const {
+  accumulateLocalOffsetOne,
+  accumulateLocalOffsetTwo,
+} = require('./local-ring-kernel');
 const { SIN_Q30 } = require('./trig-table');
 
 const MAX_INTEGRATION_STEPS = 43_200;
@@ -314,7 +317,8 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
     sums.fill(0);
     // The compiled-plan admission fence proves the generated fixed ring before
     // its static endpoint kernel is allowed to touch biological state.
-    accumulateLocalRing(phases, sums, SIN_VALUES_Q30, SIN_DELTA_Q30);
+    accumulateLocalOffsetOne(phases, sums, SIN_VALUES_Q30, SIN_DELTA_Q30);
+    accumulateLocalOffsetTwo(phases, sums, SIN_VALUES_Q30, SIN_DELTA_Q30);
 
     for (let edgeId = 0; edgeId < generalEdgeCount; edgeId += 1) {
       const units = generalUnits[edgeId];
