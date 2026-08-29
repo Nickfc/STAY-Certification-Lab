@@ -85,6 +85,7 @@ e52e05a43b0c42995a59c6f347661035abcb5f3db533501d3bc8ad45aba9536c  ./cores/sntss/
 04757feb7b57bdf4401387a2e3c3c4d5b8fcf0724773462dce66110e7abc588d  ./cores/sntss/i4g/receptor-regulation.js
 9a7a55c0e2910c1811ae5eb579ae13cde2fa256335cb0905d124a0ed933c2ac0  ./cores/sntss/i4g/regulation-profile.js
 fff2600be16213032d9ab97c82f7674dc9e403011ee85f7450e830db5bbda0e3  ./cores/sntss/i4g/species-profile.js
+eab5a87ac96d533cf8372e69ba50d1455f223c2e870e1740328a23116feaf5f7  ./cores/sntss/neutral/index.js
 bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37  ./deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md
 647ffe294b9a462ef4a3ff44e8303adf6e069fc122e4df7e0eed3976b4c5ee94  ./deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256
 259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md
@@ -157,6 +158,6 @@ f5c49fbf6fae4472ecc5d415211f6bd23ade3fb685d4e7c2d3b1e5aa5b3fe7cd  ./test/core-lo
 5c31212b11a1f2c22d21f09ddf71272411cb5406c2105726e80bc7b9c54efe23  ./test/fixtures/stateful-core.js
 5dbaf75283e2708706113822e05ed2d60ea55324677bf76d7d480ff6a197225b  ./test/p1-r118f-chronobiology-implementation-repair.test.js
 4d22545706bdf1484d8062eccd739db8e0eea3eb9d0be01f73fff89d6766a694  ./test/p1-r118f-entry-path.test.js
-dfa9e5a9ecc56a2d29b102907b02c8d8ec96281851fe6bea00310a6d3eb2e568  ./test/p1-r118f-release-contract.test.js
+27ddadc3b393ca6c2563bf314a8755b64f10c571f71db01b40037ccfbdd7cb6d  ./test/p1-r118f-release-contract.test.js
 9661cac9c77ea30f5250adc8c668fe0f1d31e6ab14c818c8bd9037ff4ca7e391  ./test/production-hardening-entry-path.test.js
 3031bc6ae51c0a209ef841d34a82be10b17296d07649ff682238d6c67179d2ca  ./test/production-hardening.test.js

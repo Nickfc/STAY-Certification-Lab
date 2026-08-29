@@ -258,6 +258,7 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     'cores/chronobiology/c3/index.js',
     'cores/chronobiology/c3r2/index.js',
     'cores/chronobiology/c3r3/index.js',
+    'cores/sntss/neutral/index.js',
     'runtime/kernel/core-host-client.js',
     'runtime/kernel/core-loader.js',
     'runtime/kernel/chronobiology-resident-contracts.js',
