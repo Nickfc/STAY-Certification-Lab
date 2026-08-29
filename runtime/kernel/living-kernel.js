@@ -177,6 +177,10 @@ class LivingKernel {
       CHRONOBIOLOGY_RESIDENT_CONTRACT
     } = require('./resident-manager');
 
+    const {
+      CHRONOBIOLOGY_R2_RESIDENT_CONTRACT
+    } = require('./chronobiology-resident-contracts');
+
     const durableSntss =
       this.stateStore
         .getResident(
@@ -192,6 +196,22 @@ class LivingKernel {
         'cores/sntss/i4g/index.js'
         ? I4G_SNTSS_CONTRACT
         : L0_SNTSS_CONTRACT;
+
+    const durableChronobiology =
+      this.stateStore
+        .getResident(
+          'resident:chronobiology'
+        );
+
+    const chronobiologyContract =
+      durableChronobiology?.version ===
+        CHRONOBIOLOGY_R2_RESIDENT_CONTRACT.version &&
+      durableChronobiology?.stateSchema ===
+        CHRONOBIOLOGY_R2_RESIDENT_CONTRACT.stateSchema &&
+      durableChronobiology?.moduleRelativePath ===
+        'cores/chronobiology/c3r2/index.js'
+        ? CHRONOBIOLOGY_R2_RESIDENT_CONTRACT
+        : CHRONOBIOLOGY_RESIDENT_CONTRACT;
 
     this.residentManager =
       new ResidentManager({
@@ -216,7 +236,7 @@ class LivingKernel {
         contracts:
           [
             sntssContract,
-            CHRONOBIOLOGY_RESIDENT_CONTRACT
+            chronobiologyContract
           ]
       });
 

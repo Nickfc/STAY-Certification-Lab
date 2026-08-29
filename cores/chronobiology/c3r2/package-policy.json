@@ -1,0 +1,89 @@
+{
+  "formatVersion": 1,
+  "coreId": "chronobiology",
+  "entrypoint": "index.js",
+  "allowedBuiltins": [
+    "node:crypto"
+  ],
+  "ambientCapabilities": {
+    "filesystemWrite": false,
+    "network": false,
+    "processSpawn": false
+  },
+  "diagnostics": false,
+  "environmentAllowlist": [
+    "LANG",
+    "LC_ALL",
+    "NODE_ENV",
+    "PATH",
+    "STAY_COREHOST",
+    "TZ"
+  ],
+  "files": {
+    "../../../runtime/kernel/canonical-json.js": "sha256:aafdc03899a23b00ff6a0ec2930399a0d88ffc767e0cf903d9a69f5cbf93fe9e",
+    "aggregate.js": "sha256:5e3b783ebe6a2f83c12442631a4f66240636d0bc18c7ede1fe17c3b5b0aa990a",
+    "calibration-profile.js": "sha256:e758ac1956b53cb02d0ab0d95bff67be948525127185295eb05f280838519ff3",
+    "coarse-free-run.js": "sha256:13ec141fbca5bea9aac11055ced246a4114de834394d08252c82eca27c41aa6c",
+    "entrainment.js": "sha256:03977385dfe975d53d8ec66573be6315b26430752e911a6ff9397c48a10071c8",
+    "fixed-point.js": "sha256:a5729e971d0b0ddf93b42bfdf6b9d489ca0709ab8487b4883549bed256350b5a",
+    "founder.js": "sha256:a8ed1f62a257acb15bf1b966d1e59d77e0613c020f718621a751724f9dea1e33",
+    "index.js": "sha256:b765ef4e670641d80aa3ae3453fd5d2f1cacaebdad135fbd8973c10f23401634",
+    "long-gap.js": "sha256:48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
+    "oscillator.js": "sha256:bdf1bc5f2c5a2e2d2383fb9039495ecb0bd6dd0efc0f93030a430c24cbace190",
+    "phase-response.js": "sha256:b6174a57b5313bf5540b5c7c6093045bd5681bd9b85692b2eee33dc8b1a933d1",
+    "photic-calibration-profile.js": "sha256:a4c02de768c486eb836c20ac98e0f03d7f8d363394a6cc6f266f7404f3ca67ab",
+    "photic-transducer.js": "sha256:1a87ca4bf5a231988035df60a94bc257edd2ff3241340fd38c64b522a327017a",
+    "schemas/phase-summary.schema.json": "sha256:1eb7e4446040b111032d34294fa5edb66ed2863b6da3701be6e7996813d8acf9",
+    "schemas/photic-evidence.schema.json": "sha256:6054d0e3e5aabe3611130650313f629b1485e6de97e9cc575298345a0126d47e",
+    "schemas/state.schema.json": "sha256:ddfa9942cce9ee8246b6f2b05048ed46a666ccf7c9f05169f86479e0b0d8f2b8",
+    "state.js": "sha256:2aa946ec4acf4a6fa87b2f5b12163260f11dc22c993f415ab1539149d3049ccc",
+    "summary.js": "sha256:ddf8a1a129f7d47331e5ec28c1eb1fbc82ebcc55e7bffb145a7cc7f7fc6cba9c",
+    "trig-table.js": "sha256:2e360df71cf652ae926fbb82861b362b438cf6794cd6751e541968571ce37668",
+    "validation.js": "sha256:7c9bd5f394048a2c41b5de336ff91faaa48db8c7c93b545c21ac013a62879eb6"
+  },
+  "resourceContract": {
+    "cgroupV2": {
+      "distribution": "stay-cores",
+      "leaf": "chronobiology-c3-<instance>",
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "kernelGovernorOwned": true,
+      "memoryHighBytes": 67108864,
+      "memoryMaxBytes": 100663296,
+      "pidsMax": 16,
+      "cpuMax": "20000 100000"
+    },
+    "manifestResources": {
+      "softRamMiB": 64,
+      "hardRamMiB": 96,
+      "softCpuPercent": 5,
+      "hardCpuPercent": 20,
+      "pidsMax": 16,
+      "queueCapacity": 256,
+      "handlerTimeoutMs": 250,
+      "healthTimeoutMs": 1000,
+      "outputCapacity": 128,
+      "outputLimitPerEvent": 16,
+      "outputBytesPerEvent": 65536,
+      "storageMiB": 4,
+      "maxRestarts": 4,
+      "restartWindowMs": 60000,
+      "restartBackoffMs": 250
+    },
+    "requiredOnProductionHost": true
+  },
+  "bounds": {
+    "checkpointBytes": 1048576,
+    "auditRecords": 64,
+    "auditRecordBytes": 4096,
+    "migrationRecords": 64,
+    "migrationWorkItems": 1,
+    "shutdownMs": 2000,
+    "pendingRequests": 128,
+    "productionOutputs": 0
+  },
+  "policyHash": "sha256:0d2ae2f1d1c5fbab8d4c62d83924fcfb9dbf50f1656e73188b3a8b5b1b76b635"
+}
