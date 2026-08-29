@@ -411,12 +411,10 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
               + Math.floor((exactLow + 536_870_912) * Q30_RECIPROCAL);
           }
         }
-        response = sign < 0 ? -responseMagnitude : responseMagnitude;
-        if (response < -COUPLING_RESPONSE_LIMIT_Q30) {
-          response = -COUPLING_RESPONSE_LIMIT_Q30;
-        } else if (response > COUPLING_RESPONSE_LIMIT_Q30) {
-          response = COUPLING_RESPONSE_LIMIT_Q30;
+        if (responseMagnitude > COUPLING_RESPONSE_LIMIT_Q30) {
+          responseMagnitude = COUPLING_RESPONSE_LIMIT_Q30;
         }
+        response = sign < 0 ? -responseMagnitude : responseMagnitude;
       }
 
       const intrinsic = intrinsics[unitId];
