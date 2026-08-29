@@ -145,12 +145,20 @@ jobs:
               *.sh) bash -n "$extract/$file" ;;
             esac
           done < "$root/actual"
+          entry_extract="$(mktemp -d /tmp/stay-r118f-entry.XXXXXX)"
+          trap 'rm -rf -- "$entry_extract"' EXIT
+          cp -a "$extract/." "$entry_extract/"
+          (cd "$entry_extract" && sha256sum -c "$manifest")
+          (cd "$entry_extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/entry-actual"
+          cmp "$root/expected" "$root/entry-actual"
+          find "$entry_extract" -type f -exec chmod a-w,a+r {} +
+          find "$entry_extract" -type d -exec chmod a-w,a+rx {} +
           STAY_BWRAP=/usr/local/bin/stay-ci-bwrap node --test --test-concurrency=1 \
-            "$extract/test/chronobiology-c3r2-performance-repair.test.js" \
-            "$extract/test/p1-r118f-chronobiology-implementation-repair.test.js" \
-            "$extract/test/p1-r118f-entry-path.test.js" \
-            "$extract/test/p1-r118f-release-contract.test.js" \
-            "$extract/test/production-hardening-entry-path.test.js"
+            "$entry_extract/test/chronobiology-c3r2-performance-repair.test.js" \
+            "$entry_extract/test/p1-r118f-chronobiology-implementation-repair.test.js" \
+            "$entry_extract/test/p1-r118f-entry-path.test.js" \
+            "$entry_extract/test/p1-r118f-release-contract.test.js" \
+            "$entry_extract/test/production-hardening-entry-path.test.js"
           cat > "$root/R118F_RELEASE.identity" <<EOF
           RELEASE_TAG=$RELEASE_TAG
           RELEASE_COMMIT=$RELEASE_COMMIT
