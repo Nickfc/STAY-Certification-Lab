@@ -80,9 +80,9 @@ function fixture(t) {
   database.prepare(`
     INSERT INTO resident_checkpoints VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    'production-checkpoint-5116', BASELINE.residencyId, BASELINE.instanceId,
+    BASELINE.checkpointId, BASELINE.residencyId, BASELINE.instanceId,
     BASELINE.version, BASELINE.stateSchema, BASELINE.checkpointGeneration,
-    BASELINE.checkpointHash, checkpointBytes.length, BASELINE.consumerCursor,
+    BASELINE.checkpointHash, BASELINE.checkpointByteLength, BASELINE.checkpointInputCursor,
     '2026-08-29T04:00:00.000Z',
   );
   const topics = stableStringify([
@@ -132,6 +132,7 @@ test('R118F-IMP-01 release identity preserves historical code, limits, routes an
     REPAIR.manifestHash);
   assert.notEqual(BASELINE.releaseManifestHash, BASELINE.manifestHash);
   assert.notEqual(REPAIR.releaseManifestHash, REPAIR.manifestHash);
+  assert.notEqual(BASELINE.checkpointInputCursor, BASELINE.consumerCursor);
   assert.equal(historicalManifest.version, BASELINE.version);
   assert.equal(repairedManifest.version, REPAIR.version);
   assert.equal(repairedManifest.productionEligible, false);
@@ -168,7 +169,13 @@ test('R118F-IMP-02 exact offline CAS preserves checkpoint bytes, instance, curso
   assert.equal(repairedCheckpoint.version, REPAIR.version);
   assert.equal(repairedCheckpoint.blob_hash, oldCheckpoint.blob_hash);
   assert.equal(repairedCheckpoint.byte_length, oldCheckpoint.byte_length);
+  assert.equal(oldCheckpoint.checkpoint_id, BASELINE.checkpointId);
+  assert.equal(oldCheckpoint.byte_length, BASELINE.checkpointByteLength);
+  assert.equal(oldCheckpoint.input_cursor, BASELINE.checkpointInputCursor);
   assert.equal(repairedCheckpoint.input_cursor, oldCheckpoint.input_cursor);
+  const consumer = read(data.databasePath,
+    'SELECT * FROM biological_consumers WHERE consumer_id=?', BASELINE.residencyId);
+  assert.equal(consumer.cursor, BASELINE.consumerCursor);
   const evidence = read(data.databasePath, `
     SELECT detail_json FROM recovery_records
     WHERE type='resident.implementation-repaired'
@@ -178,7 +185,9 @@ test('R118F-IMP-02 exact offline CAS preserves checkpoint bytes, instance, curso
     authorityChanged: false,
     biologicalStateChanged: false,
     checkpointBytesChanged: false,
+    checkpointByteLength: BASELINE.checkpointByteLength,
     checkpointHash: BASELINE.checkpointHash,
+    checkpointInputCursor: BASELINE.checkpointInputCursor,
     consumerCursor: BASELINE.consumerCursor,
     fromCheckpointGeneration: BASELINE.checkpointGeneration,
     fromModuleHash: BASELINE.moduleHash,
@@ -191,6 +200,7 @@ test('R118F-IMP-02 exact offline CAS preserves checkpoint bytes, instance, curso
     residencyId: BASELINE.residencyId,
     resourceLimitsChanged: false,
     runtimeRevision: BASELINE.runtimeRevision,
+    sourceCheckpointId: BASELINE.checkpointId,
     toCheckpointGeneration: REPAIR.checkpointGeneration,
     toModuleHash: REPAIR.moduleHash,
     toModuleRelativePath: REPAIR.moduleRelativePath,
@@ -205,7 +215,53 @@ test('R118F-IMP-02 exact offline CAS preserves checkpoint bytes, instance, curso
     'ALREADY_APPLIED');
 });
 
-test('R118F-IMP-03 any pending debt rejects atomically without changing the implementation', t => {
+test('R118F-IMP-03 physiological provenance and administrative cursor are fenced independently',
+  async t => {
+    await t.test('checkpoint provenance cannot be replaced by the consumer cursor', () => {
+      const data = fixture(t);
+      const database = new DatabaseSync(data.databasePath);
+      database.prepare(`
+        UPDATE resident_checkpoints SET input_cursor=?
+        WHERE residency_id=? AND generation=?
+      `).run(BASELINE.consumerCursor, BASELINE.residencyId, BASELINE.checkpointGeneration);
+      database.close();
+
+      assert.throws(() => applyRepair({
+        databasePath: data.databasePath,
+        releaseRoot: root,
+        checkpointReader: () => data.checkpointBytes,
+      }), { code: 'R118F_REPAIR_CHECKPOINT_FENCE' });
+      assert.equal(read(data.databasePath, `
+        SELECT COUNT(*) value FROM resident_checkpoints WHERE generation=?
+      `, REPAIR.checkpointGeneration).value, 0);
+      assert.equal(read(data.databasePath, `
+        SELECT version FROM resident_instances WHERE residency_id=?
+      `, BASELINE.residencyId).version, BASELINE.version);
+    });
+
+    await t.test('consumer cursor cannot be replaced by checkpoint provenance', () => {
+      const data = fixture(t);
+      const database = new DatabaseSync(data.databasePath);
+      database.prepare(`
+        UPDATE biological_consumers SET cursor=? WHERE consumer_id=?
+      `).run(BASELINE.checkpointInputCursor, BASELINE.residencyId);
+      database.close();
+
+      assert.throws(() => applyRepair({
+        databasePath: data.databasePath,
+        releaseRoot: root,
+        checkpointReader: () => data.checkpointBytes,
+      }), { code: 'R118F_REPAIR_CONSUMER_FENCE' });
+      assert.equal(read(data.databasePath, `
+        SELECT COUNT(*) value FROM resident_checkpoints WHERE generation=?
+      `, REPAIR.checkpointGeneration).value, 0);
+      assert.equal(read(data.databasePath, `
+        SELECT version FROM resident_instances WHERE residency_id=?
+      `, BASELINE.residencyId).version, BASELINE.version);
+    });
+  });
+
+test('R118F-IMP-04 any pending debt rejects atomically without changing the implementation', t => {
   const data = fixture(t);
   const database = new DatabaseSync(data.databasePath);
   database.prepare('INSERT INTO biological_deliveries VALUES(?, ?, ?)').run(
@@ -228,7 +284,7 @@ test('R118F-IMP-03 any pending debt rejects atomically without changing the impl
   `, REPAIR.checkpointGeneration).value, 0);
 });
 
-test('R118F-IMP-04 pre-advancement rollback is fenced and retains immutable repair evidence', t => {
+test('R118F-IMP-05 pre-advancement rollback is fenced and retains immutable repair evidence', t => {
   const data = fixture(t);
   applyRepair({
     databasePath: data.databasePath,
@@ -256,7 +312,7 @@ test('R118F-IMP-04 pre-advancement rollback is fenced and retains immutable repa
   `, REPAIR.checkpointGeneration).value, 1);
 });
 
-test('R118F-IMP-05 real preflight refuses a checkpoint blob that misses the immutable SHA-256', t => {
+test('R118F-IMP-06 real preflight refuses a checkpoint blob that misses the immutable SHA-256', t => {
   const data = fixture(t);
   assert.throws(() => preflightRepair({
     databasePath: data.databasePath,
@@ -268,7 +324,7 @@ test('R118F-IMP-05 real preflight refuses a checkpoint blob that misses the immu
   assert.equal(resident.checkpoint_generation, BASELINE.checkpointGeneration);
 });
 
-test('R118F-IMP-06 durable resident fence requires the normalized manifest identity', t => {
+test('R118F-IMP-07 durable resident fence requires the normalized manifest identity', t => {
   const data = fixture(t);
   const database = new DatabaseSync(data.databasePath);
   database.prepare(`
@@ -285,4 +341,29 @@ test('R118F-IMP-06 durable resident fence requires the normalized manifest ident
   assert.equal(resident.version, BASELINE.version);
   assert.equal(resident.manifest_hash, BASELINE.releaseManifestHash);
   assert.equal(resident.checkpoint_generation, BASELINE.checkpointGeneration);
+});
+
+test('R118F-IMP-08 idempotent apply refuses a corrupted repair-checkpoint provenance', t => {
+  const data = fixture(t);
+  applyRepair({
+    databasePath: data.databasePath,
+    releaseRoot: root,
+    checkpointReader: () => data.checkpointBytes,
+  });
+  const database = new DatabaseSync(data.databasePath);
+  database.prepare(`
+    UPDATE resident_checkpoints SET input_cursor=?
+    WHERE residency_id=? AND generation=?
+  `).run(BASELINE.consumerCursor, BASELINE.residencyId, REPAIR.checkpointGeneration);
+  database.close();
+
+  assert.throws(() => applyRepair({
+    databasePath: data.databasePath,
+    releaseRoot: root,
+    checkpointReader: () => data.checkpointBytes,
+  }), { code: 'R118F_REPAIR_CHECKPOINT_FENCE' });
+  const resident = read(data.databasePath,
+    'SELECT * FROM resident_instances WHERE residency_id=?', BASELINE.residencyId);
+  assert.equal(resident.version, REPAIR.version);
+  assert.equal(resident.checkpoint_generation, REPAIR.checkpointGeneration);
 });
