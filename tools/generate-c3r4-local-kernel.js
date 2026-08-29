@@ -24,11 +24,10 @@ function edgeBlock(left, right) {
 }
 
 function generate() {
-  const offsetOneBlocks = [];
-  const offsetTwoBlocks = [];
+  const blocks = [];
   for (let left = 0; left < 64; left += 1) {
-    offsetOneBlocks.push(edgeBlock(left, (left + 1) & 63));
-    offsetTwoBlocks.push(edgeBlock(left, (left + 2) & 63));
+    blocks.push(edgeBlock(left, (left + 1) & 63));
+    blocks.push(edgeBlock(left, (left + 2) & 63));
   }
   return `'use strict';
 
@@ -40,7 +39,7 @@ function generate() {
  */
 const Q20_RECIPROCAL = 9.5367431640625e-7;
 
-function accumulateLocalOffsetOne(phases, sums, sinValues, sinDeltas) {
+function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
   let phase;
   let index;
   let fraction;
@@ -48,21 +47,10 @@ function accumulateLocalOffsetOne(phases, sums, sinValues, sinDeltas) {
   let scaled;
   let sine;
   let response;
-${offsetOneBlocks.join('')}
+${blocks.join('')}
 }
 
-function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
-  let phase;
-  let index;
-  let fraction;
-  let current;
-  let scaled;
-  let sine;
-  let response;
-${offsetTwoBlocks.join('')}
-}
-
-module.exports = { accumulateLocalOffsetOne, accumulateLocalOffsetTwo };
+module.exports = { accumulateLocalRing };
 `;
 }
 

@@ -8,7 +8,7 @@
  */
 const Q20_RECIPROCAL = 9.5367431640625e-7;
 
-function accumulateLocalOffsetOne(phases, sums, sinValues, sinDeltas) {
+function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
   let phase;
   let index;
   let fraction;
@@ -29,773 +29,6 @@ function accumulateLocalOffsetOne(phases, sums, sinValues, sinDeltas) {
   sums[0] += response;
   sums[1] -= response;
 
-  phase = (phases[2] - phases[1]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[1] += response;
-  sums[2] -= response;
-
-  phase = (phases[3] - phases[2]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[2] += response;
-  sums[3] -= response;
-
-  phase = (phases[4] - phases[3]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[3] += response;
-  sums[4] -= response;
-
-  phase = (phases[5] - phases[4]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[4] += response;
-  sums[5] -= response;
-
-  phase = (phases[6] - phases[5]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[5] += response;
-  sums[6] -= response;
-
-  phase = (phases[7] - phases[6]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[6] += response;
-  sums[7] -= response;
-
-  phase = (phases[8] - phases[7]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[7] += response;
-  sums[8] -= response;
-
-  phase = (phases[9] - phases[8]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[8] += response;
-  sums[9] -= response;
-
-  phase = (phases[10] - phases[9]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[9] += response;
-  sums[10] -= response;
-
-  phase = (phases[11] - phases[10]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[10] += response;
-  sums[11] -= response;
-
-  phase = (phases[12] - phases[11]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[11] += response;
-  sums[12] -= response;
-
-  phase = (phases[13] - phases[12]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[12] += response;
-  sums[13] -= response;
-
-  phase = (phases[14] - phases[13]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[13] += response;
-  sums[14] -= response;
-
-  phase = (phases[15] - phases[14]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[14] += response;
-  sums[15] -= response;
-
-  phase = (phases[16] - phases[15]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[15] += response;
-  sums[16] -= response;
-
-  phase = (phases[17] - phases[16]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[16] += response;
-  sums[17] -= response;
-
-  phase = (phases[18] - phases[17]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[17] += response;
-  sums[18] -= response;
-
-  phase = (phases[19] - phases[18]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[18] += response;
-  sums[19] -= response;
-
-  phase = (phases[20] - phases[19]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[19] += response;
-  sums[20] -= response;
-
-  phase = (phases[21] - phases[20]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[20] += response;
-  sums[21] -= response;
-
-  phase = (phases[22] - phases[21]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[21] += response;
-  sums[22] -= response;
-
-  phase = (phases[23] - phases[22]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[22] += response;
-  sums[23] -= response;
-
-  phase = (phases[24] - phases[23]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[23] += response;
-  sums[24] -= response;
-
-  phase = (phases[25] - phases[24]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[24] += response;
-  sums[25] -= response;
-
-  phase = (phases[26] - phases[25]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[25] += response;
-  sums[26] -= response;
-
-  phase = (phases[27] - phases[26]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[26] += response;
-  sums[27] -= response;
-
-  phase = (phases[28] - phases[27]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[27] += response;
-  sums[28] -= response;
-
-  phase = (phases[29] - phases[28]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[28] += response;
-  sums[29] -= response;
-
-  phase = (phases[30] - phases[29]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[29] += response;
-  sums[30] -= response;
-
-  phase = (phases[31] - phases[30]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[30] += response;
-  sums[31] -= response;
-
-  phase = (phases[32] - phases[31]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[31] += response;
-  sums[32] -= response;
-
-  phase = (phases[33] - phases[32]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[32] += response;
-  sums[33] -= response;
-
-  phase = (phases[34] - phases[33]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[33] += response;
-  sums[34] -= response;
-
-  phase = (phases[35] - phases[34]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[34] += response;
-  sums[35] -= response;
-
-  phase = (phases[36] - phases[35]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[35] += response;
-  sums[36] -= response;
-
-  phase = (phases[37] - phases[36]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[36] += response;
-  sums[37] -= response;
-
-  phase = (phases[38] - phases[37]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[37] += response;
-  sums[38] -= response;
-
-  phase = (phases[39] - phases[38]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[38] += response;
-  sums[39] -= response;
-
-  phase = (phases[40] - phases[39]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[39] += response;
-  sums[40] -= response;
-
-  phase = (phases[41] - phases[40]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[40] += response;
-  sums[41] -= response;
-
-  phase = (phases[42] - phases[41]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[41] += response;
-  sums[42] -= response;
-
-  phase = (phases[43] - phases[42]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[42] += response;
-  sums[43] -= response;
-
-  phase = (phases[44] - phases[43]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[43] += response;
-  sums[44] -= response;
-
-  phase = (phases[45] - phases[44]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[44] += response;
-  sums[45] -= response;
-
-  phase = (phases[46] - phases[45]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[45] += response;
-  sums[46] -= response;
-
-  phase = (phases[47] - phases[46]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[46] += response;
-  sums[47] -= response;
-
-  phase = (phases[48] - phases[47]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[47] += response;
-  sums[48] -= response;
-
-  phase = (phases[49] - phases[48]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[48] += response;
-  sums[49] -= response;
-
-  phase = (phases[50] - phases[49]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[49] += response;
-  sums[50] -= response;
-
-  phase = (phases[51] - phases[50]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[50] += response;
-  sums[51] -= response;
-
-  phase = (phases[52] - phases[51]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[51] += response;
-  sums[52] -= response;
-
-  phase = (phases[53] - phases[52]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[52] += response;
-  sums[53] -= response;
-
-  phase = (phases[54] - phases[53]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[53] += response;
-  sums[54] -= response;
-
-  phase = (phases[55] - phases[54]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[54] += response;
-  sums[55] -= response;
-
-  phase = (phases[56] - phases[55]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[55] += response;
-  sums[56] -= response;
-
-  phase = (phases[57] - phases[56]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[56] += response;
-  sums[57] -= response;
-
-  phase = (phases[58] - phases[57]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[57] += response;
-  sums[58] -= response;
-
-  phase = (phases[59] - phases[58]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[58] += response;
-  sums[59] -= response;
-
-  phase = (phases[60] - phases[59]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[59] += response;
-  sums[60] -= response;
-
-  phase = (phases[61] - phases[60]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[60] += response;
-  sums[61] -= response;
-
-  phase = (phases[62] - phases[61]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[61] += response;
-  sums[62] -= response;
-
-  phase = (phases[63] - phases[62]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[62] += response;
-  sums[63] -= response;
-
-  phase = (phases[0] - phases[63]) >>> 0;
-  index = phase >>> 20;
-  fraction = phase & 0xf_ffff;
-  current = sinValues[index];
-  scaled = sinDeltas[index] * fraction;
-  sine = current + (scaled < 0
-    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[63] += response;
-  sums[0] -= response;
-
-}
-
-function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
-  let phase;
-  let index;
-  let fraction;
-  let current;
-  let scaled;
-  let sine;
-  let response;
-
   phase = (phases[2] - phases[0]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -806,6 +39,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[0] += response;
+  sums[2] -= response;
+
+  phase = (phases[2] - phases[1]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[1] += response;
   sums[2] -= response;
 
   phase = (phases[3] - phases[1]) >>> 0;
@@ -820,6 +65,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[1] += response;
   sums[3] -= response;
 
+  phase = (phases[3] - phases[2]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[2] += response;
+  sums[3] -= response;
+
   phase = (phases[4] - phases[2]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -830,6 +87,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[2] += response;
+  sums[4] -= response;
+
+  phase = (phases[4] - phases[3]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[3] += response;
   sums[4] -= response;
 
   phase = (phases[5] - phases[3]) >>> 0;
@@ -844,6 +113,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[3] += response;
   sums[5] -= response;
 
+  phase = (phases[5] - phases[4]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[4] += response;
+  sums[5] -= response;
+
   phase = (phases[6] - phases[4]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -854,6 +135,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[4] += response;
+  sums[6] -= response;
+
+  phase = (phases[6] - phases[5]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[5] += response;
   sums[6] -= response;
 
   phase = (phases[7] - phases[5]) >>> 0;
@@ -868,6 +161,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[5] += response;
   sums[7] -= response;
 
+  phase = (phases[7] - phases[6]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[6] += response;
+  sums[7] -= response;
+
   phase = (phases[8] - phases[6]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -878,6 +183,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[6] += response;
+  sums[8] -= response;
+
+  phase = (phases[8] - phases[7]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[7] += response;
   sums[8] -= response;
 
   phase = (phases[9] - phases[7]) >>> 0;
@@ -892,6 +209,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[7] += response;
   sums[9] -= response;
 
+  phase = (phases[9] - phases[8]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[8] += response;
+  sums[9] -= response;
+
   phase = (phases[10] - phases[8]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -902,6 +231,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[8] += response;
+  sums[10] -= response;
+
+  phase = (phases[10] - phases[9]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[9] += response;
   sums[10] -= response;
 
   phase = (phases[11] - phases[9]) >>> 0;
@@ -916,6 +257,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[9] += response;
   sums[11] -= response;
 
+  phase = (phases[11] - phases[10]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[10] += response;
+  sums[11] -= response;
+
   phase = (phases[12] - phases[10]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -926,6 +279,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[10] += response;
+  sums[12] -= response;
+
+  phase = (phases[12] - phases[11]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[11] += response;
   sums[12] -= response;
 
   phase = (phases[13] - phases[11]) >>> 0;
@@ -940,6 +305,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[11] += response;
   sums[13] -= response;
 
+  phase = (phases[13] - phases[12]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[12] += response;
+  sums[13] -= response;
+
   phase = (phases[14] - phases[12]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -950,6 +327,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[12] += response;
+  sums[14] -= response;
+
+  phase = (phases[14] - phases[13]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[13] += response;
   sums[14] -= response;
 
   phase = (phases[15] - phases[13]) >>> 0;
@@ -964,6 +353,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[13] += response;
   sums[15] -= response;
 
+  phase = (phases[15] - phases[14]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[14] += response;
+  sums[15] -= response;
+
   phase = (phases[16] - phases[14]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -974,6 +375,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[14] += response;
+  sums[16] -= response;
+
+  phase = (phases[16] - phases[15]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[15] += response;
   sums[16] -= response;
 
   phase = (phases[17] - phases[15]) >>> 0;
@@ -988,6 +401,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[15] += response;
   sums[17] -= response;
 
+  phase = (phases[17] - phases[16]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[16] += response;
+  sums[17] -= response;
+
   phase = (phases[18] - phases[16]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -998,6 +423,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[16] += response;
+  sums[18] -= response;
+
+  phase = (phases[18] - phases[17]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[17] += response;
   sums[18] -= response;
 
   phase = (phases[19] - phases[17]) >>> 0;
@@ -1012,6 +449,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[17] += response;
   sums[19] -= response;
 
+  phase = (phases[19] - phases[18]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[18] += response;
+  sums[19] -= response;
+
   phase = (phases[20] - phases[18]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1022,6 +471,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[18] += response;
+  sums[20] -= response;
+
+  phase = (phases[20] - phases[19]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[19] += response;
   sums[20] -= response;
 
   phase = (phases[21] - phases[19]) >>> 0;
@@ -1036,6 +497,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[19] += response;
   sums[21] -= response;
 
+  phase = (phases[21] - phases[20]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[20] += response;
+  sums[21] -= response;
+
   phase = (phases[22] - phases[20]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1046,6 +519,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[20] += response;
+  sums[22] -= response;
+
+  phase = (phases[22] - phases[21]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[21] += response;
   sums[22] -= response;
 
   phase = (phases[23] - phases[21]) >>> 0;
@@ -1060,6 +545,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[21] += response;
   sums[23] -= response;
 
+  phase = (phases[23] - phases[22]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[22] += response;
+  sums[23] -= response;
+
   phase = (phases[24] - phases[22]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1070,6 +567,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[22] += response;
+  sums[24] -= response;
+
+  phase = (phases[24] - phases[23]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[23] += response;
   sums[24] -= response;
 
   phase = (phases[25] - phases[23]) >>> 0;
@@ -1084,6 +593,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[23] += response;
   sums[25] -= response;
 
+  phase = (phases[25] - phases[24]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[24] += response;
+  sums[25] -= response;
+
   phase = (phases[26] - phases[24]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1094,6 +615,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[24] += response;
+  sums[26] -= response;
+
+  phase = (phases[26] - phases[25]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[25] += response;
   sums[26] -= response;
 
   phase = (phases[27] - phases[25]) >>> 0;
@@ -1108,6 +641,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[25] += response;
   sums[27] -= response;
 
+  phase = (phases[27] - phases[26]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[26] += response;
+  sums[27] -= response;
+
   phase = (phases[28] - phases[26]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1118,6 +663,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[26] += response;
+  sums[28] -= response;
+
+  phase = (phases[28] - phases[27]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[27] += response;
   sums[28] -= response;
 
   phase = (phases[29] - phases[27]) >>> 0;
@@ -1132,6 +689,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[27] += response;
   sums[29] -= response;
 
+  phase = (phases[29] - phases[28]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[28] += response;
+  sums[29] -= response;
+
   phase = (phases[30] - phases[28]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1142,6 +711,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[28] += response;
+  sums[30] -= response;
+
+  phase = (phases[30] - phases[29]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[29] += response;
   sums[30] -= response;
 
   phase = (phases[31] - phases[29]) >>> 0;
@@ -1156,6 +737,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[29] += response;
   sums[31] -= response;
 
+  phase = (phases[31] - phases[30]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[30] += response;
+  sums[31] -= response;
+
   phase = (phases[32] - phases[30]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1166,6 +759,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[30] += response;
+  sums[32] -= response;
+
+  phase = (phases[32] - phases[31]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[31] += response;
   sums[32] -= response;
 
   phase = (phases[33] - phases[31]) >>> 0;
@@ -1180,6 +785,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[31] += response;
   sums[33] -= response;
 
+  phase = (phases[33] - phases[32]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[32] += response;
+  sums[33] -= response;
+
   phase = (phases[34] - phases[32]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1190,6 +807,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[32] += response;
+  sums[34] -= response;
+
+  phase = (phases[34] - phases[33]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[33] += response;
   sums[34] -= response;
 
   phase = (phases[35] - phases[33]) >>> 0;
@@ -1204,6 +833,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[33] += response;
   sums[35] -= response;
 
+  phase = (phases[35] - phases[34]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[34] += response;
+  sums[35] -= response;
+
   phase = (phases[36] - phases[34]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1214,6 +855,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[34] += response;
+  sums[36] -= response;
+
+  phase = (phases[36] - phases[35]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[35] += response;
   sums[36] -= response;
 
   phase = (phases[37] - phases[35]) >>> 0;
@@ -1228,6 +881,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[35] += response;
   sums[37] -= response;
 
+  phase = (phases[37] - phases[36]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[36] += response;
+  sums[37] -= response;
+
   phase = (phases[38] - phases[36]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1238,6 +903,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[36] += response;
+  sums[38] -= response;
+
+  phase = (phases[38] - phases[37]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[37] += response;
   sums[38] -= response;
 
   phase = (phases[39] - phases[37]) >>> 0;
@@ -1252,6 +929,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[37] += response;
   sums[39] -= response;
 
+  phase = (phases[39] - phases[38]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[38] += response;
+  sums[39] -= response;
+
   phase = (phases[40] - phases[38]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1262,6 +951,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[38] += response;
+  sums[40] -= response;
+
+  phase = (phases[40] - phases[39]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[39] += response;
   sums[40] -= response;
 
   phase = (phases[41] - phases[39]) >>> 0;
@@ -1276,6 +977,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[39] += response;
   sums[41] -= response;
 
+  phase = (phases[41] - phases[40]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[40] += response;
+  sums[41] -= response;
+
   phase = (phases[42] - phases[40]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1286,6 +999,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[40] += response;
+  sums[42] -= response;
+
+  phase = (phases[42] - phases[41]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[41] += response;
   sums[42] -= response;
 
   phase = (phases[43] - phases[41]) >>> 0;
@@ -1300,6 +1025,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[41] += response;
   sums[43] -= response;
 
+  phase = (phases[43] - phases[42]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[42] += response;
+  sums[43] -= response;
+
   phase = (phases[44] - phases[42]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1310,6 +1047,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[42] += response;
+  sums[44] -= response;
+
+  phase = (phases[44] - phases[43]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[43] += response;
   sums[44] -= response;
 
   phase = (phases[45] - phases[43]) >>> 0;
@@ -1324,6 +1073,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[43] += response;
   sums[45] -= response;
 
+  phase = (phases[45] - phases[44]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[44] += response;
+  sums[45] -= response;
+
   phase = (phases[46] - phases[44]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1334,6 +1095,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[44] += response;
+  sums[46] -= response;
+
+  phase = (phases[46] - phases[45]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[45] += response;
   sums[46] -= response;
 
   phase = (phases[47] - phases[45]) >>> 0;
@@ -1348,6 +1121,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[45] += response;
   sums[47] -= response;
 
+  phase = (phases[47] - phases[46]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[46] += response;
+  sums[47] -= response;
+
   phase = (phases[48] - phases[46]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1358,6 +1143,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[46] += response;
+  sums[48] -= response;
+
+  phase = (phases[48] - phases[47]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[47] += response;
   sums[48] -= response;
 
   phase = (phases[49] - phases[47]) >>> 0;
@@ -1372,6 +1169,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[47] += response;
   sums[49] -= response;
 
+  phase = (phases[49] - phases[48]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[48] += response;
+  sums[49] -= response;
+
   phase = (phases[50] - phases[48]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1382,6 +1191,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[48] += response;
+  sums[50] -= response;
+
+  phase = (phases[50] - phases[49]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[49] += response;
   sums[50] -= response;
 
   phase = (phases[51] - phases[49]) >>> 0;
@@ -1396,6 +1217,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[49] += response;
   sums[51] -= response;
 
+  phase = (phases[51] - phases[50]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[50] += response;
+  sums[51] -= response;
+
   phase = (phases[52] - phases[50]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1406,6 +1239,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[50] += response;
+  sums[52] -= response;
+
+  phase = (phases[52] - phases[51]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[51] += response;
   sums[52] -= response;
 
   phase = (phases[53] - phases[51]) >>> 0;
@@ -1420,6 +1265,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[51] += response;
   sums[53] -= response;
 
+  phase = (phases[53] - phases[52]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[52] += response;
+  sums[53] -= response;
+
   phase = (phases[54] - phases[52]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1430,6 +1287,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[52] += response;
+  sums[54] -= response;
+
+  phase = (phases[54] - phases[53]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[53] += response;
   sums[54] -= response;
 
   phase = (phases[55] - phases[53]) >>> 0;
@@ -1444,6 +1313,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[53] += response;
   sums[55] -= response;
 
+  phase = (phases[55] - phases[54]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[54] += response;
+  sums[55] -= response;
+
   phase = (phases[56] - phases[54]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1454,6 +1335,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[54] += response;
+  sums[56] -= response;
+
+  phase = (phases[56] - phases[55]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[55] += response;
   sums[56] -= response;
 
   phase = (phases[57] - phases[55]) >>> 0;
@@ -1468,6 +1361,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[55] += response;
   sums[57] -= response;
 
+  phase = (phases[57] - phases[56]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[56] += response;
+  sums[57] -= response;
+
   phase = (phases[58] - phases[56]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1478,6 +1383,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[56] += response;
+  sums[58] -= response;
+
+  phase = (phases[58] - phases[57]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[57] += response;
   sums[58] -= response;
 
   phase = (phases[59] - phases[57]) >>> 0;
@@ -1492,6 +1409,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[57] += response;
   sums[59] -= response;
 
+  phase = (phases[59] - phases[58]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[58] += response;
+  sums[59] -= response;
+
   phase = (phases[60] - phases[58]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1502,6 +1431,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[58] += response;
+  sums[60] -= response;
+
+  phase = (phases[60] - phases[59]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[59] += response;
   sums[60] -= response;
 
   phase = (phases[61] - phases[59]) >>> 0;
@@ -1516,6 +1457,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[59] += response;
   sums[61] -= response;
 
+  phase = (phases[61] - phases[60]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[60] += response;
+  sums[61] -= response;
+
   phase = (phases[62] - phases[60]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1526,6 +1479,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[60] += response;
+  sums[62] -= response;
+
+  phase = (phases[62] - phases[61]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[61] += response;
   sums[62] -= response;
 
   phase = (phases[63] - phases[61]) >>> 0;
@@ -1540,6 +1505,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
   sums[61] += response;
   sums[63] -= response;
 
+  phase = (phases[63] - phases[62]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[62] += response;
+  sums[63] -= response;
+
   phase = (phases[0] - phases[62]) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
@@ -1550,6 +1527,18 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
   sums[62] += response;
+  sums[0] -= response;
+
+  phase = (phases[0] - phases[63]) >>> 0;
+  index = phase >>> 20;
+  fraction = phase & 0xf_ffff;
+  current = sinValues[index];
+  scaled = sinDeltas[index] * fraction;
+  sine = current + (scaled < 0
+    ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+    : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+  response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
+  sums[63] += response;
   sums[0] -= response;
 
   phase = (phases[1] - phases[63]) >>> 0;
@@ -1566,4 +1555,4 @@ function accumulateLocalOffsetTwo(phases, sums, sinValues, sinDeltas) {
 
 }
 
-module.exports = { accumulateLocalOffsetOne, accumulateLocalOffsetTwo };
+module.exports = { accumulateLocalRing };
