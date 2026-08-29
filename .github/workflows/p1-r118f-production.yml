@@ -1,5 +1,5 @@
-name: R118F V9 guarded production recovery
-run-name: R118F V9 · ${{ inputs.operation }} · ${{ github.actor }}
+name: R118F V10 guarded production recovery
+run-name: R118F V10 · ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -19,29 +19,29 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R118F_V9_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
-          - AUTHORIZE_R118F_V9_FORWARD_RECOVERY_ONLY
+          - AUTHORIZE_R118F_V10_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
+          - AUTHORIZE_R118F_V10_FORWARD_RECOVERY_ONLY
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r118f-v9-production
+  group: stay-r118f-v10-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r118f-v9
-  RELEASE_TAG_OBJECT: db012a0577975c428706e771510505d50548149a
+  RELEASE_TAG: r118f-v10
+  RELEASE_TAG_OBJECT: 8e438d8f4feecf8f5bbacd23f6e92b89e3f762af
   RELEASE_COMMIT: e48b96fa90a0fb47e2fc48ef5ce3cacf454c234c
   RELEASE_TREE: f4d674c02790c44f1a6e8d16f8ee6dad4e5bc32a
-  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V9_BUNDLE_20260830.tar.gz
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V10_BUNDLE_20260830.tar.gz
   ARCHIVE_SHA256: bed5eff2a4488691254d2fb2ba7ca7d9f6cc4c339488c7b0573f08cdec5426e8
-  SIDECAR_SHA256: 53fd6ff451a6e329d32f072e0dfebedaef5eaeeb29e0e7c64f802f09aeeb58dc
+  SIDECAR_SHA256: a8f57c23edff2774086dffcf0670c87f95af433f7294d36198515196c882a883
   MANIFEST_SHA256: 129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0
   FORWARD_SHA256: c58272879f6a1c30b1a8390f56c1665c7f6268c7c0535337e8fa0ebef2cd9035
   RECOVERY_SHA256: 92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03
   TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-8ddbb57a00a7
-  WRAPPER_SHA256: 1a6a7c9815556ab04e379ef42e0fcb73c1f9ced430806bf3adb8bcb293d647fe
+  WRAPPER_SHA256: c1ee5a94719425be5e5561f92400445d059a7844f6ad8163df4d99a7fcefe3c4
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
@@ -63,10 +63,10 @@ jobs:
           [[ "$GITHUB_REF" == refs/heads/main ]]
           case "$OPERATION" in
             harden-r118f)
-              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V9_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
+              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V10_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
               ;;
             recover-r118f)
-              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V9_FORWARD_RECOVERY_ONLY ]]
+              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V10_FORWARD_RECOVERY_ONLY ]]
               ;;
             *) exit 64 ;;
           esac
@@ -183,7 +183,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r118f-v9-validated-release-${{ github.run_id }}
+          name: r118f-v10-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r118f-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r118f-release/${{ env.ARCHIVE }}.sha256
@@ -201,7 +201,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r118f-v9-validated-release-${{ github.run_id }}
+          name: r118f-v10-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -273,7 +273,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r118f-v9-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r118f-v10-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -297,7 +297,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r118f-v9-controller-output-${{ github.run_id }}
+          name: r118f-v10-controller-output-${{ github.run_id }}
           path: controller.output
           if-no-files-found: warn
           retention-days: 14
