@@ -486,7 +486,7 @@ function integratePopulationDuration(acquired, phenotype, durationUs) {
   if (durationUs === 0) return Object.freeze({ acquired, steps: 0 });
 
   const count = phenotype.oscillator_count;
-  const phases = Array.from(acquired.oscillators, value => value.phase_q);
+  const phases = Int32Array.from(acquired.oscillators, value => value.phase_q | 0);
   const amplitudeDifferences = Int32Array.from(acquired.oscillators, (value, unitId) =>
     phenotype.oscillators[unitId].baseline_amplitude_q - value.amplitude_q);
   const sums = new Int32Array(count);
