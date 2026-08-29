@@ -116,7 +116,15 @@ test('R118F-BRIDGE-06 workflows bind the controller and immutable hosted release
   assert.doesNotMatch(productionWorkflow, /git -C release-source fetch/);
   assert.match(productionWorkflow, /gh release download "\$RELEASE_TAG"/);
   assert.match(productionWorkflow, /sha256sum -c "\$ARCHIVE\.sha256"/);
+  assert.match(productionWorkflow, /install -d -m 0700 "\$root" "\$extract"/);
+  assert.match(productionWorkflow,
+    /entry_extract="\$\(mktemp -d \/tmp\/stay-r118f-entry\.XXXXXX\)"/);
+  assert.match(productionWorkflow, /\(cd "\$entry_extract" && sha256sum -c "\$manifest"\)/);
+  assert.match(productionWorkflow, /find "\$entry_extract" -type f -exec chmod a-w,a\+r/);
+  assert.match(productionWorkflow, /find "\$entry_extract" -type d -exec chmod a-w,a\+rx/);
   assert.match(productionWorkflow, /STAY_BWRAP=\/usr\/local\/bin\/stay-ci-bwrap node --test/);
+  assert.match(productionWorkflow, /"\$entry_extract\/test\/p1-r118f-entry-path\.test\.js"/);
+  assert.doesNotMatch(productionWorkflow, /"\$extract\/test\/p1-r118f-entry-path\.test\.js"/);
 });
 
 test('R118F-BRIDGE-07 live preflight precedes staging and only wrapper receives sudo', () => {
