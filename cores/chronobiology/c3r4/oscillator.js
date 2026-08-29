@@ -357,7 +357,7 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
     for (let unitId = 0; unitId < count; unitId += 1) {
       const sum = sums[unitId];
       const sign = sum < 0 ? -1 : 1;
-      const sumMagnitude = sum < 0 ? -sum : sum;
+      const sumMagnitude = sum * sign;
       const scaledResponse = sumMagnitude * responseScale[unitId];
       const responseFloor = scaledResponse | 0;
       const responseFraction = scaledResponse - responseFloor;
@@ -411,13 +411,10 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
       if (responseMagnitude > COUPLING_RESPONSE_LIMIT_Q30) {
         responseMagnitude = COUPLING_RESPONSE_LIMIT_Q30;
       }
-      const response = sign < 0 ? -responseMagnitude : responseMagnitude;
-
       const intrinsic = intrinsics[unitId];
-      const adjustmentProduct = intrinsic * response;
-      const adjustment = adjustmentProduct < 0
-        ? -(((-adjustmentProduct + 536_870_912) * Q30_RECIPROCAL) | 0)
-        : (((adjustmentProduct + 536_870_912) * Q30_RECIPROCAL) | 0);
+      const adjustmentMagnitude = ((intrinsic * responseMagnitude + 536_870_912)
+        * Q30_RECIPROCAL) | 0;
+      const adjustment = adjustmentMagnitude * sign;
       phases[unitId] = phases[unitId] + intrinsic + adjustment;
     }
 
