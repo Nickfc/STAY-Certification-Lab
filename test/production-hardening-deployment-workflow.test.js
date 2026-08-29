@@ -19,6 +19,9 @@ const preflight = read('deploy/live-physiology-transplant/p1-production-hardenin
 const controller = read('deploy/live-physiology-transplant/stay-p1-production-controller');
 const installer = read('deploy/live-physiology-transplant/install-p1-production-controller.sh');
 const bootstrap = read('.github/workflows/p1-r111f-controller-bootstrap.yml');
+const lateBootstrapReconciliation = read(
+  '.github/workflows/p1-r116f-controller-late-reconcile.yml'
+);
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 
 test('R116F deployment is manual-only and pins the immutable release identities', () => {
@@ -252,4 +255,31 @@ test('R116F V15 bootstrap is source-sealed and installs only the pinned controll
   assert.ok(sudoers);
   assert.equal(sudoers[1].trim().split('\n').at(-1),
     'staydeploy ALL=(root) NOPASSWD: /usr/local/sbin/stay-p1-production-controller');
+});
+
+test('R116F V15 late bootstrap reconciliation is one-shot, hash-fenced, and runtime inert', () => {
+  assert.match(lateBootstrapReconciliation, /^\s{2}workflow_dispatch:/m);
+  assert.doesNotMatch(lateBootstrapReconciliation,
+    /^\s{2}(push|pull_request|schedule):/m);
+  assert.match(lateBootstrapReconciliation,
+    /AUTHORIZE_R116F_V15_LATE_BOOTSTRAP_RECONCILIATION_33211858911/);
+  assert.match(lateBootstrapReconciliation,
+    /LATE_STAGE_ROOT: \/opt\/stay\/incoming\/r116f-controller-v15-33211858911/);
+  assert.match(lateBootstrapReconciliation,
+    new RegExp(`WRAPPER_SHA256: ${sha256(controller)}`));
+  assert.match(lateBootstrapReconciliation,
+    new RegExp(`INSTALLER_SHA256: ${sha256(installer)}`));
+  assert.match(lateBootstrapReconciliation, /root:root:555:1/);
+  assert.match(lateBootstrapReconciliation,
+    /P1_R116F_V15_CONTROLLER_BOOTSTRAP\.sha256/);
+  assert.match(lateBootstrapReconciliation,
+    /rm -rf --one-file-system -- "\$stage"/);
+  assert.match(lateBootstrapReconciliation,
+    /R116F_V15_LATE_BOOTSTRAP_RECONCILIATION=PASS/);
+  for (const marker of [
+    'SERVICE_OPERATION=NO', 'CURRENT_POINTER_CHANGE=NO', 'STATESTORE_WRITE=NO',
+    'RESIDENT_OPERATION=NO', 'AUTHORITY_CHANGE=NO'
+  ]) assert.match(lateBootstrapReconciliation, new RegExp(marker));
+  assert.doesNotMatch(lateBootstrapReconciliation,
+    /systemctl\s+(?:restart|stop|start|enable|disable)|\/opt\/stay\/state|resident-control/);
 });

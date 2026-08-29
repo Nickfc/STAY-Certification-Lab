@@ -1,0 +1,155 @@
+name: R116F V15 late controller bootstrap reconciliation
+run-name: R116F V15 late controller bootstrap reconciliation · ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization:
+        description: Exact one-shot late-bootstrap reconciliation authorization
+        required: true
+        type: choice
+        default: NO
+        options:
+          - NO
+          - AUTHORIZE_R116F_V15_LATE_BOOTSTRAP_RECONCILIATION_33211858911
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stay-r116f-v15-controller-bootstrap
+  cancel-in-progress: false
+
+env:
+  WRAPPER_SHA256: d08e141be91e37b2fc126fadc33f207a475b427e2f5bfc60cc139811cd71cb5a
+  INSTALLER_SHA256: 4800f1898b24648f2749bb925bcf45dae5989a6992dd4885d66ebb81409ac8da
+  LATE_STAGE_ROOT: /opt/stay/incoming/r116f-controller-v15-33211858911
+  PRODUCTION_PUBLIC_IPV4: 35.157.242.167
+  PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+  PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
+
+jobs:
+  validate-fixed-reconciliation:
+    name: Validate the fixed late-bootstrap reconciliation without credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact dispatch revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Validate exact source, authorization, and controller identities
+        shell: bash
+        env:
+          REQUESTED_AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R116F_V15_LATE_BOOTSTRAP_RECONCILIATION_33211858911 ]]
+          [[ "$LATE_STAGE_ROOT" == /opt/stay/incoming/r116f-controller-v15-33211858911 ]]
+          wrapper='deploy/live-physiology-transplant/stay-p1-production-controller'
+          installer='deploy/live-physiology-transplant/install-p1-production-controller.sh'
+          [[ "$(sha256sum "$wrapper" | awk '{print $1}')" == "$WRAPPER_SHA256" ]]
+          [[ "$(sha256sum "$installer" | awk '{print $1}')" == "$INSTALLER_SHA256" ]]
+          bash -n "$wrapper"
+          bash -n "$installer"
+          operations="$(sed -n '/^  case "$operation" in$/,/^  esac$/p' "$wrapper" |
+            sed -n 's/^    \([^*][^)]*\))$/\1/p')"
+          [[ "$operations" == $'harden-r116f\nrecover-r116f' ]]
+          node --test --test-concurrency=1 \
+            test/production-hardening-deployment-workflow.test.js
+
+  reconcile-exact-late-stage:
+    name: Verify installed controller and remove only the exact sealed late stage
+    needs: validate-fixed-reconciliation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Prepare deployment key
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+          [[ "$(wc -l < ~/.ssh/known_hosts)" == 1 ]]
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
+      - name: Reconcile exact timed-out bootstrap without touching STAY runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$LATE_STAGE_ROOT" "$WRAPPER_SHA256" "$INSTALLER_SHA256" \
+            "$PRODUCTION_PRIVATE_IPV4" <<'REMOTE'
+          set -Eeuo pipefail
+          stage="$1"; wrapper_sha="$2"; installer_sha="$3"; expected_private_ipv4="$4"
+          [[ "$stage" == /opt/stay/incoming/r116f-controller-v15-33211858911 ]]
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == "$expected_private_ipv4" ]]
+          before_service="$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)"
+          before_pointer="$(readlink -f /opt/stay/current)"
+          before_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
+          before_meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          [[ "$(systemctl is-active stay.service)" == active ]]
+          installed=/usr/local/sbin/stay-p1-production-controller
+          [[ -f "$installed" && ! -L "$installed" ]]
+          [[ "$(stat -Lc '%U:%G:%a:%h' "$installed")" == root:root:555:1 ]]
+          [[ "$(sha256sum "$installed" | awk '{print $1}')" == "$wrapper_sha" ]]
+          [[ -d "$stage" && ! -L "$stage" ]]
+          [[ "$(stat -Lc '%U:%G' "$stage")" == staydeploy:staydeploy ]]
+          stage_mode="$(stat -Lc '%a' "$stage")"
+          [[ "$stage_mode" == 700 || "$stage_mode" == 2700 ]]
+          expected=$'P1_R116F_V15_CONTROLLER_BOOTSTRAP.sha256\ninstall-p1-production-controller.sh\nstay-p1-production-controller'
+          [[ "$(find -P "$stage" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
+          [[ -z "$(find -P "$stage" -mindepth 2 -print -quit)" ]]
+          [[ -z "$(find -P "$stage" -xdev ! -user staydeploy -print -quit)" ]]
+          [[ -z "$(find -P "$stage" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
+          expected_sidecar="$(printf '%s  %s\n%s  %s' \
+            "$wrapper_sha" stay-p1-production-controller \
+            "$installer_sha" install-p1-production-controller.sh)"
+          [[ "$(cat "$stage/P1_R116F_V15_CONTROLLER_BOOTSTRAP.sha256")" == "$expected_sidecar" ]]
+          (cd "$stage" && sha256sum -c P1_R116F_V15_CONTROLLER_BOOTSTRAP.sha256)
+          [[ "$(sha256sum "$stage/stay-p1-production-controller" | awk '{print $1}')" == "$wrapper_sha" ]]
+          [[ "$(sha256sum "$stage/install-p1-production-controller.sh" | awk '{print $1}')" == "$installer_sha" ]]
+          find -P "$stage" -xdev -type d -exec chmod u+rwx {} +
+          find -P "$stage" -xdev -type f -exec chmod u+rw {} +
+          rm -rf --one-file-system -- "$stage"
+          [[ ! -e "$stage" && ! -L "$stage" ]]
+          [[ -f "$installed" && ! -L "$installed" ]]
+          [[ "$(stat -Lc '%U:%G:%a:%h' "$installed")" == root:root:555:1 ]]
+          [[ "$(sha256sum "$installed" | awk '{print $1}')" == "$wrapper_sha" ]]
+          [[ "$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)" == "$before_service" ]]
+          [[ "$(readlink -f /opt/stay/current)" == "$before_pointer" ]]
+          after_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
+          after_meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          /usr/local/bin/node -e \
+            'const a=JSON.parse(process.argv[1]),b=JSON.parse(process.argv[2]);if(a.ok!==b.ok||a.revision!==b.revision)process.exit(1)' \
+            "$before_health" "$after_health"
+          /usr/local/bin/node -e \
+            'const a=JSON.parse(process.argv[1]),b=JSON.parse(process.argv[2]);if(a.revision!==b.revision||a.revisionFrozen!==b.revisionFrozen||a.revisionLabel!==b.revisionLabel)process.exit(1)' \
+            "$before_meta" "$after_meta"
+          echo 'R116F_V15_LATE_BOOTSTRAP_RECONCILIATION=PASS'
+          echo "R116F_V15_CONTROLLER_SHA256=sha256:$wrapper_sha"
+          echo 'SEALED_LATE_STAGE_REMOVED=PASS'
+          echo 'SERVICE_OPERATION=NO'
+          echo 'CURRENT_POINTER_CHANGE=NO'
+          echo 'STATESTORE_WRITE=NO'
+          echo 'RESIDENT_OPERATION=NO'
+          echo 'AUTHORITY_CHANGE=NO'
+          REMOTE
