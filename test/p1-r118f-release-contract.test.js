@@ -254,11 +254,13 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), match[1], match[2]);
   }
   for (const required of [
+    'cores/chronobiology/c3/aggregate.js',
     'cores/chronobiology/c3/index.js',
     'cores/chronobiology/c3r2/index.js',
     'runtime/kernel/chronobiology-resident-contracts.js',
     'runtime/kernel/living-kernel.js',
     'runtime/kernel/resident-manager.js',
+    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256',
     'deploy/live-physiology-transplant/p1-r118f-forward.sh',
     'deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh',
     'deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js',

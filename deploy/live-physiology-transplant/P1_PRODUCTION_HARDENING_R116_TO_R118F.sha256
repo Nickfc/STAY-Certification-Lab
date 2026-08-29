@@ -1,3 +1,4 @@
+5e3b783ebe6a2f83c12442631a4f66240636d0bc18c7ede1fe17c3b5b0aa990a  ./cores/chronobiology/c3/aggregate.js
 e758ac1956b53cb02d0ab0d95bff67be948525127185295eb05f280838519ff3  ./cores/chronobiology/c3/calibration-profile.js
 13ec141fbca5bea9aac11055ced246a4114de834394d08252c82eca27c41aa6c  ./cores/chronobiology/c3/coarse-free-run.js
 62003617ff2c323fb99da02e868d54ef8a40dac97f950a984f680f2b0f49702e  ./cores/chronobiology/c3/entrainment.js
@@ -65,6 +66,7 @@ e52e05a43b0c42995a59c6f347661035abcb5f3db533501d3bc8ad45aba9536c  ./cores/sntss/
 9a7a55c0e2910c1811ae5eb579ae13cde2fa256335cb0905d124a0ed933c2ac0  ./cores/sntss/i4g/regulation-profile.js
 fff2600be16213032d9ab97c82f7674dc9e403011ee85f7450e830db5bbda0e3  ./cores/sntss/i4g/species-profile.js
 bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37  ./deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md
+647ffe294b9a462ef4a3ff44e8303adf6e069fc122e4df7e0eed3976b4c5ee94  ./deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256
 259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md
 7b5370cd244b427bbdac062b9be09af1e853ece9a416dd22a72e220e03789fcc  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256
 76af26cda4199411b6df636c86402c62d8daa8201b4d6bb212e92719051122ed  ./deploy/live-physiology-transplant/p1-physiology-benchmark.js
@@ -132,6 +134,6 @@ c7c5e8f83454126ca110400f2b62a244db5ac9a477aa89946a4c0a446f450c55  ./test/chronob
 5c31212b11a1f2c22d21f09ddf71272411cb5406c2105726e80bc7b9c54efe23  ./test/fixtures/stateful-core.js
 5dbaf75283e2708706113822e05ed2d60ea55324677bf76d7d480ff6a197225b  ./test/p1-r118f-chronobiology-implementation-repair.test.js
 e9dec0b73e280f91f34268c8a6c1987c7bb3e139f7e87e4701e861632c1f5d48  ./test/p1-r118f-entry-path.test.js
-f7fa84eda6db6d3cdb1f8c7a7cafb3efd3e7a09f0270930b2a965d907055d8cf  ./test/p1-r118f-release-contract.test.js
+47ad74cde6315800881c9671cadce83b433ad9411a0372f48df58816962c753a  ./test/p1-r118f-release-contract.test.js
 9661cac9c77ea30f5250adc8c668fe0f1d31e6ab14c818c8bd9037ff4ca7e391  ./test/production-hardening-entry-path.test.js
 3031bc6ae51c0a209ef841d34a82be10b17296d07649ff682238d6c67179d2ca  ./test/production-hardening.test.js
