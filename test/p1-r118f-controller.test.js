@@ -135,6 +135,8 @@ test('R118F-BRIDGE-07 live preflight precedes staging and only wrapper receives 
   const staging = productionWorkflow.indexOf('Stage and invoke only the pinned root controller');
   assert.ok(preflight > 0 && preflight < staging);
   assert.match(productionWorkflow, /PRAGMA quick_check/);
+  assert.match(productionWorkflow, /new DatabaseSync\(process\.argv\[2\], \{ open: true, readOnly: true \}\)/);
+  assert.doesNotMatch(productionWorkflow.slice(preflight, staging), /sqlite3 \/var\/lib\/stay/);
   assert.match(productionWorkflow, /m\.revision===116/);
   assert.match(productionWorkflow, /sudo -n \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(productionWorkflow, /sudo -n (?:bash|sh|node|systemctl|sqlite3)/);
