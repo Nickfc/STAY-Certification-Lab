@@ -26,12 +26,14 @@ test('R118F-ENTRY-01 real CoreHost dispatch crosses the unchanged 36-hour gap', 
   assert.equal(result.status, 0, result.stderr);
   const proof = JSON.parse(result.stdout);
   assert.equal(proof.result, 'PASS');
-  assert.equal(proof.version, '1.0.0-c3rc.2');
+  assert.equal(proof.version, '1.0.0-c3rc.3');
   assert.equal(proof.committedThroughUs, 36 * 3_600_000_000);
   assert.equal(proof.declaredHandlerTimeoutMs, 250);
   assert.equal(proof.workerTransitionTimeoutMs, 250);
   assert.equal(proof.ipcTransitionTimeoutMs, 1000);
   assert.equal(proof.productionEligible, false);
+  assert.equal(proof.inspectorSandboxed, false);
+  assert.equal(proof.payloadSandboxed, false);
   assert.equal(proof.hardCpuPercent, 20);
   assert.equal(proof.hardRamMiB, 96);
 });
@@ -68,5 +70,7 @@ test('R118F-ENTRY-03 Bubblewrap is the real entry path on Linux', {
   const proof = JSON.parse(result.stdout);
   assert.equal(proof.result, 'PASS');
   assert.equal(proof.osSandboxRequired, true);
+  assert.equal(proof.inspectorSandboxed, true);
+  assert.equal(proof.payloadSandboxed, true);
   assert.equal(proof.packagePolicyRequired, true);
 });

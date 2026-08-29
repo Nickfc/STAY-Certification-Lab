@@ -31,15 +31,15 @@ const BASELINE = Object.freeze({
 });
 
 const REPAIR = Object.freeze({
-  version: '1.0.0-c3rc.2',
+  version: '1.0.0-c3rc.3',
   stateSchema: 2,
-  moduleRelativePath: 'cores/chronobiology/c3r2/index.js',
-  moduleHash: 'sha256:b765ef4e670641d80aa3ae3453fd5d2f1cacaebdad135fbd8973c10f23401634',
-  manifestHash: 'sha256:43bb63952d9016947bee676197f975dadb095d3d42077ed870c7f4d45692514a',
-  packagePolicyHash: 'sha256:0d2ae2f1d1c5fbab8d4c62d83924fcfb9dbf50f1656e73188b3a8b5b1b76b635',
+  moduleRelativePath: 'cores/chronobiology/c3r3/index.js',
+  moduleHash: 'sha256:f48a75b212958b39433cd86128e91313c16282e973caf73e92c668c52b3335cd',
+  manifestHash: 'sha256:2c20da4611d257668635036022e15f6ce0a01d4b5b3fe57ee57d1f614b3d47d6',
+  packagePolicyHash: 'sha256:195a9a9e0b4a4a3a33023a30f0f8be9431951b3c43b774c1161f6f9d556ab316',
   checkpointGeneration: 5117,
-  checkpointId: 'chronobiology-c3r2-repair-f1e1ae54-5117',
-  repairId: 'chronobiology-c3r2-r116-gap-performance',
+  checkpointId: 'chronobiology-c3r3-repair-f1e1ae54-5117',
+  repairId: 'chronobiology-c3r3-r116-contained-performance',
 });
 
 function fail(message, code = 'R118F_CHRONOBIOLOGY_REPAIR') {
