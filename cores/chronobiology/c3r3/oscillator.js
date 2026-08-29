@@ -212,7 +212,6 @@ function compiledIntegrationPlan(phenotype, durationUs) {
 
   const intrinsics = new Array(count);
   const recoveries = new Array(count);
-  const baselines = new Array(count);
   const sensitivityHigh = new Array(count);
   const sensitivityLow = new Array(count);
   const sensitivityScale = new Array(count);
@@ -224,7 +223,6 @@ function compiledIntegrationPlan(phenotype, durationUs) {
       BigInt(founder.amplitude_recovery_q) * BigInt(durationUs),
       BigInt(PROFILE.integrationQuantumUs),
     )), 0, Q31_ONE);
-    baselines[unitId] = founder.baseline_amplitude_q;
     const high = Math.floor(founder.coupling_sensitivity_q / Q30_SPLIT);
     sensitivityHigh[unitId] = high;
     sensitivityLow[unitId] = founder.coupling_sensitivity_q - high * Q30_SPLIT;
@@ -235,22 +233,21 @@ function compiledIntegrationPlan(phenotype, durationUs) {
   return {
     count,
     localEdgeCount: localLeftUnits.length,
-    localLeftUnits,
-    localRightUnits,
+    localLeftUnits: Uint8Array.from(localLeftUnits),
+    localRightUnits: Uint8Array.from(localRightUnits),
     generalEdgeCount: generalLeftUnits.length,
-    generalLeftUnits,
-    generalRightUnits,
-    generalWeightHigh,
-    generalWeightLow,
-    generalWeightScale,
-    totalWeights,
-    totalWeightScale,
-    intrinsics,
-    recoveries,
-    baselines,
-    sensitivityHigh,
-    sensitivityLow,
-    sensitivityScale,
+    generalLeftUnits: Uint8Array.from(generalLeftUnits),
+    generalRightUnits: Uint8Array.from(generalRightUnits),
+    generalWeightHigh: Uint16Array.from(generalWeightHigh),
+    generalWeightLow: Uint16Array.from(generalWeightLow),
+    generalWeightScale: Float64Array.from(generalWeightScale),
+    totalWeights: Uint32Array.from(totalWeights),
+    totalWeightScale: Float64Array.from(totalWeightScale),
+    intrinsics: Uint32Array.from(intrinsics),
+    recoveries: Uint32Array.from(recoveries),
+    sensitivityHigh: Uint16Array.from(sensitivityHigh),
+    sensitivityLow: Uint16Array.from(sensitivityLow),
+    sensitivityScale: Float64Array.from(sensitivityScale),
   };
 }
 
@@ -263,7 +260,7 @@ function compiledIntegrationPlan(phenotype, durationUs) {
  * before this compiled plan is created; differential tests fence every result
  * against the frozen C3RC.1 engine.
  */
-function integrateCompiledPlan(phases, amplitudes, sums, plan, iterations) {
+function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterations) {
   const {
     count,
     localEdgeCount,
@@ -279,11 +276,17 @@ function integrateCompiledPlan(phases, amplitudes, sums, plan, iterations) {
     totalWeightScale,
     intrinsics,
     recoveries,
-    baselines,
     sensitivityHigh,
     sensitivityLow,
     sensitivityScale,
   } = plan;
+  let recoverAmplitudes = false;
+  for (let unitId = 0; unitId < count; unitId += 1) {
+    if (amplitudeDifferences[unitId] !== 0) {
+      recoverAmplitudes = true;
+      break;
+    }
+  }
 
   for (let step = 0; step < iterations; step += 1) {
     sums.fill(0);
@@ -409,10 +412,14 @@ function integrateCompiledPlan(phases, amplitudes, sums, plan, iterations) {
       const adjustment = adjustmentProduct < 0
         ? -(((-adjustmentProduct + 536_870_912) * Q30_RECIPROCAL) | 0)
         : (((adjustmentProduct + 536_870_912) * Q30_RECIPROCAL) | 0);
-      phases[unitId] = (phases[unitId] + intrinsic + adjustment) >>> 0;
+      phases[unitId] = phases[unitId] + intrinsic + adjustment;
+    }
 
-      const amplitudeDifference = baselines[unitId] - amplitudes[unitId];
-      if (amplitudeDifference !== 0) {
+    if (recoverAmplitudes) {
+      let remainingRecovery = false;
+      for (let unitId = 0; unitId < count; unitId += 1) {
+        const amplitudeDifference = amplitudeDifferences[unitId];
+        if (amplitudeDifference === 0) continue;
         const sign = amplitudeDifference < 0 ? -1 : 1;
         const differenceMagnitude = Math.abs(amplitudeDifference);
         const recovery = recoveries[unitId];
@@ -428,12 +435,10 @@ function integrateCompiledPlan(phases, amplitudes, sums, plan, iterations) {
           ((productHigh % 2) * Q30_ONE + productLow + Q30_ONE)
             * Q31_RECIPROCAL,
         );
-        let amplitude = amplitudes[unitId]
-          + (sign < 0 ? -incrementMagnitude : incrementMagnitude);
-        if (amplitude < 0) amplitude = 0;
-        else if (amplitude > Q31_ONE) amplitude = Q31_ONE;
-        amplitudes[unitId] = amplitude;
+        amplitudeDifferences[unitId] -= sign < 0 ? -incrementMagnitude : incrementMagnitude;
+        if (amplitudeDifferences[unitId] !== 0) remainingRecovery = true;
       }
+      recoverAmplitudes = remainingRecovery;
     }
   }
 }
@@ -449,15 +454,16 @@ function integratePopulationDuration(acquired, phenotype, durationUs) {
   if (durationUs === 0) return Object.freeze({ acquired, steps: 0 });
 
   const count = phenotype.oscillator_count;
-  const phases = Uint32Array.from(acquired.oscillators, value => value.phase_q);
-  const amplitudes = Uint32Array.from(acquired.oscillators, value => value.amplitude_q);
+  const phases = Int32Array.from(acquired.oscillators, value => value.phase_q | 0);
+  const amplitudeDifferences = Int32Array.from(acquired.oscillators, (value, unitId) =>
+    phenotype.oscillators[unitId].baseline_amplitude_q - value.amplitude_q);
   const sums = new Int32Array(count);
   const fullSteps = Math.floor(durationUs / PROFILE.integrationQuantumUs);
   const remainder = durationUs - fullSteps * PROFILE.integrationQuantumUs;
   if (fullSteps > 0) {
     integrateCompiledPlan(
       phases,
-      amplitudes,
+      amplitudeDifferences,
       sums,
       compiledIntegrationPlan(phenotype, PROFILE.integrationQuantumUs),
       fullSteps,
@@ -466,7 +472,7 @@ function integratePopulationDuration(acquired, phenotype, durationUs) {
   if (remainder > 0) {
     integrateCompiledPlan(
       phases,
-      amplitudes,
+      amplitudeDifferences,
       sums,
       compiledIntegrationPlan(phenotype, remainder),
       1,
@@ -475,8 +481,8 @@ function integratePopulationDuration(acquired, phenotype, durationUs) {
 
   const oscillators = phenotype.oscillators.map((founder, unitId) => Object.freeze({
     unit_id: founder.unit_id,
-    phase_q: phases[unitId],
-    amplitude_q: amplitudes[unitId],
+    phase_q: phases[unitId] >>> 0,
+    amplitude_q: founder.baseline_amplitude_q - amplitudeDifferences[unitId],
   }));
   return Object.freeze({
     acquired: Object.freeze({
