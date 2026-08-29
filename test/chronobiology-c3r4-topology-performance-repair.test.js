@@ -18,6 +18,9 @@ const {
 } = require('../runtime/kernel/package-policy');
 
 const GOLDEN_DIGEST = '53158bb15a19011b448b17aa9b8a0859bd63b96c53566d089e959880c9120606';
+const Q30_ONE = 1_073_741_824;
+const RESPONSE_LIMIT_Q30 = 67_108_864;
+const RESPONSE_FAST_PATH_GUARD = 0.00001;
 
 function founder(seed) {
   return createFounderState({
@@ -80,6 +83,59 @@ test('C3R4-BIO-01 topology engine is byte-identical across founders and remainde
         `founder ${vector}, duration ${durationUs}`);
     }
   }
+});
+
+test('C3R4-NUM-01 combined response fast path is exact outside its rounding fence', () => {
+  let accepted = 0;
+  let fenced = 0;
+  let sample = 0xc3_c4_2026;
+  for (let vector = 0; vector < 8; vector += 1) {
+    const state = founder(`C3RC.4 response fence founder ${vector}`);
+    const totalWeights = new Array(state.phenotype.oscillator_count).fill(0);
+    for (const edge of state.phenotype.coupling_graph.edges) {
+      totalWeights[edge.left_unit_id] += edge.weight_q30;
+      totalWeights[edge.right_unit_id] += edge.weight_q30;
+    }
+    for (let unitId = 0; unitId < totalWeights.length; unitId += 1) {
+      const denominator = totalWeights[unitId];
+      const sensitivity = state.phenotype.oscillators[unitId].coupling_sensitivity_q;
+      const responseScale = sensitivity / denominator;
+      const guard = sensitivity / Q30_ONE / 2 + RESPONSE_FAST_PATH_GUARD;
+      const magnitudes = [0, 1, Math.floor(denominator / 2), denominator - 1, denominator];
+      for (let index = 0; index < 256; index += 1) {
+        sample = (Math.imul(sample, 1_664_525) + 1_013_904_223) >>> 0;
+        magnitudes.push(Math.floor(
+          (sample / 0x1_0000_0000) * (denominator + 1),
+        ));
+      }
+      for (const magnitude of magnitudes) {
+        const scaled = magnitude * responseScale;
+        const floor = scaled | 0;
+        const fraction = scaled - floor;
+        if (fraction >= 0.5 - guard && fraction <= 0.5 + guard) {
+          fenced += 1;
+          continue;
+        }
+        const candidate = Math.min(
+          floor + (fraction >= 0.5 ? 1 : 0),
+          RESPONSE_LIMIT_Q30,
+        );
+        const exactCoupling = Number(
+          (2n * BigInt(magnitude) * BigInt(Q30_ONE) + BigInt(denominator))
+            / (2n * BigInt(denominator)),
+        );
+        const exactResponse = Math.min(Number(
+          (2n * BigInt(exactCoupling) * BigInt(sensitivity) + BigInt(Q30_ONE))
+            / (2n * BigInt(Q30_ONE)),
+        ), RESPONSE_LIMIT_Q30);
+        assert.equal(candidate, exactResponse,
+          `founder ${vector}, unit ${unitId}, magnitude ${magnitude}`);
+        accepted += 1;
+      }
+    }
+  }
+  assert.ok(accepted > 80_000, `insufficient accepted coverage: ${accepted}`);
+  assert.ok(fenced > 10_000, `insufficient exact-fallback coverage: ${fenced}`);
 });
 
 test('C3R4-ENTRY-01 real --jitless biological path preserves the golden state inside the contract', () => {

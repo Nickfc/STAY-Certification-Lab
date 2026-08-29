@@ -188,8 +188,7 @@ function compiledIntegrationPlan(phenotype, durationUs) {
   }
   const edges = phenotype.coupling_graph.edges;
   let localEdgeCount = 0;
-  const generalLeftUnits = [];
-  const generalRightUnits = [];
+  const generalUnits = [];
   const generalWeightHigh = [];
   const generalWeightLow = [];
   const generalWeightScale = [];
@@ -201,8 +200,7 @@ function compiledIntegrationPlan(phenotype, durationUs) {
     if (weight === PROFILE.localEdgeWeightQ30) {
       localEdgeCount += 1;
     } else {
-      generalLeftUnits.push(left);
-      generalRightUnits.push(right);
+      generalUnits.push(left | (right << 6));
       const high = Math.floor(weight / Q30_SPLIT);
       generalWeightHigh.push(high);
       generalWeightLow.push(weight - high * Q30_SPLIT);
@@ -244,9 +242,8 @@ function compiledIntegrationPlan(phenotype, durationUs) {
 
   return {
     count,
-    generalEdgeCount: generalLeftUnits.length,
-    generalLeftUnits,
-    generalRightUnits,
+    generalEdgeCount: generalUnits.length,
+    generalUnits,
     generalWeightHigh,
     generalWeightLow,
     generalWeightScale,
@@ -275,8 +272,7 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
   const {
     count,
     generalEdgeCount,
-    generalLeftUnits,
-    generalRightUnits,
+    generalUnits,
     generalWeightHigh,
     generalWeightLow,
     generalWeightScale,
@@ -338,8 +334,9 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
     }
 
     for (let edgeId = 0; edgeId < generalEdgeCount; edgeId += 1) {
-      const left = generalLeftUnits[edgeId];
-      const right = generalRightUnits[edgeId];
+      const units = generalUnits[edgeId];
+      const left = units & 63;
+      const right = units >>> 6;
       const phase = (phases[right] - phases[left]) >>> 0;
       const index = phase >>> 20;
       const fraction = phase & 0xf_ffff;
