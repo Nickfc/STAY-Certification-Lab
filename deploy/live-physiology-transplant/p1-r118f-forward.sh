@@ -386,9 +386,18 @@ for (const relative of ['cores/sntss/i4g/index.js', 'cores/chronobiology/c3/inde
 }
 NODE
 
+phase 'NON-PRODUCTION C3R3 HISTORICAL IDENTITY AND BIOLOGY'
+if ! STAY_BWRAP="$BWRAP" node --test --test-concurrency=1 \
+  --test-name-pattern='^C3R3-(?:ID|BIO)-01' \
+  "$CANDIDATE/test/chronobiology-c3r3-jitless-performance-repair.test.js" \
+  > "$WORK/c3r3-historical-tests.tap" 2>&1; then
+  cat "$WORK/c3r3-historical-tests.tap" >&2
+  abort candidate-c3r3-historical-tests-failed 1719
+fi
+cat "$WORK/c3r3-historical-tests.tap"
+
 if ! STAY_BWRAP="$BWRAP" node --test --test-concurrency=1 \
   "$CANDIDATE/test/chronobiology-c3r2-performance-repair.test.js" \
-  "$CANDIDATE/test/chronobiology-c3r3-jitless-performance-repair.test.js" \
   "$CANDIDATE/test/chronobiology-c3r4-performance-lab.test.js" \
   "$CANDIDATE/test/chronobiology-c3r4-topology-performance-repair.test.js" \
   "$CANDIDATE/test/core-host-supervisor-permissions.test.js" \
