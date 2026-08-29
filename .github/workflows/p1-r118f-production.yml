@@ -31,6 +31,7 @@ concurrency:
 
 env:
   RELEASE_TAG: r118f-v1
+  RELEASE_TAG_OBJECT: 744f85ad9fdffa5710286a4d8b7ea8423fc285eb
   RELEASE_COMMIT: b2ce7cb94bdea34780385b5d0cbf2121155cddb0
   RELEASE_TREE: b14df9a6c67740d5f849ff6693800867b1363ad3
   ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V1_BUNDLE_20260829.tar.gz
@@ -104,9 +105,16 @@ jobs:
           install -d -m 0700 "$root" "$extract"
           [[ "$(git -C release-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
           [[ "$(git -C release-source rev-parse HEAD^{tree})" == "$RELEASE_TREE" ]]
-          [[ "$(git -C release-source rev-list -n 1 "$RELEASE_TAG")" == "$RELEASE_COMMIT" ]] ||
-            git -C release-source fetch --depth=1 origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
-          [[ "$(git -C release-source rev-list -n 1 "$RELEASE_TAG")" == "$RELEASE_COMMIT" ]]
+          read -r ref_type ref_sha < <(
+            gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+              --jq '.object.type + " " + .object.sha'
+          )
+          [[ "$ref_type" == tag && "$ref_sha" == "$RELEASE_TAG_OBJECT" ]]
+          read -r target_type target_sha < <(
+            gh api "repos/$GITHUB_REPOSITORY/git/tags/$RELEASE_TAG_OBJECT" \
+              --jq '.object.type + " " + .object.sha'
+          )
+          [[ "$target_type" == commit && "$target_sha" == "$RELEASE_COMMIT" ]]
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" --dir "$root"
           [[ "$(sha256sum "$root/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]

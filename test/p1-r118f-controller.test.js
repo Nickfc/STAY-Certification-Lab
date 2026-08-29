@@ -100,6 +100,7 @@ test('R118F-BRIDGE-06 workflows bind the controller and immutable hosted release
     /INSTALLER_SHA256: 2efa97d3856b9d616b5dba753d9a2e62b682df25cf9a5b1ecdde8af75a794945/);
   for (const identity of [
     'RELEASE_TAG: r118f-v1',
+    'RELEASE_TAG_OBJECT: 744f85ad9fdffa5710286a4d8b7ea8423fc285eb',
     'RELEASE_COMMIT: b2ce7cb94bdea34780385b5d0cbf2121155cddb0',
     'RELEASE_TREE: b14df9a6c67740d5f849ff6693800867b1363ad3',
     'ARCHIVE_SHA256: d6745dd533b80ae1f72038c2e36d16f2fa840eb583d7b2a013f5d89e55c7bac9',
@@ -107,6 +108,12 @@ test('R118F-BRIDGE-06 workflows bind the controller and immutable hosted release
     'FORWARD_SHA256: c868c4baf1abbeaf60a3054f8c74290cba108067e7f65b1a3bbc280384010f8a',
     'RECOVERY_SHA256: 92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03',
   ]) assert.equal(productionWorkflow.includes(identity), true, identity);
+  assert.match(productionWorkflow, /persist-credentials: false/);
+  assert.match(productionWorkflow,
+    /gh api "repos\/\$GITHUB_REPOSITORY\/git\/ref\/tags\/\$RELEASE_TAG"/);
+  assert.match(productionWorkflow,
+    /gh api "repos\/\$GITHUB_REPOSITORY\/git\/tags\/\$RELEASE_TAG_OBJECT"/);
+  assert.doesNotMatch(productionWorkflow, /git -C release-source fetch/);
   assert.match(productionWorkflow, /gh release download "\$RELEASE_TAG"/);
   assert.match(productionWorkflow, /sha256sum -c "\$ARCHIVE\.sha256"/);
   assert.match(productionWorkflow, /STAY_BWRAP=\/usr\/local\/bin\/stay-ci-bwrap node --test/);
