@@ -30,7 +30,7 @@
     "index.js": "sha256:f758f8f96aef70af9fa33b805945616d416b80d338cec1e243acc17ca7e6a58a",
     "local-ring-kernel.js": "sha256:7f9bde248b0d61b9d39b1b2fdd76141fded6c3576d5d4106604491e501e2e710",
     "long-gap.js": "sha256:48e6441e2e0e76d3f161ae8eb998580717066dc0f9d878a68da7b79f14c722dc",
-    "oscillator.js": "sha256:55c4b0f943a726c0a1d536af2c0ab4fefd0f6651e8b3b4f3a287121f58dfc79a",
+    "oscillator.js": "sha256:e63340ec362a6600a62317911945243d00ffc44e65bd9b9e3ddd67847ce6af2c",
     "phase-response.js": "sha256:b6174a57b5313bf5540b5c7c6093045bd5681bd9b85692b2eee33dc8b1a933d1",
     "photic-calibration-profile.js": "sha256:a4c02de768c486eb836c20ac98e0f03d7f8d363394a6cc6f266f7404f3ca67ab",
     "photic-transducer.js": "sha256:1a87ca4bf5a231988035df60a94bc257edd2ff3241340fd38c64b522a327017a",
@@ -86,5 +86,5 @@
     "pendingRequests": 128,
     "productionOutputs": 0
   },
-  "policyHash": "sha256:6e268b17769b7ea6d463cdc1547bc3632a364a251482f9f71947ffeb8ab4f294"
+  "policyHash": "sha256:3fd2354a321320838bb7eeec26b613638c306c9d761e0296567c4d15f630a0ee"
 }

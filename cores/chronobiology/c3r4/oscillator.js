@@ -215,6 +215,9 @@ function compiledIntegrationPlan(phenotype, durationUs) {
   if (localEdgeCount !== count * 2) {
     fail('compiled local ring is incomplete');
   }
+  if (generalUnits.length !== count) {
+    fail('compiled long-range edge population is invalid');
+  }
   const expectedLocalTopology = new Set();
   for (let left = 0; left < count; left += 1) {
     for (const offset of [1, 2]) {
@@ -316,16 +319,17 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
     // its static endpoint kernel is allowed to touch biological state.
     accumulateLocalRing(phases, sums, SIN_VALUES_Q30, SIN_DELTA_Q30);
 
-    for (let edgeId = 0; edgeId < generalEdgeCount; edgeId += 1) {
-      const units = generalUnits[edgeId];
+    for (let edgeBase = 0; edgeBase < generalEdgeCount; edgeBase += 2) {
+      let edgeId = edgeBase;
+      let units = generalUnits[edgeId];
       const left = units & 63;
       const right = units >>> 6;
-      const phase = (phases[right] - phases[left]) >>> 0;
-      const index = phase >>> 20;
-      const fraction = phase & 0xf_ffff;
-      const current = SIN_VALUES_Q30[index];
-      const scaled = SIN_DELTA_Q30[index] * fraction;
-      const sine = current + (scaled < 0
+      let phase = (phases[right] - phases[left]) >>> 0;
+      let index = phase >>> 20;
+      let fraction = phase & 0xf_ffff;
+      let current = SIN_VALUES_Q30[index];
+      let scaled = SIN_DELTA_Q30[index] * fraction;
+      let sine = current + (scaled < 0
         ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
         : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
       let response = 0;
@@ -353,6 +357,44 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
       }
       sums[left] += response;
       sums[right] -= response;
+
+      edgeId = edgeBase + 1;
+      units = generalUnits[edgeId];
+      const nextLeft = units & 63;
+      const nextRight = units >>> 6;
+      phase = (phases[nextRight] - phases[nextLeft]) >>> 0;
+      index = phase >>> 20;
+      fraction = phase & 0xf_ffff;
+      current = SIN_VALUES_Q30[index];
+      scaled = SIN_DELTA_Q30[index] * fraction;
+      sine = current + (scaled < 0
+        ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
+        : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
+      response = 0;
+      if (sine !== 0) {
+        const sineMagnitude = sine < 0 ? -sine : sine;
+        const scaledProduct = sineMagnitude * generalWeightScale[edgeId];
+        const productFloor = scaledProduct | 0;
+        const productFraction = scaledProduct - productFloor;
+        let magnitude;
+        if (productFraction < 0.5 - ADAPTIVE_ROUNDING_GUARD
+          || productFraction > 0.5 + ADAPTIVE_ROUNDING_GUARD) {
+          magnitude = productFloor + (productFraction >= 0.5 ? 1 : 0);
+        } else {
+          const sineHigh = sineMagnitude >>> 15;
+          const sineLow = sineMagnitude & 0x7fff;
+          const weightHigh = generalWeightHigh[edgeId];
+          const weightLow = generalWeightLow[edgeId];
+          const exactHigh = sineHigh * weightHigh;
+          const exactLow = (sineHigh * weightLow + sineLow * weightHigh) * Q30_SPLIT
+            + sineLow * weightLow;
+          magnitude = exactHigh
+            + Math.floor((exactLow + 536_870_912) * Q30_RECIPROCAL);
+        }
+        response = sine < 0 ? -magnitude : magnitude;
+      }
+      sums[nextLeft] += response;
+      sums[nextRight] -= response;
     }
 
     for (let unitId = 0; unitId < count; unitId += 1) {
