@@ -185,12 +185,21 @@ async function inspectCoreModule(modulePath, timeoutMs = 5000) {
         }
       });
     });
+    const osSandboxRequired = process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1'
+      && !compatibility;
+    if (osSandboxRequired && result.sandboxed !== true) {
+      throw Object.assign(
+        new Error('required inspection OS sandbox was not attested by the supervisor'),
+        { code: 'CORE_INSPECT_OS_SANDBOX_ATTESTATION' }
+      );
+    }
     const manifest = validateManifest(result.manifest);
     verifyManifestAgainstPackagePolicy(packagePolicy, manifest);
     return Object.freeze({
       modulePath: absolute,
       moduleDigest,
       packagePolicyHash: packagePolicy?.policy?.policyHash || null,
+      sandboxed: result.sandboxed === true,
       manifest,
       packagePolicy: packagePolicy?.policy || null
     });

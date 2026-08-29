@@ -170,7 +170,8 @@ function validateStatus(status, expected) {
   `${expected.label} is not a contained running resident`, 'R118F_RESIDENT_STATUS');
   const policy = value.host?.resourceGovernor?.policy;
   const limits = value.host?.osContainment?.limits;
-  assert(policy?.softRamBytes === 64 * 1024 * 1024
+  assert(value.host?.osContainment?.payloadSandboxed === true
+    && policy?.softRamBytes === 64 * 1024 * 1024
     && policy?.hardRamBytes === 96 * 1024 * 1024
     && policy?.softCpuDuty === 0.05
     && policy?.hardCpuDuty === 0.2
@@ -291,7 +292,7 @@ function verify({ before, after, sntssStatus, chronobiologyStatus, meta, service
   'SNTSS zero-output lineage contract changed', 'R118F_LIVE_SNTSS');
   assert(liveChrono.version === REPAIR.version
     && liveChrono.host?.instanceId === BASELINE.instanceId
-    && liveChrono.health?.stage === 'c3-shadow-performance-repair'
+    && liveChrono.health?.stage === 'c3-shadow-jitless-performance-repair'
     && Number(liveChrono.handledEvents) > 0,
   'Chronobiology live repaired status is invalid', 'R118F_LIVE_CHRONOBIOLOGY');
   const publicState = validateMeta(meta);

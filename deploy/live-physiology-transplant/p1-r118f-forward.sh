@@ -50,6 +50,28 @@ OVERLAY_FILES=(
   'cores/chronobiology/c3r2/summary.js'
   'cores/chronobiology/c3r2/trig-table.js'
   'cores/chronobiology/c3r2/validation.js'
+  'cores/chronobiology/c3r3/aggregate.js'
+  'cores/chronobiology/c3r3/calibration-profile.js'
+  'cores/chronobiology/c3r3/coarse-free-run.js'
+  'cores/chronobiology/c3r3/entrainment.js'
+  'cores/chronobiology/c3r3/fixed-point.js'
+  'cores/chronobiology/c3r3/founder.js'
+  'cores/chronobiology/c3r3/index.js'
+  'cores/chronobiology/c3r3/long-gap.js'
+  'cores/chronobiology/c3r3/oscillator.js'
+  'cores/chronobiology/c3r3/package-policy.json'
+  'cores/chronobiology/c3r3/phase-response.js'
+  'cores/chronobiology/c3r3/photic-calibration-profile.js'
+  'cores/chronobiology/c3r3/photic-transducer.js'
+  'cores/chronobiology/c3r3/schemas/phase-summary.schema.json'
+  'cores/chronobiology/c3r3/schemas/photic-evidence.schema.json'
+  'cores/chronobiology/c3r3/schemas/state.schema.json'
+  'cores/chronobiology/c3r3/state.js'
+  'cores/chronobiology/c3r3/summary.js'
+  'cores/chronobiology/c3r3/trig-table.js'
+  'cores/chronobiology/c3r3/validation.js'
+  'runtime/kernel/core-host-client.js'
+  'runtime/kernel/core-loader.js'
   'runtime/kernel/chronobiology-resident-contracts.js'
   'runtime/kernel/living-kernel.js'
   'runtime/kernel/resident-manager.js'
@@ -64,6 +86,9 @@ OVERLAY_FILES=(
   'deploy/live-physiology-transplant/p1-r118f-forward.sh'
   'deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh'
   'test/chronobiology-c3r2-performance-repair.test.js'
+  'test/chronobiology-c3r3-jitless-performance-repair.test.js'
+  'test/core-host-supervisor-permissions.test.js'
+  'test/core-loader-diagnostics.test.js'
   'test/p1-r118f-chronobiology-implementation-repair.test.js'
   'test/p1-r118f-entry-path.test.js'
   'test/production-hardening.test.js'
@@ -197,7 +222,7 @@ cleanup() {
     revision="$(durable_runtime_revision 2>/dev/null || true)"
     if [[ "$revision" == 116 ]]; then
       version="$(resident_version 2>/dev/null || true)"
-      if [[ "$version" == 1.0.0-c3rc.2 && -n "$NEW_RELEASE" ]]; then
+      if [[ "$version" == 1.0.0-c3rc.3 && -n "$NEW_RELEASE" ]]; then
         node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js" \
           rollback "$DATABASE" "$NEW_RELEASE" >/dev/null 2>&1 || true
       fi
@@ -327,7 +352,7 @@ const path = require('node:path');
 const root = process.argv[2];
 const policy = require(path.join(root, 'runtime/kernel/package-policy.js'));
 for (const relative of ['cores/sntss/i4g/index.js', 'cores/chronobiology/c3/index.js',
-  'cores/chronobiology/c3r2/index.js']) {
+  'cores/chronobiology/c3r2/index.js', 'cores/chronobiology/c3r3/index.js']) {
   const modulePath = path.join(root, relative);
   const manifest = require(modulePath).manifest;
   const record = policy.enforcePackagePolicy(modulePath);
@@ -337,6 +362,9 @@ NODE
 
 if ! STAY_BWRAP="$BWRAP" node --test --test-concurrency=1 \
   "$CANDIDATE/test/chronobiology-c3r2-performance-repair.test.js" \
+  "$CANDIDATE/test/chronobiology-c3r3-jitless-performance-repair.test.js" \
+  "$CANDIDATE/test/core-host-supervisor-permissions.test.js" \
+  "$CANDIDATE/test/core-loader-diagnostics.test.js" \
   "$CANDIDATE/test/p1-r118f-chronobiology-implementation-repair.test.js" \
   "$CANDIDATE/test/p1-r118f-entry-path.test.js" \
   "$CANDIDATE/test/production-hardening-entry-path.test.js" \
@@ -358,6 +386,8 @@ if ! systemd-run --wait --pipe --collect --quiet \
 fi
 [[ "$(json_field "$(<"$WORK/entry-quota.proof.json")" result)" == PASS \
   && "$(json_field "$(<"$WORK/entry-quota.proof.json")" hardCpuPercent)" == 20 \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" inspectorSandboxed)" == true \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" payloadSandboxed)" == true \
   && "$(json_field "$(<"$WORK/entry-quota.proof.json")" declaredHandlerTimeoutMs)" == 250 ]] ||
   abort quota-entry-preflight-invalid 1721
 
@@ -393,7 +423,7 @@ MANIFEST_SHA256=$STAY_R118F_MANIFEST_SHA256
 PRODUCTION_OVERLAY_SHA256=sha256:$overlay_digest
 SNTSS_TREE_SHA256=sha256:$source_sntss_digest
 HISTORICAL_CHRONOBIOLOGY_TREE_SHA256=sha256:$source_c3_digest
-CHRONOBIOLOGY_REPAIR_VERSION=1.0.0-c3rc.2
+CHRONOBIOLOGY_REPAIR_VERSION=1.0.0-c3rc.3
 CHRONOBIOLOGY_RESOURCE_LIMITS_CHANGED=NO
 CHRONOBIOLOGY_BIOLOGICAL_STATE_CHANGED=NO
 CHRONOBIOLOGY_ABANDONED_COUNT=0

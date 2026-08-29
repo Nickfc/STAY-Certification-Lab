@@ -7,7 +7,8 @@ const path = require('node:path');
 
 const {
   trustedCoreHostExecArgv,
-  nativeCoreExecArgv
+  nativeCoreExecArgv,
+  coreSupervisorEnvironment
 } = require('../runtime/kernel/core-sandbox');
 
 const root = path.resolve(__dirname, '..');
@@ -82,5 +83,37 @@ test(
       clientSource,
       /nativeCoreExecArgv\(this\.modulePath\)/
     );
+
+    assert.match(
+      clientSource,
+      /env:\s*coreSupervisorEnvironment\(/
+    );
+
+    assert.match(
+      clientSource,
+      /COREHOST_OS_SANDBOX_ATTESTATION/
+    );
+  }
+);
+
+test(
+  'CoreHost supervisor preserves the fail-closed sandbox selection across its fork',
+  () => {
+    const previousRequired = process.env.STAY_REQUIRE_OS_CORE_SANDBOX;
+    const previousBwrap = process.env.STAY_BWRAP;
+    try {
+      process.env.STAY_REQUIRE_OS_CORE_SANDBOX = '1';
+      process.env.STAY_BWRAP = '/usr/local/libexec/stay-bwrap-sandbox';
+      const environment = coreSupervisorEnvironment();
+      assert.equal(environment.STAY_REQUIRE_OS_CORE_SANDBOX, '1');
+      assert.equal(environment.STAY_BWRAP, '/usr/local/libexec/stay-bwrap-sandbox');
+      assert.equal(environment.STAY_REQUIRE_CGROUPS, undefined);
+      assert.equal(environment.NODE_OPTIONS, undefined);
+    } finally {
+      if (previousRequired === undefined) delete process.env.STAY_REQUIRE_OS_CORE_SANDBOX;
+      else process.env.STAY_REQUIRE_OS_CORE_SANDBOX = previousRequired;
+      if (previousBwrap === undefined) delete process.env.STAY_BWRAP;
+      else process.env.STAY_BWRAP = previousBwrap;
+    }
   }
 );

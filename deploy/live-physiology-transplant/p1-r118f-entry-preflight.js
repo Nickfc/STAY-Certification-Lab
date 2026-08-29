@@ -7,7 +7,7 @@ const path = require('node:path');
 const { CoreHostClient } = require('../../runtime/kernel/core-host-client');
 const { inspectCoreModule } = require('../../runtime/kernel/core-loader');
 
-const entrypoint = path.resolve(__dirname, '../../cores/chronobiology/c3r2/index.js');
+const entrypoint = path.resolve(__dirname, '../../cores/chronobiology/c3r3/index.js');
 
 function binding() {
   return {
@@ -49,7 +49,7 @@ async function run() {
   const definition = await inspectCoreModule(entrypoint);
   const manifest = definition.manifest;
   if (manifest.coreId !== 'chronobiology'
-    || manifest.version !== '1.0.0-c3rc.2'
+    || manifest.version !== '1.0.0-c3rc.3'
     || manifest.stateSchema !== 2
     || manifest.productionEligible !== false
     || manifest.resources.handlerTimeoutMs !== 250
@@ -104,9 +104,13 @@ async function run() {
     const elapsedMs = performance.now() - started;
     const state = result.checkpoint || await client.snapshot();
     const health = await client.health();
+    const status = client.status();
+    const osSandboxRequired = process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1';
     if (state?.continuity?.committed_through_us !== 36 * 3_600_000_000
       || health?.ok === false
       || elapsedMs >= client.handlerTimeoutMs + 750
+      || (osSandboxRequired && (definition.sandboxed !== true
+        || status.osContainment?.payloadSandboxed !== true))
       || outputs.length > manifest.resources.outputLimitPerEvent) {
       throw Object.assign(new Error('R118F real entry path failed its bounded gap transition'), {
         code: 'R118F_ENTRY_TRANSITION',
@@ -125,6 +129,8 @@ async function run() {
       workerTransitionTimeoutMs: client.handlerTimeoutMs,
       ipcTransitionTimeoutMs: client.handlerTimeoutMs + 750,
       osSandboxRequired: process.env.STAY_REQUIRE_OS_CORE_SANDBOX === '1',
+      inspectorSandboxed: definition.sandboxed,
+      payloadSandboxed: status.osContainment?.payloadSandboxed === true,
       packagePolicyRequired: process.env.STAY_REQUIRE_CORE_PACKAGE_POLICY === '1',
       productionEligible: manifest.productionEligible,
       hardCpuPercent: manifest.resources.hardCpuPercent,

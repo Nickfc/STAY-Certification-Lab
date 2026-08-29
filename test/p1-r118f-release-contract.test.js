@@ -119,7 +119,7 @@ function resourceStatus(chrono = false) {
     observedOutputs: 0,
     declaredOutputs: chrono ? 1 : 0,
     handledEvents: 10,
-    health: chrono ? { ok: true, stage: 'c3-shadow-performance-repair' } : {
+    health: chrono ? { ok: true, stage: 'c3-shadow-jitless-performance-repair' } : {
       ok: true, lineageSha256: EXPECTED_SNTSS.lineageSha256,
       biologicalOutputs: 0,
     },
@@ -131,7 +131,7 @@ function resourceStatus(chrono = false) {
         softCpuDuty: 0.05, hardCpuDuty: 0.2, queueCapacity: 256,
         handlerTimeoutMs: 250, healthTimeoutMs: 1000,
       } },
-      osContainment: { limits: {
+      osContainment: { payloadSandboxed: true, limits: {
         'memory.high': String(64 * 1024 * 1024),
         'memory.max': String(96 * 1024 * 1024),
         'pids.max': '16', 'cpu.max': '20000 100000',
@@ -208,7 +208,7 @@ test('R118F-REL-02 freeze binds immutable release and acceptance evidence', t =>
     'service-proof': write('service.json', { beforePid: 100, afterPid: 200,
       beforeRestarts: 0, afterRestarts: 0, restartCommands: 1 }),
     release,
-    'release-tag': 'r118f-v1',
+    'release-tag': 'r118f-v2',
     'release-commit': 'a'.repeat(40),
     'release-tree': 'b'.repeat(40),
     'archive-sha256': `sha256:${'c'.repeat(64)}`,
@@ -257,6 +257,9 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     'cores/chronobiology/c3/aggregate.js',
     'cores/chronobiology/c3/index.js',
     'cores/chronobiology/c3r2/index.js',
+    'cores/chronobiology/c3r3/index.js',
+    'runtime/kernel/core-host-client.js',
+    'runtime/kernel/core-loader.js',
     'runtime/kernel/chronobiology-resident-contracts.js',
     'runtime/kernel/living-kernel.js',
     'runtime/kernel/resident-manager.js',
@@ -265,6 +268,7 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     'deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh',
     'deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js',
     'test/p1-r118f-entry-path.test.js',
+    'test/chronobiology-c3r3-jitless-performance-repair.test.js',
   ]) assert.equal(entries.has(required), true, required);
 });
 
