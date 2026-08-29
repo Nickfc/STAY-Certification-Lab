@@ -238,6 +238,9 @@ test('R118F-REL-03 scripts expose one restart, exact revision progression and no
   assert.equal(forward.includes('declaredHandlerTimeoutMs)" == 250'), true);
   assert.doesNotMatch(`${forward}\n${recovery}\n${finalize}`,
     /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=(?:11[8-9]|1[2-9][0-9])/);
+  assert.match(forward, /overlay_digest="\$\(\s*cd "\$STAGE_ROOT"[\s\S]*sha256sum "\$file"/);
+  assert.doesNotMatch(forward,
+    /overlay_digest="\$\([\s\S]{0,240}sha256sum "\$STAGE_ROOT\/\$file"/);
 });
 
 test('R118F-REL-04 release manifest is exact for every listed file and carries repair dependencies', () => {
