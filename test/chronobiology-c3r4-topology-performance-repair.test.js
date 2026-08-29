@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const test = require('node:test');
@@ -16,6 +17,7 @@ const {
   enforcePackagePolicy,
   verifyManifestAgainstPackagePolicy,
 } = require('../runtime/kernel/package-policy');
+const { OUTPUT: GENERATED_KERNEL, generate } = require('../tools/generate-c3r4-local-kernel');
 
 const GOLDEN_DIGEST = '53158bb15a19011b448b17aa9b8a0859bd63b96c53566d089e959880c9120606';
 const Q30_ONE = 1_073_741_824;
@@ -47,6 +49,27 @@ test('C3R4-ID-01 topology repair is a new contained implementation identity', ()
   assert.equal(record.policy.ambientCapabilities.filesystemWrite, false);
   assert.equal(record.policy.ambientCapabilities.network, false);
   assert.equal(record.policy.ambientCapabilities.processSpawn, false);
+});
+
+test('C3R4-TOPO-01 static kernel is reproducible and malformed local topology fails closed', () => {
+  assert.equal(fs.readFileSync(GENERATED_KERNEL, 'utf8'), generate());
+  const state = founder('C3RC.4 malformed topology');
+  const phenotype = structuredClone(state.phenotype);
+  const firstLocal = phenotype.coupling_graph.edges.findIndex(edge =>
+    edge.weight_q30 === 134_217_728);
+  assert.notEqual(firstLocal, -1);
+  phenotype.coupling_graph.edges[firstLocal] = {
+    ...phenotype.coupling_graph.edges[firstLocal],
+    right_unit_id: 3,
+  };
+  assert.throws(() => repairedOscillator.integratePopulationDuration(
+    structuredClone(state.acquired),
+    phenotype,
+    60_000_000,
+  ), {
+    code: 'CHRONOBIOLOGY_OSCILLATOR_INVALID',
+    message: 'compiled local ring topology is invalid',
+  });
 });
 
 test('C3R4-BIO-01 topology engine is byte-identical across founders and remainder quanta', () => {

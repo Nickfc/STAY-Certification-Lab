@@ -13,6 +13,7 @@ const {
   sinQ30,
   wrapPhase,
 } = require('./fixed-point');
+const { accumulateLocalRing } = require('./local-ring-kernel');
 const { SIN_Q30 } = require('./trig-table');
 
 const MAX_INTEGRATION_STEPS = 43_200;
@@ -188,6 +189,7 @@ function compiledIntegrationPlan(phenotype, durationUs) {
   }
   const edges = phenotype.coupling_graph.edges;
   let localEdgeCount = 0;
+  const localTopology = new Set();
   const generalUnits = [];
   const generalWeightHigh = [];
   const generalWeightLow = [];
@@ -199,6 +201,7 @@ function compiledIntegrationPlan(phenotype, durationUs) {
     const weight = edge.weight_q30;
     if (weight === PROFILE.localEdgeWeightQ30) {
       localEdgeCount += 1;
+      localTopology.add(left * count + right);
     } else {
       generalUnits.push(left | (right << 6));
       const high = Math.floor(weight / Q30_SPLIT);
@@ -211,6 +214,19 @@ function compiledIntegrationPlan(phenotype, durationUs) {
   }
   if (localEdgeCount !== count * 2) {
     fail('compiled local ring is incomplete');
+  }
+  const expectedLocalTopology = new Set();
+  for (let left = 0; left < count; left += 1) {
+    for (const offset of [1, 2]) {
+      const right = (left + offset) & 63;
+      expectedLocalTopology.add(
+        Math.min(left, right) * count + Math.max(left, right),
+      );
+    }
+  }
+  if (localTopology.size !== expectedLocalTopology.size
+    || [...expectedLocalTopology].some(key => !localTopology.has(key))) {
+    fail('compiled local ring topology is invalid');
   }
   const intrinsics = new Array(count);
   const recoveries = new Array(count);
@@ -296,42 +312,9 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
 
   for (let step = 0; step < iterations; step += 1) {
     sums.fill(0);
-    // Founder reconstruction proves the fixed 64-node local ±1/±2 ring before
-    // this plan is admitted. Deriving those endpoints removes 256 interpreter
-    // array reads per quantum while the founder-specific long-range graph
-    // remains fully plan-driven below.
-    for (let left = 0; left < count; left += 1) {
-      let right = (left + 1) & 63;
-      let phase = (phases[right] - phases[left]) >>> 0;
-      let index = phase >>> 20;
-      let fraction = phase & 0xf_ffff;
-      let current = SIN_VALUES_Q30[index];
-      let scaled = SIN_DELTA_Q30[index] * fraction;
-      let sine = current + (scaled < 0
-        ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-        : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-      let response = sine < 0
-        ? -((-sine + 4) >>> 3)
-        : ((sine + 4) >>> 3);
-      sums[left] += response;
-      sums[right] -= response;
-
-      right = (left + 2) & 63;
-      phase = (phases[right] - phases[left]) >>> 0;
-      index = phase >>> 20;
-      fraction = phase & 0xf_ffff;
-      current = SIN_VALUES_Q30[index];
-      scaled = SIN_DELTA_Q30[index] * fraction;
-      sine = current + (scaled < 0
-        ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
-        : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
-      response = sine < 0
-        ? -((-sine + 4) >>> 3)
-        : ((sine + 4) >>> 3);
-      sums[left] += response;
-      sums[right] -= response;
-
-    }
+    // The compiled-plan admission fence proves the generated fixed ring before
+    // its static endpoint kernel is allowed to touch biological state.
+    accumulateLocalRing(phases, sums, SIN_VALUES_Q30, SIN_DELTA_Q30);
 
     for (let edgeId = 0; edgeId < generalEdgeCount; edgeId += 1) {
       const units = generalUnits[edgeId];
