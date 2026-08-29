@@ -129,6 +129,8 @@ function validateBefore(before) {
     && chrono.version === BASELINE.version
     && Number(chrono.state_schema) === BASELINE.stateSchema
     && chrono.module_relative_path === BASELINE.moduleRelativePath
+    && chrono.module_hash === BASELINE.moduleHash
+    && chrono.manifest_hash === BASELINE.manifestHash
     && chrono.package_policy_hash === BASELINE.packagePolicyHash
     && Number(chrono.checkpoint_generation) === BASELINE.checkpointGeneration
     && chrono.checkpoint_hash === BASELINE.checkpointHash
