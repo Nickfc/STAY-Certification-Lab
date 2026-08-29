@@ -434,7 +434,12 @@ runuser -u staydeploy -- env -i \
   && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]] ||
   abort candidate-preflight-mutated-production 1724
 
-overlay_digest="$(for file in "${OVERLAY_FILES[@]}"; do sha256sum "$STAGE_ROOT/$file"; done | sha256sum | awk '{print $1}')"
+overlay_digest="$(
+  cd "$STAGE_ROOT"
+  for file in "${OVERLAY_FILES[@]}"; do
+    sha256sum "$file"
+  done | sha256sum | awk '{print $1}'
+)"
 NEW_RELEASE="/opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-${overlay_digest:0:12}"
 [[ ! -e "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]] || abort target-release-already-exists 1725
 cat > "$CANDIDATE/P1_R118F_RELEASE.env" <<EOF
