@@ -1,0 +1,483 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+EXPECTED_PRIVATE_IPV4='172.26.9.207'
+SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1l-r114-backlog-repair-cb26a2ae203f'
+DATABASE='/var/lib/stay/data/continuity.sqlite3'
+SOCKET='/run/stay/resident-control.sock'
+RUNTIME_DROPIN='/etc/systemd/system/stay.service.d/p1-b0-resident-runtime.conf'
+ONE_SHOT_DROPIN='/etc/systemd/system/stay.service.d/p1-r117-chronobiology-repair-once.conf'
+SERVICE_CGROUP='/sys/fs/cgroup/system.slice/stay.service'
+BWRAP='/usr/local/libexec/stay-bwrap-sandbox'
+EVIDENCE_ROOT='/var/lib/stay/evidence/production-hardening'
+RECOVERY_MARKER='/run/stay-r118f-forward-recovery.env'
+SCRIPT_DIRECTORY="$(dirname -- "$(readlink -f -- "$0")")"
+STAGE_ROOT="$(readlink -f -- "$SCRIPT_DIRECTORY/../..")"
+REPAIR_HELPER="$SCRIPT_DIRECTORY/p1-r118f-chronobiology-implementation-repair.js"
+ENTRY_PREFLIGHT="$SCRIPT_DIRECTORY/p1-r118f-entry-preflight.js"
+LIVE_PROOF="$SCRIPT_DIRECTORY/p1-r118f-live-proof.js"
+FINALIZE="$SCRIPT_DIRECTORY/p1-r118f-finalize.sh"
+SOURCE_MANIFEST="$SCRIPT_DIRECTORY/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256"
+
+: "${STAY_R118F_RELEASE_TAG:?}"
+: "${STAY_R118F_RELEASE_COMMIT:?}"
+: "${STAY_R118F_RELEASE_TREE:?}"
+: "${STAY_R118F_ARCHIVE_SHA256:?}"
+: "${STAY_R118F_MANIFEST_SHA256:?}"
+: "${STAY_R118F_CONTROLLER_SHA256:?}"
+
+OVERLAY_FILES=(
+  'cores/chronobiology/c3r2/aggregate.js'
+  'cores/chronobiology/c3r2/calibration-profile.js'
+  'cores/chronobiology/c3r2/coarse-free-run.js'
+  'cores/chronobiology/c3r2/entrainment.js'
+  'cores/chronobiology/c3r2/fixed-point.js'
+  'cores/chronobiology/c3r2/founder.js'
+  'cores/chronobiology/c3r2/index.js'
+  'cores/chronobiology/c3r2/long-gap.js'
+  'cores/chronobiology/c3r2/oscillator.js'
+  'cores/chronobiology/c3r2/package-policy.json'
+  'cores/chronobiology/c3r2/phase-response.js'
+  'cores/chronobiology/c3r2/photic-calibration-profile.js'
+  'cores/chronobiology/c3r2/photic-transducer.js'
+  'cores/chronobiology/c3r2/schemas/phase-summary.schema.json'
+  'cores/chronobiology/c3r2/schemas/photic-evidence.schema.json'
+  'cores/chronobiology/c3r2/schemas/state.schema.json'
+  'cores/chronobiology/c3r2/state.js'
+  'cores/chronobiology/c3r2/summary.js'
+  'cores/chronobiology/c3r2/trig-table.js'
+  'cores/chronobiology/c3r2/validation.js'
+  'runtime/kernel/chronobiology-resident-contracts.js'
+  'runtime/kernel/living-kernel.js'
+  'runtime/kernel/resident-manager.js'
+  'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'
+  'deploy/live-physiology-transplant/p1-physiology-benchmark.js'
+  'deploy/live-physiology-transplant/p1-resident-control-client.js'
+  'deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js'
+  'deploy/live-physiology-transplant/p1-r118f-entry-preflight.js'
+  'deploy/live-physiology-transplant/p1-r118f-live-proof.js'
+  'deploy/live-physiology-transplant/p1-r118f-freeze.js'
+  'deploy/live-physiology-transplant/p1-r118f-finalize.sh'
+  'deploy/live-physiology-transplant/p1-r118f-forward.sh'
+  'deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh'
+  'test/chronobiology-c3r2-performance-repair.test.js'
+  'test/p1-r118f-chronobiology-implementation-repair.test.js'
+  'test/p1-r118f-entry-path.test.js'
+  'test/production-hardening.test.js'
+  'test/production-hardening-entry-path.test.js'
+  'test/fixtures/stateful-core.js'
+)
+
+WORK=''
+CANDIDATE=''
+NEW_RELEASE=''
+TARGET_CREATED=0
+POINTER_CHANGED=0
+RESTART_COMMITTED=0
+ONE_SHOT_CREATED=0
+COMPLETED=0
+FAILURE_EVIDENCE=''
+
+phase() { echo "===== $1 ====="; }
+
+abort() {
+  echo "R118F_FORWARD_ABORT=$1" >&2
+  exit "${2:-1}"
+}
+
+json_field() {
+  node -e 'const value=process.argv[2].split(".").reduce((object,key)=>object?.[key],JSON.parse(process.argv[1]));process.stdout.write(String(value??""))' "$1" "$2"
+}
+
+durable_runtime_revision() {
+  STAY_DATABASE="$DATABASE" node <<'NODE'
+'use strict';
+const crypto = require('node:crypto');
+const { DatabaseSync } = require('node:sqlite');
+const database = new DatabaseSync(process.env.STAY_DATABASE, { readOnly: true });
+try {
+  const row = database.prepare("SELECT json, sha256 FROM metadata WHERE key='life:runtime-revision'").get();
+  if (!row || crypto.createHash('sha256').update(row.json).digest('hex') !== row.sha256) process.exit(2);
+  const revision = Number(JSON.parse(row.json).revision);
+  if (!Number.isSafeInteger(revision)) process.exit(3);
+  process.stdout.write(String(revision));
+} finally { database.close(); }
+NODE
+}
+
+resident_version() {
+  STAY_DATABASE="$DATABASE" node <<'NODE'
+'use strict';
+const { DatabaseSync } = require('node:sqlite');
+const database = new DatabaseSync(process.env.STAY_DATABASE, { readOnly: true });
+try {
+  process.stdout.write(String(database.prepare(
+    "SELECT version FROM resident_instances WHERE residency_id='resident:chronobiology'"
+  ).get()?.version || ''));
+} finally { database.close(); }
+NODE
+}
+
+proc_value() {
+  tr '\0' '\n' < "/proc/$1/environ" |
+    awk -F= -v key="$2" '$1==key {sub(/^[^=]*=/,"");print;found=1} END{if(!found)exit 1}'
+}
+
+install_atomic() {
+  local source="$1" target="$2" mode="$3" temporary
+  temporary="$(mktemp "$(dirname "$target")/.r118f-forward.XXXXXX")"
+  install -o root -g root -m "$mode" "$source" "$temporary"
+  mv -fT "$temporary" "$target"
+}
+
+point_current() {
+  local release="$1" temporary="/opt/stay/.current-r118f.$$"
+  [[ ! -e "$temporary" && ! -L "$temporary" ]] || return 1
+  ln -s "$release" "$temporary"
+  mv -Tf "$temporary" /opt/stay/current
+}
+
+tree_digest() {
+  local root="$1" relative="$2"
+  (cd "$root" && find "$relative" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+}
+
+archive_failure_work() {
+  if [[ -n "$WORK" && -d "$WORK" ]]; then
+    local failed
+    failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R118F-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+    rmdir -- "$failed"
+    if mv -T "$WORK" "$failed"; then
+      WORK=''
+      FAILURE_EVIDENCE="$failed"
+      chmod -R a-w "$failed" || true
+      echo "R118F_FAILURE_EVIDENCE=$failed" >&2
+    fi
+  fi
+}
+
+write_recovery_marker() {
+  [[ -n "$FAILURE_EVIDENCE" ]] || return 0
+  local temporary
+  temporary="$(mktemp /run/.stay-r118f-forward-recovery.XXXXXX)"
+  cat > "$temporary" <<EOF
+R118F_FAILURE_EVIDENCE=$FAILURE_EVIDENCE
+R118F_RELEASE=$NEW_RELEASE
+R118F_RELEASE_TAG=$STAY_R118F_RELEASE_TAG
+R118F_RELEASE_COMMIT=$STAY_R118F_RELEASE_COMMIT
+R118F_RELEASE_TREE=$STAY_R118F_RELEASE_TREE
+R118F_ARCHIVE_SHA256=$STAY_R118F_ARCHIVE_SHA256
+R118F_MANIFEST_SHA256=$STAY_R118F_MANIFEST_SHA256
+R118F_CONTROLLER_SHA256=$STAY_R118F_CONTROLLER_SHA256
+EOF
+  install -o root -g root -m 0600 "$temporary" "$RECOVERY_MARKER"
+  rm -f -- "$temporary"
+}
+
+cleanup() {
+  local status=$? revision='' version=''
+  trap - EXIT
+  set +e
+  if [[ "$ONE_SHOT_CREATED" -eq 1 && -f "$ONE_SHOT_DROPIN" && ! -L "$ONE_SHOT_DROPIN" ]]; then
+    rm -f -- "$ONE_SHOT_DROPIN"
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    ONE_SHOT_CREATED=0
+  fi
+  if [[ "$COMPLETED" -eq 0 && "$RESTART_COMMITTED" -eq 0 ]]; then
+    [[ "$POINTER_CHANGED" -eq 1 ]] && point_current "$SOURCE_RELEASE" || true
+    if [[ "$TARGET_CREATED" -eq 1 && "$NEW_RELEASE" == /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-* && -d "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]]; then
+      rm -rf --one-file-system -- "$NEW_RELEASE"
+    fi
+    archive_failure_work
+    echo 'R118F_FORWARD_ROLLBACK=PRE_RESTART_STATE_RESTORED' >&2
+  elif [[ "$COMPLETED" -eq 0 ]]; then
+    revision="$(durable_runtime_revision 2>/dev/null || true)"
+    if [[ "$revision" == 116 ]]; then
+      version="$(resident_version 2>/dev/null || true)"
+      if [[ "$version" == 1.0.0-c3rc.2 && -n "$NEW_RELEASE" ]]; then
+        node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js" \
+          rollback "$DATABASE" "$NEW_RELEASE" >/dev/null 2>&1 || true
+      fi
+      point_current "$SOURCE_RELEASE" || true
+      systemctl start stay.service >/dev/null 2>&1 || true
+      archive_failure_work
+      echo 'R118F_FORWARD_ROLLBACK=PRE_DURABLE_ADVANCEMENT_REPAIR_AND_POINTER_RESTORED' >&2
+    else
+      archive_failure_work
+      write_recovery_marker
+      echo 'R118F_FORWARD_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY' >&2
+    fi
+  fi
+  if [[ -n "$CANDIDATE" && "$CANDIDATE" == /opt/stay/releases/.p1m-r118f-chrono-repair.* && -d "$CANDIDATE" ]]; then
+    rm -rf --one-file-system -- "$CANDIDATE"
+  fi
+  [[ -n "$WORK" && -d "$WORK" ]] && rm -rf --one-file-system -- "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+[[ "$EUID" -eq 0 ]] || abort root-required 1701
+[[ "${STAY_R118F_AUTHORIZATION:-}" == 'REPAIR_R116_CHRONOBIOLOGY_GAP_TO_R118F_AND_BENCHMARK_72H' ]] ||
+  abort authorization-required 1702
+[[ "$STAY_R118F_RELEASE_TAG" =~ ^r118f-v[0-9]+$ \
+  && "$STAY_R118F_RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ \
+  && "$STAY_R118F_RELEASE_TREE" =~ ^[0-9a-f]{40}$ \
+  && "$STAY_R118F_ARCHIVE_SHA256" =~ ^sha256:[0-9a-f]{64}$ \
+  && "$STAY_R118F_MANIFEST_SHA256" =~ ^sha256:[0-9a-f]{64}$ \
+  && "$STAY_R118F_CONTROLLER_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+  abort immutable-identity-invalid 1703
+[[ ! -e "$RECOVERY_MARKER" && ! -L "$RECOVERY_MARKER" ]] || abort recovery-marker-already-exists 1704
+[[ ! -e "$ONE_SHOT_DROPIN" && ! -L "$ONE_SHOT_DROPIN" ]] || abort one-shot-dropin-already-exists 1705
+for file in "$DATABASE" "$RUNTIME_DROPIN" "$BWRAP" "$SOURCE_MANIFEST" \
+  "$REPAIR_HELPER" "$ENTRY_PREFLIGHT" "$LIVE_PROOF" "$FINALIZE"; do
+  [[ -f "$file" && ! -L "$file" ]] || abort immutable-input-invalid 1706
+done
+[[ -d "$SOURCE_RELEASE" && ! -L "$SOURCE_RELEASE" \
+  && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]] || abort source-release-invalid 1707
+[[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-socket-invalid 1708
+[[ "$(systemctl show stay-p1-physiology-benchmark.service -p ActiveState --value 2>/dev/null || true)" != active ]] ||
+  abort prior-benchmark-still-active 1709
+[[ ! -e /var/lib/stay/evidence/runtime-freezes/R118.json \
+  && ! -L /var/lib/stay/evidence/runtime-freezes/R118.json \
+  && ! -e /var/lib/stay/evidence/physiology-benchmark/R118F \
+  && ! -L /var/lib/stay/evidence/physiology-benchmark/R118F ]] || abort target-evidence-already-exists 1710
+
+observed_ip="$(ip -4 -o addr show scope global | awk '{split($4,a,"/"); print a[1]}' | sort -u)"
+[[ "$observed_ip" == "$EXPECTED_PRIVATE_IPV4" ]] || abort host-identity-mismatch 1711
+before_pid="$(systemctl show stay.service -p MainPID --value)"
+before_restarts="$(systemctl show stay.service -p NRestarts --value)"
+before_active="$(systemctl show stay.service -p ActiveState --value)"
+before_sub="$(systemctl show stay.service -p SubState --value)"
+[[ "$before_pid" =~ ^[1-9][0-9]*$ && "$before_active" == active && "$before_sub" == running ]] ||
+  abort source-service-invalid 1712
+
+WORK="$(mktemp -d "$EVIDENCE_ROOT/.R118F-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+phase 'READ-ONLY EXACT R116 PREFLIGHT'
+STAY_DATABASE="$DATABASE" node "$LIVE_PROOF" capture > "$WORK/before.database.json" || abort database-capture-failed 1713
+node - "$WORK/before.database.json" "$LIVE_PROOF" <<'NODE'
+'use strict';
+const fs = require('node:fs');
+const [file, helper] = process.argv.slice(2);
+require(helper).validateBefore(JSON.parse(fs.readFileSync(file, 'utf8')));
+NODE
+before_sntss="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$SCRIPT_DIRECTORY/p1-resident-control-client.js" status resident:sntss)"
+before_chrono="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$SCRIPT_DIRECTORY/p1-resident-control-client.js" status resident:chronobiology)"
+before_meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
+printf '%s\n' "$before_sntss" > "$WORK/sntss.before.json"
+printf '%s\n' "$before_chrono" > "$WORK/chronobiology.before.json"
+printf '%s\n' "$before_meta" > "$WORK/meta.before.json"
+node - "$WORK/sntss.before.json" "$WORK/chronobiology.before.json" "$WORK/meta.before.json" <<'NODE'
+'use strict';
+const fs = require('node:fs');
+const [sFile, cFile, mFile] = process.argv.slice(2);
+const s = JSON.parse(fs.readFileSync(sFile)).resident;
+const c = JSON.parse(fs.readFileSync(cFile)).resident;
+const m = JSON.parse(fs.readFileSync(mFile));
+const fetus = m.cores?.find(value => value.id === 'fetus-legacy');
+const bsf = m.systems?.find(value => value.id === 'bsf');
+if (!(m.ok === true && m.revision === 116 && m.revisionFrozen === false
+  && m.revisionLabel === 'R116' && fetus?.ok === true
+  && fetus?.memoryGuardian?.status === 'healthy'
+  && fetus?.memoryGuardian?.warnAtMiB === 192
+  && fetus?.memoryGuardian?.recycleAtMiB === 256
+  && bsf?.mode === 'LIVE' && bsf?.status === 'RUNNING' && bsf?.healthOk === true
+  && s?.version === '0.5.0-i4g1'
+  && s?.host?.instanceId === '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f'
+  && s?.status === 'RUNNING' && s?.running === true && s?.authorityOwned === false
+  && s?.observedOutputs === 0 && s?.health?.biologicalOutputs === 0
+  && c?.version === '1.0.0-c3rc.1'
+  && c?.host?.instanceId === 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'
+  && c?.status === 'RESYNC_REQUIRED' && c?.running === false
+  && c?.authorityOwned === false && c?.observedOutputs === 0)) process.exit(1);
+NODE
+[[ "$(systemctl show stay.service -p MainPID --value)" == "$before_pid" \
+  && "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" ]] ||
+  abort preflight-mutated-service 1714
+
+phase 'BUILD SOURCE-SEALED CANDIDATE'
+CANDIDATE="$(mktemp -d /opt/stay/releases/.p1m-r118f-chrono-repair.XXXXXX)"
+cp -a --reflink=auto "$SOURCE_RELEASE/." "$CANDIDATE/"
+chmod --reference="$SOURCE_RELEASE" "$CANDIDATE"
+chown --reference="$SOURCE_RELEASE" "$CANDIDATE"
+source_sntss_digest="$(tree_digest "$SOURCE_RELEASE" cores/sntss/i4g)"
+source_c3_digest="$(tree_digest "$SOURCE_RELEASE" cores/chronobiology/c3)"
+for file in "${OVERLAY_FILES[@]}"; do
+  install -D -o root -g root -m 0644 "$STAGE_ROOT/$file" "$CANDIDATE/$file"
+  [[ "$(sha256sum "$CANDIDATE/$file" | awk '{print $1}')" == \
+    "$(sha256sum "$STAGE_ROOT/$file" | awk '{print $1}')" ]] || abort candidate-overlay-mismatch 1715
+done
+[[ "$(tree_digest "$CANDIDATE" cores/sntss/i4g)" == "$source_sntss_digest" \
+  && "$(tree_digest "$CANDIDATE" cores/chronobiology/c3)" == "$source_c3_digest" ]] ||
+  abort historical-biology-changed 1716
+diff -qr "$SOURCE_RELEASE/cores/sntss/i4g" "$CANDIDATE/cores/sntss/i4g" > "$WORK/sntss.diff" ||
+  abort sntss-tree-changed 1717
+diff -qr "$SOURCE_RELEASE/cores/chronobiology/c3" "$CANDIDATE/cores/chronobiology/c3" > "$WORK/chronobiology-c3.diff" ||
+  abort historical-chronobiology-tree-changed 1718
+
+for file in "${OVERLAY_FILES[@]}"; do
+  [[ "$file" == *.js ]] && node --check "$CANDIDATE/$file" >/dev/null
+  [[ "$file" == *.sh ]] && bash -n "$CANDIDATE/$file"
+done
+node - "$CANDIDATE" <<'NODE'
+'use strict';
+const path = require('node:path');
+const root = process.argv[2];
+const policy = require(path.join(root, 'runtime/kernel/package-policy.js'));
+for (const relative of ['cores/sntss/i4g/index.js', 'cores/chronobiology/c3/index.js',
+  'cores/chronobiology/c3r2/index.js']) {
+  const modulePath = path.join(root, relative);
+  const manifest = require(modulePath).manifest;
+  const record = policy.enforcePackagePolicy(modulePath);
+  policy.verifyManifestAgainstPackagePolicy(record, manifest);
+}
+NODE
+
+if ! STAY_BWRAP="$BWRAP" node --test --test-concurrency=1 \
+  "$CANDIDATE/test/chronobiology-c3r2-performance-repair.test.js" \
+  "$CANDIDATE/test/p1-r118f-chronobiology-implementation-repair.test.js" \
+  "$CANDIDATE/test/p1-r118f-entry-path.test.js" \
+  "$CANDIDATE/test/production-hardening-entry-path.test.js" \
+  "$CANDIDATE/test/production-hardening.test.js" > "$WORK/focused-tests.tap" 2>&1; then
+  cat "$WORK/focused-tests.tap" >&2
+  abort candidate-focused-tests-failed 1719
+fi
+
+phase 'REAL BUBBLEWRAP ENTRY PATH AT INDEPENDENT 20-PERCENT CPU QUOTA'
+if ! systemd-run --wait --pipe --collect --quiet \
+  --property=User=staydeploy --property=CPUQuota=20% \
+  /usr/bin/env -i \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP="$BWRAP" \
+    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=0 \
+    /usr/local/bin/node "$CANDIDATE/deploy/live-physiology-transplant/p1-r118f-entry-preflight.js" \
+    > "$WORK/entry-quota.proof.json"; then
+  abort quota-entry-preflight-failed 1720
+fi
+[[ "$(json_field "$(<"$WORK/entry-quota.proof.json")" result)" == PASS \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" hardCpuPercent)" == 20 \
+  && "$(json_field "$(<"$WORK/entry-quota.proof.json")" declaredHandlerTimeoutMs)" == 250 ]] ||
+  abort quota-entry-preflight-invalid 1721
+
+runuser -u staydeploy -- env -i \
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  NODE_ENV=production STAY_REQUIRE_CORE_PACKAGE_POLICY=1 \
+  /usr/local/bin/node \
+  "$CANDIDATE/deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js" \
+  preflight "$DATABASE" "$CANDIDATE" > "$WORK/repair.preflight.json" ||
+  abort exact-repair-preflight-failed 1722
+[[ "$(json_field "$(<"$WORK/repair.preflight.json")" result)" == PASS ]] ||
+  abort exact-repair-preflight-invalid 1723
+[[ "$(systemctl show stay.service -p MainPID --value)" == "$before_pid" \
+  && "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" \
+  && "$(durable_runtime_revision)" == 116 \
+  && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]] ||
+  abort candidate-preflight-mutated-production 1724
+
+overlay_digest="$(for file in "${OVERLAY_FILES[@]}"; do sha256sum "$STAGE_ROOT/$file"; done | sha256sum | awk '{print $1}')"
+NEW_RELEASE="/opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-${overlay_digest:0:12}"
+[[ ! -e "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]] || abort target-release-already-exists 1725
+cat > "$CANDIDATE/P1_R118F_RELEASE.env" <<EOF
+P1_R118F_RELEASE=PASS
+SOURCE_RELEASE=$SOURCE_RELEASE
+SOURCE_RUNTIME_REVISION=R116
+RECOVERY_RUNTIME_REVISION=R117
+TARGET_RUNTIME_REVISION=R118F
+RELEASE_TAG=$STAY_R118F_RELEASE_TAG
+RELEASE_COMMIT=$STAY_R118F_RELEASE_COMMIT
+RELEASE_TREE=$STAY_R118F_RELEASE_TREE
+ARCHIVE_SHA256=$STAY_R118F_ARCHIVE_SHA256
+MANIFEST_SHA256=$STAY_R118F_MANIFEST_SHA256
+PRODUCTION_OVERLAY_SHA256=sha256:$overlay_digest
+SNTSS_TREE_SHA256=sha256:$source_sntss_digest
+HISTORICAL_CHRONOBIOLOGY_TREE_SHA256=sha256:$source_c3_digest
+CHRONOBIOLOGY_REPAIR_VERSION=1.0.0-c3rc.2
+CHRONOBIOLOGY_RESOURCE_LIMITS_CHANGED=NO
+CHRONOBIOLOGY_BIOLOGICAL_STATE_CHANGED=NO
+CHRONOBIOLOGY_ABANDONED_COUNT=0
+CHRONOBIOLOGY_INVENTED_BIOLOGICAL_TIME=NO
+EOF
+chown root:root "$CANDIDATE/P1_R118F_RELEASE.env"
+chmod 0444 "$CANDIDATE/P1_R118F_RELEASE.env"
+mv -T "$CANDIDATE" "$NEW_RELEASE"
+CANDIDATE=''
+TARGET_CREATED=1
+chmod -R a-w "$NEW_RELEASE"
+
+phase 'OFFLINE CAS, R117 COLD RECOVERY, AND EXACTLY ONE RESTART'
+cat > "$WORK/p1-r117-chronobiology-repair-once.conf" <<EOF
+[Service]
+Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=117
+ExecStartPre=/usr/local/bin/node $NEW_RELEASE/deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js apply $DATABASE $NEW_RELEASE
+EOF
+install_atomic "$WORK/p1-r117-chronobiology-repair-once.conf" "$ONE_SHOT_DROPIN" 0644
+ONE_SHOT_CREATED=1
+point_current "$NEW_RELEASE"
+POINTER_CHANGED=1
+systemctl daemon-reload || abort daemon-reload-failed 1726
+systemd-analyze verify stay.service >/dev/null 2>"$WORK/systemd-verify.stderr" ||
+  abort systemd-contract-invalid 1727
+RESTART_COMMITTED=1
+systemctl restart stay.service || abort restart-failed 1728
+
+after_health=''
+for _ in $(seq 1 120); do
+  after_health="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/healthz 2>/dev/null || true)"
+  if [[ "$(json_field "$after_health" ok 2>/dev/null || true)" == true \
+    && "$(json_field "$after_health" revision 2>/dev/null || true)" == 118 \
+    && -S "$SOCKET" ]]; then break; fi
+  sleep 1
+done
+after_pid="$(systemctl show stay.service -p MainPID --value)"
+after_restarts="$(systemctl show stay.service -p NRestarts --value)"
+[[ "$(json_field "$after_health" ok 2>/dev/null || true)" == true \
+  && "$(json_field "$after_health" revision 2>/dev/null || true)" == 118 \
+  && "$after_pid" =~ ^[1-9][0-9]*$ && "$after_pid" != "$before_pid" \
+  && "$after_restarts" == "$before_restarts" \
+  && "$(readlink -f /opt/stay/current)" == "$NEW_RELEASE" \
+  && "$(proc_value "$after_pid" STAY_RECOVER_COLD_RESIDENTS_AT_REVISION)" == 117 ]] ||
+  abort restarted-r118-runtime-invalid 1729
+
+rm -f -- "$ONE_SHOT_DROPIN"
+ONE_SHOT_CREATED=0
+systemctl daemon-reload || abort one-shot-removal-daemon-reload-failed 1730
+[[ ! -e "$ONE_SHOT_DROPIN" && ! -L "$ONE_SHOT_DROPIN" ]] || abort one-shot-not-removed 1731
+node - "$before_pid" "$after_pid" "$before_restarts" "$after_restarts" > "$WORK/service.proof.json" <<'NODE'
+'use strict';
+const [beforePid, afterPid, beforeRestarts, afterRestarts] = process.argv.slice(2).map(Number);
+process.stdout.write(JSON.stringify({
+  beforePid, afterPid, beforeRestarts, afterRestarts, restartCommands: 1,
+}) + '\n');
+NODE
+
+STAY_R118F_WORK="$WORK" \
+STAY_R118F_BEFORE_DATABASE="$WORK/before.database.json" \
+STAY_R118F_SERVICE_PROOF="$WORK/service.proof.json" \
+STAY_R118F_ENTRY_PROOF="$WORK/entry-quota.proof.json" \
+STAY_R118F_PREFLIGHT_PROOF="$WORK/repair.preflight.json" \
+STAY_R118F_RELEASE="$NEW_RELEASE" \
+STAY_R118F_RELEASE_TAG="$STAY_R118F_RELEASE_TAG" \
+STAY_R118F_RELEASE_COMMIT="$STAY_R118F_RELEASE_COMMIT" \
+STAY_R118F_RELEASE_TREE="$STAY_R118F_RELEASE_TREE" \
+STAY_R118F_ARCHIVE_SHA256="$STAY_R118F_ARCHIVE_SHA256" \
+STAY_R118F_MANIFEST_SHA256="$STAY_R118F_MANIFEST_SHA256" \
+STAY_R118F_CONTROLLER_SHA256="$STAY_R118F_CONTROLLER_SHA256" \
+STAY_R118F_PRIVATE_IPV4="$observed_ip" \
+bash "$NEW_RELEASE/deploy/live-physiology-transplant/p1-r118f-finalize.sh" > "$WORK/finalize.output" ||
+  abort finalization-failed 1732
+
+final_evidence="$EVIDENCE_ROOT/R118F-$(date -u +'%Y%m%dT%H%M%SZ')"
+mv -T "$WORK" "$final_evidence"
+WORK=''
+chmod -R a-w "$final_evidence"
+rm -f -- "$RECOVERY_MARKER"
+COMPLETED=1
+trap - EXIT
+cat "$final_evidence/finalize.output"
+echo 'R118F_FORWARD_RESULT=PASS'
+echo 'REVISION_LABEL=R118F'
+echo "CURRENT_RELEASE=$NEW_RELEASE"
+echo "R118F_EVIDENCE=$final_evidence"
+echo "R118F_EVIDENCE_SHA256=sha256:$(find "$final_evidence" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"

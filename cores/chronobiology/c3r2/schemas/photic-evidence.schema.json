@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stay://environment/photic-exposure/v1",
+  "title": "STAY laboratory photic evidence v1",
+  "type": "object",
+  "required": ["schema", "effective_from_us", "effective_to_us", "broadband_level_q", "spectral_channels", "source_quality_q", "evidence_completeness", "sample_count", "coverage_q"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "environment.photic.exposure/v1" },
+    "effective_from_us": { "type": "integer", "minimum": 0 },
+    "effective_to_us": { "type": "integer", "minimum": 1 },
+    "broadband_level_q": { "type": ["integer", "null"], "minimum": 0, "maximum": 2147483647 },
+    "spectral_channels": { "type": ["object", "null"], "maxProperties": 0 },
+    "source_quality_q": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "evidence_completeness": { "enum": ["COMPLETE", "PARTIAL", "GAP"] },
+    "sample_count": { "type": "integer", "minimum": 0, "maximum": 4096 },
+    "coverage_q": { "type": "integer", "minimum": 0, "maximum": 2147483647 }
+  }
+}
