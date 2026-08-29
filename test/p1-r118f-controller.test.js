@@ -21,16 +21,16 @@ const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 
 test('R118F-BRIDGE-01 controller binds the exact immutable release cohort', () => {
   for (const identity of [
-    "EXPECTED_RELEASE_TAG='r118f-v6'",
-    "EXPECTED_RELEASE_COMMIT='71f9707126cc9fb44267d1d44944270d743fe252'",
-    "EXPECTED_RELEASE_TREE='dd86962f2f8b6a51d3533329abb38f6e1d9b5d69'",
-    "EXPECTED_ARCHIVE='STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V6_BUNDLE_20260829.tar.gz'",
-    "EXPECTED_ARCHIVE_SHA256='e6f810a88233e28d784cdab932a88fe68af450df0745848e22d287bd1ecb3c3e'",
-    "EXPECTED_SIDECAR_SHA256='804b63f274e30051c2818d80630eb10d55909a931708638d70ba7c05559b8bd7'",
-    "EXPECTED_MANIFEST_SHA256='a8826a8af47c1a6a91cd909417ebfe908a818f12e0a082d91883e91f3e6825a1'",
+    "EXPECTED_RELEASE_TAG='r118f-v7'",
+    "EXPECTED_RELEASE_COMMIT='74dcf5cd3f4d23f196f6eb4f896dcb96f1935a59'",
+    "EXPECTED_RELEASE_TREE='26a3a79d00e082ed2b02bc4e548a378618adb762'",
+    "EXPECTED_ARCHIVE='STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V7_BUNDLE_20260829.tar.gz'",
+    "EXPECTED_ARCHIVE_SHA256='1f843579d0228a6979ffae96ea68d8dae8dbf7bda97c16162dc7847d92377c0a'",
+    "EXPECTED_SIDECAR_SHA256='69930fda7c3a99495cc7157ee2ee0826a9226105e13690cb0246d7082cf9d065'",
+    "EXPECTED_MANIFEST_SHA256='d4c401a14adad9605cbd9b222fb22eaa4ac0f6f6f1aba9b21a9257e13f1518af'",
     "EXPECTED_FORWARD_SHA256='77db4df6dd8f6bd9d5b6eeeea0881fa7bb97cb8881523ffded7849ff0a855c3b'",
     "EXPECTED_RECOVERY_SHA256='92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03'",
-    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-28b43864ca7a'",
+    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-dd5f2965524d'",
   ]) assert.equal(wrapper.includes(identity), true, identity);
   assert.match(wrapper, /ARCHIVE_ENTRY_COUNT|"\$\{#entries\[@\]\}" -eq 216/);
   assert.match(wrapper, /-type f \| wc -l\)" -eq 189/);
@@ -45,8 +45,8 @@ test('R118F-BRIDGE-02 controller exposes only forward and fenced recovery', () =
   const operations = [...operationCase.matchAll(/^    ([a-z0-9-]+)\)$/gm)]
     .map(match => match[1]);
   assert.deepEqual(operations, ['harden-r118f', 'recover-r118f']);
-  assert.match(wrapper, /AUTHORIZE_R118F_V6_CONTAINED_FORWARD_WITH_FENCED_RECOVERY/);
-  assert.match(wrapper, /AUTHORIZE_R118F_V6_FORWARD_RECOVERY_ONLY/);
+  assert.match(wrapper, /AUTHORIZE_R118F_V7_CONTAINED_FORWARD_WITH_FENCED_RECOVERY/);
+  assert.match(wrapper, /AUTHORIZE_R118F_V7_FORWARD_RECOVERY_ONLY/);
   assert.match(wrapper, /REPAIR_R116_CHRONOBIOLOGY_GAP_TO_R118F_AND_BENCHMARK_72H/);
   assert.match(wrapper, /COMPLETE_REVISION_FENCED_R118F_WITHOUT_RESTART/);
   assert.doesNotMatch(wrapper, /rollback-r118f|restore.*StateStore|sqlite3.*\.restore/i);
@@ -84,9 +84,9 @@ test('R118F-BRIDGE-05 installer replaces the old wrapper without widening sudo',
   const wrapperHash = sha256(fs.readFileSync(wrapperPath));
   const installerHash = sha256(fs.readFileSync(installerPath));
   assert.equal(wrapperHash,
-    '30b4096787790c4d53726905141f4bf339975fb1ed68538b947eb6bc579b16e1');
+    '0011744a949250c4ec6a8313bf895c705324fd6f75fce9f4514346937df6308d');
   assert.equal(installerHash,
-    '7b19143fcb3bb997c00a903b70eb7670d2a3055095674dd2ce3e27cd124f811f');
+    '6980a260c368950d3d773604eb4195b69aa45b1c6a971a9db7847c11382216e3');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperHash}'`));
   assert.match(installer,
     /TARGET_WRAPPER='\/usr\/local\/sbin\/stay-p1-production-controller'/);
@@ -99,22 +99,25 @@ test('R118F-BRIDGE-05 installer replaces the old wrapper without widening sudo',
 
 test('R118F-BRIDGE-06 workflows bind the controller and immutable hosted release', () => {
   assert.match(bootstrapWorkflow,
-    /WRAPPER_SHA256: 30b4096787790c4d53726905141f4bf339975fb1ed68538b947eb6bc579b16e1/);
+    /WRAPPER_SHA256: 0011744a949250c4ec6a8313bf895c705324fd6f75fce9f4514346937df6308d/);
   assert.match(bootstrapWorkflow,
-    /INSTALLER_SHA256: 7b19143fcb3bb997c00a903b70eb7670d2a3055095674dd2ce3e27cd124f811f/);
+    /INSTALLER_SHA256: 6980a260c368950d3d773604eb4195b69aa45b1c6a971a9db7847c11382216e3/);
+  assert.match(bootstrapWorkflow,
+    /run_root="\/opt\/stay\/incoming\/r118f-controller-v7-\$\{GITHUB_RUN_ID\}"/);
+  assert.doesNotMatch(bootstrapWorkflow, /R118F V6|R118F_V6|r118f-v6|controller-v6/);
   for (const identity of [
-    'RELEASE_TAG: r118f-v6',
-    'RELEASE_TAG_OBJECT: b6f8e182bda38edf0acdbb8f384eb0332180c0bb',
-    'RELEASE_COMMIT: 71f9707126cc9fb44267d1d44944270d743fe252',
-    'RELEASE_TREE: dd86962f2f8b6a51d3533329abb38f6e1d9b5d69',
-    'ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V6_BUNDLE_20260829.tar.gz',
-    'ARCHIVE_SHA256: e6f810a88233e28d784cdab932a88fe68af450df0745848e22d287bd1ecb3c3e',
-    'SIDECAR_SHA256: 804b63f274e30051c2818d80630eb10d55909a931708638d70ba7c05559b8bd7',
-    'MANIFEST_SHA256: a8826a8af47c1a6a91cd909417ebfe908a818f12e0a082d91883e91f3e6825a1',
+    'RELEASE_TAG: r118f-v7',
+    'RELEASE_TAG_OBJECT: 0f54c3065c9a12fd3d99f920cea01651e6c5d429',
+    'RELEASE_COMMIT: 74dcf5cd3f4d23f196f6eb4f896dcb96f1935a59',
+    'RELEASE_TREE: 26a3a79d00e082ed2b02bc4e548a378618adb762',
+    'ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V7_BUNDLE_20260829.tar.gz',
+    'ARCHIVE_SHA256: 1f843579d0228a6979ffae96ea68d8dae8dbf7bda97c16162dc7847d92377c0a',
+    'SIDECAR_SHA256: 69930fda7c3a99495cc7157ee2ee0826a9226105e13690cb0246d7082cf9d065',
+    'MANIFEST_SHA256: d4c401a14adad9605cbd9b222fb22eaa4ac0f6f6f1aba9b21a9257e13f1518af',
     'FORWARD_SHA256: 77db4df6dd8f6bd9d5b6eeeea0881fa7bb97cb8881523ffded7849ff0a855c3b',
     'RECOVERY_SHA256: 92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03',
-    'TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-28b43864ca7a',
-    'WRAPPER_SHA256: 30b4096787790c4d53726905141f4bf339975fb1ed68538b947eb6bc579b16e1',
+    'TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-dd5f2965524d',
+    'WRAPPER_SHA256: 0011744a949250c4ec6a8313bf895c705324fd6f75fce9f4514346937df6308d',
   ]) assert.equal(productionWorkflow.includes(identity), true, identity);
   assert.match(productionWorkflow, /persist-credentials: false/);
   assert.match(productionWorkflow,
