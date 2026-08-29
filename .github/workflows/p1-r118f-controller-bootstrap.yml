@@ -1,5 +1,5 @@
-name: R118F V3 privileged controller bootstrap
-run-name: R118F V3 controller bootstrap · ${{ github.actor }}
+name: R118F V5 privileged controller bootstrap
+run-name: R118F V5 controller bootstrap · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -11,18 +11,18 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R118F_V3_PINNED_CONTROLLER_BOOTSTRAP
+          - AUTHORIZE_R118F_V5_PINNED_CONTROLLER_BOOTSTRAP
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r118f-v3-controller-bootstrap
+  group: stay-r118f-v5-controller-bootstrap
   cancel-in-progress: false
 
 env:
-  WRAPPER_SHA256: 9bf06ea7d76ab37d3a957b5df66595544bb675d9db0c47379ade1c804178bd3b
-  INSTALLER_SHA256: ebb15cdee0817afb12ad9041484e07b0a16bbad4f64cb3c44c260af63c2b5c53
+  WRAPPER_SHA256: 5f50854ba851e3e52ab5b8b56726da50e0a0902d95e7ce05ce93200a80905e6b
+  INSTALLER_SHA256: 31bea018f6c845ba2484d2c71709cb605b0afc525f24a1650dc71b9945442232
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]]
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
-          [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R118F_V3_PINNED_CONTROLLER_BOOTSTRAP ]]
+          [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R118F_V5_PINNED_CONTROLLER_BOOTSTRAP ]]
           wrapper='deploy/live-physiology-transplant/stay-p1-r118f-production-controller'
           installer='deploy/live-physiology-transplant/install-p1-r118f-production-controller.sh'
           [[ "$(sha256sum "$wrapper" | awk '{print $1}')" == "$WRAPPER_SHA256" ]]
@@ -70,7 +70,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          artifact="$RUNNER_TEMP/r118f-v3-controller-bootstrap"
+          artifact="$RUNNER_TEMP/r118f-v5-controller-bootstrap"
           install -d -m 0700 "$artifact"
           install -m 0555 deploy/live-physiology-transplant/stay-p1-r118f-production-controller \
             "$artifact/stay-p1-r118f-production-controller"
@@ -78,12 +78,12 @@ jobs:
             "$artifact/install-p1-r118f-production-controller.sh"
           (cd "$artifact" && sha256sum \
             stay-p1-r118f-production-controller \
-            install-p1-r118f-production-controller.sh > P1_R118F_V3_CONTROLLER_BOOTSTRAP.sha256)
+            install-p1-r118f-production-controller.sh > P1_R118F_V5_CONTROLLER_BOOTSTRAP.sha256)
       - name: Upload sealed bootstrap artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r118f-v3-controller-bootstrap-${{ github.run_id }}
-          path: ${{ runner.temp }}/r118f-v3-controller-bootstrap/
+          name: r118f-v5-controller-bootstrap-${{ github.run_id }}
+          path: ${{ runner.temp }}/r118f-v5-controller-bootstrap/
           if-no-files-found: error
           retention-days: 7
 
@@ -97,15 +97,15 @@ jobs:
       - name: Download isolated sealed artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r118f-v3-controller-bootstrap-${{ github.run_id }}
+          name: r118f-v5-controller-bootstrap-${{ github.run_id }}
           path: bootstrap-artifact
       - name: Verify artifact before credentials
         shell: bash
         run: |
           set -euo pipefail
-          expected=$'P1_R118F_V3_CONTROLLER_BOOTSTRAP.sha256\ninstall-p1-r118f-production-controller.sh\nstay-p1-r118f-production-controller'
+          expected=$'P1_R118F_V5_CONTROLLER_BOOTSTRAP.sha256\ninstall-p1-r118f-production-controller.sh\nstay-p1-r118f-production-controller'
           [[ "$(find bootstrap-artifact -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
-          (cd bootstrap-artifact && sha256sum -c P1_R118F_V3_CONTROLLER_BOOTSTRAP.sha256)
+          (cd bootstrap-artifact && sha256sum -c P1_R118F_V5_CONTROLLER_BOOTSTRAP.sha256)
           [[ "$(sha256sum bootstrap-artifact/stay-p1-r118f-production-controller | awk '{print $1}')" == "$WRAPPER_SHA256" ]]
           [[ "$(sha256sum bootstrap-artifact/install-p1-r118f-production-controller.sh | awk '{print $1}')" == "$INSTALLER_SHA256" ]]
       - name: Prepare pinned production SSH identity
@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r118f-controller-v3-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r118f-controller-v5-${GITHUB_RUN_ID}"
           echo "RUN_ROOT=$run_root" >> "$GITHUB_ENV"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
@@ -135,25 +135,25 @@ jobs:
           scp "${ssh_options[@]}" \
             bootstrap-artifact/stay-p1-r118f-production-controller \
             bootstrap-artifact/install-p1-r118f-production-controller.sh \
-            bootstrap-artifact/P1_R118F_V3_CONTROLLER_BOOTSTRAP.sha256 \
+            bootstrap-artifact/P1_R118F_V5_CONTROLLER_BOOTSTRAP.sha256 \
             staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
             "$run_root" "$WRAPPER_SHA256" "$INSTALLER_SHA256" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; wrapper_sha="$2"; installer_sha="$3"
-          [[ "$root" =~ ^/opt/stay/incoming/r118f-controller-v3-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r118f-controller-v5-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           [[ "$(stat -Lc '%U:%G' "$root")" == staydeploy:staydeploy ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
-          (cd "$root" && sha256sum -c P1_R118F_V3_CONTROLLER_BOOTSTRAP.sha256)
+          (cd "$root" && sha256sum -c P1_R118F_V5_CONTROLLER_BOOTSTRAP.sha256)
           [[ "$(sha256sum "$root/stay-p1-r118f-production-controller" | awk '{print $1}')" == "$wrapper_sha" ]]
           [[ "$(sha256sum "$root/install-p1-r118f-production-controller.sh" | awk '{print $1}')" == "$installer_sha" ]]
           find -P "$root" -xdev -type f -exec chmod 0400 {} +
-          echo 'R118F_V3_CONTROLLER_STAGE=PASS'
+          echo 'R118F_V5_CONTROLLER_STAGE=PASS'
           REMOTE
-          bridge="sudo /bin/bash -c 'set -Eeuo pipefail; root=\"\$1\"; wrapper_sha=\"\$2\"; installer_sha=\"\$3\"; [[ \"\$root\" =~ ^/opt/stay/incoming/r118f-controller-v3-[0-9]+\$ && -d \"\$root\" && ! -L \"\$root\" ]]; [[ \"\$(sha256sum \"\$root/stay-p1-r118f-production-controller\" | awk '\"'\"'{print \$1}'\"'\"')\" == \"\$wrapper_sha\" ]]; [[ \"\$(sha256sum \"\$root/install-p1-r118f-production-controller.sh\" | awk '\"'\"'{print \$1}'\"'\"')\" == \"\$installer_sha\" ]]; private=\$(mktemp -d /run/stay-r118f-v3-bootstrap.XXXXXX); trap '\"'\"'rm -rf -- \"\$private\"'\"'\"' EXIT; install -o root -g root -m 0555 \"\$root/stay-p1-r118f-production-controller\" \"\$private/stay-p1-r118f-production-controller\"; install -o root -g root -m 0555 \"\$root/install-p1-r118f-production-controller.sh\" \"\$private/install-p1-r118f-production-controller.sh\"; [[ \"\$(sha256sum \"\$private/stay-p1-r118f-production-controller\" | awk '\"'\"'{print \$1}'\"'\"')\" == \"\$wrapper_sha\" ]]; [[ \"\$(sha256sum \"\$private/install-p1-r118f-production-controller.sh\" | awk '\"'\"'{print \$1}'\"'\"')\" == \"\$installer_sha\" ]]; /bin/bash \"\$private/install-p1-r118f-production-controller.sh\"' _ '$run_root' '$WRAPPER_SHA256' '$INSTALLER_SHA256'"
+          bridge="sudo /bin/bash -c 'set -Eeuo pipefail; root=\"\$1\"; wrapper_sha=\"\$2\"; installer_sha=\"\$3\"; [[ \"\$root\" =~ ^/opt/stay/incoming/r118f-controller-v5-[0-9]+\$ && -d \"\$root\" && ! -L \"\$root\" ]]; [[ \"\$(sha256sum \"\$root/stay-p1-r118f-production-controller\" | awk '\"'\"'{print \$1}'\"'\"')\" == \"\$wrapper_sha\" ]]; [[ \"\$(sha256sum \"\$root/install-p1-r118f-production-controller.sh\" | awk '\"'\"'{print \$1}'\"'\"')\" == \"\$installer_sha\" ]]; private=\$(mktemp -d /run/stay-r118f-v5-bootstrap.XXXXXX); trap '\"'\"'rm -rf -- \"\$private\"'\"'\"' EXIT; install -o root -g root -m 0555 \"\$root/stay-p1-r118f-production-controller\" \"\$private/stay-p1-r118f-production-controller\"; install -o root -g root -m 0555 \"\$root/install-p1-r118f-production-controller.sh\" \"\$private/install-p1-r118f-production-controller.sh\"; [[ \"\$(sha256sum \"\$private/stay-p1-r118f-production-controller\" | awk '\"'\"'{print \$1}'\"'\"')\" == \"\$wrapper_sha\" ]]; [[ \"\$(sha256sum \"\$private/install-p1-r118f-production-controller.sh\" | awk '\"'\"'{print \$1}'\"'\"')\" == \"\$installer_sha\" ]]; /bin/bash \"\$private/install-p1-r118f-production-controller.sh\"' _ '$run_root' '$WRAPPER_SHA256' '$INSTALLER_SHA256'"
           echo "MANUAL_ROOT_BRIDGE_COMMAND=$bridge"
           {
-            echo '### R118F V3 root bridge required'
+            echo '### R118F V5 root bridge required'
             echo
             echo 'Run this exact command in the production console:'
             echo
@@ -176,4 +176,4 @@ jobs:
             sleep 30
           done
           [[ "$installed" == YES ]]
-          echo 'R118F_V3_CONTROLLER_INSTALLED=PASS'
+          echo 'R118F_V5_CONTROLLER_INSTALLED=PASS'

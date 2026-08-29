@@ -1,5 +1,5 @@
-name: R118F V3 guarded production recovery
-run-name: R118F V3 · ${{ inputs.operation }} · ${{ github.actor }}
+name: R118F V5 guarded production recovery
+run-name: R118F V5 · ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -19,29 +19,29 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R118F_V3_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
-          - AUTHORIZE_R118F_V3_FORWARD_RECOVERY_ONLY
+          - AUTHORIZE_R118F_V5_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
+          - AUTHORIZE_R118F_V5_FORWARD_RECOVERY_ONLY
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r118f-v3-production
+  group: stay-r118f-v5-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r118f-v3
-  RELEASE_TAG_OBJECT: 6d40048f43c44745efa202160f3f09ab621cc31e
-  RELEASE_COMMIT: 92c60c6804f06a486493817932452d98f9f86e47
-  RELEASE_TREE: 4fae48dd0cf8d4b38c710edca5d4cd8a2e8ef302
-  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V3_BUNDLE_20260829.tar.gz
-  ARCHIVE_SHA256: a548056835604a6a073f57ea3a00e939ee4f2178e4b78cc8729d90e4384a08ec
-  SIDECAR_SHA256: e6cbcfb74ea57c7a05550821c1150ee8957205834db4543eccb6338ffd181c60
-  MANIFEST_SHA256: 82ffbf74b937296467aa962082fbfe4cf396af6976daef667dfff0d0dc5a1639
-  FORWARD_SHA256: 29d1ae81d5ee82b6850c4286cfbf643ffa2db3ce9b26af5374a835f01d86d24d
+  RELEASE_TAG: r118f-v5
+  RELEASE_TAG_OBJECT: b8f274a92652b944e551673e77f06202c4c450a5
+  RELEASE_COMMIT: 9b57bd812249d75c9d8ed75fe5effd3b9248ea5f
+  RELEASE_TREE: d9e7265866c237623fc51711b8b32eb29aed5f95
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V5_BUNDLE_20260829.tar.gz
+  ARCHIVE_SHA256: 7c3aabb519621c88544ea37faf9c0df8b6ec6fd56b97165f34f7af36f3251133
+  SIDECAR_SHA256: 315141a73c03f2fc0d37e18cfcddb23edb6e6a6818e9a94743c770a14c4cc66e
+  MANIFEST_SHA256: 7ab8cc901703d93f782b9c8bec4c189db34e49bb30bf8caa51131a02c3769a00
+  FORWARD_SHA256: af047e98b0f24b42290b29845b8df61015ac8362977009325b5526148101a845
   RECOVERY_SHA256: 92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-1a0c466b9087
-  WRAPPER_SHA256: 9bf06ea7d76ab37d3a957b5df66595544bb675d9db0c47379ade1c804178bd3b
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-1b2f945a1a73
+  WRAPPER_SHA256: 5f50854ba851e3e52ab5b8b56726da50e0a0902d95e7ce05ce93200a80905e6b
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
@@ -63,10 +63,10 @@ jobs:
           [[ "$GITHUB_REF" == refs/heads/main ]]
           case "$OPERATION" in
             harden-r118f)
-              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V3_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
+              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V5_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
               ;;
             recover-r118f)
-              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V3_FORWARD_RECOVERY_ONLY ]]
+              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V5_FORWARD_RECOVERY_ONLY ]]
               ;;
             *) exit 64 ;;
           esac
@@ -121,7 +121,7 @@ jobs:
           [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
           (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
           mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
-          [[ "${#entries[@]}" -eq 187 ]]
+          [[ "${#entries[@]}" -eq 216 ]]
           for entry in "${entries[@]}"; do
             [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]]
           done
@@ -129,8 +129,8 @@ jobs:
             awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }'
           tar -xzf "$root/$ARCHIVE" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" -eq 164 ]]
-          [[ "$(wc -l < "$extract/$manifest")" -eq 163 ]]
+          [[ "$(find "$extract" -type f | wc -l)" -eq 189 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 188 ]]
           [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r118f-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
@@ -160,6 +160,8 @@ jobs:
           STAY_BWRAP=/usr/local/bin/stay-ci-bwrap node --test --test-concurrency=1 \
             "$entry_extract/test/chronobiology-c3r2-performance-repair.test.js" \
             "$entry_extract/test/chronobiology-c3r3-jitless-performance-repair.test.js" \
+            "$entry_extract/test/chronobiology-c3r4-performance-lab.test.js" \
+            "$entry_extract/test/chronobiology-c3r4-topology-performance-repair.test.js" \
             "$entry_extract/test/core-host-supervisor-permissions.test.js" \
             "$entry_extract/test/core-loader-diagnostics.test.js" \
             "$entry_extract/test/p1-r118f-chronobiology-implementation-repair.test.js" \
@@ -181,7 +183,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r118f-v3-validated-release-${{ github.run_id }}
+          name: r118f-v5-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r118f-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r118f-release/${{ env.ARCHIVE }}.sha256
@@ -199,7 +201,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r118f-v3-validated-release-${{ github.run_id }}
+          name: r118f-v5-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -271,7 +273,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r118f-v3-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r118f-v5-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -295,7 +297,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r118f-v3-controller-output-${{ github.run_id }}
+          name: r118f-v5-controller-output-${{ github.run_id }}
           path: controller.output
           if-no-files-found: warn
           retention-days: 14
