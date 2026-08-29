@@ -292,7 +292,7 @@ function verify({ before, after, sntssStatus, chronobiologyStatus, meta, service
   'SNTSS zero-output lineage contract changed', 'R118F_LIVE_SNTSS');
   assert(liveChrono.version === REPAIR.version
     && liveChrono.host?.instanceId === BASELINE.instanceId
-    && liveChrono.health?.stage === 'c3-shadow-jitless-performance-repair'
+    && liveChrono.health?.stage === 'c3-shadow-jitless-topology-performance-repair'
     && Number(liveChrono.handledEvents) > 0,
   'Chronobiology live repaired status is invalid', 'R118F_LIVE_CHRONOBIOLOGY');
   const publicState = validateMeta(meta);

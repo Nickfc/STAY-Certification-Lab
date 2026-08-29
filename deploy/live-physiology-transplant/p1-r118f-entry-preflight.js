@@ -7,7 +7,7 @@ const path = require('node:path');
 const { CoreHostClient } = require('../../runtime/kernel/core-host-client');
 const { inspectCoreModule } = require('../../runtime/kernel/core-loader');
 
-const entrypoint = path.resolve(__dirname, '../../cores/chronobiology/c3r3/index.js');
+const entrypoint = path.resolve(__dirname, '../../cores/chronobiology/c3r4/index.js');
 
 function binding() {
   return {
@@ -49,7 +49,7 @@ async function run() {
   const definition = await inspectCoreModule(entrypoint);
   const manifest = definition.manifest;
   if (manifest.coreId !== 'chronobiology'
-    || manifest.version !== '1.0.0-c3rc.3'
+    || manifest.version !== '1.0.0-c3rc.4'
     || manifest.stateSchema !== 2
     || manifest.productionEligible !== false
     || manifest.resources.handlerTimeoutMs !== 250
