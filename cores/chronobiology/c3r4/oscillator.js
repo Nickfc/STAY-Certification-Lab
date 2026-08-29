@@ -210,24 +210,24 @@ function compiledIntegrationPlan(phenotype, durationUs) {
   if (localEdgeCount !== count * 2) {
     fail('compiled local ring is incomplete');
   }
-  const units = new Array(count);
+  const intrinsics = new Array(count);
+  const recoveries = new Array(count);
+  const sensitivityHigh = new Array(count);
+  const sensitivityLow = new Array(count);
+  const sensitivityScale = new Array(count);
+  const totalWeightScale = new Array(count);
   for (let unitId = 0; unitId < count; unitId += 1) {
     const founder = phenotype.oscillators[unitId];
-    const intrinsic = phaseAdvance(founder.intrinsic_period_us, durationUs);
-    const recovery = clamp(Number(roundDivide(
+    intrinsics[unitId] = phaseAdvance(founder.intrinsic_period_us, durationUs);
+    recoveries[unitId] = clamp(Number(roundDivide(
       BigInt(founder.amplitude_recovery_q) * BigInt(durationUs),
       BigInt(PROFILE.integrationQuantumUs),
     )), 0, Q31_ONE);
     const high = Math.floor(founder.coupling_sensitivity_q / Q30_SPLIT);
-    units[unitId] = {
-      totalWeight: totalWeights[unitId],
-      totalWeightScale: Q30_ONE / totalWeights[unitId],
-      intrinsic,
-      recovery,
-      sensitivityHigh: high,
-      sensitivityLow: founder.coupling_sensitivity_q - high * Q30_SPLIT,
-      sensitivityScale: founder.coupling_sensitivity_q * Q30_RECIPROCAL,
-    };
+    sensitivityHigh[unitId] = high;
+    sensitivityLow[unitId] = founder.coupling_sensitivity_q - high * Q30_SPLIT;
+    sensitivityScale[unitId] = founder.coupling_sensitivity_q * Q30_RECIPROCAL;
+    totalWeightScale[unitId] = Q30_ONE / totalWeights[unitId];
   }
 
   return {
@@ -236,7 +236,13 @@ function compiledIntegrationPlan(phenotype, durationUs) {
     generalEdges,
     generalWeightHigh,
     generalWeightLow,
-    units,
+    totalWeights,
+    totalWeightScale,
+    intrinsics,
+    recoveries,
+    sensitivityHigh,
+    sensitivityLow,
+    sensitivityScale,
   };
 }
 
@@ -256,7 +262,13 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
     generalEdges,
     generalWeightHigh,
     generalWeightLow,
-    units,
+    totalWeights,
+    totalWeightScale,
+    intrinsics,
+    recoveries,
+    sensitivityHigh,
+    sensitivityLow,
+    sensitivityScale,
   } = plan;
   let recoverAmplitudes = false;
   for (let unitId = 0; unitId < count; unitId += 1) {
@@ -346,9 +358,8 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
     }
 
     for (let unitId = 0; unitId < count; unitId += 1) {
-      const unit = units[unitId];
       const sum = sums[unitId];
-      const denominator = unit.totalWeight;
+      const denominator = totalWeights[unitId];
       let coupling = 0;
       if (sum !== 0 && denominator !== 0) {
         const sign = sum < 0 ? -1 : 1;
@@ -357,7 +368,7 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
         if (magnitude === denominator) {
           couplingMagnitude = Q30_ONE;
         } else {
-          const scaledRatio = magnitude * unit.totalWeightScale;
+          const scaledRatio = magnitude * totalWeightScale[unitId];
           const ratioFloor = scaledRatio | 0;
           const ratioFraction = scaledRatio - ratioFloor;
           if (ratioFraction < 0.5 - ADAPTIVE_ROUNDING_GUARD
@@ -382,7 +393,7 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
       let response = 0;
       if (coupling !== 0) {
         const couplingMagnitude = coupling < 0 ? -coupling : coupling;
-        const scaledProduct = couplingMagnitude * unit.sensitivityScale;
+        const scaledProduct = couplingMagnitude * sensitivityScale[unitId];
         const productFloor = scaledProduct | 0;
         const productFraction = scaledProduct - productFloor;
         let magnitude;
@@ -392,10 +403,10 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
         } else {
           const couplingHigh = couplingMagnitude >>> 15;
           const couplingLow = couplingMagnitude & 0x7fff;
-          const exactHigh = couplingHigh * unit.sensitivityHigh;
-          const exactLow = (couplingHigh * unit.sensitivityLow
-            + couplingLow * unit.sensitivityHigh) * Q30_SPLIT
-            + couplingLow * unit.sensitivityLow;
+          const exactHigh = couplingHigh * sensitivityHigh[unitId];
+          const exactLow = (couplingHigh * sensitivityLow[unitId]
+            + couplingLow * sensitivityHigh[unitId]) * Q30_SPLIT
+            + couplingLow * sensitivityLow[unitId];
           magnitude = exactHigh
             + Math.floor((exactLow + 536_870_912) * Q30_RECIPROCAL);
         }
@@ -407,7 +418,7 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
         }
       }
 
-      const intrinsic = unit.intrinsic;
+      const intrinsic = intrinsics[unitId];
       const adjustmentProduct = intrinsic * response;
       const adjustment = adjustmentProduct < 0
         ? -(((-adjustmentProduct + 536_870_912) * Q30_RECIPROCAL) | 0)
@@ -422,7 +433,7 @@ function integrateCompiledPlan(phases, amplitudeDifferences, sums, plan, iterati
         if (amplitudeDifference === 0) continue;
         const sign = amplitudeDifference < 0 ? -1 : 1;
         const differenceMagnitude = Math.abs(amplitudeDifference);
-        const recovery = units[unitId].recovery;
+        const recovery = recoveries[unitId];
         const differenceHigh = Math.floor(differenceMagnitude / Q30_SPLIT);
         const differenceLow = differenceMagnitude - differenceHigh * Q30_SPLIT;
         const recoveryHigh = Math.floor(recovery / Q30_SPLIT);
