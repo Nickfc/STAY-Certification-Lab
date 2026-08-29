@@ -58,6 +58,17 @@ function before() {
       required: 0, active: 0, cursor: BASELINE.consumerCursor,
       authority_epoch: 0, checkpoint_hash: BASELINE.checkpointHash,
     }],
+    checkpoints: [{
+      checkpoint_id: BASELINE.checkpointId,
+      residency_id: BASELINE.residencyId,
+      instance_id: BASELINE.instanceId,
+      version: BASELINE.version,
+      state_schema: BASELINE.stateSchema,
+      generation: BASELINE.checkpointGeneration,
+      blob_hash: BASELINE.checkpointHash,
+      byte_length: BASELINE.checkpointByteLength,
+      input_cursor: BASELINE.checkpointInputCursor,
+    }],
     pendingDeliveries: 0, chronobiologyPendingDeliveries: 0,
     pendingOutboxIntents: 0, sntssOutputRows: 0,
     sntssAuthorityRows: 0, chronobiologyAuthorityRows: 0,
@@ -89,11 +100,29 @@ function after(source) {
       required: 0, active: 1, cursor: BASELINE.consumerCursor + 10,
       authority_epoch: 0, checkpoint_hash: 'b'.repeat(64),
     }],
+    checkpoints: [
+      ...source.checkpoints,
+      {
+        checkpoint_id: REPAIR.checkpointId,
+        residency_id: BASELINE.residencyId,
+        instance_id: BASELINE.instanceId,
+        version: REPAIR.version,
+        state_schema: REPAIR.stateSchema,
+        generation: REPAIR.checkpointGeneration,
+        blob_hash: BASELINE.checkpointHash,
+        byte_length: source.checkpoints[0].byte_length,
+        input_cursor: BASELINE.checkpointInputCursor,
+      },
+    ],
     recoveryHighWaterId: 93,
     latestImplementationRepair: { id: 89, detail: {
       repairId: REPAIR.repairId,
       instanceId: BASELINE.instanceId,
+      sourceCheckpointId: BASELINE.checkpointId,
       checkpointHash: BASELINE.checkpointHash,
+      checkpointByteLength: BASELINE.checkpointByteLength,
+      checkpointInputCursor: BASELINE.checkpointInputCursor,
+      consumerCursor: BASELINE.consumerCursor,
       biologicalStateChanged: false,
       checkpointBytesChanged: false,
       abandonedCount: 0,
@@ -182,6 +211,15 @@ test('R118F-REL-01 live proof preserves lineage, history, limits, fetus and chip
     service: { beforePid: 100, afterPid: 200, beforeRestarts: 0,
       afterRestarts: 0, restartCommands: 1 },
   }), { code: 'R118F_AFTER_CONTAINMENT' });
+  const falseProvenance = after(source);
+  falseProvenance.checkpoints.find(value =>
+    value.generation === REPAIR.checkpointGeneration).input_cursor = BASELINE.consumerCursor;
+  assert.throws(() => verify({
+    before: source, after: falseProvenance, sntssStatus: resourceStatus(false),
+    chronobiologyStatus: resourceStatus(true), meta: meta(),
+    service: { beforePid: 100, afterPid: 200, beforeRestarts: 0,
+      afterRestarts: 0, restartCommands: 1 },
+  }), { code: 'R118F_AFTER_CHECKPOINT' });
 });
 
 test('R118F-REL-02 freeze binds immutable release and acceptance evidence', t => {

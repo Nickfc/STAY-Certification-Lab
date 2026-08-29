@@ -26,8 +26,11 @@ const BASELINE = Object.freeze({
   releaseManifestHash: 'sha256:e70cb4d3c7a73515027d04fbec6b0f8ea3608dcdf16be3ae89a061e34bd8e624',
   manifestHash: 'sha256:293db4a1e8e6ffd9a4360231ef328da6a648d957d5b04c105b05435c0d0ea7f3',
   packagePolicyHash: 'sha256:9ab15c27c69494c6ce3156255ed06d2f57887934928a85b13ff58d578add7820',
+  checkpointId: '96963d58-db13-42ba-af45-c137ec86e29e',
   checkpointGeneration: 5116,
   checkpointHash: '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae',
+  checkpointByteLength: 49287,
+  checkpointInputCursor: 1636338,
   consumerCursor: 2094162,
   failedSequence: 2094163,
 });
@@ -172,13 +175,29 @@ function assertQuiescentBaseline(database, { allowRepairedIdentity = false } = {
 
   const source = snapshot.sourceCheckpoint;
   assert(source
+    && source.checkpoint_id === BASELINE.checkpointId
     && source.instance_id === BASELINE.instanceId
     && source.version === BASELINE.version
     && Number(source.state_schema) === BASELINE.stateSchema
     && Number(source.generation) === BASELINE.checkpointGeneration
     && source.blob_hash === BASELINE.checkpointHash
-    && Number(source.input_cursor) === BASELINE.consumerCursor,
+    && Number(source.byte_length) === BASELINE.checkpointByteLength
+    && Number(source.input_cursor) === BASELINE.checkpointInputCursor,
   'Chronobiology source checkpoint identity changed', 'R118F_REPAIR_CHECKPOINT_FENCE');
+
+  if (allowRepairedIdentity) {
+    const repaired = snapshot.repairCheckpoint;
+    assert(repaired
+      && repaired.checkpoint_id === REPAIR.checkpointId
+      && repaired.instance_id === BASELINE.instanceId
+      && repaired.version === REPAIR.version
+      && Number(repaired.state_schema) === REPAIR.stateSchema
+      && Number(repaired.generation) === REPAIR.checkpointGeneration
+      && repaired.blob_hash === BASELINE.checkpointHash
+      && Number(repaired.byte_length) === BASELINE.checkpointByteLength
+      && Number(repaired.input_cursor) === BASELINE.checkpointInputCursor,
+    'Chronobiology repair checkpoint identity changed', 'R118F_REPAIR_CHECKPOINT_FENCE');
+  }
 
   const consumer = snapshot.consumer;
   assert(consumer
@@ -251,7 +270,10 @@ function preflightRepair({ databasePath, releaseRoot }) {
       runtimeRevision: BASELINE.runtimeRevision,
       instanceId: BASELINE.instanceId,
       checkpointGeneration: BASELINE.checkpointGeneration,
+      checkpointId: BASELINE.checkpointId,
       checkpointHash: BASELINE.checkpointHash,
+      checkpointByteLength: BASELINE.checkpointByteLength,
+      checkpointInputCursor: BASELINE.checkpointInputCursor,
       consumerCursor: BASELINE.consumerCursor,
       abandonedCount: 0,
       inventedBiologicalTime: false,
@@ -307,7 +329,7 @@ function applyRepair({
         && Number(existingRepairCheckpoint.state_schema) === REPAIR.stateSchema
         && existingRepairCheckpoint.blob_hash === BASELINE.checkpointHash
         && Number(existingRepairCheckpoint.byte_length) === Number(snapshot.sourceCheckpoint.byte_length)
-        && Number(existingRepairCheckpoint.input_cursor) === BASELINE.consumerCursor,
+        && Number(existingRepairCheckpoint.input_cursor) === BASELINE.checkpointInputCursor,
       'existing repair checkpoint does not match the immutable repair generation',
       'R118F_REPAIR_CHECKPOINT_FENCE');
     } else {
@@ -320,7 +342,7 @@ function applyRepair({
         REPAIR.checkpointId, BASELINE.residencyId, BASELINE.instanceId,
         REPAIR.version, REPAIR.stateSchema, REPAIR.checkpointGeneration,
         BASELINE.checkpointHash, snapshot.sourceCheckpoint.byte_length,
-        BASELINE.consumerCursor, createdAt,
+        BASELINE.checkpointInputCursor, createdAt,
       );
     }
 
@@ -362,11 +384,14 @@ function applyRepair({
       toCheckpointGeneration: REPAIR.checkpointGeneration,
       checkpointHash: BASELINE.checkpointHash,
       checkpointBytesChanged: false,
+      sourceCheckpointId: BASELINE.checkpointId,
+      checkpointByteLength: BASELINE.checkpointByteLength,
       biologicalStateChanged: false,
       inventedBiologicalTime: false,
       abandonedCount: 0,
       authorityChanged: false,
       resourceLimitsChanged: false,
+      checkpointInputCursor: BASELINE.checkpointInputCursor,
       consumerCursor: BASELINE.consumerCursor,
       runtimeRevision: BASELINE.runtimeRevision,
     }, createdAt);
@@ -376,7 +401,11 @@ function applyRepair({
     return Object.freeze({
       result: 'APPLIED',
       repairId: REPAIR.repairId,
+      sourceCheckpointId: BASELINE.checkpointId,
       checkpointHash: BASELINE.checkpointHash,
+      checkpointByteLength: BASELINE.checkpointByteLength,
+      checkpointInputCursor: BASELINE.checkpointInputCursor,
+      consumerCursor: BASELINE.consumerCursor,
       fromCheckpointGeneration: BASELINE.checkpointGeneration,
       toCheckpointGeneration: REPAIR.checkpointGeneration,
     });
@@ -426,7 +455,11 @@ function rollbackRepair({ databasePath, releaseRoot, now = () => new Date().toIS
       repairId: REPAIR.repairId,
       residencyId: BASELINE.residencyId,
       instanceId: BASELINE.instanceId,
+      sourceCheckpointId: BASELINE.checkpointId,
       checkpointHash: BASELINE.checkpointHash,
+      checkpointByteLength: BASELINE.checkpointByteLength,
+      checkpointInputCursor: BASELINE.checkpointInputCursor,
+      consumerCursor: BASELINE.consumerCursor,
       biologicalStateChanged: false,
       inventedBiologicalTime: false,
       abandonedCount: 0,

@@ -118,13 +118,13 @@ bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37  ./deploy/live-
 f7667e2becc6b256f88709e09907773c10757bbb9c896e94262088d326ce905a  ./deploy/live-physiology-transplant/p1-production-hardening-freeze.js
 4b0926d2789923e4cf6123570919272274e214fea325b669a32ffd8c706a794d  ./deploy/live-physiology-transplant/p1-production-hardening-live-proof.js
 87c1826c0f50ecb1ab0fdc4b2c697f84fa527d701b83048e57771cea9adc214b  ./deploy/live-physiology-transplant/p1-production-hardening-preflight.js
-94deebffd83c53a61eba7636545cc85ab5527fd01773b6bb65d71ba16a9f7eb1  ./deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js
+396bc8ea1e41a29618b3c05a47c32403ab9050dee1c0f5e4604d6f5c0dfe65c7  ./deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js
 fe5deb6c2d163168e5dfed82d8acbcbdab91c623b9d49d6445150e22856231bb  ./deploy/live-physiology-transplant/p1-r118f-entry-preflight.js
 c21a1b3afc10382fd987fec29ebff6f69ea5876fe32f21a7c1bb78a7c2d0389a  ./deploy/live-physiology-transplant/p1-r118f-finalize.sh
 92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03  ./deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh
 77db4df6dd8f6bd9d5b6eeeea0881fa7bb97cb8881523ffded7849ff0a855c3b  ./deploy/live-physiology-transplant/p1-r118f-forward.sh
 6f53b355a12fdd0312f6d2771d8c4e19e273e47dd62529372f8ea5ace0767eb4  ./deploy/live-physiology-transplant/p1-r118f-freeze.js
-546b85d94cfee6cb49a8fd5af9c26a2fe11d3a3b52ab3e042176809dac941e35  ./deploy/live-physiology-transplant/p1-r118f-live-proof.js
+58b96b9adf4fa56537016f73357f386b29380edd1e2635117a1d8e73381678ad  ./deploy/live-physiology-transplant/p1-r118f-live-proof.js
 ccbcd4164f5b5312ca7dfdf6131a964736b3344c80663c3eebc1218aea3b8ca8  ./deploy/live-physiology-transplant/p1-resident-control-client.js
 030db0fad1a018f31f565ebb7a645eede2e19cb27069c259b610f11e24ad65db  ./deploy/live-physiology-transplant/p1-sntss-i4g-live-state.js
 433430f1e360d1183e29e016978c9610fd1b2d1070aab5415facb39aab8896df  ./deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js
@@ -180,9 +180,9 @@ cbefbf84d405f1bbc5347ecb8f87aec0aa2c8faad760829093be06099948801f  ./test/chronob
 842120d81b53594d03e96096a096216fdad0280b76756165aa62c9e96a695ef8  ./test/core-host-supervisor-permissions.test.js
 f5c49fbf6fae4472ecc5d415211f6bd23ade3fb685d4e7c2d3b1e5aa5b3fe7cd  ./test/core-loader-diagnostics.test.js
 5c31212b11a1f2c22d21f09ddf71272411cb5406c2105726e80bc7b9c54efe23  ./test/fixtures/stateful-core.js
-c904be358420d8d161cca9893efe89b4b43edde6721cf9b8f4ef8ce87dea3f30  ./test/p1-r118f-chronobiology-implementation-repair.test.js
+698c3b22dc20c5631b8a97f66fe9442de079b32ee2d98202e847733b71813b16  ./test/p1-r118f-chronobiology-implementation-repair.test.js
 7fe9f803724da46809470fe9dee0b3b61ade98a10dc5832105c29daac869da6d  ./test/p1-r118f-entry-path.test.js
-f7211e66befb282466f2a01eabfbc261faff051f51cf11ba39368e48d2502262  ./test/p1-r118f-release-contract.test.js
+d3c9413107ee21614db849459e5c1cdc89e267ecd9e8f61320dc189d0582f5d7  ./test/p1-r118f-release-contract.test.js
 9661cac9c77ea30f5250adc8c668fe0f1d31e6ab14c818c8bd9037ff4ca7e391  ./test/production-hardening-entry-path.test.js
 3031bc6ae51c0a209ef841d34a82be10b17296d07649ff682238d6c67179d2ca  ./test/production-hardening.test.js
 dd31f68721e0b35e6fb4da3d2d20dbc854252abe5f99bec7b2571d3b31615cba  ./tools/generate-c3r4-local-kernel.js
