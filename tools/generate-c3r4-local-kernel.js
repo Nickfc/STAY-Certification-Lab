@@ -9,7 +9,7 @@ const OUTPUT = path.resolve(__dirname,
 
 function edgeBlock(left, right) {
   return `
-  phase = (phases[${right}] - phases[${left}]) >>> 0;
+  phase = (phase${right} - phase${left}) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -18,14 +18,20 @@ function edgeBlock(left, right) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[${left}] += response;
-  sums[${right}] -= response;
+  sum${left} += response;
+  sum${right} -= response;
 `;
 }
 
 function generate() {
   const blocks = [];
+  const phaseSlots = [];
+  const sumSlots = [];
+  const sumStores = [];
   for (let left = 0; left < 64; left += 1) {
+    phaseSlots.push(`  const phase${left} = phases[${left}];`);
+    sumSlots.push(`  let sum${left} = sums[${left}];`);
+    sumStores.push(`  sums[${left}] = sum${left};`);
     blocks.push(edgeBlock(left, (left + 1) & 63));
     blocks.push(edgeBlock(left, (left + 2) & 63));
   }
@@ -40,6 +46,8 @@ function generate() {
 const Q20_RECIPROCAL = 9.5367431640625e-7;
 
 function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
+${phaseSlots.join('\n')}
+${sumSlots.join('\n')}
   let phase;
   let index;
   let fraction;
@@ -48,6 +56,7 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
   let sine;
   let response;
 ${blocks.join('')}
+${sumStores.join('\n')}
 }
 
 module.exports = { accumulateLocalRing };

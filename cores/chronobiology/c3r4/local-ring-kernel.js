@@ -9,6 +9,134 @@
 const Q20_RECIPROCAL = 9.5367431640625e-7;
 
 function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
+  const phase0 = phases[0];
+  const phase1 = phases[1];
+  const phase2 = phases[2];
+  const phase3 = phases[3];
+  const phase4 = phases[4];
+  const phase5 = phases[5];
+  const phase6 = phases[6];
+  const phase7 = phases[7];
+  const phase8 = phases[8];
+  const phase9 = phases[9];
+  const phase10 = phases[10];
+  const phase11 = phases[11];
+  const phase12 = phases[12];
+  const phase13 = phases[13];
+  const phase14 = phases[14];
+  const phase15 = phases[15];
+  const phase16 = phases[16];
+  const phase17 = phases[17];
+  const phase18 = phases[18];
+  const phase19 = phases[19];
+  const phase20 = phases[20];
+  const phase21 = phases[21];
+  const phase22 = phases[22];
+  const phase23 = phases[23];
+  const phase24 = phases[24];
+  const phase25 = phases[25];
+  const phase26 = phases[26];
+  const phase27 = phases[27];
+  const phase28 = phases[28];
+  const phase29 = phases[29];
+  const phase30 = phases[30];
+  const phase31 = phases[31];
+  const phase32 = phases[32];
+  const phase33 = phases[33];
+  const phase34 = phases[34];
+  const phase35 = phases[35];
+  const phase36 = phases[36];
+  const phase37 = phases[37];
+  const phase38 = phases[38];
+  const phase39 = phases[39];
+  const phase40 = phases[40];
+  const phase41 = phases[41];
+  const phase42 = phases[42];
+  const phase43 = phases[43];
+  const phase44 = phases[44];
+  const phase45 = phases[45];
+  const phase46 = phases[46];
+  const phase47 = phases[47];
+  const phase48 = phases[48];
+  const phase49 = phases[49];
+  const phase50 = phases[50];
+  const phase51 = phases[51];
+  const phase52 = phases[52];
+  const phase53 = phases[53];
+  const phase54 = phases[54];
+  const phase55 = phases[55];
+  const phase56 = phases[56];
+  const phase57 = phases[57];
+  const phase58 = phases[58];
+  const phase59 = phases[59];
+  const phase60 = phases[60];
+  const phase61 = phases[61];
+  const phase62 = phases[62];
+  const phase63 = phases[63];
+  let sum0 = sums[0];
+  let sum1 = sums[1];
+  let sum2 = sums[2];
+  let sum3 = sums[3];
+  let sum4 = sums[4];
+  let sum5 = sums[5];
+  let sum6 = sums[6];
+  let sum7 = sums[7];
+  let sum8 = sums[8];
+  let sum9 = sums[9];
+  let sum10 = sums[10];
+  let sum11 = sums[11];
+  let sum12 = sums[12];
+  let sum13 = sums[13];
+  let sum14 = sums[14];
+  let sum15 = sums[15];
+  let sum16 = sums[16];
+  let sum17 = sums[17];
+  let sum18 = sums[18];
+  let sum19 = sums[19];
+  let sum20 = sums[20];
+  let sum21 = sums[21];
+  let sum22 = sums[22];
+  let sum23 = sums[23];
+  let sum24 = sums[24];
+  let sum25 = sums[25];
+  let sum26 = sums[26];
+  let sum27 = sums[27];
+  let sum28 = sums[28];
+  let sum29 = sums[29];
+  let sum30 = sums[30];
+  let sum31 = sums[31];
+  let sum32 = sums[32];
+  let sum33 = sums[33];
+  let sum34 = sums[34];
+  let sum35 = sums[35];
+  let sum36 = sums[36];
+  let sum37 = sums[37];
+  let sum38 = sums[38];
+  let sum39 = sums[39];
+  let sum40 = sums[40];
+  let sum41 = sums[41];
+  let sum42 = sums[42];
+  let sum43 = sums[43];
+  let sum44 = sums[44];
+  let sum45 = sums[45];
+  let sum46 = sums[46];
+  let sum47 = sums[47];
+  let sum48 = sums[48];
+  let sum49 = sums[49];
+  let sum50 = sums[50];
+  let sum51 = sums[51];
+  let sum52 = sums[52];
+  let sum53 = sums[53];
+  let sum54 = sums[54];
+  let sum55 = sums[55];
+  let sum56 = sums[56];
+  let sum57 = sums[57];
+  let sum58 = sums[58];
+  let sum59 = sums[59];
+  let sum60 = sums[60];
+  let sum61 = sums[61];
+  let sum62 = sums[62];
+  let sum63 = sums[63];
   let phase;
   let index;
   let fraction;
@@ -17,7 +145,7 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
   let sine;
   let response;
 
-  phase = (phases[1] - phases[0]) >>> 0;
+  phase = (phase1 - phase0) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -26,10 +154,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[0] += response;
-  sums[1] -= response;
+  sum0 += response;
+  sum1 -= response;
 
-  phase = (phases[2] - phases[0]) >>> 0;
+  phase = (phase2 - phase0) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -38,10 +166,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[0] += response;
-  sums[2] -= response;
+  sum0 += response;
+  sum2 -= response;
 
-  phase = (phases[2] - phases[1]) >>> 0;
+  phase = (phase2 - phase1) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -50,10 +178,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[1] += response;
-  sums[2] -= response;
+  sum1 += response;
+  sum2 -= response;
 
-  phase = (phases[3] - phases[1]) >>> 0;
+  phase = (phase3 - phase1) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -62,10 +190,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[1] += response;
-  sums[3] -= response;
+  sum1 += response;
+  sum3 -= response;
 
-  phase = (phases[3] - phases[2]) >>> 0;
+  phase = (phase3 - phase2) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -74,10 +202,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[2] += response;
-  sums[3] -= response;
+  sum2 += response;
+  sum3 -= response;
 
-  phase = (phases[4] - phases[2]) >>> 0;
+  phase = (phase4 - phase2) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -86,10 +214,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[2] += response;
-  sums[4] -= response;
+  sum2 += response;
+  sum4 -= response;
 
-  phase = (phases[4] - phases[3]) >>> 0;
+  phase = (phase4 - phase3) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -98,10 +226,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[3] += response;
-  sums[4] -= response;
+  sum3 += response;
+  sum4 -= response;
 
-  phase = (phases[5] - phases[3]) >>> 0;
+  phase = (phase5 - phase3) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -110,10 +238,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[3] += response;
-  sums[5] -= response;
+  sum3 += response;
+  sum5 -= response;
 
-  phase = (phases[5] - phases[4]) >>> 0;
+  phase = (phase5 - phase4) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -122,10 +250,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[4] += response;
-  sums[5] -= response;
+  sum4 += response;
+  sum5 -= response;
 
-  phase = (phases[6] - phases[4]) >>> 0;
+  phase = (phase6 - phase4) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -134,10 +262,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[4] += response;
-  sums[6] -= response;
+  sum4 += response;
+  sum6 -= response;
 
-  phase = (phases[6] - phases[5]) >>> 0;
+  phase = (phase6 - phase5) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -146,10 +274,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[5] += response;
-  sums[6] -= response;
+  sum5 += response;
+  sum6 -= response;
 
-  phase = (phases[7] - phases[5]) >>> 0;
+  phase = (phase7 - phase5) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -158,10 +286,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[5] += response;
-  sums[7] -= response;
+  sum5 += response;
+  sum7 -= response;
 
-  phase = (phases[7] - phases[6]) >>> 0;
+  phase = (phase7 - phase6) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -170,10 +298,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[6] += response;
-  sums[7] -= response;
+  sum6 += response;
+  sum7 -= response;
 
-  phase = (phases[8] - phases[6]) >>> 0;
+  phase = (phase8 - phase6) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -182,10 +310,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[6] += response;
-  sums[8] -= response;
+  sum6 += response;
+  sum8 -= response;
 
-  phase = (phases[8] - phases[7]) >>> 0;
+  phase = (phase8 - phase7) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -194,10 +322,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[7] += response;
-  sums[8] -= response;
+  sum7 += response;
+  sum8 -= response;
 
-  phase = (phases[9] - phases[7]) >>> 0;
+  phase = (phase9 - phase7) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -206,10 +334,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[7] += response;
-  sums[9] -= response;
+  sum7 += response;
+  sum9 -= response;
 
-  phase = (phases[9] - phases[8]) >>> 0;
+  phase = (phase9 - phase8) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -218,10 +346,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[8] += response;
-  sums[9] -= response;
+  sum8 += response;
+  sum9 -= response;
 
-  phase = (phases[10] - phases[8]) >>> 0;
+  phase = (phase10 - phase8) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -230,10 +358,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[8] += response;
-  sums[10] -= response;
+  sum8 += response;
+  sum10 -= response;
 
-  phase = (phases[10] - phases[9]) >>> 0;
+  phase = (phase10 - phase9) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -242,10 +370,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[9] += response;
-  sums[10] -= response;
+  sum9 += response;
+  sum10 -= response;
 
-  phase = (phases[11] - phases[9]) >>> 0;
+  phase = (phase11 - phase9) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -254,10 +382,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[9] += response;
-  sums[11] -= response;
+  sum9 += response;
+  sum11 -= response;
 
-  phase = (phases[11] - phases[10]) >>> 0;
+  phase = (phase11 - phase10) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -266,10 +394,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[10] += response;
-  sums[11] -= response;
+  sum10 += response;
+  sum11 -= response;
 
-  phase = (phases[12] - phases[10]) >>> 0;
+  phase = (phase12 - phase10) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -278,10 +406,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[10] += response;
-  sums[12] -= response;
+  sum10 += response;
+  sum12 -= response;
 
-  phase = (phases[12] - phases[11]) >>> 0;
+  phase = (phase12 - phase11) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -290,10 +418,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[11] += response;
-  sums[12] -= response;
+  sum11 += response;
+  sum12 -= response;
 
-  phase = (phases[13] - phases[11]) >>> 0;
+  phase = (phase13 - phase11) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -302,10 +430,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[11] += response;
-  sums[13] -= response;
+  sum11 += response;
+  sum13 -= response;
 
-  phase = (phases[13] - phases[12]) >>> 0;
+  phase = (phase13 - phase12) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -314,10 +442,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[12] += response;
-  sums[13] -= response;
+  sum12 += response;
+  sum13 -= response;
 
-  phase = (phases[14] - phases[12]) >>> 0;
+  phase = (phase14 - phase12) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -326,10 +454,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[12] += response;
-  sums[14] -= response;
+  sum12 += response;
+  sum14 -= response;
 
-  phase = (phases[14] - phases[13]) >>> 0;
+  phase = (phase14 - phase13) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -338,10 +466,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[13] += response;
-  sums[14] -= response;
+  sum13 += response;
+  sum14 -= response;
 
-  phase = (phases[15] - phases[13]) >>> 0;
+  phase = (phase15 - phase13) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -350,10 +478,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[13] += response;
-  sums[15] -= response;
+  sum13 += response;
+  sum15 -= response;
 
-  phase = (phases[15] - phases[14]) >>> 0;
+  phase = (phase15 - phase14) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -362,10 +490,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[14] += response;
-  sums[15] -= response;
+  sum14 += response;
+  sum15 -= response;
 
-  phase = (phases[16] - phases[14]) >>> 0;
+  phase = (phase16 - phase14) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -374,10 +502,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[14] += response;
-  sums[16] -= response;
+  sum14 += response;
+  sum16 -= response;
 
-  phase = (phases[16] - phases[15]) >>> 0;
+  phase = (phase16 - phase15) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -386,10 +514,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[15] += response;
-  sums[16] -= response;
+  sum15 += response;
+  sum16 -= response;
 
-  phase = (phases[17] - phases[15]) >>> 0;
+  phase = (phase17 - phase15) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -398,10 +526,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[15] += response;
-  sums[17] -= response;
+  sum15 += response;
+  sum17 -= response;
 
-  phase = (phases[17] - phases[16]) >>> 0;
+  phase = (phase17 - phase16) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -410,10 +538,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[16] += response;
-  sums[17] -= response;
+  sum16 += response;
+  sum17 -= response;
 
-  phase = (phases[18] - phases[16]) >>> 0;
+  phase = (phase18 - phase16) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -422,10 +550,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[16] += response;
-  sums[18] -= response;
+  sum16 += response;
+  sum18 -= response;
 
-  phase = (phases[18] - phases[17]) >>> 0;
+  phase = (phase18 - phase17) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -434,10 +562,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[17] += response;
-  sums[18] -= response;
+  sum17 += response;
+  sum18 -= response;
 
-  phase = (phases[19] - phases[17]) >>> 0;
+  phase = (phase19 - phase17) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -446,10 +574,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[17] += response;
-  sums[19] -= response;
+  sum17 += response;
+  sum19 -= response;
 
-  phase = (phases[19] - phases[18]) >>> 0;
+  phase = (phase19 - phase18) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -458,10 +586,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[18] += response;
-  sums[19] -= response;
+  sum18 += response;
+  sum19 -= response;
 
-  phase = (phases[20] - phases[18]) >>> 0;
+  phase = (phase20 - phase18) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -470,10 +598,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[18] += response;
-  sums[20] -= response;
+  sum18 += response;
+  sum20 -= response;
 
-  phase = (phases[20] - phases[19]) >>> 0;
+  phase = (phase20 - phase19) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -482,10 +610,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[19] += response;
-  sums[20] -= response;
+  sum19 += response;
+  sum20 -= response;
 
-  phase = (phases[21] - phases[19]) >>> 0;
+  phase = (phase21 - phase19) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -494,10 +622,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[19] += response;
-  sums[21] -= response;
+  sum19 += response;
+  sum21 -= response;
 
-  phase = (phases[21] - phases[20]) >>> 0;
+  phase = (phase21 - phase20) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -506,10 +634,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[20] += response;
-  sums[21] -= response;
+  sum20 += response;
+  sum21 -= response;
 
-  phase = (phases[22] - phases[20]) >>> 0;
+  phase = (phase22 - phase20) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -518,10 +646,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[20] += response;
-  sums[22] -= response;
+  sum20 += response;
+  sum22 -= response;
 
-  phase = (phases[22] - phases[21]) >>> 0;
+  phase = (phase22 - phase21) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -530,10 +658,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[21] += response;
-  sums[22] -= response;
+  sum21 += response;
+  sum22 -= response;
 
-  phase = (phases[23] - phases[21]) >>> 0;
+  phase = (phase23 - phase21) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -542,10 +670,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[21] += response;
-  sums[23] -= response;
+  sum21 += response;
+  sum23 -= response;
 
-  phase = (phases[23] - phases[22]) >>> 0;
+  phase = (phase23 - phase22) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -554,10 +682,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[22] += response;
-  sums[23] -= response;
+  sum22 += response;
+  sum23 -= response;
 
-  phase = (phases[24] - phases[22]) >>> 0;
+  phase = (phase24 - phase22) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -566,10 +694,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[22] += response;
-  sums[24] -= response;
+  sum22 += response;
+  sum24 -= response;
 
-  phase = (phases[24] - phases[23]) >>> 0;
+  phase = (phase24 - phase23) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -578,10 +706,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[23] += response;
-  sums[24] -= response;
+  sum23 += response;
+  sum24 -= response;
 
-  phase = (phases[25] - phases[23]) >>> 0;
+  phase = (phase25 - phase23) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -590,10 +718,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[23] += response;
-  sums[25] -= response;
+  sum23 += response;
+  sum25 -= response;
 
-  phase = (phases[25] - phases[24]) >>> 0;
+  phase = (phase25 - phase24) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -602,10 +730,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[24] += response;
-  sums[25] -= response;
+  sum24 += response;
+  sum25 -= response;
 
-  phase = (phases[26] - phases[24]) >>> 0;
+  phase = (phase26 - phase24) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -614,10 +742,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[24] += response;
-  sums[26] -= response;
+  sum24 += response;
+  sum26 -= response;
 
-  phase = (phases[26] - phases[25]) >>> 0;
+  phase = (phase26 - phase25) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -626,10 +754,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[25] += response;
-  sums[26] -= response;
+  sum25 += response;
+  sum26 -= response;
 
-  phase = (phases[27] - phases[25]) >>> 0;
+  phase = (phase27 - phase25) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -638,10 +766,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[25] += response;
-  sums[27] -= response;
+  sum25 += response;
+  sum27 -= response;
 
-  phase = (phases[27] - phases[26]) >>> 0;
+  phase = (phase27 - phase26) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -650,10 +778,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[26] += response;
-  sums[27] -= response;
+  sum26 += response;
+  sum27 -= response;
 
-  phase = (phases[28] - phases[26]) >>> 0;
+  phase = (phase28 - phase26) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -662,10 +790,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[26] += response;
-  sums[28] -= response;
+  sum26 += response;
+  sum28 -= response;
 
-  phase = (phases[28] - phases[27]) >>> 0;
+  phase = (phase28 - phase27) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -674,10 +802,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[27] += response;
-  sums[28] -= response;
+  sum27 += response;
+  sum28 -= response;
 
-  phase = (phases[29] - phases[27]) >>> 0;
+  phase = (phase29 - phase27) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -686,10 +814,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[27] += response;
-  sums[29] -= response;
+  sum27 += response;
+  sum29 -= response;
 
-  phase = (phases[29] - phases[28]) >>> 0;
+  phase = (phase29 - phase28) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -698,10 +826,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[28] += response;
-  sums[29] -= response;
+  sum28 += response;
+  sum29 -= response;
 
-  phase = (phases[30] - phases[28]) >>> 0;
+  phase = (phase30 - phase28) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -710,10 +838,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[28] += response;
-  sums[30] -= response;
+  sum28 += response;
+  sum30 -= response;
 
-  phase = (phases[30] - phases[29]) >>> 0;
+  phase = (phase30 - phase29) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -722,10 +850,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[29] += response;
-  sums[30] -= response;
+  sum29 += response;
+  sum30 -= response;
 
-  phase = (phases[31] - phases[29]) >>> 0;
+  phase = (phase31 - phase29) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -734,10 +862,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[29] += response;
-  sums[31] -= response;
+  sum29 += response;
+  sum31 -= response;
 
-  phase = (phases[31] - phases[30]) >>> 0;
+  phase = (phase31 - phase30) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -746,10 +874,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[30] += response;
-  sums[31] -= response;
+  sum30 += response;
+  sum31 -= response;
 
-  phase = (phases[32] - phases[30]) >>> 0;
+  phase = (phase32 - phase30) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -758,10 +886,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[30] += response;
-  sums[32] -= response;
+  sum30 += response;
+  sum32 -= response;
 
-  phase = (phases[32] - phases[31]) >>> 0;
+  phase = (phase32 - phase31) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -770,10 +898,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[31] += response;
-  sums[32] -= response;
+  sum31 += response;
+  sum32 -= response;
 
-  phase = (phases[33] - phases[31]) >>> 0;
+  phase = (phase33 - phase31) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -782,10 +910,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[31] += response;
-  sums[33] -= response;
+  sum31 += response;
+  sum33 -= response;
 
-  phase = (phases[33] - phases[32]) >>> 0;
+  phase = (phase33 - phase32) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -794,10 +922,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[32] += response;
-  sums[33] -= response;
+  sum32 += response;
+  sum33 -= response;
 
-  phase = (phases[34] - phases[32]) >>> 0;
+  phase = (phase34 - phase32) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -806,10 +934,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[32] += response;
-  sums[34] -= response;
+  sum32 += response;
+  sum34 -= response;
 
-  phase = (phases[34] - phases[33]) >>> 0;
+  phase = (phase34 - phase33) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -818,10 +946,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[33] += response;
-  sums[34] -= response;
+  sum33 += response;
+  sum34 -= response;
 
-  phase = (phases[35] - phases[33]) >>> 0;
+  phase = (phase35 - phase33) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -830,10 +958,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[33] += response;
-  sums[35] -= response;
+  sum33 += response;
+  sum35 -= response;
 
-  phase = (phases[35] - phases[34]) >>> 0;
+  phase = (phase35 - phase34) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -842,10 +970,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[34] += response;
-  sums[35] -= response;
+  sum34 += response;
+  sum35 -= response;
 
-  phase = (phases[36] - phases[34]) >>> 0;
+  phase = (phase36 - phase34) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -854,10 +982,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[34] += response;
-  sums[36] -= response;
+  sum34 += response;
+  sum36 -= response;
 
-  phase = (phases[36] - phases[35]) >>> 0;
+  phase = (phase36 - phase35) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -866,10 +994,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[35] += response;
-  sums[36] -= response;
+  sum35 += response;
+  sum36 -= response;
 
-  phase = (phases[37] - phases[35]) >>> 0;
+  phase = (phase37 - phase35) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -878,10 +1006,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[35] += response;
-  sums[37] -= response;
+  sum35 += response;
+  sum37 -= response;
 
-  phase = (phases[37] - phases[36]) >>> 0;
+  phase = (phase37 - phase36) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -890,10 +1018,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[36] += response;
-  sums[37] -= response;
+  sum36 += response;
+  sum37 -= response;
 
-  phase = (phases[38] - phases[36]) >>> 0;
+  phase = (phase38 - phase36) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -902,10 +1030,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[36] += response;
-  sums[38] -= response;
+  sum36 += response;
+  sum38 -= response;
 
-  phase = (phases[38] - phases[37]) >>> 0;
+  phase = (phase38 - phase37) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -914,10 +1042,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[37] += response;
-  sums[38] -= response;
+  sum37 += response;
+  sum38 -= response;
 
-  phase = (phases[39] - phases[37]) >>> 0;
+  phase = (phase39 - phase37) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -926,10 +1054,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[37] += response;
-  sums[39] -= response;
+  sum37 += response;
+  sum39 -= response;
 
-  phase = (phases[39] - phases[38]) >>> 0;
+  phase = (phase39 - phase38) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -938,10 +1066,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[38] += response;
-  sums[39] -= response;
+  sum38 += response;
+  sum39 -= response;
 
-  phase = (phases[40] - phases[38]) >>> 0;
+  phase = (phase40 - phase38) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -950,10 +1078,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[38] += response;
-  sums[40] -= response;
+  sum38 += response;
+  sum40 -= response;
 
-  phase = (phases[40] - phases[39]) >>> 0;
+  phase = (phase40 - phase39) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -962,10 +1090,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[39] += response;
-  sums[40] -= response;
+  sum39 += response;
+  sum40 -= response;
 
-  phase = (phases[41] - phases[39]) >>> 0;
+  phase = (phase41 - phase39) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -974,10 +1102,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[39] += response;
-  sums[41] -= response;
+  sum39 += response;
+  sum41 -= response;
 
-  phase = (phases[41] - phases[40]) >>> 0;
+  phase = (phase41 - phase40) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -986,10 +1114,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[40] += response;
-  sums[41] -= response;
+  sum40 += response;
+  sum41 -= response;
 
-  phase = (phases[42] - phases[40]) >>> 0;
+  phase = (phase42 - phase40) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -998,10 +1126,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[40] += response;
-  sums[42] -= response;
+  sum40 += response;
+  sum42 -= response;
 
-  phase = (phases[42] - phases[41]) >>> 0;
+  phase = (phase42 - phase41) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1010,10 +1138,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[41] += response;
-  sums[42] -= response;
+  sum41 += response;
+  sum42 -= response;
 
-  phase = (phases[43] - phases[41]) >>> 0;
+  phase = (phase43 - phase41) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1022,10 +1150,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[41] += response;
-  sums[43] -= response;
+  sum41 += response;
+  sum43 -= response;
 
-  phase = (phases[43] - phases[42]) >>> 0;
+  phase = (phase43 - phase42) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1034,10 +1162,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[42] += response;
-  sums[43] -= response;
+  sum42 += response;
+  sum43 -= response;
 
-  phase = (phases[44] - phases[42]) >>> 0;
+  phase = (phase44 - phase42) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1046,10 +1174,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[42] += response;
-  sums[44] -= response;
+  sum42 += response;
+  sum44 -= response;
 
-  phase = (phases[44] - phases[43]) >>> 0;
+  phase = (phase44 - phase43) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1058,10 +1186,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[43] += response;
-  sums[44] -= response;
+  sum43 += response;
+  sum44 -= response;
 
-  phase = (phases[45] - phases[43]) >>> 0;
+  phase = (phase45 - phase43) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1070,10 +1198,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[43] += response;
-  sums[45] -= response;
+  sum43 += response;
+  sum45 -= response;
 
-  phase = (phases[45] - phases[44]) >>> 0;
+  phase = (phase45 - phase44) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1082,10 +1210,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[44] += response;
-  sums[45] -= response;
+  sum44 += response;
+  sum45 -= response;
 
-  phase = (phases[46] - phases[44]) >>> 0;
+  phase = (phase46 - phase44) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1094,10 +1222,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[44] += response;
-  sums[46] -= response;
+  sum44 += response;
+  sum46 -= response;
 
-  phase = (phases[46] - phases[45]) >>> 0;
+  phase = (phase46 - phase45) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1106,10 +1234,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[45] += response;
-  sums[46] -= response;
+  sum45 += response;
+  sum46 -= response;
 
-  phase = (phases[47] - phases[45]) >>> 0;
+  phase = (phase47 - phase45) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1118,10 +1246,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[45] += response;
-  sums[47] -= response;
+  sum45 += response;
+  sum47 -= response;
 
-  phase = (phases[47] - phases[46]) >>> 0;
+  phase = (phase47 - phase46) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1130,10 +1258,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[46] += response;
-  sums[47] -= response;
+  sum46 += response;
+  sum47 -= response;
 
-  phase = (phases[48] - phases[46]) >>> 0;
+  phase = (phase48 - phase46) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1142,10 +1270,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[46] += response;
-  sums[48] -= response;
+  sum46 += response;
+  sum48 -= response;
 
-  phase = (phases[48] - phases[47]) >>> 0;
+  phase = (phase48 - phase47) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1154,10 +1282,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[47] += response;
-  sums[48] -= response;
+  sum47 += response;
+  sum48 -= response;
 
-  phase = (phases[49] - phases[47]) >>> 0;
+  phase = (phase49 - phase47) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1166,10 +1294,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[47] += response;
-  sums[49] -= response;
+  sum47 += response;
+  sum49 -= response;
 
-  phase = (phases[49] - phases[48]) >>> 0;
+  phase = (phase49 - phase48) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1178,10 +1306,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[48] += response;
-  sums[49] -= response;
+  sum48 += response;
+  sum49 -= response;
 
-  phase = (phases[50] - phases[48]) >>> 0;
+  phase = (phase50 - phase48) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1190,10 +1318,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[48] += response;
-  sums[50] -= response;
+  sum48 += response;
+  sum50 -= response;
 
-  phase = (phases[50] - phases[49]) >>> 0;
+  phase = (phase50 - phase49) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1202,10 +1330,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[49] += response;
-  sums[50] -= response;
+  sum49 += response;
+  sum50 -= response;
 
-  phase = (phases[51] - phases[49]) >>> 0;
+  phase = (phase51 - phase49) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1214,10 +1342,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[49] += response;
-  sums[51] -= response;
+  sum49 += response;
+  sum51 -= response;
 
-  phase = (phases[51] - phases[50]) >>> 0;
+  phase = (phase51 - phase50) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1226,10 +1354,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[50] += response;
-  sums[51] -= response;
+  sum50 += response;
+  sum51 -= response;
 
-  phase = (phases[52] - phases[50]) >>> 0;
+  phase = (phase52 - phase50) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1238,10 +1366,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[50] += response;
-  sums[52] -= response;
+  sum50 += response;
+  sum52 -= response;
 
-  phase = (phases[52] - phases[51]) >>> 0;
+  phase = (phase52 - phase51) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1250,10 +1378,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[51] += response;
-  sums[52] -= response;
+  sum51 += response;
+  sum52 -= response;
 
-  phase = (phases[53] - phases[51]) >>> 0;
+  phase = (phase53 - phase51) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1262,10 +1390,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[51] += response;
-  sums[53] -= response;
+  sum51 += response;
+  sum53 -= response;
 
-  phase = (phases[53] - phases[52]) >>> 0;
+  phase = (phase53 - phase52) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1274,10 +1402,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[52] += response;
-  sums[53] -= response;
+  sum52 += response;
+  sum53 -= response;
 
-  phase = (phases[54] - phases[52]) >>> 0;
+  phase = (phase54 - phase52) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1286,10 +1414,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[52] += response;
-  sums[54] -= response;
+  sum52 += response;
+  sum54 -= response;
 
-  phase = (phases[54] - phases[53]) >>> 0;
+  phase = (phase54 - phase53) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1298,10 +1426,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[53] += response;
-  sums[54] -= response;
+  sum53 += response;
+  sum54 -= response;
 
-  phase = (phases[55] - phases[53]) >>> 0;
+  phase = (phase55 - phase53) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1310,10 +1438,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[53] += response;
-  sums[55] -= response;
+  sum53 += response;
+  sum55 -= response;
 
-  phase = (phases[55] - phases[54]) >>> 0;
+  phase = (phase55 - phase54) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1322,10 +1450,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[54] += response;
-  sums[55] -= response;
+  sum54 += response;
+  sum55 -= response;
 
-  phase = (phases[56] - phases[54]) >>> 0;
+  phase = (phase56 - phase54) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1334,10 +1462,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[54] += response;
-  sums[56] -= response;
+  sum54 += response;
+  sum56 -= response;
 
-  phase = (phases[56] - phases[55]) >>> 0;
+  phase = (phase56 - phase55) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1346,10 +1474,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[55] += response;
-  sums[56] -= response;
+  sum55 += response;
+  sum56 -= response;
 
-  phase = (phases[57] - phases[55]) >>> 0;
+  phase = (phase57 - phase55) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1358,10 +1486,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[55] += response;
-  sums[57] -= response;
+  sum55 += response;
+  sum57 -= response;
 
-  phase = (phases[57] - phases[56]) >>> 0;
+  phase = (phase57 - phase56) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1370,10 +1498,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[56] += response;
-  sums[57] -= response;
+  sum56 += response;
+  sum57 -= response;
 
-  phase = (phases[58] - phases[56]) >>> 0;
+  phase = (phase58 - phase56) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1382,10 +1510,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[56] += response;
-  sums[58] -= response;
+  sum56 += response;
+  sum58 -= response;
 
-  phase = (phases[58] - phases[57]) >>> 0;
+  phase = (phase58 - phase57) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1394,10 +1522,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[57] += response;
-  sums[58] -= response;
+  sum57 += response;
+  sum58 -= response;
 
-  phase = (phases[59] - phases[57]) >>> 0;
+  phase = (phase59 - phase57) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1406,10 +1534,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[57] += response;
-  sums[59] -= response;
+  sum57 += response;
+  sum59 -= response;
 
-  phase = (phases[59] - phases[58]) >>> 0;
+  phase = (phase59 - phase58) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1418,10 +1546,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[58] += response;
-  sums[59] -= response;
+  sum58 += response;
+  sum59 -= response;
 
-  phase = (phases[60] - phases[58]) >>> 0;
+  phase = (phase60 - phase58) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1430,10 +1558,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[58] += response;
-  sums[60] -= response;
+  sum58 += response;
+  sum60 -= response;
 
-  phase = (phases[60] - phases[59]) >>> 0;
+  phase = (phase60 - phase59) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1442,10 +1570,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[59] += response;
-  sums[60] -= response;
+  sum59 += response;
+  sum60 -= response;
 
-  phase = (phases[61] - phases[59]) >>> 0;
+  phase = (phase61 - phase59) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1454,10 +1582,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[59] += response;
-  sums[61] -= response;
+  sum59 += response;
+  sum61 -= response;
 
-  phase = (phases[61] - phases[60]) >>> 0;
+  phase = (phase61 - phase60) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1466,10 +1594,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[60] += response;
-  sums[61] -= response;
+  sum60 += response;
+  sum61 -= response;
 
-  phase = (phases[62] - phases[60]) >>> 0;
+  phase = (phase62 - phase60) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1478,10 +1606,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[60] += response;
-  sums[62] -= response;
+  sum60 += response;
+  sum62 -= response;
 
-  phase = (phases[62] - phases[61]) >>> 0;
+  phase = (phase62 - phase61) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1490,10 +1618,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[61] += response;
-  sums[62] -= response;
+  sum61 += response;
+  sum62 -= response;
 
-  phase = (phases[63] - phases[61]) >>> 0;
+  phase = (phase63 - phase61) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1502,10 +1630,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[61] += response;
-  sums[63] -= response;
+  sum61 += response;
+  sum63 -= response;
 
-  phase = (phases[63] - phases[62]) >>> 0;
+  phase = (phase63 - phase62) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1514,10 +1642,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[62] += response;
-  sums[63] -= response;
+  sum62 += response;
+  sum63 -= response;
 
-  phase = (phases[0] - phases[62]) >>> 0;
+  phase = (phase0 - phase62) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1526,10 +1654,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[62] += response;
-  sums[0] -= response;
+  sum62 += response;
+  sum0 -= response;
 
-  phase = (phases[0] - phases[63]) >>> 0;
+  phase = (phase0 - phase63) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1538,10 +1666,10 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[63] += response;
-  sums[0] -= response;
+  sum63 += response;
+  sum0 -= response;
 
-  phase = (phases[1] - phases[63]) >>> 0;
+  phase = (phase1 - phase63) >>> 0;
   index = phase >>> 20;
   fraction = phase & 0xf_ffff;
   current = sinValues[index];
@@ -1550,9 +1678,73 @@ function accumulateLocalRing(phases, sums, sinValues, sinDeltas) {
     ? -(((-scaled + 524_288) * Q20_RECIPROCAL) | 0)
     : (((scaled + 524_288) * Q20_RECIPROCAL) | 0));
   response = sine < 0 ? -((-sine + 4) >>> 3) : ((sine + 4) >>> 3);
-  sums[63] += response;
-  sums[1] -= response;
+  sum63 += response;
+  sum1 -= response;
 
+  sums[0] = sum0;
+  sums[1] = sum1;
+  sums[2] = sum2;
+  sums[3] = sum3;
+  sums[4] = sum4;
+  sums[5] = sum5;
+  sums[6] = sum6;
+  sums[7] = sum7;
+  sums[8] = sum8;
+  sums[9] = sum9;
+  sums[10] = sum10;
+  sums[11] = sum11;
+  sums[12] = sum12;
+  sums[13] = sum13;
+  sums[14] = sum14;
+  sums[15] = sum15;
+  sums[16] = sum16;
+  sums[17] = sum17;
+  sums[18] = sum18;
+  sums[19] = sum19;
+  sums[20] = sum20;
+  sums[21] = sum21;
+  sums[22] = sum22;
+  sums[23] = sum23;
+  sums[24] = sum24;
+  sums[25] = sum25;
+  sums[26] = sum26;
+  sums[27] = sum27;
+  sums[28] = sum28;
+  sums[29] = sum29;
+  sums[30] = sum30;
+  sums[31] = sum31;
+  sums[32] = sum32;
+  sums[33] = sum33;
+  sums[34] = sum34;
+  sums[35] = sum35;
+  sums[36] = sum36;
+  sums[37] = sum37;
+  sums[38] = sum38;
+  sums[39] = sum39;
+  sums[40] = sum40;
+  sums[41] = sum41;
+  sums[42] = sum42;
+  sums[43] = sum43;
+  sums[44] = sum44;
+  sums[45] = sum45;
+  sums[46] = sum46;
+  sums[47] = sum47;
+  sums[48] = sum48;
+  sums[49] = sum49;
+  sums[50] = sum50;
+  sums[51] = sum51;
+  sums[52] = sum52;
+  sums[53] = sum53;
+  sums[54] = sum54;
+  sums[55] = sum55;
+  sums[56] = sum56;
+  sums[57] = sum57;
+  sums[58] = sum58;
+  sums[59] = sum59;
+  sums[60] = sum60;
+  sums[61] = sum61;
+  sums[62] = sum62;
+  sums[63] = sum63;
 }
 
 module.exports = { accumulateLocalRing };
