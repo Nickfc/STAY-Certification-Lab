@@ -286,6 +286,12 @@ test('R118F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward, /payloadCpuMax\)" == '20000 100000'/);
   assert.doesNotMatch(forward, /--property=CPUQuota=20%/);
   assert.equal(forward.includes('declaredHandlerTimeoutMs)" == 250'), true);
+  assert.match(forward,
+    /NON-PRODUCTION C3R3 HISTORICAL IDENTITY AND BIOLOGY[\s\S]*--test-name-pattern='\^C3R3-\(\?:ID\|BIO\)-01'[\s\S]*chronobiology-c3r3-jitless-performance-repair\.test\.js/);
+  assert.equal((forward.match(
+    /chronobiology-c3r3-jitless-performance-repair\.test\.js/g) || []).length, 2);
+  assert.match(forward, /cat "\$WORK\/c3r3-historical-tests\.tap"/);
+  assert.doesNotMatch(forward, /test-name-pattern=.*C3R4/);
   assert.doesNotMatch(`${forward}\n${recovery}\n${finalize}`,
     /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=(?:11[8-9]|1[2-9][0-9])/);
   assert.match(forward, /overlay_digest="\$\(\s*cd "\$STAGE_ROOT"[\s\S]*sha256sum "\$file"/);
