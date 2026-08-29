@@ -7,7 +7,12 @@ const { EventEmitter } = require('node:events');
 const { validateManifest } = require('./manifest');
 const { IPC_PROTOCOL, IPC_PROTOCOL_VERSION, assertPayload, errorRecord } = require('./protocol');
 const { ResourceGovernor, normalizePolicy } = require('./resource-governor');
-const { canonicalCoreModulePath, trustedCoreHostExecArgv, nativeCoreExecArgv, coreHostEnvironment } = require('./core-sandbox');
+const {
+  canonicalCoreModulePath,
+  trustedCoreHostExecArgv,
+  nativeCoreExecArgv,
+  coreSupervisorEnvironment,
+} = require('./core-sandbox');
 const { CgroupGovernor, processDescendants } = require('./cgroup-governor');
 const { enforcePackagePolicy, verifyManifestAgainstPackagePolicy } = require('./package-policy');
 
@@ -206,7 +211,9 @@ class CoreHostClient extends EventEmitter {
               ? trustedCoreHostExecArgv(this.modulePath)
               : nativeCoreExecArgv(this.modulePath))
         ],
-        env: coreHostEnvironment({ compatibility: this.expectedManifest?.coreId === 'fetus-legacy' })
+        env: coreSupervisorEnvironment({
+          compatibility: this.expectedManifest?.coreId === 'fetus-legacy'
+        })
       });
       this.child = child;
       this.generation += 1;
