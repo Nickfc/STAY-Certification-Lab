@@ -1,0 +1,331 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+EXPECTED_PRIVATE_IPV4='172.26.9.207'
+INCOMING_ROOT='/opt/stay/incoming'
+EXPECTED_RELEASE_TAG='r118f-v1'
+EXPECTED_RELEASE_COMMIT='b2ce7cb94bdea34780385b5d0cbf2121155cddb0'
+EXPECTED_RELEASE_TREE='b14df9a6c67740d5f849ff6693800867b1363ad3'
+EXPECTED_ARCHIVE='STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V1_BUNDLE_20260829.tar.gz'
+EXPECTED_ARCHIVE_SHA256='d6745dd533b80ae1f72038c2e36d16f2fa840eb583d7b2a013f5d89e55c7bac9'
+EXPECTED_SIDECAR_SHA256='2fdecfd93552c13c577d7926118f73967013f9b72216252a70256901b61542cc'
+EXPECTED_MANIFEST_SHA256='377b1a2fc19633c2d636f3a0e0e420a4063e1d6cad13e6e4dd16439b89772c1a'
+EXPECTED_FORWARD_SHA256='c868c4baf1abbeaf60a3054f8c74290cba108067e7f65b1a3bbc280384010f8a'
+EXPECTED_RECOVERY_SHA256='92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03'
+EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-42b230a19975'
+MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'
+FORWARD='deploy/live-physiology-transplant/p1-r118f-forward.sh'
+RECOVERY='deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh'
+FORWARD_RUNTIME_SECONDS=1500
+RECOVERY_RUNTIME_SECONDS=900
+
+RUN_ROOT=''
+WORK_ROOT=''
+OUTPUT_FILE=''
+CLEANUP_ARMED=0
+CONTROLLER_FAILURE_CLASS='NONE'
+
+abort_controller() {
+  local code="$1" classification="$2" reason="$3"
+  CONTROLLER_FAILURE_CLASS="$classification"
+  echo "R118F_CONTROLLER_ABORT=$reason" >&2
+  exit "$code"
+}
+
+trusted_root_file() {
+  local candidate="$1" mode
+  [[ -f "$candidate" && ! -L "$candidate" ]] || return 1
+  [[ "$(stat -Lc '%U:%G' "$candidate")" == 'root:root' ]] || return 1
+  mode="$(stat -Lc '%a' "$candidate")" || return 1
+  (( (8#$mode & 8#022) == 0 ))
+}
+
+trusted_root_executable() {
+  local candidate="$1"
+  trusted_root_file "$candidate" && [[ -x "$candidate" ]]
+}
+
+observed_private_ipv4() {
+  ip -o -4 addr show scope global |
+    awk '{address=$4; sub(/\/.*/, "", address); print address}' |
+    sort -u
+}
+
+validate_plain_tree() {
+  local root="$1"
+  [[ -d "$root" && ! -L "$root" ]] || return 1
+  [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
+}
+
+validate_run_root() {
+  local candidate="$1" incoming_real parent_real mode
+  [[ -d "$INCOMING_ROOT" && ! -L "$INCOMING_ROOT" ]] || return 1
+  incoming_real="$(readlink -f -- "$INCOMING_ROOT")" || return 1
+  [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
+  parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
+  [[ "$parent_real" == "$incoming_real" ]] || return 1
+  [[ "$(basename -- "$candidate")" =~ ^r118f-v1-[0-9]+$ ]] || return 1
+  [[ "$(stat -Lc '%U:%G' "$candidate")" == 'staydeploy:staydeploy' ]] || return 1
+  mode="$(stat -Lc '%a' "$candidate")" || return 1
+  [[ "$mode" == 700 || "$mode" == 2700 ]] || return 1
+  validate_plain_tree "$candidate"
+}
+
+safe_cleanup_run_root() {
+  local candidate="$1"
+  validate_run_root "$candidate" || return 91
+  [[ -z "$(findmnt -rn -R -o TARGET "$candidate" 2>/dev/null || true)" ]] || return 92
+  find -P "$candidate" -xdev -type d -exec chmod u+rwx {} + || return 93
+  find -P "$candidate" -xdev -type f -exec chmod u+rw {} + || return 94
+  rm -rf --one-file-system -- "$candidate" || return 95
+  [[ ! -e "$candidate" && ! -L "$candidate" ]]
+}
+
+safe_cleanup_work_root() {
+  local candidate="$1"
+  [[ "$candidate" =~ ^/run/stay-r118f-v1-controller\.[A-Za-z0-9]+$ ]] || return 96
+  [[ -d "$candidate" && ! -L "$candidate" ]] || return 97
+  [[ "$(stat -Lc '%U:%G' "$candidate")" == 'root:root' ]] || return 99
+  [[ -z "$(findmnt -rn -R -o TARGET "$candidate" 2>/dev/null || true)" ]] || return 100
+  validate_plain_tree "$candidate" || return 101
+  find -P "$candidate" -xdev -type d -exec chmod u+rwx {} + || return 102
+  find -P "$candidate" -xdev -type f -exec chmod u+rw {} + || return 103
+  rm -rf --one-file-system -- "$candidate" || return 104
+  [[ ! -e "$candidate" && ! -L "$candidate" ]]
+}
+
+finish_controller() {
+  local original_status=$? cleanup_status=0
+  trap - EXIT
+  set +e
+  [[ -z "$OUTPUT_FILE" ]] || rm -f -- "$OUTPUT_FILE"
+  if [[ -n "$WORK_ROOT" ]]; then
+    safe_cleanup_work_root "$WORK_ROOT"
+    cleanup_status=$?
+  fi
+  if [[ "$cleanup_status" -eq 0 && "$CLEANUP_ARMED" -eq 1 ]]; then
+    safe_cleanup_run_root "$RUN_ROOT"
+    cleanup_status=$?
+  fi
+  echo "R118F_CONTROLLER_FAILURE_CLASS=$CONTROLLER_FAILURE_CLASS"
+  echo "R118F_CONTROLLER_CLEANUP_STATUS=$([[ "$cleanup_status" -eq 0 ]] && echo PASS || echo FAIL_$cleanup_status)"
+  if [[ "$original_status" -eq 0 && "$cleanup_status" -ne 0 ]]; then
+    exit "$cleanup_status"
+  fi
+  exit "$original_status"
+}
+
+verify_hash() {
+  local file="$1" expected="$2"
+  trusted_root_file "$file" &&
+    [[ "$(sha256sum "$file" | awk '{print $1}')" == "$expected" ]]
+}
+
+verify_archive_shape() {
+  local archive="$1" entry
+  local -a entries
+  mapfile -t entries < <(tar -tzf "$archive") || return 1
+  [[ "${#entries[@]}" -eq 160 ]] || return 1
+  for entry in "${entries[@]}"; do
+    [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]] || return 1
+  done
+  tar -tvzf "$archive" |
+    awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }'
+}
+
+verify_staged_identity() {
+  local archive="$RUN_ROOT/$EXPECTED_ARCHIVE"
+  local sidecar="$RUN_ROOT/$EXPECTED_ARCHIVE.sha256"
+  local identity="$RUN_ROOT/R118F_RELEASE.identity" expected_files expected_identity
+  expected_files=$'R118F_RELEASE.identity\n'"$EXPECTED_ARCHIVE"$'\n'"$EXPECTED_ARCHIVE.sha256"
+  [[ "$(find "$RUN_ROOT" -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected_files" ]] || return 1
+  [[ -z "$(find -P "$RUN_ROOT" -xdev ! -user staydeploy -print -quit)" ]] || return 1
+  [[ -f "$archive" && ! -L "$archive" && -f "$sidecar" && ! -L "$sidecar" ]] || return 1
+  [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$EXPECTED_ARCHIVE_SHA256" ]] || return 1
+  [[ "$(sha256sum "$sidecar" | awk '{print $1}')" == "$EXPECTED_SIDECAR_SHA256" ]] || return 1
+  [[ "$(<"$sidecar")" == "$EXPECTED_ARCHIVE_SHA256 *$EXPECTED_ARCHIVE" ]] || return 1
+  expected_identity="$(cat <<EOF
+RELEASE_TAG=$EXPECTED_RELEASE_TAG
+RELEASE_COMMIT=$EXPECTED_RELEASE_COMMIT
+RELEASE_TREE=$EXPECTED_RELEASE_TREE
+ARCHIVE_SHA256=$EXPECTED_ARCHIVE_SHA256
+SIDECAR_SHA256=$EXPECTED_SIDECAR_SHA256
+MANIFEST_SHA256=$EXPECTED_MANIFEST_SHA256
+FORWARD_SHA256=$EXPECTED_FORWARD_SHA256
+RECOVERY_SHA256=$EXPECTED_RECOVERY_SHA256
+TARGET_RELEASE=$EXPECTED_TARGET_RELEASE
+EOF
+)"
+  [[ -f "$identity" && ! -L "$identity" && "$(<"$identity")" == "$expected_identity" ]] || return 1
+  verify_archive_shape "$archive"
+}
+
+verify_release_tree() {
+  local root="$1" expected_list actual_list relative
+  validate_plain_tree "$root" || return 1
+  [[ "$(find -P "$root" -xdev -type f | wc -l)" -eq 140 ]] || return 1
+  [[ "$(wc -l < "$root/$MANIFEST")" -eq 139 ]] || return 1
+  verify_hash "$root/$MANIFEST" "$EXPECTED_MANIFEST_SHA256" || return 1
+  verify_hash "$root/$FORWARD" "$EXPECTED_FORWARD_SHA256" || return 1
+  verify_hash "$root/$RECOVERY" "$EXPECTED_RECOVERY_SHA256" || return 1
+  awk 'NF != 2 || $1 !~ /^[0-9a-f]{64}$/ || $2 !~ /^\.\/[A-Za-z0-9._\/-]+$/ { exit 1 } END { if (NR != 139) exit 1 }' \
+    "$root/$MANIFEST" || return 1
+  (cd "$root" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
+  expected_list="$(mktemp /run/stay-r118f-v1-expected.XXXXXX)" || return 1
+  actual_list="$(mktemp /run/stay-r118f-v1-actual.XXXXXX)" || {
+    rm -f -- "$expected_list"
+    return 1
+  }
+  { awk '{sub(/^\.\//,"",$2); print $2}' "$root/$MANIFEST"; echo "$MANIFEST"; } |
+    LC_ALL=C sort > "$expected_list"
+  (cd "$root" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$actual_list"
+  cmp "$expected_list" "$actual_list" >/dev/null || {
+    rm -f -- "$expected_list" "$actual_list"
+    return 1
+  }
+  rm -f -- "$expected_list" "$actual_list"
+  while IFS= read -r relative; do
+    case "$relative" in
+      *.js) /usr/local/bin/node --check "$root/$relative" >/dev/null || return 1 ;;
+      *.sh) /bin/bash -n "$root/$relative" || return 1 ;;
+    esac
+  done < <(cd "$root" && find . -type f -printf '%P\n' | LC_ALL=C sort)
+}
+
+prepare_private_release() {
+  local private_archive
+  WORK_ROOT="$(mktemp -d /run/stay-r118f-v1-controller.XXXXXX)" || return 1
+  [[ "$(stat -Lc '%U:%G:%a' "$WORK_ROOT")" == 'root:root:700' ]] || return 1
+  private_archive="$WORK_ROOT/$EXPECTED_ARCHIVE"
+  install -o root -g root -m 0400 "$RUN_ROOT/$EXPECTED_ARCHIVE" "$private_archive" || return 1
+  [[ "$(sha256sum "$private_archive" | awk '{print $1}')" == "$EXPECTED_ARCHIVE_SHA256" ]] || return 1
+  install -d -o root -g root -m 0500 "$WORK_ROOT/release" || return 1
+  tar -xzf "$private_archive" -C "$WORK_ROOT/release" || return 1
+  chown -R root:root "$WORK_ROOT/release" || return 1
+  find -P "$WORK_ROOT/release" -xdev -type d -exec chmod 0500 {} + || return 1
+  find -P "$WORK_ROOT/release" -xdev -type f -exec chmod 0400 {} + || return 1
+  verify_release_tree "$WORK_ROOT/release"
+}
+
+run_bounded_script() {
+  local script="$1" authorization_name="$2" authorization_value="$3" seconds="$4"
+  local controller_sha statuses child_status tee_status
+  controller_sha="$(sha256sum "$0" | awk '{print $1}')"
+  trusted_root_file "$script" || return 125
+  set +e
+  env -i PATH="$PATH" \
+    "$authorization_name=$authorization_value" \
+    STAY_R118F_RELEASE_TAG="$EXPECTED_RELEASE_TAG" \
+    STAY_R118F_RELEASE_COMMIT="$EXPECTED_RELEASE_COMMIT" \
+    STAY_R118F_RELEASE_TREE="$EXPECTED_RELEASE_TREE" \
+    STAY_R118F_ARCHIVE_SHA256="sha256:$EXPECTED_ARCHIVE_SHA256" \
+    STAY_R118F_MANIFEST_SHA256="sha256:$EXPECTED_MANIFEST_SHA256" \
+    STAY_R118F_CONTROLLER_SHA256="sha256:$controller_sha" \
+    /usr/bin/timeout --signal=TERM --kill-after=30s "${seconds}s" \
+    /bin/bash "$script" 2>&1 | tee "$OUTPUT_FILE"
+  statuses=("${PIPESTATUS[@]}")
+  set -e
+  child_status="${statuses[0]:-125}"
+  tee_status="${statuses[1]:-125}"
+  [[ "$tee_status" -eq 0 ]] || return 125
+  return "$child_status"
+}
+
+main() {
+  local operation="${1:-}" requested_root="${2:-}" authorization="${3:-}"
+  local script expected_marker child_status marker
+  [[ "$#" -eq 3 ]] || abort_controller 64 ARGUMENT_VALIDATION_FAILED exactly-three-arguments-required
+  [[ "$EUID" -eq 0 ]] || abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
+  trusted_root_executable "$0" || abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
+  [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]] ||
+    abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
+  case "$operation" in
+    harden-r118f)
+      [[ "$authorization" == 'AUTHORIZE_R118F_V1_CONTAINED_FORWARD_WITH_FENCED_RECOVERY' ]] ||
+        abort_controller 74 AUTHORIZATION_FAILED forward-authorization-missing
+      ;;
+    recover-r118f)
+      [[ "$authorization" == 'AUTHORIZE_R118F_V1_FORWARD_RECOVERY_ONLY' ]] ||
+        abort_controller 75 AUTHORIZATION_FAILED recovery-authorization-missing
+      ;;
+    *) abort_controller 76 OPERATION_REJECTED unsupported-operation ;;
+  esac
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r118f-v1-[0-9]+$ ]] ||
+    abort_controller 77 PATH_VALIDATION_FAILED invalid-run-root-pattern
+  validate_run_root "$requested_root" ||
+    abort_controller 78 PATH_VALIDATION_FAILED invalid-run-root
+  RUN_ROOT="$requested_root"
+  trap finish_controller EXIT
+  verify_staged_identity || abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
+  CLEANUP_ARMED=1
+  prepare_private_release || abort_controller 81 STAGED_IDENTITY_FAILED private-release-invalid
+  OUTPUT_FILE="$(mktemp /run/stay-r118f-v1-output.XXXXXX)"
+  if [[ "$operation" == harden-r118f ]]; then
+    script="$WORK_ROOT/release/$FORWARD"
+    expected_marker='R118F_FORWARD_RESULT=PASS'
+    set +e
+    run_bounded_script "$script" STAY_R118F_AUTHORIZATION \
+      REPAIR_R116_CHRONOBIOLOGY_GAP_TO_R118F_AND_BENCHMARK_72H \
+      "$FORWARD_RUNTIME_SECONDS"
+    child_status=$?
+    set -e
+    if [[ "$child_status" -ne 0 ]] &&
+       grep -Fxq 'R118F_FORWARD_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY' "$OUTPUT_FILE"; then
+      echo 'R118F_CONTROLLER_RECOVERY=AUTOMATIC'
+      : > "$OUTPUT_FILE"
+      script="$WORK_ROOT/release/$RECOVERY"
+      expected_marker='R118F_FORWARD_RECOVERY_RESULT=PASS'
+      set +e
+      run_bounded_script "$script" STAY_R118F_RECOVERY_AUTHORIZATION \
+        COMPLETE_REVISION_FENCED_R118F_WITHOUT_RESTART \
+        "$RECOVERY_RUNTIME_SECONDS"
+      child_status=$?
+      set -e
+    fi
+  else
+    script="$WORK_ROOT/release/$RECOVERY"
+    expected_marker='R118F_FORWARD_RECOVERY_RESULT=PASS'
+    set +e
+    run_bounded_script "$script" STAY_R118F_RECOVERY_AUTHORIZATION \
+      COMPLETE_REVISION_FENCED_R118F_WITHOUT_RESTART \
+      "$RECOVERY_RUNTIME_SECONDS"
+    child_status=$?
+    set -e
+  fi
+  [[ "$child_status" -eq 0 ]] || abort_controller "$child_status" R118F_EXECUTION_FAILED child-failed
+  grep -Fx "$expected_marker" "$OUTPUT_FILE" >/dev/null ||
+    abort_controller 82 RESULT_MARKER_MISSING result-marker-missing
+  grep -Fx 'RUNTIME_REVISION_AFTER=118' "$OUTPUT_FILE" >/dev/null ||
+    abort_controller 83 RESULT_CONTRACT_FAILED revision-marker-missing
+  grep -Fx 'REVISION_LABEL=R118F' "$OUTPUT_FILE" >/dev/null ||
+    abort_controller 83 RESULT_CONTRACT_FAILED freeze-marker-missing
+  grep -Fx "CURRENT_RELEASE=$EXPECTED_TARGET_RELEASE" "$OUTPUT_FILE" >/dev/null ||
+    abort_controller 83 RESULT_CONTRACT_FAILED release-marker-missing
+  for marker in \
+    'BSF_STATUS=FUNCTIONAL' \
+    'BSF_MODE=LIVE' \
+    'SNTSS_AUTHORITY=NONE' \
+    'SNTSS_OUTPUT_COUNT=0' \
+    'CHRONOBIOLOGY_ABANDONED_COUNT=0' \
+    'CHRONOBIOLOGY_INVENTED_BIOLOGICAL_TIME=NO' \
+    'CHRONOBIOLOGY_AUTHORITY=NONE' \
+    'FETUS_CONTINUITY=PASS' \
+    'WEB_CHIP_BSF=LIVE' \
+    'WEB_CHIP_SNTSS=SHADOW' \
+    'WEB_CHIP_CHRONOBIOLOGY=SHADOW' \
+    'BENCHMARK_SERVICE=ACTIVE'; do
+    grep -Fx "$marker" "$OUTPUT_FILE" >/dev/null ||
+      abort_controller 83 RESULT_CONTRACT_FAILED result-contract-incomplete
+  done
+  for marker in BENCHMARK_STARTED_AT_UTC BENCHMARK_12H_DUE_UTC BENCHMARK_72H_DUE_UTC; do
+    grep -Eq "^${marker}=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" "$OUTPUT_FILE" ||
+      abort_controller 83 RESULT_CONTRACT_FAILED benchmark-time-missing
+  done
+  CONTROLLER_FAILURE_CLASS='NONE'
+  echo 'R118F_CONTROLLER_RESULT=PASS'
+}
+
+main "$@"

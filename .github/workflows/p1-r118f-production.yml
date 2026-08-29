@@ -1,0 +1,270 @@
+name: R118F V1 guarded production recovery
+run-name: R118F V1 · ${{ inputs.operation }} · ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Fixed revision-fenced operation
+        required: true
+        type: choice
+        default: harden-r118f
+        options:
+          - harden-r118f
+          - recover-r118f
+      authorization:
+        description: Exact operation-specific authorization
+        required: true
+        type: choice
+        default: NO
+        options:
+          - NO
+          - AUTHORIZE_R118F_V1_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
+          - AUTHORIZE_R118F_V1_FORWARD_RECOVERY_ONLY
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stay-r118f-v1-production
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: r118f-v1
+  RELEASE_COMMIT: b2ce7cb94bdea34780385b5d0cbf2121155cddb0
+  RELEASE_TREE: b14df9a6c67740d5f849ff6693800867b1363ad3
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R116_TO_R118F_V1_BUNDLE_20260829.tar.gz
+  ARCHIVE_SHA256: d6745dd533b80ae1f72038c2e36d16f2fa840eb583d7b2a013f5d89e55c7bac9
+  SIDECAR_SHA256: 2fdecfd93552c13c577d7926118f73967013f9b72216252a70256901b61542cc
+  MANIFEST_SHA256: 377b1a2fc19633c2d636f3a0e0e420a4063e1d6cad13e6e4dd16439b89772c1a
+  FORWARD_SHA256: c868c4baf1abbeaf60a3054f8c74290cba108067e7f65b1a3bbc280384010f8a
+  RECOVERY_SHA256: 92466c256ba5210b391939e3458003c80d8a0658af747a6ac4a722269fdfcc03
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-42b230a19975
+  WRAPPER_SHA256: 7c1a872f8fca4e4c7bf5bb40f194f35ad2ff55fa7b7519a35b88e4961d2d2244
+  PRODUCTION_PUBLIC_IPV4: 35.157.242.167
+  PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+  PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
+
+jobs:
+  validate-immutable-release:
+    name: Validate immutable release without production credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate fixed dispatch
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          case "$OPERATION" in
+            harden-r118f)
+              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V1_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
+              ;;
+            recover-r118f)
+              [[ "$AUTHORIZATION" == AUTHORIZE_R118F_V1_FORWARD_RECOVERY_ONLY ]]
+              ;;
+            *) exit 64 ;;
+          esac
+      - name: Checkout exact merged release
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.RELEASE_COMMIT }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: release-source
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Install real OS sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap
+          sudo tee /usr/local/bin/stay-ci-bwrap >/dev/null <<'EOF'
+          #!/bin/sh
+          exec sudo -n /usr/bin/bwrap "$@"
+          EOF
+          sudo chown root:root /usr/local/bin/stay-ci-bwrap
+          sudo chmod 0755 /usr/local/bin/stay-ci-bwrap
+          sudo -n true
+      - name: Download and validate hosted immutable archive
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/r118f-release"
+          extract="$root/extract"
+          install -d -m 0700 "$root" "$extract"
+          [[ "$(git -C release-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
+          [[ "$(git -C release-source rev-parse HEAD^{tree})" == "$RELEASE_TREE" ]]
+          [[ "$(git -C release-source rev-list -n 1 "$RELEASE_TAG")" == "$RELEASE_COMMIT" ]] ||
+            git -C release-source fetch --depth=1 origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          [[ "$(git -C release-source rev-list -n 1 "$RELEASE_TAG")" == "$RELEASE_COMMIT" ]]
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" --dir "$root"
+          [[ "$(sha256sum "$root/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
+          (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
+          mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
+          [[ "${#entries[@]}" -eq 160 ]]
+          for entry in "${entries[@]}"; do
+            [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]]
+          done
+          tar -tvzf "$root/$ARCHIVE" |
+            awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }'
+          tar -xzf "$root/$ARCHIVE" -C "$extract"
+          manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'
+          [[ "$(find "$extract" -type f | wc -l)" -eq 140 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 139 ]]
+          [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r118f-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
+          (cd "$extract" && sha256sum -c "$manifest")
+          { awk '{sub(/^\.\//,"",$2); print $2}' "$extract/$manifest"; echo "$manifest"; } |
+            LC_ALL=C sort > "$root/expected"
+          (cd "$extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/actual"
+          cmp "$root/expected" "$root/actual"
+          while IFS= read -r file; do
+            case "$file" in
+              *.js) node --check "$extract/$file" >/dev/null ;;
+              *.sh) bash -n "$extract/$file" ;;
+            esac
+          done < "$root/actual"
+          STAY_BWRAP=/usr/local/bin/stay-ci-bwrap node --test --test-concurrency=1 \
+            "$extract/test/chronobiology-c3r2-performance-repair.test.js" \
+            "$extract/test/p1-r118f-chronobiology-implementation-repair.test.js" \
+            "$extract/test/p1-r118f-entry-path.test.js" \
+            "$extract/test/p1-r118f-release-contract.test.js" \
+            "$extract/test/production-hardening-entry-path.test.js"
+          cat > "$root/R118F_RELEASE.identity" <<EOF
+          RELEASE_TAG=$RELEASE_TAG
+          RELEASE_COMMIT=$RELEASE_COMMIT
+          RELEASE_TREE=$RELEASE_TREE
+          ARCHIVE_SHA256=$ARCHIVE_SHA256
+          SIDECAR_SHA256=$SIDECAR_SHA256
+          MANIFEST_SHA256=$MANIFEST_SHA256
+          FORWARD_SHA256=$FORWARD_SHA256
+          RECOVERY_SHA256=$RECOVERY_SHA256
+          TARGET_RELEASE=$TARGET_RELEASE
+          EOF
+      - name: Upload independently validated release inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r118f-v1-validated-release-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/r118f-release/${{ env.ARCHIVE }}
+            ${{ runner.temp }}/r118f-release/${{ env.ARCHIVE }}.sha256
+            ${{ runner.temp }}/r118f-release/R118F_RELEASE.identity
+          if-no-files-found: error
+          retention-days: 7
+
+  production-recovery:
+    name: Exact preflight and guarded production recovery
+    needs: validate-immutable-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    environment: production
+    steps:
+      - name: Download validated release inputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: r118f-v1-validated-release-${{ github.run_id }}
+          path: release-assets
+      - name: Reverify isolated deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=$'R118F_RELEASE.identity\n'"$ARCHIVE"$'\n'"$ARCHIVE.sha256"
+          [[ "$(find release-assets -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
+          (cd release-assets && sha256sum -c "$ARCHIVE.sha256")
+      - name: Prepare pinned production SSH identity
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
+      - name: Exact read-only R116 production preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$PRODUCTION_PRIVATE_IPV4" "$WRAPPER_SHA256" <<'REMOTE'
+          set -Eeuo pipefail
+          expected_ip="$1"; wrapper_sha="$2"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == "$expected_ip" ]]
+          [[ "$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print $1}')" == "$wrapper_sha" ]]
+          source_release='/opt/stay/releases/0.8.11.3-p1l-r114-backlog-repair-cb26a2ae203f'
+          [[ "$(readlink -f /opt/stay/current)" == "$source_release" ]]
+          [[ "$(systemctl show stay.service -p ActiveState --value)" == active ]]
+          [[ "$(systemctl show stay.service -p SubState --value)" == running ]]
+          pid="$(systemctl show stay.service -p MainPID --value)"
+          restarts="$(systemctl show stay.service -p NRestarts --value)"
+          [[ "$pid" =~ ^[1-9][0-9]*$ && "$restarts" =~ ^[0-9]+$ ]]
+          [[ "$(sqlite3 /var/lib/stay/data/continuity.sqlite3 'PRAGMA quick_check;')" == ok ]]
+          meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
+          sntss="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$source_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:sntss)"
+          chrono="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$source_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:chronobiology)"
+          node - "$meta" "$sntss" "$chrono" <<'NODE'
+          const [m,s,c]=process.argv.slice(2).map(JSON.parse); const fetus=m.cores?.find(x=>x.id==='fetus-legacy'); const bsf=m.systems?.find(x=>x.id==='bsf');
+          if (!(m.ok===true&&m.revision===116&&m.revisionFrozen===false&&m.revisionLabel==='R116'&&fetus?.ok===true&&fetus?.memoryGuardian?.status==='healthy'&&fetus?.memoryGuardian?.warnAtMiB===192&&fetus?.memoryGuardian?.recycleAtMiB===256&&bsf?.mode==='LIVE'&&bsf?.status==='RUNNING'&&bsf?.healthOk===true&&s.resident?.version==='0.5.0-i4g1'&&s.resident?.host?.instanceId==='8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f'&&s.resident?.status==='RUNNING'&&s.resident?.authorityOwned===false&&s.resident?.observedOutputs===0&&c.resident?.version==='1.0.0-c3rc.1'&&c.resident?.host?.instanceId==='f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'&&c.resident?.status==='RESYNC_REQUIRED'&&c.resident?.authorityOwned===false&&c.resident?.observedOutputs===0)) process.exit(1);
+          NODE
+          [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" ]]
+          [[ "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
+          echo 'R118F_READ_ONLY_PREFLIGHT=PASS'
+          echo "SERVICE_PID=$pid"
+          echo "SERVICE_NRESTARTS=$restarts"
+          REMOTE
+      - name: Stage and invoke only the pinned root controller
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          run_root="/opt/stay/incoming/r118f-v1-${GITHUB_RUN_ID}"
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          # shellcheck disable=SC2029
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            "set -euo pipefail; test ! -e '$run_root'; install -d -m 0700 '$run_root'"
+          scp "${ssh_options[@]}" release-assets/* \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
+          set +e
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            sudo -n /usr/local/sbin/stay-p1-production-controller \
+            "$OPERATION" "$run_root" "$AUTHORIZATION" 2>&1 | tee controller.output
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          [[ "${statuses[0]}" -eq 0 && "${statuses[1]}" -eq 0 ]]
+          grep -Fx 'R118F_CONTROLLER_RESULT=PASS' controller.output
+          grep -Fx 'RUNTIME_REVISION_AFTER=118' controller.output
+          grep -Fx 'REVISION_LABEL=R118F' controller.output
+          grep -Fx "CURRENT_RELEASE=$TARGET_RELEASE" controller.output
+      - name: Upload sanitized controller evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r118f-v1-controller-output-${{ github.run_id }}
+          path: controller.output
+          if-no-files-found: warn
+          retention-days: 14
