@@ -23,8 +23,8 @@ const Q30_RECIPROCAL = 9.313225746154785e-10;
 const Q31_RECIPROCAL = 4.656612873077393e-10;
 const ADAPTIVE_ROUNDING_GUARD = 0.00001;
 const COUPLING_RESPONSE_LIMIT_Q30 = PROFILE.couplingResponseLimitQ30;
-const SIN_VALUES_Q30 = Int32Array.from(SIN_Q30);
-const SIN_DELTA_Q30 = Int32Array.from(SIN_Q30, (value, index) =>
+const SIN_VALUES_Q30 = SIN_Q30;
+const SIN_DELTA_Q30 = Array.from(SIN_Q30, (value, index) =>
   SIN_Q30[(index + 1) & 4095] - value);
 
 function fail(message, code = 'CHRONOBIOLOGY_OSCILLATOR_INVALID') {
@@ -474,7 +474,7 @@ function integratePopulationDuration(acquired, phenotype, durationUs) {
   const phases = Int32Array.from(acquired.oscillators, value => value.phase_q | 0);
   const amplitudeDifferences = Int32Array.from(acquired.oscillators, (value, unitId) =>
     phenotype.oscillators[unitId].baseline_amplitude_q - value.amplitude_q);
-  const sums = new Array(count).fill(0);
+  const sums = new Int32Array(count);
   const fullSteps = Math.floor(durationUs / PROFILE.integrationQuantumUs);
   const remainder = durationUs - fullSteps * PROFILE.integrationQuantumUs;
   if (fullSteps > 0) {
