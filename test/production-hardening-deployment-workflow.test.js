@@ -22,6 +22,9 @@ const bootstrap = read('.github/workflows/p1-r111f-controller-bootstrap.yml');
 const lateBootstrapReconciliation = read(
   '.github/workflows/p1-r116f-controller-late-reconcile.yml'
 );
+const forwardRecoveryDiagnostic = read(
+  '.github/workflows/p1-r116f-forward-recovery-diagnostic.yml'
+);
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 
 test('R116F deployment is manual-only and pins the immutable release identities', () => {
@@ -282,4 +285,31 @@ test('R116F V15 late bootstrap reconciliation is one-shot, hash-fenced, and runt
   ]) assert.match(lateBootstrapReconciliation, new RegExp(marker));
   assert.doesNotMatch(lateBootstrapReconciliation,
     /systemctl\s+(?:restart|stop|start|enable|disable)|\/opt\/stay\/state|resident-control/);
+});
+
+test('R116F V15 forward diagnostic is fixed, read-only, and revision-evidencing', () => {
+  assert.match(forwardRecoveryDiagnostic, /^\s{2}workflow_dispatch:/m);
+  assert.doesNotMatch(forwardRecoveryDiagnostic,
+    /^\s{2}(push|pull_request|schedule):/m);
+  assert.match(forwardRecoveryDiagnostic,
+    /AUTHORIZE_R116F_V15_READ_ONLY_FORWARD_RECOVERY_DIAGNOSTIC/);
+  assert.match(forwardRecoveryDiagnostic,
+    /TARGET_RELEASE: \/opt\/stay\/releases\/0\.8\.11\.3-p1l-r114-backlog-repair-cb26a2ae203f/);
+  assert.match(forwardRecoveryDiagnostic,
+    /CONTROLLER_SHA256: d08e141be91e37b2fc126fadc33f207a475b427e2f5bfc60cc139811cd71cb5a/);
+  assert.match(forwardRecoveryDiagnostic, /new DatabaseSync\(process\.env\.STAY_DATABASE, \{ open: true, readOnly: true \}\)/);
+  assert.match(forwardRecoveryDiagnostic, /PRAGMA query_only=ON/);
+  assert.match(forwardRecoveryDiagnostic, /resident\.cold-recovery-failed/);
+  assert.match(forwardRecoveryDiagnostic, /R116F_DATABASE_DIAGNOSTIC=/);
+  assert.match(forwardRecoveryDiagnostic, /R116F_FORWARD_RECOVERY_DIAGNOSTIC=PASS/);
+  for (const marker of [
+    'SERVICE_OPERATION=NO', 'CURRENT_POINTER_CHANGE=NO', 'STATESTORE_WRITE=NO',
+    'RESIDENT_OPERATION=NO', 'AUTHORITY_CHANGE=NO'
+  ]) assert.match(forwardRecoveryDiagnostic, new RegExp(marker));
+  const remote = forwardRecoveryDiagnostic.slice(
+    forwardRecoveryDiagnostic.indexOf('      - name: Collect exact live and durable evidence without mutation'),
+    forwardRecoveryDiagnostic.indexOf('      - name: Upload read-only diagnostic evidence')
+  );
+  assert.doesNotMatch(remote,
+    /systemctl\s+(?:restart|stop|start|enable|disable)|\brm\s|\bmv\s|\bcp\s|resident-control-client\.js"\s+(?:attach|detach|promote|resynchronize)/);
 });
