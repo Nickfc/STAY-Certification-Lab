@@ -22,7 +22,7 @@ concurrency:
 
 env:
   CONTROLLER_SHA256: c1ee5a94719425be5e5561f92400445d059a7844f6ad8163df4d99a7fcefe3c4
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-8ddbb57a00a7
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-934069400d62
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
@@ -53,7 +53,7 @@ jobs:
           [[ "$GITHUB_REF" == refs/heads/main ]]
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
           [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R118F_V10_READ_ONLY_FORWARD_RECOVERY_DIAGNOSTIC ]]
-          [[ "$TARGET_RELEASE" == /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-8ddbb57a00a7 ]]
+          [[ "$TARGET_RELEASE" == /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-934069400d62 ]]
           node --test --test-concurrency=1 test/p1-r118f-controller.test.js
 
   collect-r118f-diagnostic:
