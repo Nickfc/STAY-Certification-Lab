@@ -6,16 +6,16 @@ export PATH
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
 INCOMING_ROOT='/opt/stay/incoming'
-EXPECTED_RELEASE_TAG='r119f-v1'
-EXPECTED_RELEASE_COMMIT='ea28a3c9722a59fb385cfeed84792a4839d58909'
-EXPECTED_RELEASE_TREE='9aa59b581190decf1666200a1951f3f76e0c96c9'
-EXPECTED_ARCHIVE='STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V1_BUNDLE_20260830.tar.gz'
-EXPECTED_ARCHIVE_SHA256='b51ec80025b215d5a65a22e709bfa2f7b6ecfdeb0b26519224efd1eeaae9a7ff'
-EXPECTED_SIDECAR_SHA256='4b48c5a902077e5d597da627629f56b53a746538483b035182ec59c779021590'
-EXPECTED_MANIFEST_SHA256='b2b79e13fc0be1de2728c9e8c5a5d1e14430841743479cbbdebe9d5502bebaee'
-EXPECTED_FORWARD_SHA256='21c3510d158e2cf5e174cf1ede1ba472968a3c1e5dbdfe25b72df44919e281a1'
+EXPECTED_RELEASE_TAG='r119f-v2'
+EXPECTED_RELEASE_COMMIT='1d2c4ce7c2ba5f6b670b4a2ec7272796e90ac289'
+EXPECTED_RELEASE_TREE='a6de972fd5a9c22e5b268a0f57267883b0b947d9'
+EXPECTED_ARCHIVE='STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V2_BUNDLE_20260830.tar.gz'
+EXPECTED_ARCHIVE_SHA256='b22a6e239065171bac1bfea69fec610ae7185445f8ba40938e6788fa48637a25'
+EXPECTED_SIDECAR_SHA256='7a71bdb659b606b0ffcc99f329a96954d2536a204ec0919026ad0d81f6e71c0e'
+EXPECTED_MANIFEST_SHA256='1290b006d6b6b942dd6c6a83c7fa471fa6177cece58e57538807909583772574'
+EXPECTED_FORWARD_SHA256='43f67fed4596e711eb7dcc0f302be794392475a0626d8a4c40a656f3b11cccc3'
 EXPECTED_RECOVERY_SHA256='c6a44bfc956beb07aa0b3ef3fa6a36da9e27926d3a347d0ef20a72a7ddaf9f00'
-EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-87a9aeaa1b01'
+EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2c1a36ee2c74'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'
 FORWARD='deploy/live-physiology-transplant/p1-r119f-forward.sh'
 RECOVERY='deploy/live-physiology-transplant/p1-r119f-forward-recovery.sh'
@@ -67,7 +67,7 @@ validate_run_root() {
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
   parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
   [[ "$parent_real" == "$incoming_real" ]] || return 1
-  [[ "$(basename -- "$candidate")" =~ ^r119f-v1-[0-9]+$ ]] || return 1
+  [[ "$(basename -- "$candidate")" =~ ^r119f-v2-[0-9]+$ ]] || return 1
   [[ "$(stat -Lc '%U:%G' "$candidate")" == 'staydeploy:staydeploy' ]] || return 1
   mode="$(stat -Lc '%a' "$candidate")" || return 1
   [[ "$mode" == 700 || "$mode" == 2700 ]] || return 1
@@ -86,7 +86,7 @@ safe_cleanup_run_root() {
 
 safe_cleanup_work_root() {
   local candidate="$1"
-  [[ "$candidate" =~ ^/run/stay-r119f-v1-controller\.[A-Za-z0-9]+$ ]] || return 96
+  [[ "$candidate" =~ ^/run/stay-r119f-v2-controller\.[A-Za-z0-9]+$ ]] || return 96
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 97
   [[ "$(stat -Lc '%U:%G' "$candidate")" == 'root:root' ]] || return 99
   [[ -z "$(findmnt -rn -R -o TARGET "$candidate" 2>/dev/null || true)" ]] || return 100
@@ -128,7 +128,7 @@ verify_archive_shape() {
   local archive="$1" entry
   local -a entries
   mapfile -t entries < <(tar -tzf "$archive") || return 1
-  [[ "${#entries[@]}" -eq 250 ]] || return 1
+  [[ "${#entries[@]}" -eq 251 ]] || return 1
   for entry in "${entries[@]}"; do
     [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]] || return 1
   done
@@ -166,16 +166,16 @@ EOF
 verify_release_tree() {
   local root="$1" expected_list actual_list relative
   validate_plain_tree "$root" || return 1
-  [[ "$(find -P "$root" -xdev -type f | wc -l)" -eq 221 ]] || return 1
-  [[ "$(wc -l < "$root/$MANIFEST")" -eq 220 ]] || return 1
+  [[ "$(find -P "$root" -xdev -type f | wc -l)" -eq 222 ]] || return 1
+  [[ "$(wc -l < "$root/$MANIFEST")" -eq 221 ]] || return 1
   verify_hash "$root/$MANIFEST" "$EXPECTED_MANIFEST_SHA256" || return 1
   verify_hash "$root/$FORWARD" "$EXPECTED_FORWARD_SHA256" || return 1
   verify_hash "$root/$RECOVERY" "$EXPECTED_RECOVERY_SHA256" || return 1
-  awk 'NF != 2 || $1 !~ /^[0-9a-f]{64}$/ || $2 !~ /^\.\/[A-Za-z0-9._\/-]+$/ { exit 1 } END { if (NR != 220) exit 1 }' \
+  awk 'NF != 2 || $1 !~ /^[0-9a-f]{64}$/ || $2 !~ /^\.\/[A-Za-z0-9._\/-]+$/ { exit 1 } END { if (NR != 221) exit 1 }' \
     "$root/$MANIFEST" || return 1
   (cd "$root" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
-  expected_list="$(mktemp /run/stay-r119f-v1-expected.XXXXXX)" || return 1
-  actual_list="$(mktemp /run/stay-r119f-v1-actual.XXXXXX)" || {
+  expected_list="$(mktemp /run/stay-r119f-v2-expected.XXXXXX)" || return 1
+  actual_list="$(mktemp /run/stay-r119f-v2-actual.XXXXXX)" || {
     rm -f -- "$expected_list"
     return 1
   }
@@ -197,7 +197,7 @@ verify_release_tree() {
 
 prepare_private_release() {
   local private_archive
-  WORK_ROOT="$(mktemp -d /run/stay-r119f-v1-controller.XXXXXX)" || return 1
+  WORK_ROOT="$(mktemp -d /run/stay-r119f-v2-controller.XXXXXX)" || return 1
   [[ "$(stat -Lc '%U:%G:%a' "$WORK_ROOT")" == 'root:root:700' ]] || return 1
   private_archive="$WORK_ROOT/$EXPECTED_ARCHIVE"
   install -o root -g root -m 0400 "$RUN_ROOT/$EXPECTED_ARCHIVE" "$private_archive" || return 1
@@ -244,16 +244,16 @@ main() {
     abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
   case "$operation" in
     harden-r119f)
-      [[ "$authorization" == 'AUTHORIZE_R119F_V1_CONTAINED_FORWARD_WITH_FENCED_RECOVERY' ]] ||
+      [[ "$authorization" == 'AUTHORIZE_R119F_V2_CONTAINED_FORWARD_WITH_FENCED_RECOVERY' ]] ||
         abort_controller 74 AUTHORIZATION_FAILED forward-authorization-missing
       ;;
     recover-r119f)
-      [[ "$authorization" == 'AUTHORIZE_R119F_V1_FORWARD_RECOVERY_ONLY' ]] ||
+      [[ "$authorization" == 'AUTHORIZE_R119F_V2_FORWARD_RECOVERY_ONLY' ]] ||
         abort_controller 75 AUTHORIZATION_FAILED recovery-authorization-missing
       ;;
     *) abort_controller 76 OPERATION_REJECTED unsupported-operation ;;
   esac
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r119f-v1-[0-9]+$ ]] ||
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r119f-v2-[0-9]+$ ]] ||
     abort_controller 77 PATH_VALIDATION_FAILED invalid-run-root-pattern
   validate_run_root "$requested_root" ||
     abort_controller 78 PATH_VALIDATION_FAILED invalid-run-root
@@ -262,7 +262,7 @@ main() {
   verify_staged_identity || abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
   CLEANUP_ARMED=1
   prepare_private_release || abort_controller 81 STAGED_IDENTITY_FAILED private-release-invalid
-  OUTPUT_FILE="$(mktemp /run/stay-r119f-v1-output.XXXXXX)"
+  OUTPUT_FILE="$(mktemp /run/stay-r119f-v2-output.XXXXXX)"
   if [[ "$operation" == harden-r119f ]]; then
     script="$WORK_ROOT/release/$FORWARD"
     expected_marker='R119F_FORWARD_RESULT=PASS'
