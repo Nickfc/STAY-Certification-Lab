@@ -6,11 +6,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 
-const { stableStringify } = require('../../runtime/kernel/canonical-json');
-const { sealRevisionFreeze, validateRevisionFreeze } = require('../../runtime/revision-freeze');
+const RELEASE_ROOT = '/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2961f9a48173';
+const { stableStringify } = require(path.join(RELEASE_ROOT, 'runtime/kernel/canonical-json'));
+const { sealRevisionFreeze, validateRevisionFreeze } = require(
+  path.join(RELEASE_ROOT, 'runtime/revision-freeze'));
 
 const EXPECTED = Object.freeze({
-  release: '/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2961f9a48173',
+  release: RELEASE_ROOT,
   runtimeRevision: 120,
   residencyId: 'resident:chronobiology',
   coreId: 'chronobiology',
