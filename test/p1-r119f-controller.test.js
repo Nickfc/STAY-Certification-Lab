@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -155,4 +156,75 @@ test('R119F-BRIDGE-08 completion contract requires freeze, containment and bench
   assert.match(wrapper, /FORWARD_RUNTIME_SECONDS=1500/);
   assert.match(wrapper, /RECOVERY_RUNTIME_SECONDS=900/);
   assert.match(productionWorkflow, /grep -Fx 'RUNTIME_REVISION_AFTER=119' controller\.output/);
+});
+
+test('R119F-BRIDGE-09 executable preflight accepts only exact R118/R119 cohorts', () => {
+  const match = /node - "\$operation" "\$snapshot" "\$active" "\$sub" "\$pid" <<'NODE'\n([\s\S]*?)\n {10}NODE\n {10}if/.exec(
+    productionWorkflow);
+  assert.ok(match, 'embedded cohort verifier not found');
+  const source = match[1].replace(/^ {10}/gm, '');
+  const baselineHash = '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae';
+  const baseline = {
+    revision: 118,
+    residents: [
+      { residency_id: 'resident:chronobiology',
+        instance_id: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
+        version: '1.0.0-c3rc.4', state_schema: 2, checkpoint_generation: 5118,
+        checkpoint_hash: baselineHash, status: 'RESYNC_REQUIRED' },
+      { residency_id: 'resident:sntss',
+        instance_id: '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
+        version: '0.5.0-i4g1', status: 'RUNNING' },
+    ],
+    consumers: [{ consumer_id: 'resident:chronobiology', required: 0, active: 0,
+      cursor: 2341576, authority_epoch: 0, checkpoint_hash: baselineHash }],
+    checkpoint: { instance_id: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
+      version: '1.0.0-c3rc.4', state_schema: 2, generation: 5118,
+      blob_hash: baselineHash, byte_length: 49287, input_cursor: 1636338 },
+    repair: null, chronobiologyPending: 0, pendingOutbox: 0,
+    sntssOutputs: 0, sntssAuthority: 0, chronobiologyAuthority: 0,
+  };
+  const repair = {
+    repairId: 'chronobiology-c3r5-r118-bounded-catchup',
+    instanceId: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
+    sourceCheckpointId: '039d2b99-b950-4bab-beac-83f602b27be2',
+    checkpointHash: baselineHash, checkpointByteLength: 49287,
+    checkpointInputCursor: 1636338, consumerCursor: 2341576,
+    biologicalStateChanged: false, checkpointBytesChanged: false,
+    abandonedCount: 0, inventedBiologicalTime: false,
+    authorityChanged: false, resourceLimitsChanged: false,
+  };
+  const run = (operation, snapshot, active, sub, pid) => spawnSync(
+    process.execPath, ['-', operation, JSON.stringify(snapshot), active, sub, pid],
+    { input: source, encoding: 'utf8' });
+  assert.equal(run('harden-r119f', baseline, 'active', 'running', '100').status, 0);
+  const leaking = structuredClone(baseline);
+  leaking.chronobiologyPending = 1;
+  assert.notEqual(run('harden-r119f', leaking, 'active', 'running', '100').status, 0);
+
+  const repairedR118 = structuredClone(baseline);
+  Object.assign(repairedR118.residents[0], {
+    version: '1.0.0-c3rc.5', checkpoint_generation: 5119,
+  });
+  Object.assign(repairedR118.checkpoint, {
+    version: '1.0.0-c3rc.5', generation: 5119,
+  });
+  repairedR118.repair = repair;
+  assert.equal(run('recover-r119f', repairedR118, 'inactive', 'dead', '0').status, 0);
+
+  const repairedR119 = structuredClone(repairedR118);
+  const currentHash = 'b'.repeat(64);
+  repairedR119.revision = 119;
+  Object.assign(repairedR119.residents[0], {
+    checkpoint_generation: 5120, checkpoint_hash: currentHash, status: 'RUNNING',
+  });
+  Object.assign(repairedR119.consumers[0], {
+    active: 1, cursor: 2341586, checkpoint_hash: currentHash,
+  });
+  Object.assign(repairedR119.checkpoint, {
+    generation: 5120, blob_hash: currentHash, byte_length: 49400,
+    input_cursor: 2341586,
+  });
+  assert.equal(run('recover-r119f', repairedR119, 'active', 'running', '200').status, 0);
+  repairedR119.checkpoint.input_cursor = 1636338;
+  assert.notEqual(run('recover-r119f', repairedR119, 'active', 'running', '200').status, 0);
 });
