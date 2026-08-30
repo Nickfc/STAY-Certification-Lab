@@ -224,22 +224,34 @@ jobs:
           printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
           chmod 0600 ~/.ssh/known_hosts
           [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
-      - name: Exact read-only R116 production preflight
+      - name: Exact read-only operation-fenced production preflight
         shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
         run: |
           set -euo pipefail
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
-            "$PRODUCTION_PRIVATE_IPV4" "$WRAPPER_SHA256" <<'REMOTE'
+            "$PRODUCTION_PRIVATE_IPV4" "$WRAPPER_SHA256" "$OPERATION" "$TARGET_RELEASE" <<'REMOTE'
           set -Eeuo pipefail
-          expected_ip="$1"; wrapper_sha="$2"
+          expected_ip="$1"; wrapper_sha="$2"; operation="$3"; target_release="$4"
           observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
           [[ "$observed" == "$expected_ip" ]]
           [[ "$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print $1}')" == "$wrapper_sha" ]]
-          source_release='/opt/stay/releases/0.8.11.3-p1l-r114-backlog-repair-cb26a2ae203f'
-          [[ "$(readlink -f /opt/stay/current)" == "$source_release" ]]
+          case "$operation" in
+            harden-r118f)
+              source_release='/opt/stay/releases/0.8.11.3-p1l-r114-backlog-repair-cb26a2ae203f'
+              [[ "$(readlink -f /opt/stay/current)" == "$source_release" ]]
+              ;;
+            recover-r118f)
+              source_release="$target_release"
+              [[ "$source_release" == /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-* ]]
+              [[ "$(readlink -f /opt/stay/current)" == "$source_release" ]]
+              ;;
+            *) exit 64 ;;
+          esac
           [[ "$(systemctl show stay.service -p ActiveState --value)" == active ]]
           [[ "$(systemctl show stay.service -p SubState --value)" == running ]]
           pid="$(systemctl show stay.service -p MainPID --value)"
@@ -256,13 +268,60 @@ jobs:
           meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
           sntss="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$source_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:sntss)"
           chrono="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$source_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:chronobiology)"
-          node - "$meta" "$sntss" "$chrono" <<'NODE'
-          const [m,s,c]=process.argv.slice(2).map(JSON.parse); const fetus=m.cores?.find(x=>x.id==='fetus-legacy'); const bsf=m.systems?.find(x=>x.id==='bsf');
-          if (!(m.ok===true&&m.revision===116&&m.revisionFrozen===false&&m.revisionLabel==='R116'&&fetus?.ok===true&&fetus?.memoryGuardian?.status==='healthy'&&fetus?.memoryGuardian?.warnAtMiB===192&&fetus?.memoryGuardian?.recycleAtMiB===256&&bsf?.mode==='LIVE'&&bsf?.status==='RUNNING'&&bsf?.healthOk===true&&s.resident?.version==='0.5.0-i4g1'&&s.resident?.host?.instanceId==='8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f'&&s.resident?.status==='RUNNING'&&s.resident?.authorityOwned===false&&s.resident?.observedOutputs===0&&c.resident?.version==='1.0.0-c3rc.1'&&c.resident?.host?.instanceId==='f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'&&c.resident?.status==='RESYNC_REQUIRED'&&c.resident?.authorityOwned===false&&c.resident?.observedOutputs===0)) process.exit(1);
+          node - "$operation" "$meta" "$sntss" "$chrono" <<'NODE'
+          const [operation, ...payloads] = process.argv.slice(2);
+          const [m,s,c] = payloads.map(JSON.parse);
+          const fetus=m.cores?.find(x=>x.id==='fetus-legacy');
+          const bsf=m.systems?.find(x=>x.id==='bsf');
+          const common = fetus?.ok===true
+            && fetus?.memoryGuardian?.status==='healthy'
+            && fetus?.memoryGuardian?.warnAtMiB===192
+            && fetus?.memoryGuardian?.recycleAtMiB===256
+            && bsf?.mode==='LIVE'&&bsf?.status==='RUNNING'&&bsf?.healthOk===true
+            && s.resident?.version==='0.5.0-i4g1'
+            && s.resident?.host?.instanceId==='8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f'
+            && s.resident?.status==='RUNNING'&&s.resident?.running===true
+            && s.resident?.authorityOwned===false&&s.resident?.observedOutputs===0;
+          if (operation === 'harden-r118f') {
+            if (!(m.ok===true&&m.revision===116&&m.revisionFrozen===false
+              &&m.revisionLabel==='R116'&&common
+              &&c.resident?.version==='1.0.0-c3rc.1'
+              &&c.resident?.host?.instanceId==='f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'
+              &&c.resident?.status==='RESYNC_REQUIRED'&&c.resident?.running===false
+              &&c.resident?.authorityOwned===false&&c.resident?.observedOutputs===0)) process.exit(1);
+          } else {
+            const token = value => String(value ?? 'NONE').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 160);
+            for (const [key, value] of Object.entries({
+              R118F_RECOVERY_META_REVISION: m.revision,
+              R118F_RECOVERY_META_LABEL: m.revisionLabel,
+              R118F_RECOVERY_SNTSS_STATUS: s.resident?.status,
+              R118F_RECOVERY_SNTSS_RUNNING: s.resident?.running,
+              R118F_RECOVERY_CHRONOBIOLOGY_STATUS: c.resident?.status,
+              R118F_RECOVERY_CHRONOBIOLOGY_RUNNING: c.resident?.running,
+              R118F_RECOVERY_CHRONOBIOLOGY_VERSION: c.resident?.version,
+              R118F_RECOVERY_CHRONOBIOLOGY_CHECKPOINT: c.resident?.checkpointGeneration,
+              R118F_RECOVERY_CHRONOBIOLOGY_HANDLED: c.resident?.handledEvents,
+              R118F_RECOVERY_CHRONOBIOLOGY_AUTHORITY: c.resident?.authorityOwned,
+              R118F_RECOVERY_CHRONOBIOLOGY_OUTPUTS: c.resident?.observedOutputs,
+              R118F_RECOVERY_CHRONOBIOLOGY_HEALTH_OK: c.resident?.health?.ok,
+              R118F_RECOVERY_CHRONOBIOLOGY_RESYNC_REQUIRED: c.resident?.resyncRequired,
+              R118F_RECOVERY_CHRONOBIOLOGY_LAST_ERROR_CODE: c.resident?.lastError?.code,
+              R118F_RECOVERY_CHRONOBIOLOGY_LAST_ERROR_MESSAGE: c.resident?.lastError?.message,
+              R118F_RECOVERY_CHRONOBIOLOGY_PERSISTENCE_ERROR_CODE:
+                c.resident?.terminalPersistenceError?.code,
+            })) console.log(`${key}=${token(value)}`);
+            if (!(m.ok===true&&m.revision===118&&m.revisionFrozen===false
+              &&m.revisionLabel==='R118'&&common
+              &&c.resident?.version==='1.0.0-c3rc.4'
+              &&c.resident?.host?.instanceId==='f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'
+              &&c.resident?.status==='RUNNING'&&c.resident?.running===true
+              &&Number(c.resident?.checkpointGeneration)>5117
+              &&c.resident?.authorityOwned===false&&c.resident?.observedOutputs===0)) process.exit(42);
+          }
           NODE
           [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" ]]
           [[ "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
-          echo 'R118F_READ_ONLY_PREFLIGHT=PASS'
+          echo "R118F_READ_ONLY_PREFLIGHT_${operation^^}=PASS"
           echo "SERVICE_PID=$pid"
           echo "SERVICE_NRESTARTS=$restarts"
           REMOTE

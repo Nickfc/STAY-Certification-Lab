@@ -157,14 +157,28 @@ test('R118F-BRIDGE-06 workflows bind the controller and immutable hosted release
   assert.doesNotMatch(productionWorkflow, /"\$extract\/test\/p1-r118f-entry-path\.test\.js"/);
 });
 
-test('R118F-BRIDGE-07 live preflight precedes staging and only wrapper receives sudo', () => {
-  const preflight = productionWorkflow.indexOf('Exact read-only R116 production preflight');
+test('R118F-BRIDGE-07 operation-fenced live preflight precedes staging and only wrapper receives sudo', () => {
+  const preflight = productionWorkflow.indexOf(
+    'Exact read-only operation-fenced production preflight');
   const staging = productionWorkflow.indexOf('Stage and invoke only the pinned root controller');
   assert.ok(preflight > 0 && preflight < staging);
   assert.match(productionWorkflow, /PRAGMA quick_check/);
   assert.match(productionWorkflow, /new DatabaseSync\(process\.argv\[2\], \{ open: true, readOnly: true \}\)/);
   assert.doesNotMatch(productionWorkflow.slice(preflight, staging), /sqlite3 \/var\/lib\/stay/);
+  assert.match(productionWorkflow, /case "\$operation" in/);
+  assert.match(productionWorkflow, /harden-r118f\)/);
+  assert.match(productionWorkflow, /recover-r118f\)/);
   assert.match(productionWorkflow, /m\.revision===116/);
+  assert.match(productionWorkflow, /m\.revision===118/);
+  assert.match(productionWorkflow, /m\.revisionLabel==='R118'/);
+  assert.match(productionWorkflow, /c\.resident\?\.status==='RUNNING'/);
+  assert.match(productionWorkflow, /Number\(c\.resident\?\.checkpointGeneration\)>5117/);
+  assert.match(productionWorkflow, /R118F_RECOVERY_CHRONOBIOLOGY_LAST_ERROR_CODE/);
+  assert.match(productionWorkflow, /R118F_RECOVERY_CHRONOBIOLOGY_LAST_ERROR_MESSAGE/);
+  assert.match(productionWorkflow, /R118F_RECOVERY_CHRONOBIOLOGY_AUTHORITY/);
+  assert.match(productionWorkflow, /R118F_RECOVERY_CHRONOBIOLOGY_OUTPUTS/);
+  assert.match(productionWorkflow, /R118F_RECOVERY_CHRONOBIOLOGY_PERSISTENCE_ERROR_CODE/);
+  assert.match(productionWorkflow, /process\.exit\(42\)/);
   assert.match(productionWorkflow, /sudo -n \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(productionWorkflow, /sudo -n (?:bash|sh|node|systemctl|sqlite3)/);
   const choices = productionWorkflow.slice(
