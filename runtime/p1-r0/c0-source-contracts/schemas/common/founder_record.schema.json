@@ -1,0 +1,81 @@
+{
+  "$id": "urn:stay:p1-r0:schema:founder-record:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Exactly one atomically committed founder per organism/core lineage. No reroll, viewer identity, owner privilege, desired emotion or behavior fields.",
+  "properties": {
+    "committed": {
+      "const": true
+    },
+    "coreId": {
+      "enum": [
+        "METAB",
+        "HOMEOS",
+        "INTERO"
+      ]
+    },
+    "founderId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "founderSchemaId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "founderSchemaVersion": {
+      "const": "1"
+    },
+    "genesisFrame": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "genesisTransactionId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "lineageId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "organismId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "phenotypeHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "previousFounderId": {
+      "type": "null"
+    },
+    "profileHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "profileId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "recordVersion": {
+      "const": "P1FounderRecordV1"
+    }
+  },
+  "required": [
+    "recordVersion",
+    "organismId",
+    "coreId",
+    "founderId",
+    "lineageId",
+    "profileId",
+    "profileHash",
+    "founderSchemaId",
+    "founderSchemaVersion",
+    "genesisFrame",
+    "genesisTransactionId",
+    "phenotypeHash",
+    "committed",
+    "previousFounderId"
+  ],
+  "title": "P1 founder record",
+  "type": "object"
+}

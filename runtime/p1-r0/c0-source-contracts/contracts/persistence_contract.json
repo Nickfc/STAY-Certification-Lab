@@ -1,0 +1,33 @@
+{
+  "atomicUnit": [
+    "acquiredState",
+    "inputCursors",
+    "outputSequence",
+    "checkpointGeneration",
+    "commitTransactionId"
+  ],
+  "checkpointInvariants": [
+    "generation-strictly-increases",
+    "parent-hash-valid",
+    "state-cursor-output-same-transaction",
+    "no-mixed-generation-recovery",
+    "no-biological-rewind",
+    "source-before-consumer-recovery",
+    "publish-after-commit-only"
+  ],
+  "founderInvariants": [
+    "exactly-one-committed-founder-per-core-lineage",
+    "no-reroll",
+    "profile-hash-bound",
+    "failed-precommit-leaves-no-partial-record",
+    "no-viewer-owner-emotion-behavior-fields"
+  ],
+  "retention": [
+    "retain validating parent",
+    "retain founder forever while lineage is addressable",
+    "removal-preserves-latest-valid-checkpoint",
+    "chip-history-survives-removal"
+  ],
+  "steadyCheckpointMinimumIntervalMs": 5000,
+  "version": "P1-R0-Persistence-C0-v1.0"
+}

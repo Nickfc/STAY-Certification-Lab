@@ -1,0 +1,238 @@
+{
+  "$id": "urn:stay:p1-r0:schema:ube-v2-envelope:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Laboratory contract. Semantic checks additionally enforce registered producer/topic/schema/unit/organism/founder/epoch/mode/route, visibleFromFrame >= committedFrame + 1, expiry and non-launderable ancestry.",
+  "properties": {
+    "causalSpan": {
+      "$ref": "urn:stay:p1-r0:schema:causal-span:v1"
+    },
+    "committedFrame": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "envelopeId": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]{8,160}$",
+      "type": "string"
+    },
+    "envelopeVersion": {
+      "const": "UBE-v2"
+    },
+    "expiresAtFrame": {
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "founderLineageId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "organismId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "payloadHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "producer": {
+      "$id": "urn:stay:inline:producer",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "authorityEpoch": {
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "coreId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "coreVersion": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "lifecycle": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "NEUTRAL",
+            "SHADOW",
+            "LIVE"
+          ],
+          "type": "string"
+        },
+        "residencyId": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "coreId",
+        "residencyId",
+        "coreVersion",
+        "authorityEpoch",
+        "mode",
+        "lifecycle"
+      ],
+      "title": "producer",
+      "type": "object"
+    },
+    "producerSequence": {
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "quality": {
+      "$id": "urn:stay:inline:quality",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "confidenceQ48": {
+          "$ref": "urn:stay:p1-r0:schema:q16-48:v1"
+        },
+        "coverageQ48": {
+          "$ref": "urn:stay:p1-r0:schema:q16-48:v1"
+        },
+        "reasons": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "ACCEPT",
+            "HOLD",
+            "UNKNOWN",
+            "QUARANTINE"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "confidenceQ48",
+        "coverageQ48",
+        "reasons"
+      ],
+      "title": "quality",
+      "type": "object"
+    },
+    "route": {
+      "$id": "urn:stay:inline:route",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "consumerCoreId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "routeId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "routeVersion": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "routeId",
+        "consumerCoreId",
+        "routeVersion"
+      ],
+      "title": "route",
+      "type": "object"
+    },
+    "sourceWindow": {
+      "$ref": "urn:stay:p1-r0:schema:trusted-window:v1"
+    },
+    "topic": {
+      "$id": "urn:stay:inline:topic",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "class": {
+          "enum": [
+            "SUMMARY",
+            "INTEGRITY",
+            "DEMAND",
+            "MODULATION",
+            "FACT",
+            "CONTEXT",
+            "OBSERVATION"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "scale": {
+          "const": "Q16.48"
+        },
+        "schemaId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "schemaVersion": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "class",
+        "schemaId",
+        "schemaVersion",
+        "unit",
+        "scale"
+      ],
+      "title": "topic",
+      "type": "object"
+    },
+    "visibleFromFrame": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "envelopeVersion",
+    "envelopeId",
+    "organismId",
+    "founderLineageId",
+    "producer",
+    "route",
+    "topic",
+    "producerSequence",
+    "committedFrame",
+    "visibleFromFrame",
+    "sourceWindow",
+    "causalSpan",
+    "quality",
+    "expiresAtFrame",
+    "payload",
+    "payloadHash"
+  ],
+  "title": "Universal Biological Envelope v2 laboratory contract",
+  "type": "object"
+}

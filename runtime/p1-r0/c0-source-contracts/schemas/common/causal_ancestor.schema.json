@@ -1,0 +1,58 @@
+{
+  "$id": "urn:stay:p1-r0:schema:causal-ancestor:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "",
+  "properties": {
+    "confidenceQ48": {
+      "$ref": "urn:stay:p1-r0:schema:q16-48:v1"
+    },
+    "mode": {
+      "enum": [
+        "NEUTRAL",
+        "SHADOW",
+        "LIVE"
+      ],
+      "type": "string"
+    },
+    "producerCoreId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "producerSequence": {
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "residencyId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "routeId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "shadowAncestry": {
+      "type": "boolean"
+    },
+    "sourceWindow": {
+      "$ref": "urn:stay:p1-r0:schema:trusted-window:v1"
+    },
+    "topic": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "producerCoreId",
+    "residencyId",
+    "topic",
+    "routeId",
+    "producerSequence",
+    "sourceWindow",
+    "mode",
+    "shadowAncestry",
+    "confidenceQ48"
+  ],
+  "title": "Causal ancestor",
+  "type": "object"
+}

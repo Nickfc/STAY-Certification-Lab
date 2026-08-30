@@ -1,0 +1,38 @@
+{
+  "$id": "urn:stay:p1-r0:schema:causal-span:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Semantic validation requires complete transitive ancestry and earliestFrame <= latestFrame.",
+  "properties": {
+    "ancestors": {
+      "items": {
+        "$ref": "urn:stay:p1-r0:schema:causal-ancestor:v1"
+      },
+      "maxItems": 256,
+      "type": "array"
+    },
+    "containsNeutral": {
+      "type": "boolean"
+    },
+    "containsShadow": {
+      "type": "boolean"
+    },
+    "earliestFrame": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "latestFrame": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "earliestFrame",
+    "latestFrame",
+    "containsNeutral",
+    "containsShadow",
+    "ancestors"
+  ],
+  "title": "Causal span",
+  "type": "object"
+}

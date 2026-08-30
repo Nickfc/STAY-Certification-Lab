@@ -1,0 +1,60 @@
+{
+  "channelHashHex": "ad2a8dd65d1240d2",
+  "channelId": "energy.availability",
+  "hash64": "FNV-1a 64 over UTF-8 bytes",
+  "noiseKeyHex": "0123456789abcdef",
+  "securityUse": false,
+  "vectorVersion": "splitmix64-fnv1a64-q0.48-triangular-v1",
+  "vectors": [
+    {
+      "differenceQ0_48Raw": "-56401144922779",
+      "frameIndex": 0,
+      "splitmix0Hex": "a8a2541f40c74d51",
+      "splitmix1Hex": "dbee3e548362a2c5",
+      "u0Q0_48Raw": "185415149502663",
+      "u1Q0_48Raw": "241816294425442",
+      "z0Hex": "ac09c8b1d4b98d3d",
+      "z1Hex": "323eb108abf3f128"
+    },
+    {
+      "differenceQ0_48Raw": "8641916489661",
+      "frameIndex": 1,
+      "splitmix0Hex": "68b62c49371b4490",
+      "splitmix1Hex": "60da11ec675ec02f",
+      "u0Q0_48Raw": "115131636332315",
+      "u1Q0_48Raw": "106489719842654",
+      "z0Hex": "ac09c8b1d4b98d3c",
+      "z1Hex": "323eb108abf3f129"
+    },
+    {
+      "differenceQ0_48Raw": "43220754629165",
+      "frameIndex": 2,
+      "splitmix0Hex": "da0e8b3abc5a6a3f",
+      "splitmix1Hex": "b2bf6d80ba2dc0eb",
+      "u0Q0_48Raw": "239756000279642",
+      "u1Q0_48Raw": "196535245650477",
+      "z0Hex": "ac09c8b1d4b98d3f",
+      "z1Hex": "323eb108abf3f12a"
+    },
+    {
+      "differenceQ0_48Raw": "42237597850605",
+      "frameIndex": 17,
+      "splitmix0Hex": "845742be739e6ee3",
+      "splitmix1Hex": "5ded0dba57b1456c",
+      "u0Q0_48Raw": "145510316798878",
+      "u1Q0_48Raw": "103272718948273",
+      "z0Hex": "ac09c8b1d4b98d2c",
+      "z1Hex": "323eb108abf3f139"
+    },
+    {
+      "differenceQ0_48Raw": "208078170212379",
+      "frameIndex": 4096,
+      "splitmix0Hex": "ea308f7b40c9bb5a",
+      "splitmix1Hex": "2cf1960f78ae376e",
+      "u0Q0_48Raw": "257494286549193",
+      "u1Q0_48Raw": "49416116336814",
+      "z0Hex": "ac09c8b1d4b99d3d",
+      "z1Hex": "323eb108abf3e128"
+    }
+  ]
+}

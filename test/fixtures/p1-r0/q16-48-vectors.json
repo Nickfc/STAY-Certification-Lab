@@ -1,0 +1,41 @@
+{
+  "rounding": "half-even",
+  "vectorVersion": "Q16.48-v1",
+  "vectors": [
+    {
+      "decimal": "0",
+      "id": "Q48-ZERO",
+      "raw": "0"
+    },
+    {
+      "decimal": "0.125",
+      "id": "Q48-ONE-EIGHTH",
+      "raw": "35184372088832"
+    },
+    {
+      "decimal": "0.25",
+      "id": "Q48-ONE-QUARTER",
+      "raw": "70368744177664"
+    },
+    {
+      "decimal": "0.5",
+      "id": "Q48-ONE-HALF",
+      "raw": "140737488355328"
+    },
+    {
+      "decimal": "0.75",
+      "id": "Q48-THREE-QUARTERS",
+      "raw": "211106232532992"
+    },
+    {
+      "decimal": "1",
+      "id": "Q48-ONE",
+      "raw": "281474976710656"
+    },
+    {
+      "decimal": "-0.5",
+      "id": "Q48-NEG-HALF",
+      "raw": "-140737488355328"
+    }
+  ]
+}
