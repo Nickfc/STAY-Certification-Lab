@@ -312,8 +312,8 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward,
     /SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'/);
   assert.match(forward, /SOURCE_RELEASE_MANIFEST_RECORD_COUNT=188/);
-  assert.match(forward, /SOURCE_RELEASE_PRESENT_RECORD_COUNT=183/);
-  assert.match(forward, /SOURCE_RELEASE_FILE_COUNT=186/);
+  assert.match(forward, /SOURCE_RELEASE_PRESENT_RECORD_COUNT=181/);
+  assert.match(forward, /SOURCE_RELEASE_FILE_COUNT=184/);
   assert.match(forward, /TARGET_RELEASE_MANIFEST_RECORD_COUNT=221/);
   assert.match(forward, /TARGET_CANDIDATE_FILE_COUNT=224/);
   assert.match(forward, /TARGET_RELEASE_FILE_COUNT=225/);
@@ -325,11 +325,13 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward, /'P1_PRODUCTION_HARDENING_RELEASE\.env'/);
   assert.match(forward, /'P1_R118F_RELEASE\.env'/);
   for (const absent of [
+    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md',
     'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md',
     'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256',
     'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js',
     'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh',
     'docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md',
+    'test/p1-r118f-release-contract.test.js',
   ]) {
     assert.equal((forward.match(new RegExp(absent.replace(/[.*+?^${}()|[\]\\]/g,
       '\\$&'), 'g')) || []).length, 2, absent);
@@ -418,27 +420,45 @@ test('R119F-REL-04A installed R118 and reconciled R119F inventories are exact', 
   const source = parse('P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256');
   const target = parse('P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256');
   const absent = [
-    'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md',
-    'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256',
-    'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js',
-    'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh',
-    'docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md',
+    ['deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md',
+      'bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37',
+      'bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37'],
+    ['deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md',
+      '259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f',
+      '259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f'],
+    ['deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256',
+      '7b5370cd244b427bbdac062b9be09af1e853ece9a416dd22a72e220e03789fcc',
+      '7b5370cd244b427bbdac062b9be09af1e853ece9a416dd22a72e220e03789fcc'],
+    ['deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js',
+      '433430f1e360d1183e29e016978c9610fd1b2d1070aab5415facb39aab8896df',
+      '433430f1e360d1183e29e016978c9610fd1b2d1070aab5415facb39aab8896df'],
+    ['deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh',
+      '386da10cf952cd448ffc8315e797165c292208561246e47a223565825a922d52',
+      '386da10cf952cd448ffc8315e797165c292208561246e47a223565825a922d52'],
+    ['docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md',
+      '048bdec2ab67e2a2ff0114e8d5fecec1c81879addbfe9b13a53b70b7c263602c',
+      '048bdec2ab67e2a2ff0114e8d5fecec1c81879addbfe9b13a53b70b7c263602c'],
+    ['test/p1-r118f-release-contract.test.js',
+      '42aae340f5dfc8a43dc8c3f38855df1b3e681e51102d0ab1b5be14ebfb456404',
+      'c130eb5aab0c0bb40eb728185cbce79328e809d792b3f12195e5d3dda52d28f4'],
   ];
   assert.equal(source.size, 188);
   assert.equal(target.size, 221);
   assert.equal(target.get('deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'),
     '129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0');
-  for (const relative of absent) {
+  for (const [relative, sourceHash, targetHash] of absent) {
     assert.equal(source.has(relative), true, relative);
-    assert.equal(target.get(relative), source.get(relative), relative);
+    assert.equal(source.get(relative), sourceHash, `${relative}:source`);
+    assert.equal(target.get(relative), targetHash, `${relative}:target`);
   }
-  const sourceInstalled = new Set([...source.keys()].filter(value => !absent.includes(value)));
+  const absentPaths = new Set(absent.map(([relative]) => relative));
+  const sourceInstalled = new Set([...source.keys()].filter(value => !absentPaths.has(value)));
   for (const relative of [
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256',
     'P1_PRODUCTION_HARDENING_RELEASE.env',
     'P1_R118F_RELEASE.env',
   ]) sourceInstalled.add(relative);
-  assert.equal(sourceInstalled.size, 186);
+  assert.equal(sourceInstalled.size, 184);
   const candidate = new Set(target.keys());
   for (const relative of [
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256',

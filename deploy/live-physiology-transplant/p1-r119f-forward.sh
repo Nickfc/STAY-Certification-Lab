@@ -25,18 +25,20 @@ SOURCE_RELEASE_MANIFEST_RELATIVE='deploy/live-physiology-transplant/P1_PRODUCTIO
 SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'
 TARGET_RELEASE_MANIFEST_RELATIVE='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'
 SOURCE_RELEASE_MANIFEST_RECORD_COUNT=188
-SOURCE_RELEASE_PRESENT_RECORD_COUNT=183
-SOURCE_RELEASE_FILE_COUNT=186
+SOURCE_RELEASE_PRESENT_RECORD_COUNT=181
+SOURCE_RELEASE_FILE_COUNT=184
 TARGET_RELEASE_MANIFEST_RECORD_COUNT=221
 TARGET_CANDIDATE_FILE_COUNT=224
 TARGET_RELEASE_FILE_COUNT=225
 
 SOURCE_RELEASE_ABSENT_RECORDS=(
+  'bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37  ./deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md'
   '259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md'
   '7b5370cd244b427bbdac062b9be09af1e853ece9a416dd22a72e220e03789fcc  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256'
   '433430f1e360d1183e29e016978c9610fd1b2d1070aab5415facb39aab8896df  ./deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js'
   '386da10cf952cd448ffc8315e797165c292208561246e47a223565825a922d52  ./deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh'
   '048bdec2ab67e2a2ff0114e8d5fecec1c81879addbfe9b13a53b70b7c263602c  ./docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md'
+  '42aae340f5dfc8a43dc8c3f38855df1b3e681e51102d0ab1b5be14ebfb456404  ./test/p1-r118f-release-contract.test.js'
 )
 SOURCE_RELEASE_METADATA_FILES=(
   "$SOURCE_RELEASE_MANIFEST_RELATIVE"
@@ -75,6 +77,7 @@ OVERLAY_FILES=(
   'cores/chronobiology/c3r5/validation.js'
   'runtime/kernel/chronobiology-resident-contracts.js'
   'runtime/kernel/living-kernel.js'
+  'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md'
   'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md'
   'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256'
   'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'
@@ -91,6 +94,7 @@ OVERLAY_FILES=(
   'test/p1-r119f-chronobiology-bounded-catchup-repair.test.js'
   'test/p1-r119f-entry-path.test.js'
   'test/p1-r119f-release-contract.test.js'
+  'test/p1-r118f-release-contract.test.js'
   'docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md'
 )
 
