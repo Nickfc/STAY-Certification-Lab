@@ -83,6 +83,7 @@ jobs:
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          set +e
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
             "$TARGET_RELEASE" "$CONTROLLER_SHA256" "$PRODUCTION_PRIVATE_IPV4" \
             > "$RUNNER_TEMP/r118f-diagnostic.raw" 2>&1 <<'REMOTE'
@@ -94,9 +95,16 @@ jobs:
           before_pointer="$(readlink -f /opt/stay/current)"
           before_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
           before_meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          controller=/usr/local/sbin/stay-p1-production-controller
+          echo "R118F_DIAGNOSTIC_OBSERVED_IPV4=$observed"
+          echo "R118F_DIAGNOSTIC_POINTER=$before_pointer"
+          echo "R118F_DIAGNOSTIC_SERVICE=$before_service"
+          echo "R118F_DIAGNOSTIC_HEALTH=$before_health"
+          echo "R118F_DIAGNOSTIC_META=$before_meta"
+          echo "R118F_DIAGNOSTIC_CONTROLLER_STAT=$(stat -Lc '%U:%G:%a:%h' "$controller" 2>&1)"
+          echo "R118F_DIAGNOSTIC_CONTROLLER_SHA256=$(sha256sum "$controller" 2>&1 | awk '{print $1}')"
           [[ "$before_pointer" == "$expected_release" ]]
           [[ "$(systemctl is-active stay.service)" == active ]]
-          controller=/usr/local/sbin/stay-p1-production-controller
           [[ -f "$controller" && ! -L "$controller" ]]
           [[ "$(stat -Lc '%U:%G:%a:%h' "$controller")" == root:root:555:1 ]]
           [[ "$(sha256sum "$controller" | awk '{print $1}')" == "$controller_sha" ]]
@@ -214,7 +222,11 @@ jobs:
           echo 'RESIDENT_OPERATION=NO'
           echo 'AUTHORITY_CHANGE=NO'
           REMOTE
+          ssh_status=$?
+          set -e
           cat "$RUNNER_TEMP/r118f-diagnostic.raw"
+          echo "R118F_DIAGNOSTIC_SSH_EXIT=$ssh_status"
+          [[ "$ssh_status" -eq 0 ]]
           grep -Fx 'R118F_FORWARD_RECOVERY_DIAGNOSTIC=PASS' "$RUNNER_TEMP/r118f-diagnostic.raw"
           grep -Fx 'SERVICE_OPERATION=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
           grep -Fx 'CURRENT_POINTER_CHANGE=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
@@ -222,9 +234,10 @@ jobs:
           grep -Fx 'RESIDENT_OPERATION=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
           grep -Fx 'AUTHORITY_CHANGE=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
       - name: Upload read-only diagnostic evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: r118f-v10-forward-diagnostic-${{ github.run_id }}
           path: ${{ runner.temp }}/r118f-diagnostic.raw
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
