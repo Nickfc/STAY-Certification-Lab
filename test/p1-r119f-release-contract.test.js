@@ -9,10 +9,10 @@ const test = require('node:test');
 
 const { stableStringify } = require('../runtime/kernel/canonical-json');
 const { BASELINE, REPAIR } = require(
-  '../deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair');
+  '../deploy/live-physiology-transplant/p1-r119f-chronobiology-bounded-catchup-repair');
 const { EXPECTED_SNTSS, verify } = require(
-  '../deploy/live-physiology-transplant/p1-r118f-live-proof');
-const freeze = require('../deploy/live-physiology-transplant/p1-r118f-freeze');
+  '../deploy/live-physiology-transplant/p1-r119f-live-proof');
+const freeze = require('../deploy/live-physiology-transplant/p1-r119f-freeze');
 const { LivingKernel } = require('../runtime/kernel/living-kernel');
 
 const root = path.resolve(__dirname, '..');
@@ -51,7 +51,7 @@ function resident({ chrono = false, repaired = false, generation = null } = {}) 
 
 function before() {
   return {
-    quickCheck: 'ok', runtimeRevision: 116, runtimeReason: 'core.install',
+    quickCheck: 'ok', runtimeRevision: 118, runtimeReason: 'core.install',
     residents: [resident({ chrono: true }), resident()],
     consumers: [{
       consumer_id: BASELINE.residencyId, core_id: BASELINE.coreId,
@@ -75,8 +75,12 @@ function before() {
     recoveryHighWaterId: 88,
     chronobiologyCoreFaultsThroughHighWater: 3,
     sntssCoreFaultsThroughHighWater: 2,
-    latestImplementationRepair: null,
-    latestResyncRequired: { id: 88, detail: { code: 'COREHOST_TIMEOUT' } },
+    latestImplementationRepair: { id: 87, detail: {
+      repairId: 'chronobiology-c3r4-r116-contained-performance',
+    } },
+    latestResyncRequired: { id: 88, detail: {
+      code: 'CORE_WORKER_TIMEOUT', sequence: BASELINE.failedSequence,
+    } },
     latestColdReplayBegin: { detail: {
       pendingCount: 4096, abandonedCount: 0, inventedBiologicalTime: false,
     } },
@@ -87,9 +91,9 @@ function before() {
 }
 
 function after(source) {
-  return {
+  const snapshot = {
     ...source,
-    runtimeRevision: 118,
+    runtimeRevision: 119,
     runtimeReason: 'core.install',
     residents: [
       resident({ chrono: true, repaired: true, generation: 5120 }),
@@ -131,12 +135,26 @@ function after(source) {
       resourceLimitsChanged: false,
     } },
     latestBiologicalResync: { id: 90, detail: {
-      runtimeRevision: 117, abandonedCount: 0, inventedBiologicalTime: false,
+      runtimeRevision: 119, abandonedCount: 0, inventedBiologicalTime: false,
     } },
     latestResidentResync: { id: 92, detail: {
-      runtimeRevision: 117, abandonedCount: 0, inventedBiologicalTime: false,
+      runtimeRevision: 119, abandonedCount: 0, inventedBiologicalTime: false,
     } },
   };
+  const chrono = snapshot.residents.find(value => value.residency_id === BASELINE.residencyId);
+  chrono.checkpoint_hash = 'b'.repeat(64);
+  snapshot.checkpoints.push({
+    checkpoint_id: 'chronobiology-c3r5-current-5120',
+    residency_id: BASELINE.residencyId,
+    instance_id: BASELINE.instanceId,
+    version: REPAIR.version,
+    state_schema: REPAIR.stateSchema,
+    generation: 5120,
+    blob_hash: 'b'.repeat(64),
+    byte_length: BASELINE.checkpointByteLength + 128,
+    input_cursor: BASELINE.consumerCursor + 10,
+  });
+  return snapshot;
 }
 
 function resourceStatus(chrono = false) {
@@ -148,7 +166,7 @@ function resourceStatus(chrono = false) {
     observedOutputs: 0,
     declaredOutputs: chrono ? 1 : 0,
     handledEvents: 10,
-    health: chrono ? { ok: true, stage: 'c3-shadow-jitless-topology-performance-repair' } : {
+    health: chrono ? { ok: true, stage: 'c3-shadow-jitless-bounded-catchup-repair' } : {
       ok: true, lineageSha256: EXPECTED_SNTSS.lineageSha256,
       biologicalOutputs: 0,
     },
@@ -171,7 +189,7 @@ function resourceStatus(chrono = false) {
 
 function meta() {
   return {
-    ok: true, revision: 118,
+    ok: true, revision: 119,
     cores: [{ id: 'fetus-legacy', ok: true, memoryGuardian: {
       status: 'healthy', warnAtMiB: 192, recycleAtMiB: 256,
     } }],
@@ -187,7 +205,7 @@ function meta() {
   };
 }
 
-test('R118F-REL-01 live proof preserves lineage, history, limits, fetus and chip truth', () => {
+test('R119F-REL-01 live proof preserves lineage, history, limits, fetus and chip truth', () => {
   const source = before();
   const proof = verify({
     before: source,
@@ -199,10 +217,18 @@ test('R118F-REL-01 live proof preserves lineage, history, limits, fetus and chip
       afterRestarts: 0, restartCommands: 1 },
   });
   assert.equal(proof.result, 'PASS');
-  assert.deepEqual(proof.runtime, { fromRevision: 116, recoveryRevision: 117, toRevision: 118 });
+  assert.deepEqual(proof.runtime, { fromRevision: 118, recoveryRevision: 119, toRevision: 119 });
   assert.equal(proof.continuity.abandonedCount, 0);
   assert.equal(proof.continuity.inventedBiologicalTime, false);
   assert.deepEqual(proof.chips, { bsf: 'LIVE', sntss: 'SHADOW', chronobiology: 'SHADOW' });
+  const retained = after(source);
+  retained.checkpoints = retained.checkpoints.filter(value => value.generation === 5120);
+  assert.equal(verify({
+    before: source, after: retained, sntssStatus: resourceStatus(false),
+    chronobiologyStatus: resourceStatus(true), meta: meta(),
+    service: { beforePid: 100, afterPid: 200, beforeRestarts: 0,
+      afterRestarts: 0, restartCommands: 1 },
+  }).result, 'PASS');
   const leaking = after(source);
   leaking.chronobiologyAuthorityRows = 1;
   assert.throws(() => verify({
@@ -210,20 +236,20 @@ test('R118F-REL-01 live proof preserves lineage, history, limits, fetus and chip
     chronobiologyStatus: resourceStatus(true), meta: meta(),
     service: { beforePid: 100, afterPid: 200, beforeRestarts: 0,
       afterRestarts: 0, restartCommands: 1 },
-  }), { code: 'R118F_AFTER_CONTAINMENT' });
+  }), { code: 'R119F_AFTER_CONTAINMENT' });
   const falseProvenance = after(source);
   falseProvenance.checkpoints.find(value =>
-    value.generation === REPAIR.checkpointGeneration).input_cursor = BASELINE.consumerCursor;
+    value.generation === 5120).input_cursor = BASELINE.checkpointInputCursor;
   assert.throws(() => verify({
     before: source, after: falseProvenance, sntssStatus: resourceStatus(false),
     chronobiologyStatus: resourceStatus(true), meta: meta(),
     service: { beforePid: 100, afterPid: 200, beforeRestarts: 0,
       afterRestarts: 0, restartCommands: 1 },
-  }), { code: 'R118F_AFTER_CHECKPOINT' });
+  }), { code: 'R119F_AFTER_CHECKPOINT' });
 });
 
-test('R118F-REL-02 freeze binds immutable release and acceptance evidence', t => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'stay-r118f-freeze-'));
+test('R119F-REL-02 freeze binds immutable release and acceptance evidence', t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'stay-r119f-freeze-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const release = path.join(directory, 'release');
   fs.mkdirSync(release);
@@ -243,8 +269,10 @@ test('R118F-REL-02 freeze binds immutable release and acceptance evidence', t =>
     proof: write('proof.json', proof),
     preflight: write('preflight.json', { result: 'PASS' }),
     'entry-proof': write('entry.json', {
-      result: 'PASS', hardCpuPercent: 20, hardRamMiB: 96,
-      ipcTransitionTimeoutMs: 1000,
+      result: 'PASS', version: '1.0.0-c3rc.5',
+      declaredHandlerTimeoutMs: 250, workerTransitionTimeoutMs: 250,
+      ipcTransitionTimeoutMs: 1000, elapsedSlicesMs: [1, 1, 1, 1, 1, 1, 1],
+      hardCpuPercent: 20, hardRamMiB: 96,
       cgroupRequired: true, payloadCgroupRequired: true,
       payloadCgroupAvailable: true, payloadCpuMax: '20000 100000',
       payloadMemoryHigh: String(64 * 1024 * 1024),
@@ -255,7 +283,7 @@ test('R118F-REL-02 freeze binds immutable release and acceptance evidence', t =>
     'service-proof': write('service.json', { beforePid: 100, afterPid: 200,
       beforeRestarts: 0, afterRestarts: 0, restartCommands: 1 }),
     release,
-    'release-tag': 'r118f-v2',
+    'release-tag': 'r119f-v2',
     'release-commit': 'a'.repeat(40),
     'release-tree': 'b'.repeat(40),
     'archive-sha256': `sha256:${'c'.repeat(64)}`,
@@ -264,23 +292,28 @@ test('R118F-REL-02 freeze binds immutable release and acceptance evidence', t =>
     hostname: 'stay-test',
     'private-ip': '172.26.9.207',
   });
-  assert.equal(freeze.verify(record).R118F_FREEZE, 'PASS');
+  assert.equal(freeze.verify(record).R119F_FREEZE, 'PASS');
   const corrupt = structuredClone(record);
   corrupt.continuity.abandonedCount = 1;
-  assert.throws(() => freeze.verify(corrupt), { code: 'R118F_FREEZE_VERIFY' });
+  assert.throws(() => freeze.verify(corrupt), { code: 'R119F_FREEZE_VERIFY' });
 });
 
-test('R118F-REL-03 scripts expose one restart, exact revision progression and no widened limits', () => {
+test('R119F-REL-03 scripts expose one restart, exact revision progression and no widened limits', () => {
   const read = name => fs.readFileSync(path.join(root,
     'deploy/live-physiology-transplant', name), 'utf8');
-  const forward = read('p1-r118f-forward.sh');
-  const recovery = read('p1-r118f-forward-recovery.sh');
-  const finalize = read('p1-r118f-finalize.sh');
+  const forward = read('p1-r119f-forward.sh');
+  const recovery = read('p1-r119f-forward-recovery.sh');
+  const finalize = read('p1-r119f-finalize.sh');
   assert.equal((forward.match(/systemctl restart stay\.service/g) || []).length, 1);
   assert.equal((recovery.match(/systemctl restart stay\.service/g) || []).length, 0);
   assert.equal((finalize.match(/systemctl restart stay\.service/g) || []).length, 0);
-  assert.match(forward, /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=117/);
-  assert.match(forward, /revision[^\n]*== 118|revision 2>\/dev\/null \|\| true\)" == 118/);
+  assert.match(forward, /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=119/);
+  assert.match(forward, /durable_runtime_revision\)" == 118/);
+  assert.match(forward,
+    /SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'/);
+  assert.match(forward, /sha256sum -c "\$SOURCE_RELEASE_MANIFEST_RELATIVE"/);
+  assert.match(forward, /echo 'P1_PRODUCTION_HARDENING_RELEASE\.env'/);
+  assert.match(forward, /echo 'P1_R118F_RELEASE\.env'/);
   assert.match(forward, /--property=Delegate=yes/);
   assert.match(forward, /STAY_REQUIRE_CGROUPS=1/);
   assert.match(forward, /payloadCpuMax\)" == '20000 100000'/);
@@ -293,25 +326,29 @@ test('R118F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward, /cat "\$WORK\/c3r3-historical-tests\.tap"/);
   assert.doesNotMatch(forward, /test-name-pattern=.*C3R4/);
   assert.doesNotMatch(`${forward}\n${recovery}\n${finalize}`,
-    /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=(?:11[8-9]|1[2-9][0-9])/);
+    /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=(?:12[0-9]|[2-9][0-9]{2,})/);
+  assert.equal((recovery.match(/systemctl start stay\.service/g) || []).length, 1);
+  assert.match(recovery, /revision" == 118[\s\S]*systemctl start stay\.service/);
+  assert.match(recovery, /elif \[\[ "\$revision" != 119 \]\]/);
+  assert.match(recovery, /validate_repair_state 118/);
+  assert.match(recovery, /validate_repair_state 119/);
+  assert.match(recovery,
+    /Number\(resident\?\.checkpoint_generation\) > REPAIR\.checkpointGeneration[\s\S]*currentCheckpointExact/);
+  assert.match(recovery,
+    /currentCheckpoint\?\.blob_hash === resident\?\.checkpoint_hash[\s\S]*Number\(currentCheckpoint\?\.input_cursor\) === Number\(consumer\?\.cursor\)/);
+  assert.doesNotMatch(recovery, /validate_repair_state \|\|/);
+  assert.equal((forward.match(/point_current "\$SOURCE_RELEASE"/g) || []).length, 1);
+  assert.doesNotMatch(forward, /chronobiology-bounded-catchup-repair\.js"\s+rollback/);
+  assert.match(forward,
+    /elif \[\[ "\$COMPLETED" -eq 0 \]\]; then[\s\S]*write_recovery_marker[\s\S]*LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
   assert.match(forward, /overlay_digest="\$\(\s*cd "\$STAGE_ROOT"[\s\S]*sha256sum "\$file"/);
   assert.doesNotMatch(forward,
     /overlay_digest="\$\([\s\S]{0,240}sha256sum "\$STAGE_ROOT\/\$file"/);
 });
 
-test('R118F-REL-04 release manifest is exact for every listed file and carries repair dependencies', () => {
+test('R119F-REL-04 release manifest is exact for every listed file and carries repair dependencies', () => {
   const manifestFile = path.join(root,
-    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256');
-  const successorFile = path.join(root,
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256');
-  const successorEntries = new Map();
-  if (fs.existsSync(successorFile)) {
-    for (const line of fs.readFileSync(successorFile, 'utf8').trim().split(/\r?\n/)) {
-      const match = /^([0-9a-f]{64})  \.\/(.+)$/.exec(line);
-      assert.ok(match, `invalid successor manifest line: ${line}`);
-      successorEntries.set(match[2], match[1]);
-    }
-  }
   const lines = fs.readFileSync(manifestFile, 'utf8').trim().split(/\r?\n/);
   const entries = new Map();
   for (const line of lines) {
@@ -320,11 +357,7 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     assert.equal(entries.has(match[2]), false, `duplicate manifest path: ${match[2]}`);
     entries.set(match[2], match[1]);
     const bytes = fs.readFileSync(path.join(root, match[2]));
-    const actual = crypto.createHash('sha256').update(bytes).digest('hex');
-    if (actual !== match[1]) {
-      assert.equal(successorEntries.get(match[2]), actual,
-        `${match[2]} drifted without exact successor-manifest custody`);
-    }
+    assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), match[1], match[2]);
   }
   for (const required of [
     'cores/chronobiology/c3/aggregate.js',
@@ -332,6 +365,7 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     'cores/chronobiology/c3r2/index.js',
     'cores/chronobiology/c3r3/index.js',
     'cores/chronobiology/c3r4/index.js',
+    'cores/chronobiology/c3r5/index.js',
     'cores/sntss/neutral/index.js',
     'runtime/kernel/core-host-client.js',
     'runtime/kernel/core-loader.js',
@@ -339,10 +373,12 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     'runtime/kernel/living-kernel.js',
     'runtime/kernel/resident-manager.js',
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256',
-    'deploy/live-physiology-transplant/p1-r118f-forward.sh',
-    'deploy/live-physiology-transplant/p1-r118f-forward-recovery.sh',
-    'deploy/live-physiology-transplant/p1-r118f-chronobiology-implementation-repair.js',
-    'test/p1-r118f-entry-path.test.js',
+    'deploy/live-physiology-transplant/p1-r119f-forward.sh',
+    'deploy/live-physiology-transplant/p1-r119f-forward-recovery.sh',
+    'deploy/live-physiology-transplant/p1-r119f-chronobiology-bounded-catchup-repair.js',
+    'test/p1-r119f-entry-path.test.js',
+    'test/p1-r119f-release-contract.test.js',
+    'test/chronobiology-c3r5-bounded-catchup-repair.test.js',
     'test/chronobiology-c3r3-jitless-performance-repair.test.js',
     'test/chronobiology-c3r4-topology-performance-repair.test.js',
     'test/chronobiology-c3r4-performance-lab.test.js',
@@ -351,14 +387,14 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
   ]) assert.equal(entries.has(required), true, required);
 });
 
-test('R118F-REL-05 durable implementation identity selects only its matching contract', t => {
+test('R119F-REL-05 durable implementation identity selects only its matching contract', t => {
   const managers = [];
   const makeKernel = durableChronobiology => {
     const kernel = Object.create(LivingKernel.prototype);
     Object.assign(kernel, {
       durableResidentsDisabled: false,
       residentManager: null,
-      identity: { organismId: 'stay-r118f-test', createdAt: '2026-08-29T00:00:00.000Z',
+      identity: { organismId: 'stay-r119f-test', createdAt: '2026-08-29T00:00:00.000Z',
         lineage: 'STAY/Genesis' },
       releaseRoot: root,
       stateStore: { getResident(id) {

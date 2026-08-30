@@ -180,7 +180,8 @@ class LivingKernel {
     const {
       CHRONOBIOLOGY_R2_RESIDENT_CONTRACT,
       CHRONOBIOLOGY_R3_RESIDENT_CONTRACT,
-      CHRONOBIOLOGY_R4_RESIDENT_CONTRACT
+      CHRONOBIOLOGY_R4_RESIDENT_CONTRACT,
+      CHRONOBIOLOGY_R5_RESIDENT_CONTRACT
     } = require('./chronobiology-resident-contracts');
 
     const durableSntss =
@@ -206,6 +207,7 @@ class LivingKernel {
         );
 
     const chronobiologyContract = [
+      [CHRONOBIOLOGY_R5_RESIDENT_CONTRACT, 'cores/chronobiology/c3r5/index.js'],
       [CHRONOBIOLOGY_R4_RESIDENT_CONTRACT, 'cores/chronobiology/c3r4/index.js'],
       [CHRONOBIOLOGY_R3_RESIDENT_CONTRACT, 'cores/chronobiology/c3r3/index.js'],
       [CHRONOBIOLOGY_R2_RESIDENT_CONTRACT, 'cores/chronobiology/c3r2/index.js']
