@@ -19,24 +19,24 @@ const bootstrapWorkflow = read('.github/workflows/p1-r119f-controller-bootstrap.
 const wrapperSha256 = sha256(Buffer.from(wrapper));
 const installerSha256 = sha256(Buffer.from(installer));
 
-test('R119F-BRIDGE-01 controller binds the exact immutable V1 release cohort', () => {
+test('R119F-BRIDGE-01 controller binds the exact immutable V2 release cohort', () => {
   for (const identity of [
-    "EXPECTED_RELEASE_TAG='r119f-v1'",
-    "EXPECTED_RELEASE_COMMIT='ea28a3c9722a59fb385cfeed84792a4839d58909'",
-    "EXPECTED_RELEASE_TREE='9aa59b581190decf1666200a1951f3f76e0c96c9'",
-    "EXPECTED_ARCHIVE='STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V1_BUNDLE_20260830.tar.gz'",
-    "EXPECTED_ARCHIVE_SHA256='b51ec80025b215d5a65a22e709bfa2f7b6ecfdeb0b26519224efd1eeaae9a7ff'",
-    "EXPECTED_SIDECAR_SHA256='4b48c5a902077e5d597da627629f56b53a746538483b035182ec59c779021590'",
-    "EXPECTED_MANIFEST_SHA256='b2b79e13fc0be1de2728c9e8c5a5d1e14430841743479cbbdebe9d5502bebaee'",
-    "EXPECTED_FORWARD_SHA256='21c3510d158e2cf5e174cf1ede1ba472968a3c1e5dbdfe25b72df44919e281a1'",
+    "EXPECTED_RELEASE_TAG='r119f-v2'",
+    "EXPECTED_RELEASE_COMMIT='1d2c4ce7c2ba5f6b670b4a2ec7272796e90ac289'",
+    "EXPECTED_RELEASE_TREE='a6de972fd5a9c22e5b268a0f57267883b0b947d9'",
+    "EXPECTED_ARCHIVE='STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V2_BUNDLE_20260830.tar.gz'",
+    "EXPECTED_ARCHIVE_SHA256='b22a6e239065171bac1bfea69fec610ae7185445f8ba40938e6788fa48637a25'",
+    "EXPECTED_SIDECAR_SHA256='7a71bdb659b606b0ffcc99f329a96954d2536a204ec0919026ad0d81f6e71c0e'",
+    "EXPECTED_MANIFEST_SHA256='1290b006d6b6b942dd6c6a83c7fa471fa6177cece58e57538807909583772574'",
+    "EXPECTED_FORWARD_SHA256='43f67fed4596e711eb7dcc0f302be794392475a0626d8a4c40a656f3b11cccc3'",
     "EXPECTED_RECOVERY_SHA256='c6a44bfc956beb07aa0b3ef3fa6a36da9e27926d3a347d0ef20a72a7ddaf9f00'",
-    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-87a9aeaa1b01'",
+    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2c1a36ee2c74'",
     "MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'",
   ]) assert.equal(wrapper.includes(identity), true, identity);
-  assert.match(wrapper, /"\$\{#entries\[@\]\}" -eq 250/);
-  assert.match(wrapper, /-type f \| wc -l\)" -eq 221/);
-  assert.match(wrapper, /wc -l < "\$root\/\$MANIFEST"\)" -eq 220/);
-  assert.match(wrapper, /if \(NR != 220\) exit 1/);
+  assert.match(wrapper, /"\$\{#entries\[@\]\}" -eq 251/);
+  assert.match(wrapper, /-type f \| wc -l\)" -eq 222/);
+  assert.match(wrapper, /wc -l < "\$root\/\$MANIFEST"\)" -eq 221/);
+  assert.match(wrapper, /if \(NR != 221\) exit 1/);
 });
 
 test('R119F-BRIDGE-02 wrapper exposes only exact forward and recovery operations', () => {
@@ -46,11 +46,11 @@ test('R119F-BRIDGE-02 wrapper exposes only exact forward and recovery operations
   assert.match(operationBlock, /harden-r119f\)/);
   assert.match(operationBlock, /recover-r119f\)/);
   assert.doesNotMatch(operationBlock, /diagnostic|shell|command|script-path/);
-  assert.match(wrapper, /AUTHORIZE_R119F_V1_CONTAINED_FORWARD_WITH_FENCED_RECOVERY/);
-  assert.match(wrapper, /AUTHORIZE_R119F_V1_FORWARD_RECOVERY_ONLY/);
+  assert.match(wrapper, /AUTHORIZE_R119F_V2_CONTAINED_FORWARD_WITH_FENCED_RECOVERY/);
+  assert.match(wrapper, /AUTHORIZE_R119F_V2_FORWARD_RECOVERY_ONLY/);
   assert.match(wrapper, /REPAIR_R118_CHRONOBIOLOGY_CPU_TO_R119F_AND_BENCHMARK_72H/);
   assert.match(wrapper, /COMPLETE_REVISION_FENCED_R119F_WITH_AT_MOST_ONE_START/);
-  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r119f-v1-\[0-9\]\+\$/);
+  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r119f-v2-\[0-9\]\+\$/);
   assert.equal((wrapper.match(/if run_bounded_script/g) || []).length, 3);
   assert.doesNotMatch(wrapper, /set \+e\s+run_bounded_script/);
 });
@@ -69,7 +69,7 @@ test('R119F-BRIDGE-03 archive extraction and cleanup remain path- and identity-f
 
 test('R119F-BRIDGE-04 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    '8044dba5b17805d3bc14cd3570380a399c8ed502d8f1d02ceb289f73645fe55a');
+    '190b6631d3d21cf0dbba4116c2910d6c8f0acc52f901ac0269065022f5afdbee');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
@@ -84,7 +84,7 @@ test('R119F-BRIDGE-05 bootstrap seals exact artifacts and pauses at the root bri
   assert.match(bootstrapWorkflow, /^\s{2}workflow_dispatch:/m);
   assert.doesNotMatch(bootstrapWorkflow, /^\s{2}(push|pull_request|schedule):/m);
   assert.match(bootstrapWorkflow,
-    /AUTHORIZE_R119F_V1_PINNED_CONTROLLER_BOOTSTRAP/);
+    /AUTHORIZE_R119F_V2_PINNED_CONTROLLER_BOOTSTRAP/);
   assert.match(bootstrapWorkflow, new RegExp(`WRAPPER_SHA256: ${wrapperSha256}`));
   assert.match(bootstrapWorkflow, new RegExp(`INSTALLER_SHA256: ${installerSha256}`));
   assert.match(bootstrapWorkflow, /\[\[ "\$GITHUB_REF" == refs\/heads\/main \]\]/);
@@ -99,21 +99,21 @@ test('R119F-BRIDGE-05 bootstrap seals exact artifacts and pauses at the root bri
 
 test('R119F-BRIDGE-06 production workflow revalidates the hosted immutable archive', () => {
   for (const identity of [
-    'RELEASE_TAG_OBJECT: 149d3123398ff20556791b247fde0707eea6992a',
-    'RELEASE_COMMIT: ea28a3c9722a59fb385cfeed84792a4839d58909',
-    'RELEASE_TREE: 9aa59b581190decf1666200a1951f3f76e0c96c9',
-    'ARCHIVE_SHA256: b51ec80025b215d5a65a22e709bfa2f7b6ecfdeb0b26519224efd1eeaae9a7ff',
-    'SIDECAR_SHA256: 4b48c5a902077e5d597da627629f56b53a746538483b035182ec59c779021590',
-    'MANIFEST_SHA256: b2b79e13fc0be1de2728c9e8c5a5d1e14430841743479cbbdebe9d5502bebaee',
-    'TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-87a9aeaa1b01',
+    'RELEASE_TAG_OBJECT: 2bc49668ae05fa2408000bd41ba20761ab2b172e',
+    'RELEASE_COMMIT: 1d2c4ce7c2ba5f6b670b4a2ec7272796e90ac289',
+    'RELEASE_TREE: a6de972fd5a9c22e5b268a0f57267883b0b947d9',
+    'ARCHIVE_SHA256: b22a6e239065171bac1bfea69fec610ae7185445f8ba40938e6788fa48637a25',
+    'SIDECAR_SHA256: 7a71bdb659b606b0ffcc99f329a96954d2536a204ec0919026ad0d81f6e71c0e',
+    'MANIFEST_SHA256: 1290b006d6b6b942dd6c6a83c7fa471fa6177cece58e57538807909583772574',
+    'TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2c1a36ee2c74',
     `WRAPPER_SHA256: ${wrapperSha256}`,
   ]) assert.equal(productionWorkflow.includes(identity), true, identity);
   assert.match(productionWorkflow, /gh api "repos\/\$GITHUB_REPOSITORY\/git\/ref\/tags\/\$RELEASE_TAG"/);
   assert.match(productionWorkflow, /gh release download "\$RELEASE_TAG"/);
   assert.match(productionWorkflow, /sha256sum -c "\$ARCHIVE\.sha256"/);
-  assert.match(productionWorkflow, /"\$\{#entries\[@\]\}" -eq 250/);
-  assert.match(productionWorkflow, /-type f \| wc -l\)" -eq 221/);
-  assert.match(productionWorkflow, /wc -l < "\$extract\/\$manifest"\)" -eq 220/);
+  assert.match(productionWorkflow, /"\$\{#entries\[@\]\}" -eq 251/);
+  assert.match(productionWorkflow, /-type f \| wc -l\)" -eq 222/);
+  assert.match(productionWorkflow, /wc -l < "\$extract\/\$manifest"\)" -eq 221/);
   assert.match(productionWorkflow, /chronobiology-c3r5-bounded-catchup-repair\.test\.js/);
   assert.match(productionWorkflow, /p1-r119f-entry-path\.test\.js/);
   assert.match(productionWorkflow, /STAY_BWRAP=\/usr\/local\/bin\/stay-ci-bwrap/);
