@@ -198,7 +198,20 @@ test('R118F-BRIDGE-08 diagnostic is exact, read-only, and preserves live generat
   assert.match(recoveryDiagnosticWorkflow,
     /CONTROLLER_SHA256: c1ee5a94719425be5e5561f92400445d059a7844f6ad8163df4d99a7fcefe3c4/);
   assert.match(recoveryDiagnosticWorkflow,
-    /TARGET_RELEASE: \/opt\/stay\/releases\/0\.8\.11\.3-p1m-r118f-chrono-repair-8ddbb57a00a7/);
+    /TARGET_RELEASE: \/opt\/stay\/releases\/0\.8\.11\.3-p1m-r118f-chrono-repair-934069400d62/);
+  const forward = fs.readFileSync(path.join(root,
+    'deploy/live-physiology-transplant/p1-r118f-forward.sh'), 'utf8');
+  const overlayBody = forward.slice(
+    forward.indexOf('OVERLAY_FILES=(') + 'OVERLAY_FILES=('.length,
+    forward.indexOf('\n)', forward.indexOf('OVERLAY_FILES=('))
+  );
+  const overlayFiles = [...overlayBody.matchAll(/^\s+'([^']+)'$/gm)].map(match => match[1]);
+  assert.equal(overlayFiles.length, 89);
+  const linuxSha256sumOutput = overlayFiles.map(relative =>
+    `${sha256(fs.readFileSync(path.join(root, relative), 'utf8').replace(/\r\n/g, '\n'))}  ${relative}\n`
+  ).join('');
+  assert.equal(sha256(linuxSha256sumOutput),
+    '934069400d628dd451decc8b9690f6ffe5c253033ca5788a7f61c7592aa8ddba');
   assert.match(recoveryDiagnosticWorkflow,
     /new DatabaseSync\(process\.env\.STAY_DATABASE, \{ open: true, readOnly: true \}\)/);
   assert.match(recoveryDiagnosticWorkflow, /PRAGMA query_only=ON/);
@@ -206,6 +219,9 @@ test('R118F-BRIDGE-08 diagnostic is exact, read-only, and preserves live generat
   assert.match(recoveryDiagnosticWorkflow, /chronobiologyPendingDeliveries/);
   assert.match(recoveryDiagnosticWorkflow, /pendingOutboxIntents/);
   assert.match(recoveryDiagnosticWorkflow, /physiologyAuthorityRows/);
+  assert.match(recoveryDiagnosticWorkflow, /R118F_SNAPSHOT_DIAGNOSTIC/);
+  assert.match(recoveryDiagnosticWorkflow, /afterR116Cursor/);
+  assert.match(recoveryDiagnosticWorkflow, /slice\(-24\)/);
   assert.match(recoveryDiagnosticWorkflow, /R118F_DIAGNOSTIC_SSH_EXIT/);
   assert.match(recoveryDiagnosticWorkflow, /R118F_DIAGNOSTIC_POINTER/);
   assert.match(recoveryDiagnosticWorkflow, /R118F_DIAGNOSTIC_CONTROLLER_SHA256/);
