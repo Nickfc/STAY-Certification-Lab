@@ -1,0 +1,434 @@
+name: R119F V1 guarded production recovery
+run-name: R119F V1 · ${{ inputs.operation }} · ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Fixed revision-fenced operation
+        required: true
+        type: choice
+        default: harden-r119f
+        options:
+          - harden-r119f
+          - recover-r119f
+      authorization:
+        description: Exact operation-specific authorization
+        required: true
+        type: choice
+        default: NO
+        options:
+          - NO
+          - AUTHORIZE_R119F_V1_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
+          - AUTHORIZE_R119F_V1_FORWARD_RECOVERY_ONLY
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stay-r119f-v1-production
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: r119f-v1
+  RELEASE_TAG_OBJECT: 149d3123398ff20556791b247fde0707eea6992a
+  RELEASE_COMMIT: ea28a3c9722a59fb385cfeed84792a4839d58909
+  RELEASE_TREE: 9aa59b581190decf1666200a1951f3f76e0c96c9
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V1_BUNDLE_20260830.tar.gz
+  ARCHIVE_SHA256: b51ec80025b215d5a65a22e709bfa2f7b6ecfdeb0b26519224efd1eeaae9a7ff
+  SIDECAR_SHA256: 4b48c5a902077e5d597da627629f56b53a746538483b035182ec59c779021590
+  MANIFEST_SHA256: b2b79e13fc0be1de2728c9e8c5a5d1e14430841743479cbbdebe9d5502bebaee
+  FORWARD_SHA256: 21c3510d158e2cf5e174cf1ede1ba472968a3c1e5dbdfe25b72df44919e281a1
+  RECOVERY_SHA256: c6a44bfc956beb07aa0b3ef3fa6a36da9e27926d3a347d0ef20a72a7ddaf9f00
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-87a9aeaa1b01
+  WRAPPER_SHA256: 8044dba5b17805d3bc14cd3570380a399c8ed502d8f1d02ceb289f73645fe55a
+  PRODUCTION_PUBLIC_IPV4: 35.157.242.167
+  PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+  PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
+
+jobs:
+  validate-immutable-release:
+    name: Validate immutable release without production credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate fixed dispatch
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          case "$OPERATION" in
+            harden-r119f)
+              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V1_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
+              ;;
+            recover-r119f)
+              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V1_FORWARD_RECOVERY_ONLY ]]
+              ;;
+            *) exit 64 ;;
+          esac
+      - name: Checkout exact merged release
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.RELEASE_COMMIT }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: release-source
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Install real OS sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap
+          sudo tee /usr/local/bin/stay-ci-bwrap >/dev/null <<'EOF'
+          #!/bin/sh
+          exec sudo -n /usr/bin/bwrap "$@"
+          EOF
+          sudo chown root:root /usr/local/bin/stay-ci-bwrap
+          sudo chmod 0755 /usr/local/bin/stay-ci-bwrap
+          sudo -n true
+      - name: Download and validate hosted immutable archive
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/r119f-release"
+          extract="$root/extract"
+          install -d -m 0700 "$root" "$extract"
+          [[ "$(git -C release-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
+          [[ "$(git -C release-source rev-parse HEAD^{tree})" == "$RELEASE_TREE" ]]
+          read -r ref_type ref_sha < <(
+            gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+              --jq '.object.type + " " + .object.sha'
+          )
+          [[ "$ref_type" == tag && "$ref_sha" == "$RELEASE_TAG_OBJECT" ]]
+          read -r target_type target_sha < <(
+            gh api "repos/$GITHUB_REPOSITORY/git/tags/$RELEASE_TAG_OBJECT" \
+              --jq '.object.type + " " + .object.sha'
+          )
+          [[ "$target_type" == commit && "$target_sha" == "$RELEASE_COMMIT" ]]
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" --dir "$root"
+          [[ "$(sha256sum "$root/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
+          (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
+          mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
+          [[ "${#entries[@]}" -eq 250 ]]
+          for entry in "${entries[@]}"; do
+            [[ "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && ! "$entry" =~ ^[A-Za-z]: ]]
+          done
+          tar -tvzf "$root/$ARCHIVE" |
+            awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }'
+          tar -xzf "$root/$ARCHIVE" -C "$extract"
+          manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'
+          [[ "$(find "$extract" -type f | wc -l)" -eq 221 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 220 ]]
+          [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r119f-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r119f-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
+          (cd "$extract" && sha256sum -c "$manifest")
+          { awk '{sub(/^\.\//,"",$2); print $2}' "$extract/$manifest"; echo "$manifest"; } |
+            LC_ALL=C sort > "$root/expected"
+          (cd "$extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/actual"
+          cmp "$root/expected" "$root/actual"
+          while IFS= read -r file; do
+            case "$file" in
+              *.js) node --check "$extract/$file" >/dev/null ;;
+              *.sh) bash -n "$extract/$file" ;;
+            esac
+          done < "$root/actual"
+          entry_extract="$(mktemp -d /tmp/stay-r119f-entry.XXXXXX)"
+          cleanup_entry_extract() {
+            chmod -R u+w -- "$entry_extract" || true
+            rm -rf -- "$entry_extract"
+          }
+          trap cleanup_entry_extract EXIT
+          cp -a "$extract/." "$entry_extract/"
+          (cd "$entry_extract" && sha256sum -c "$manifest")
+          (cd "$entry_extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/entry-actual"
+          cmp "$root/expected" "$root/entry-actual"
+          find "$entry_extract" -type f -exec chmod a-w,a+r {} +
+          find "$entry_extract" -type d -exec chmod a-w,a+rx {} +
+          STAY_BWRAP=/usr/local/bin/stay-ci-bwrap node --test --test-concurrency=1 \
+            "$entry_extract/test/chronobiology-c3r2-performance-repair.test.js" \
+            "$entry_extract/test/chronobiology-c3r3-jitless-performance-repair.test.js" \
+            "$entry_extract/test/chronobiology-c3r4-performance-lab.test.js" \
+            "$entry_extract/test/chronobiology-c3r4-topology-performance-repair.test.js" \
+            "$entry_extract/test/chronobiology-c3r5-bounded-catchup-repair.test.js" \
+            "$entry_extract/test/core-host-supervisor-permissions.test.js" \
+            "$entry_extract/test/core-loader-diagnostics.test.js" \
+            "$entry_extract/test/p1-r119f-chronobiology-bounded-catchup-repair.test.js" \
+            "$entry_extract/test/p1-r119f-entry-path.test.js" \
+            "$entry_extract/test/p1-r119f-release-contract.test.js" \
+            "$entry_extract/test/production-hardening.test.js" \
+            "$entry_extract/test/production-hardening-entry-path.test.js"
+          cat > "$root/R119F_RELEASE.identity" <<EOF
+          RELEASE_TAG=$RELEASE_TAG
+          RELEASE_COMMIT=$RELEASE_COMMIT
+          RELEASE_TREE=$RELEASE_TREE
+          ARCHIVE_SHA256=$ARCHIVE_SHA256
+          SIDECAR_SHA256=$SIDECAR_SHA256
+          MANIFEST_SHA256=$MANIFEST_SHA256
+          FORWARD_SHA256=$FORWARD_SHA256
+          RECOVERY_SHA256=$RECOVERY_SHA256
+          TARGET_RELEASE=$TARGET_RELEASE
+          EOF
+      - name: Upload independently validated release inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r119f-v1-validated-release-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/r119f-release/${{ env.ARCHIVE }}
+            ${{ runner.temp }}/r119f-release/${{ env.ARCHIVE }}.sha256
+            ${{ runner.temp }}/r119f-release/R119F_RELEASE.identity
+          if-no-files-found: error
+          retention-days: 7
+
+  production-recovery:
+    name: Exact preflight and guarded production recovery
+    needs: validate-immutable-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    environment: production
+    steps:
+      - name: Download validated release inputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: r119f-v1-validated-release-${{ github.run_id }}
+          path: release-assets
+      - name: Reverify isolated deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=$'R119F_RELEASE.identity\n'"$ARCHIVE"$'\n'"$ARCHIVE.sha256"
+          [[ "$(find release-assets -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
+          (cd release-assets && sha256sum -c "$ARCHIVE.sha256")
+      - name: Prepare pinned production SSH identity
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
+      - name: Exact read-only operation-fenced production preflight
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          set -euo pipefail
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$PRODUCTION_PRIVATE_IPV4" "$WRAPPER_SHA256" "$OPERATION" "$TARGET_RELEASE" <<'REMOTE'
+          set -Eeuo pipefail
+          expected_ip="$1"; wrapper_sha="$2"; operation="$3"; target_release="$4"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == "$expected_ip" ]]
+          [[ "$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print $1}')" == "$wrapper_sha" ]]
+          case "$operation" in
+            harden-r119f)
+              source_release='/opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-934069400d62'
+              [[ "$(readlink -f /opt/stay/current)" == "$source_release" ]]
+              ;;
+            recover-r119f)
+              source_release="$target_release"
+              [[ "$source_release" == /opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-* ]]
+              [[ "$(readlink -f /opt/stay/current)" == "$source_release" ]]
+              ;;
+            *) exit 64 ;;
+          esac
+          active="$(systemctl show stay.service -p ActiveState --value)"
+          sub="$(systemctl show stay.service -p SubState --value)"
+          pid="$(systemctl show stay.service -p MainPID --value)"
+          restarts="$(systemctl show stay.service -p NRestarts --value)"
+          [[ "$restarts" =~ ^[0-9]+$ ]]
+          snapshot="$(node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
+          const crypto = require('node:crypto');
+          const { DatabaseSync } = require('node:sqlite');
+          const database = new DatabaseSync(process.argv[2], { open: true, readOnly: true });
+          try {
+            database.exec('PRAGMA query_only=ON');
+            if (String(database.prepare('PRAGMA quick_check').get()?.quick_check || '').toLowerCase() !== 'ok') process.exit(1);
+            const revisionRow = database.prepare(
+              "SELECT json, sha256 FROM metadata WHERE key='life:runtime-revision'").get();
+            if (!revisionRow || crypto.createHash('sha256').update(revisionRow.json).digest('hex') !== revisionRow.sha256) process.exit(2);
+            const revision = Number(JSON.parse(revisionRow.json).revision);
+            const residents = database.prepare(`SELECT residency_id, instance_id, version,
+              state_schema, checkpoint_generation, checkpoint_hash, status
+              FROM resident_instances WHERE residency_id IN
+              ('resident:sntss','resident:chronobiology') ORDER BY residency_id`).all();
+            const consumers = database.prepare(`SELECT consumer_id, required, active, cursor,
+              authority_epoch, checkpoint_hash FROM biological_consumers WHERE consumer_id IN
+              ('resident:sntss','resident:chronobiology') ORDER BY consumer_id`).all();
+            const chrono = residents.find(value => value.residency_id === 'resident:chronobiology');
+            const checkpoint = database.prepare(`SELECT instance_id, version, state_schema,
+              generation, blob_hash, byte_length, input_cursor FROM resident_checkpoints
+              WHERE residency_id='resident:chronobiology' AND generation=?`).get(
+                Number(chrono?.checkpoint_generation));
+            const repairRow = database.prepare(`SELECT detail_json FROM recovery_records
+              WHERE type='resident.implementation-repaired' AND core_id='chronobiology'
+              ORDER BY id DESC LIMIT 1`).get();
+            let repair = null;
+            try { repair = JSON.parse(repairRow?.detail_json || 'null'); } catch {}
+            const count = sql => Number(database.prepare(sql).get()?.value || 0);
+            process.stdout.write(JSON.stringify({ revision, residents, consumers, checkpoint,
+              repair,
+              chronobiologyPending: count("SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id='resident:chronobiology' AND status='PENDING'"),
+              pendingOutbox: count("SELECT COUNT(*) value FROM biological_outbox_intents WHERE status='PENDING'"),
+              sntssOutputs: count("SELECT COUNT(*) value FROM biological_outbox_intents WHERE producer_core_id='sntss'"),
+              sntssAuthority: count("SELECT COUNT(*) value FROM authority WHERE core_id='sntss'"),
+              chronobiologyAuthority: count("SELECT COUNT(*) value FROM authority WHERE core_id='chronobiology'"),
+            }));
+          } finally { database.close(); }
+          NODE
+          )"
+          node - "$operation" "$snapshot" "$active" "$sub" "$pid" <<'NODE'
+          const [operation, encoded, active, sub, pid] = process.argv.slice(2);
+          const value = JSON.parse(encoded);
+          const resident = id => value.residents.find(row => row.residency_id === id);
+          const consumer = id => value.consumers.find(row => row.consumer_id === id);
+          const s = resident('resident:sntss');
+          const c = resident('resident:chronobiology');
+          const cc = consumer('resident:chronobiology');
+          const contained = value.chronobiologyPending === 0 && value.pendingOutbox === 0
+            && value.sntssOutputs === 0 && value.sntssAuthority === 0
+            && value.chronobiologyAuthority === 0;
+          const sntss = s?.instance_id === '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f'
+            && s?.version === '0.5.0-i4g1' && s?.status === 'RUNNING';
+          const baseline = c?.instance_id === 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'
+            && c?.version === '1.0.0-c3rc.4' && Number(c?.state_schema) === 2
+            && c?.status === 'RESYNC_REQUIRED'
+            && Number(c?.checkpoint_generation) === 5118
+            && c?.checkpoint_hash === '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae'
+            && value.checkpoint?.instance_id === c.instance_id
+            && value.checkpoint?.version === c.version
+            && Number(value.checkpoint?.generation) === 5118
+            && value.checkpoint?.blob_hash === c.checkpoint_hash
+            && Number(value.checkpoint?.byte_length) === 49287
+            && Number(value.checkpoint?.input_cursor) === 1636338
+            && Number(cc?.active) === 0 && Number(cc?.cursor) === 2341576;
+          const repairEvidence = value.repair?.repairId === 'chronobiology-c3r5-r118-bounded-catchup'
+            && value.repair?.instanceId === 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'
+            && value.repair?.sourceCheckpointId === '039d2b99-b950-4bab-beac-83f602b27be2'
+            && value.repair?.checkpointHash === '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae'
+            && Number(value.repair?.checkpointByteLength) === 49287
+            && Number(value.repair?.checkpointInputCursor) === 1636338
+            && Number(value.repair?.consumerCursor) === 2341576
+            && value.repair?.biologicalStateChanged === false
+            && value.repair?.checkpointBytesChanged === false
+            && Number(value.repair?.abandonedCount) === 0
+            && value.repair?.inventedBiologicalTime === false
+            && value.repair?.authorityChanged === false
+            && value.repair?.resourceLimitsChanged === false;
+          const repaired = c?.instance_id === 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'
+            && c?.version === '1.0.0-c3rc.5' && Number(c?.state_schema) === 2
+            && Number(c?.checkpoint_generation) >= 5119
+            && value.checkpoint?.instance_id === c.instance_id
+            && value.checkpoint?.version === c.version
+            && Number(value.checkpoint?.generation) === Number(c.checkpoint_generation)
+            && value.checkpoint?.blob_hash === c.checkpoint_hash
+            && Number(value.checkpoint?.byte_length) > 0
+            && (Number(c.checkpoint_generation) === 5119
+              ? (c.checkpoint_hash === '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae'
+                && Number(value.checkpoint.input_cursor) === 1636338)
+              : (Number(value.checkpoint.input_cursor) === Number(cc?.cursor)
+                && Number(cc?.cursor) > 2341576))
+            && repairEvidence;
+          const serviceRunning = active === 'active' && sub === 'running' && /^[1-9][0-9]*$/.test(pid);
+          const common = contained && sntss && Number(cc?.required) === 0
+            && Number(cc?.authority_epoch) === 0 && cc?.checkpoint_hash === c?.checkpoint_hash;
+          if (operation === 'harden-r119f') {
+            if (!(value.revision === 118 && serviceRunning && common && baseline)) process.exit(1);
+          } else if (value.revision === 118) {
+            if (!(common && (baseline || (repaired && c.status === 'RESYNC_REQUIRED'
+              && Number(cc.active) === 0))
+              && (serviceRunning || (active !== 'active' && pid === '0')))) process.exit(2);
+          } else if (value.revision === 119) {
+            if (!(serviceRunning && common && repaired && c.status === 'RUNNING'
+              && Number(cc.active) === 1)) process.exit(3);
+          } else process.exit(4);
+          NODE
+          if [[ "$active" == active ]]; then
+            meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
+            sntss="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$source_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:sntss)"
+            chrono="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 node "$source_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:chronobiology)"
+            node - "$operation" "$snapshot" "$meta" "$sntss" "$chrono" <<'NODE'
+            const [operation, snapshot, meta, sntss, chrono] = process.argv.slice(2).map(
+              (value, index) => index === 0 ? value : JSON.parse(value));
+            const fetus = meta.cores?.find(value => value.id === 'fetus-legacy');
+            const bsf = meta.systems?.find(value => value.id === 'bsf');
+            const common = fetus?.ok === true && fetus?.memoryGuardian?.status === 'healthy'
+              && fetus.memoryGuardian.warnAtMiB === 192 && fetus.memoryGuardian.recycleAtMiB === 256
+              && bsf?.mode === 'LIVE' && bsf?.status === 'RUNNING' && bsf?.healthOk === true
+              && sntss.resident?.version === '0.5.0-i4g1' && sntss.resident?.running === true
+              && sntss.resident?.authorityOwned === false && sntss.resident?.observedOutputs === 0;
+            const revision = Number(snapshot.revision);
+            const chronoExpected = revision === 118
+              ? chrono.resident?.version === '1.0.0-c3rc.4'
+                && chrono.resident?.status === 'RESYNC_REQUIRED' && chrono.resident?.running === false
+              : chrono.resident?.version === '1.0.0-c3rc.5'
+                && chrono.resident?.status === 'RUNNING' && chrono.resident?.running === true;
+            if (!(meta.ok === true && meta.revision === revision && meta.revisionFrozen === false
+              && meta.revisionLabel === `R${revision}` && common && chronoExpected
+              && chrono.resident?.authorityOwned === false
+              && chrono.resident?.observedOutputs === 0)) process.exit(1);
+            if (operation === 'harden-r119f' && revision !== 118) process.exit(2);
+            NODE
+          fi
+          [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" ]]
+          [[ "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
+          echo "R119F_READ_ONLY_PREFLIGHT_${operation^^}=PASS"
+          echo "SERVICE_PID=$pid"
+          echo "SERVICE_NRESTARTS=$restarts"
+          REMOTE
+      - name: Stage and invoke only the pinned root controller
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          run_root="/opt/stay/incoming/r119f-v1-${GITHUB_RUN_ID}"
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          # shellcheck disable=SC2029
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            "set -euo pipefail; test ! -e '$run_root'; install -d -m 0700 '$run_root'"
+          scp "${ssh_options[@]}" release-assets/* \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
+          set +e
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            sudo -n /usr/local/sbin/stay-p1-production-controller \
+            "$OPERATION" "$run_root" "$AUTHORIZATION" 2>&1 | tee controller.output
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          [[ "${statuses[0]}" -eq 0 && "${statuses[1]}" -eq 0 ]]
+          grep -Fx 'R119F_CONTROLLER_RESULT=PASS' controller.output
+          grep -Fx 'RUNTIME_REVISION_AFTER=119' controller.output
+          grep -Fx 'REVISION_LABEL=R119F' controller.output
+          grep -Fx "CURRENT_RELEASE=$TARGET_RELEASE" controller.output
+      - name: Upload sanitized controller evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r119f-v1-controller-output-${{ github.run_id }}
+          path: controller.output
+          if-no-files-found: warn
+          retention-days: 14
