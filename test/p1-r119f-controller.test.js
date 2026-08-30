@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -228,3 +229,102 @@ test('R119F-BRIDGE-09 executable preflight accepts only exact R118/R119 cohorts'
   repairedR119.checkpoint.input_cursor = 1636338;
   assert.notEqual(run('recover-r119f', repairedR119, 'active', 'running', '200').status, 0);
 });
+
+test('R119F-BRIDGE-10 extracted remote preflight executes through both nested verifiers',
+  { skip: process.platform === 'win32' }, () => {
+    const preflight = productionWorkflow.slice(
+      productionWorkflow.indexOf('Exact read-only operation-fenced production preflight'),
+      productionWorkflow.indexOf('Stage and invoke only the pinned root controller'));
+    const match = /<<'REMOTE'\n([\s\S]*?)\n {10}REMOTE/.exec(preflight);
+    assert.ok(match, 'remote preflight payload not found');
+    const source = match[1].replace(/^ {10}/gm, '');
+    const baselineHash =
+      '81bb366d99550dffc2e78c16c869bb7da20c70473636c3ee1e95b9d8bf8382ae';
+    const snapshot = {
+      revision: 118,
+      residents: [
+        { residency_id: 'resident:chronobiology',
+          instance_id: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
+          version: '1.0.0-c3rc.4', state_schema: 2, checkpoint_generation: 5118,
+          checkpoint_hash: baselineHash, status: 'RESYNC_REQUIRED' },
+        { residency_id: 'resident:sntss',
+          instance_id: '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
+          version: '0.5.0-i4g1', status: 'RUNNING' },
+      ],
+      consumers: [{ consumer_id: 'resident:chronobiology', required: 0, active: 0,
+        cursor: 2341576, authority_epoch: 0, checkpoint_hash: baselineHash }],
+      checkpoint: { instance_id: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
+        version: '1.0.0-c3rc.4', state_schema: 2, generation: 5118,
+        blob_hash: baselineHash, byte_length: 49287, input_cursor: 1636338 },
+      repair: null, chronobiologyPending: 0, pendingOutbox: 0,
+      sntssOutputs: 0, sntssAuthority: 0, chronobiologyAuthority: 0,
+    };
+    const meta = {
+      ok: true, revision: 118, revisionFrozen: false, revisionLabel: 'R118',
+      cores: [{ id: 'fetus-legacy', ok: true,
+        memoryGuardian: { status: 'healthy', warnAtMiB: 192, recycleAtMiB: 256 } }],
+      systems: [{ id: 'bsf', mode: 'LIVE', status: 'RUNNING', healthOk: true }],
+    };
+    const fixtureDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'stay-r119f-preflight-'));
+    const stub = `#!/usr/bin/env bash
+set -euo pipefail
+case "$(basename "$0")" in
+  ip) printf '%s\\n' '2: ens5 inet 172.26.9.207/20 scope global ens5' ;;
+  sha256sum) printf '%s  %s\\n' "$FIXTURE_WRAPPER_SHA" "$1" ;;
+  readlink) printf '%s\\n' "$FIXTURE_SOURCE_RELEASE" ;;
+  systemctl)
+    case "$*" in
+      *'-p ActiveState'*) printf '%s\\n' active ;;
+      *'-p SubState'*) printf '%s\\n' running ;;
+      *'-p MainPID'*) printf '%s\\n' 123 ;;
+      *'-p NRestarts'*) printf '%s\\n' 0 ;;
+      *) exit 80 ;;
+    esac ;;
+  curl) printf '%s' "$FIXTURE_META" ;;
+  node)
+    if [[ "$1" == - && "$2" == /var/lib/stay/data/continuity.sqlite3 ]]; then
+      cat >/dev/null
+      printf '%s' "$FIXTURE_SNAPSHOT"
+    elif [[ "$1" == */p1-resident-control-client.js && "$3" == resident:sntss ]]; then
+      printf '%s' "$FIXTURE_SNTSS"
+    elif [[ "$1" == */p1-resident-control-client.js && "$3" == resident:chronobiology ]]; then
+      printf '%s' "$FIXTURE_CHRONOBIOLOGY"
+    else
+      exec "$REAL_NODE" "$@"
+    fi ;;
+  *) exit 81 ;;
+esac
+`;
+    try {
+      for (const command of ['ip', 'sha256sum', 'readlink', 'systemctl', 'curl', 'node']) {
+        const target = path.join(fixtureDirectory, command);
+        fs.writeFileSync(target, stub, { mode: 0o755 });
+      }
+      const result = spawnSync('bash', ['-s', '--', '172.26.9.207', wrapperSha256,
+        'harden-r119f', '/opt/stay/releases/unused-r119f-target'], {
+        input: source,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${fixtureDirectory}${path.delimiter}${process.env.PATH}`,
+          REAL_NODE: process.execPath,
+          FIXTURE_WRAPPER_SHA: wrapperSha256,
+          FIXTURE_SOURCE_RELEASE:
+            '/opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-934069400d62',
+          FIXTURE_SNAPSHOT: JSON.stringify(snapshot),
+          FIXTURE_META: JSON.stringify(meta),
+          FIXTURE_SNTSS: JSON.stringify({ resident: { version: '0.5.0-i4g1',
+            running: true, authorityOwned: false, observedOutputs: 0 } }),
+          FIXTURE_CHRONOBIOLOGY: JSON.stringify({ resident: { version: '1.0.0-c3rc.4',
+            status: 'RESYNC_REQUIRED', running: false, authorityOwned: false,
+            observedOutputs: 0 } }),
+        },
+      });
+      assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stdout, /R119F_READ_ONLY_PREFLIGHT_HARDEN-R119F=PASS/);
+      assert.match(result.stdout, /SERVICE_PID=123/);
+      assert.match(result.stdout, /SERVICE_NRESTARTS=0/);
+    } finally {
+      fs.rmSync(fixtureDirectory, { recursive: true, force: true });
+    }
+  });
