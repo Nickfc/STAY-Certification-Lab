@@ -17,6 +17,8 @@ const bootstrapWorkflow = fs.readFileSync(path.join(root,
   '.github/workflows/p1-r118f-controller-bootstrap.yml'), 'utf8');
 const productionWorkflow = fs.readFileSync(path.join(root,
   '.github/workflows/p1-r118f-production.yml'), 'utf8');
+const recoveryDiagnosticWorkflow = fs.readFileSync(path.join(root,
+  '.github/workflows/p1-r118f-forward-recovery-diagnostic.yml'), 'utf8');
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 
 test('R118F-BRIDGE-01 controller binds the exact immutable release cohort', () => {
@@ -186,4 +188,28 @@ test('R118F-BRIDGE-07 operation-fenced live preflight precedes staging and only 
     productionWorkflow.indexOf('authorization:')
   );
   assert.match(choices, /- harden-r118f\n\s+- recover-r118f/);
+});
+
+test('R118F-BRIDGE-08 diagnostic is exact, read-only, and preserves live generation', () => {
+  assert.match(recoveryDiagnosticWorkflow, /^\s{2}workflow_dispatch:/m);
+  assert.doesNotMatch(recoveryDiagnosticWorkflow, /^\s{2}(push|pull_request|schedule):/m);
+  assert.match(recoveryDiagnosticWorkflow,
+    /AUTHORIZE_R118F_V10_READ_ONLY_FORWARD_RECOVERY_DIAGNOSTIC/);
+  assert.match(recoveryDiagnosticWorkflow,
+    /CONTROLLER_SHA256: c1ee5a94719425be5e5561f92400445d059a7844f6ad8163df4d99a7fcefe3c4/);
+  assert.match(recoveryDiagnosticWorkflow,
+    /TARGET_RELEASE: \/opt\/stay\/releases\/0\.8\.11\.3-p1m-r118f-chrono-repair-8ddbb57a00a7/);
+  assert.match(recoveryDiagnosticWorkflow,
+    /new DatabaseSync\(process\.env\.STAY_DATABASE, \{ open: true, readOnly: true \}\)/);
+  assert.match(recoveryDiagnosticWorkflow, /PRAGMA query_only=ON/);
+  assert.match(recoveryDiagnosticWorkflow, /resident\.cold-recovery-failed|recovery_records/);
+  assert.match(recoveryDiagnosticWorkflow, /chronobiologyPendingDeliveries/);
+  assert.match(recoveryDiagnosticWorkflow, /pendingOutboxIntents/);
+  assert.match(recoveryDiagnosticWorkflow, /physiologyAuthorityRows/);
+  for (const marker of [
+    'SERVICE_OPERATION=NO', 'CURRENT_POINTER_CHANGE=NO', 'STATESTORE_WRITE=NO',
+    'RESIDENT_OPERATION=NO', 'AUTHORITY_CHANGE=NO'
+  ]) assert.match(recoveryDiagnosticWorkflow, new RegExp(marker));
+  assert.doesNotMatch(recoveryDiagnosticWorkflow,
+    /sudo|systemctl\s+(?:restart|stop|start|enable|disable)|rm -rf|scp |\/opt\/stay\/incoming/);
 });

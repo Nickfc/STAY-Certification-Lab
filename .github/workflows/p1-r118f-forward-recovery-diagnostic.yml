@@ -1,0 +1,230 @@
+name: R118F V10 read-only forward-recovery diagnostic
+run-name: R118F V10 read-only forward-recovery diagnostic · ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization:
+        description: Exact read-only R118F forward-recovery diagnostic authorization
+        required: true
+        type: choice
+        default: NO
+        options:
+          - NO
+          - AUTHORIZE_R118F_V10_READ_ONLY_FORWARD_RECOVERY_DIAGNOSTIC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stay-r118f-v10-production
+  cancel-in-progress: false
+
+env:
+  CONTROLLER_SHA256: c1ee5a94719425be5e5561f92400445d059a7844f6ad8163df4d99a7fcefe3c4
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-8ddbb57a00a7
+  PRODUCTION_PUBLIC_IPV4: 35.157.242.167
+  PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+  PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
+
+jobs:
+  validate-fixed-diagnostic:
+    name: Validate fixed R118F diagnostic without production credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact dispatch revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Validate exact authorization and diagnostic contract
+        shell: bash
+        env:
+          REQUESTED_AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R118F_V10_READ_ONLY_FORWARD_RECOVERY_DIAGNOSTIC ]]
+          [[ "$TARGET_RELEASE" == /opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-8ddbb57a00a7 ]]
+          node --test --test-concurrency=1 test/p1-r118f-controller.test.js
+
+  collect-r118f-diagnostic:
+    name: Collect mutation-free R118F forward-recovery evidence
+    needs: validate-fixed-diagnostic
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Prepare pinned production SSH identity
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+          [[ "$(wc -l < ~/.ssh/known_hosts)" == 1 ]]
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
+      - name: Collect exact live and durable evidence without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$TARGET_RELEASE" "$CONTROLLER_SHA256" "$PRODUCTION_PRIVATE_IPV4" \
+            > "$RUNNER_TEMP/r118f-diagnostic.raw" 2>&1 <<'REMOTE'
+          set -Eeuo pipefail
+          expected_release="$1"; controller_sha="$2"; expected_private_ipv4="$3"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == "$expected_private_ipv4" ]]
+          before_service="$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)"
+          before_pointer="$(readlink -f /opt/stay/current)"
+          before_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
+          before_meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          [[ "$before_pointer" == "$expected_release" ]]
+          [[ "$(systemctl is-active stay.service)" == active ]]
+          controller=/usr/local/sbin/stay-p1-production-controller
+          [[ -f "$controller" && ! -L "$controller" ]]
+          [[ "$(stat -Lc '%U:%G:%a:%h' "$controller")" == root:root:555:1 ]]
+          [[ "$(sha256sum "$controller" | awk '{print $1}')" == "$controller_sha" ]]
+          release_contract="$before_pointer/P1_R118F_RELEASE.env"
+          [[ -f "$release_contract" && ! -L "$release_contract" ]]
+          /usr/local/bin/node -e \
+            'const h=JSON.parse(process.argv[1]),m=JSON.parse(process.argv[2]);if(h.ok!==true||h.revision!==118||m.revision!==118||m.revisionFrozen!==false||m.revisionLabel!=="R118")process.exit(1)' \
+            "$before_health" "$before_meta"
+          echo "R118F_LIVE_SERVICE_BEGIN=$before_service"
+          echo "R118F_LIVE_POINTER=$before_pointer"
+          echo "R118F_LIVE_HEALTH=$before_health"
+          echo "R118F_LIVE_META=$before_meta"
+          echo "R118F_CONTROLLER_SHA256=sha256:$controller_sha"
+          echo "R118F_RELEASE_CONTRACT=$(tr '\n' ';' < "$release_contract")"
+          set +e
+          sntss="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 /usr/local/bin/node \
+            "$before_pointer/deploy/live-physiology-transplant/p1-resident-control-client.js" \
+            status resident:sntss 2>&1)"
+          sntss_status=$?
+          chronobiology="$(STAY_RESIDENT_CONTROL_TIMEOUT_MS=30000 /usr/local/bin/node \
+            "$before_pointer/deploy/live-physiology-transplant/p1-resident-control-client.js" \
+            status resident:chronobiology 2>&1)"
+          chronobiology_status=$?
+          set -e
+          echo "R118F_SNTSS_CONTROL_EXIT=$sntss_status"
+          echo "R118F_SNTSS_STATUS=$sntss"
+          echo "R118F_CHRONOBIOLOGY_CONTROL_EXIT=$chronobiology_status"
+          echo "R118F_CHRONOBIOLOGY_STATUS=$chronobiology"
+          STAY_DATABASE=/var/lib/stay/data/continuity.sqlite3 /usr/local/bin/node <<'NODE'
+          'use strict';
+          const { DatabaseSync } = require('node:sqlite');
+          const database = new DatabaseSync(process.env.STAY_DATABASE, { open: true, readOnly: true });
+          database.exec('PRAGMA query_only=ON');
+          try {
+            const one = (sql, ...parameters) => database.prepare(sql).get(...parameters) || null;
+            const scalar = (sql, ...parameters) => Number(one(sql, ...parameters)?.value || 0);
+            const revision = JSON.parse(one(
+              "SELECT json FROM metadata WHERE key='life:runtime-revision'"
+            )?.json || '{}');
+            const residents = database.prepare(`
+              SELECT residency_id, instance_id, core_id, version, state_schema,
+                     module_relative_path, package_policy_hash, status,
+                     checkpoint_generation, checkpoint_hash, updated_at
+              FROM resident_instances
+              WHERE residency_id IN ('resident:sntss','resident:chronobiology')
+              ORDER BY residency_id
+            `).all();
+            const consumers = database.prepare(`
+              SELECT consumer_id, core_id, required, active, cursor,
+                     authority_epoch, checkpoint_hash
+              FROM biological_consumers
+              WHERE consumer_id IN ('resident:sntss','resident:chronobiology')
+              ORDER BY consumer_id
+            `).all();
+            const checkpoints = database.prepare(`
+              SELECT checkpoint_id, residency_id, generation, version, state_schema,
+                     blob_hash, byte_length, input_cursor, created_at
+              FROM resident_checkpoints
+              WHERE residency_id='resident:chronobiology'
+              ORDER BY generation DESC LIMIT 8
+            `).all();
+            const deliveryStates = database.prepare(`
+              SELECT status, COUNT(*) count, MIN(sequence) first_sequence,
+                     MAX(sequence) last_sequence
+              FROM biological_deliveries
+              WHERE consumer_id='resident:chronobiology'
+              GROUP BY status ORDER BY status
+            `).all();
+            const recovery = database.prepare(`
+              SELECT id, type, core_id, detail_json, created_at
+              FROM recovery_records
+              WHERE core_id='chronobiology'
+              ORDER BY id DESC LIMIT 64
+            `).all().map(row => ({
+              ...row,
+              detail: (() => { try { return JSON.parse(row.detail_json); } catch { return null; } })()
+            }));
+            const evidence = {
+              quickCheck: one('PRAGMA quick_check')?.quick_check || null,
+              runtimeRevision: Number(revision.revision),
+              runtimeRevisionReason: revision.reason || null,
+              residents,
+              consumers,
+              checkpoints,
+              deliveryStates,
+              pendingDeliveries: scalar("SELECT COUNT(*) value FROM biological_deliveries WHERE status='PENDING'"),
+              chronobiologyPendingDeliveries: scalar("SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id='resident:chronobiology' AND status='PENDING'"),
+              chronobiologyFailedDeliveries: scalar("SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id='resident:chronobiology' AND status='FAILED'"),
+              pendingOutboxIntents: scalar("SELECT COUNT(*) value FROM biological_outbox_intents WHERE status='PENDING'"),
+              physiologyAuthorityRows: scalar("SELECT COUNT(*) value FROM authority WHERE core_id IN ('sntss','chronobiology')"),
+              sntssOutputRows: scalar("SELECT COUNT(*) value FROM biological_outbox_intents WHERE producer_core_id='sntss'"),
+              chronobiologyOutputRows: scalar("SELECT COUNT(*) value FROM biological_outbox_intents WHERE producer_core_id='chronobiology'"),
+              recoveryHighWaterId: scalar('SELECT COALESCE(MAX(id),0) value FROM recovery_records'),
+              recovery
+            };
+            console.log(`R118F_DATABASE_DIAGNOSTIC=${JSON.stringify(evidence)}`);
+          } finally {
+            database.close();
+          }
+          NODE
+          [[ "$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)" == "$before_service" ]]
+          [[ "$(readlink -f /opt/stay/current)" == "$before_pointer" ]]
+          after_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
+          after_meta="$(curl -fsS --max-time 5 http://127.0.0.1:8787/__stay/meta)"
+          /usr/local/bin/node -e \
+            'const a=JSON.parse(process.argv[1]),b=JSON.parse(process.argv[2]);if(a.ok!==b.ok||a.revision!==b.revision)process.exit(1)' \
+            "$before_health" "$after_health"
+          /usr/local/bin/node -e \
+            'const a=JSON.parse(process.argv[1]),b=JSON.parse(process.argv[2]);if(a.revision!==b.revision||a.revisionFrozen!==b.revisionFrozen||a.revisionLabel!==b.revisionLabel)process.exit(1)' \
+            "$before_meta" "$after_meta"
+          echo 'R118F_FORWARD_RECOVERY_DIAGNOSTIC=PASS'
+          echo 'SERVICE_OPERATION=NO'
+          echo 'CURRENT_POINTER_CHANGE=NO'
+          echo 'STATESTORE_WRITE=NO'
+          echo 'RESIDENT_OPERATION=NO'
+          echo 'AUTHORITY_CHANGE=NO'
+          REMOTE
+          cat "$RUNNER_TEMP/r118f-diagnostic.raw"
+          grep -Fx 'R118F_FORWARD_RECOVERY_DIAGNOSTIC=PASS' "$RUNNER_TEMP/r118f-diagnostic.raw"
+          grep -Fx 'SERVICE_OPERATION=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
+          grep -Fx 'CURRENT_POINTER_CHANGE=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
+          grep -Fx 'STATESTORE_WRITE=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
+          grep -Fx 'RESIDENT_OPERATION=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
+          grep -Fx 'AUTHORITY_CHANGE=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
+      - name: Upload read-only diagnostic evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r118f-v10-forward-diagnostic-${{ github.run_id }}
+          path: ${{ runner.temp }}/r118f-diagnostic.raw
+          if-no-files-found: error
+          retention-days: 7
