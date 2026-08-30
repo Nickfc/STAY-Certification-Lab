@@ -1,0 +1,67 @@
+{
+  "contractVersion": "P1-R0-HOMEOS-METAB-INPUT-v1",
+  "consumer": "HOMEOS",
+  "consumerDelayFrames": 1,
+  "laboratoryOnly": true,
+  "routeStage": "ABSENT",
+  "sources": [
+    {
+      "key": "availability",
+      "producer": "METAB",
+      "producerMode": "SHADOW",
+      "routeId": "p1r0.metab-availability.homeos",
+      "topic": "metab.energy.availability.v1",
+      "topicClass": "SUMMARY",
+      "schemaId": "urn:stay:p1-r0:schema:metab-energy-availability-payload:v1",
+      "unit": "ratio",
+      "payloadFields": [
+        "availabilityQ48",
+        "confidenceQ48",
+        "coverageQ48",
+        "debtQ48",
+        "scarcityState"
+      ]
+    },
+    {
+      "key": "reserve",
+      "producer": "METAB",
+      "producerMode": "SHADOW",
+      "routeId": "p1r0.metab-reserve.homeos",
+      "topic": "metab.energy.reserve.v1",
+      "topicClass": "SUMMARY",
+      "schemaId": "urn:stay:p1-r0:schema:metab-energy-reserve-payload:v1",
+      "unit": "ratio",
+      "payloadFields": [
+        "confidenceQ48",
+        "cumulativeChargeQ48",
+        "cumulativeDischargeQ48",
+        "reserveFractionQ48",
+        "reserveQ48",
+        "trendQ48PerSecond"
+      ]
+    }
+  ],
+  "coherence": [
+    "same organism",
+    "same METAB founder lineage",
+    "same METAB residency",
+    "same authority epoch",
+    "same committed frame",
+    "exactly one frame per source"
+  ],
+  "forbiddenInputFields": [
+    "viewerId",
+    "viewerCount",
+    "payment",
+    "owner"
+  ],
+  "forbiddenHomeosSemantics": [
+    "heartRate",
+    "respiratoryRate",
+    "temperature",
+    "emotion",
+    "cause",
+    "self",
+    "action"
+  ]
+}
