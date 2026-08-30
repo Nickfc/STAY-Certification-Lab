@@ -8,5 +8,6 @@ module.exports = Object.freeze({
   metabEngine: require('./metab-engine'),
   causalFrame: require('./causal-frame'),
   records: require('./records'),
-  laboratoryPersistence: require('./laboratory-persistence')
+  laboratoryPersistence: require('./laboratory-persistence'),
+  residentContracts: require('./resident-contracts')
 });
