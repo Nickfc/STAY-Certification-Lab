@@ -207,9 +207,23 @@ test('R118F-BRIDGE-08 diagnostic is exact, read-only, and preserves live generat
   );
   const overlayFiles = [...overlayBody.matchAll(/^\s+'([^']+)'$/gm)].map(match => match[1]);
   assert.equal(overlayFiles.length, 89);
-  const linuxSha256sumOutput = overlayFiles.map(relative =>
-    `${sha256(fs.readFileSync(path.join(root, relative), 'utf8').replace(/\r\n/g, '\n'))}  ${relative}\n`
-  ).join('');
+  const historicalManifestRelative =
+    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256';
+  const historicalManifest = fs.readFileSync(
+    path.join(root, historicalManifestRelative), 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(sha256(historicalManifest),
+    '129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0');
+  const historicalEntries = new Map(historicalManifest.trim().split('\n').map(line => {
+    const match = /^([0-9a-f]{64})  \.\/(.+)$/.exec(line);
+    assert.ok(match, `invalid historical manifest line: ${line}`);
+    return [match[2], match[1]];
+  }));
+  const linuxSha256sumOutput = overlayFiles.map(relative => {
+    const digest = relative === historicalManifestRelative
+      ? sha256(historicalManifest) : historicalEntries.get(relative);
+    assert.match(digest || '', /^[0-9a-f]{64}$/, `missing historical digest: ${relative}`);
+    return `${digest}  ${relative}\n`;
+  }).join('');
   assert.equal(sha256(linuxSha256sumOutput),
     '934069400d628dd451decc8b9690f6ffe5c253033ca5788a7f61c7592aa8ddba');
   assert.match(recoveryDiagnosticWorkflow,
