@@ -1,0 +1,147 @@
+{
+  "$id": "urn:stay:p1-r0:schema:checkpoint-record:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "State, input cursors, output sequence and checkpoint generation share one durable commit. Semantic validation rejects generation rewind and incompatible parent lineage.",
+  "properties": {
+    "authorityEpoch": {
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "causalHighWaterHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "checkpointGeneration": {
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "commitTransactionId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "complete": {
+      "const": true
+    },
+    "coreId": {
+      "enum": [
+        "METAB",
+        "HOMEOS",
+        "INTERO"
+      ]
+    },
+    "createdUtc": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "cursorHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "fabricFrontier": {
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "founderId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "implementationVersion": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "inputCursors": {
+      "additionalProperties": {
+        "pattern": "^(0|[1-9][0-9]*)$",
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "lineageId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "NEUTRAL",
+        "SHADOW",
+        "LIVE"
+      ],
+      "type": "string"
+    },
+    "organismId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "outputLedgerHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "outputSequence": {
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "parentCheckpointHash": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      ]
+    },
+    "profileHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "recordVersion": {
+      "const": "P1CheckpointRecordV1"
+    },
+    "residencyId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "stateHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "stateSchemaVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "trustedFrontier": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "recordVersion",
+    "organismId",
+    "coreId",
+    "residencyId",
+    "founderId",
+    "lineageId",
+    "profileHash",
+    "stateSchemaVersion",
+    "implementationVersion",
+    "authorityEpoch",
+    "mode",
+    "checkpointGeneration",
+    "parentCheckpointHash",
+    "trustedFrontier",
+    "fabricFrontier",
+    "inputCursors",
+    "outputSequence",
+    "stateHash",
+    "cursorHash",
+    "outputLedgerHash",
+    "causalHighWaterHash",
+    "commitTransactionId",
+    "complete",
+    "createdUtc"
+  ],
+  "title": "Atomic P1 core checkpoint",
+  "type": "object"
+}

@@ -1,0 +1,287 @@
+{
+  "instantiationLaw": "Profiles define species bounds. Actual founder variation is generated outside each core and committed once. The INTERO noiseKey shown here is a golden-fixture key only and must never be copied into a production founder.",
+  "laboratoryOnly": true,
+  "normalizedUnitBasis": "1.0 denotes the Tranche-B laboratory reference capacity/state span; Tranche A must reconcile production units",
+  "profiles": {
+    "HOMEOS": {
+      "adaptationConfidenceQ48": "253327479039590",
+      "adaptationMinimumFrames": 172800,
+      "dimensions": [
+        {
+          "adaptationPolicy": "FIXED",
+          "alphaQ48": "70368744177664",
+          "dimensionId": "energy.availability",
+          "enabled": true,
+          "kind": "LOW_DEFICIT",
+          "loadRateQ48": "35184372088832",
+          "outerHighQ48": "281474976710656",
+          "outerLowQ48": "0",
+          "pressureKbQ48": "140737488355328",
+          "pressureKpQ48": "140737488355328",
+          "pressureTtlMs": 2000,
+          "reliefRateQ48": "17592186044416",
+          "source": {
+            "mode": "SHADOW",
+            "producerCoreId": "METAB",
+            "schemaId": "urn:stay:p1-r0:schema:metab-energy-availability-payload:v1",
+            "topic": "metab.energy.availability.v1",
+            "unit": "ratio"
+          },
+          "targetHighQ48": "281474976710656",
+          "targetLowQ48": "225179981368525",
+          "weightQ48": "281474976710656"
+        },
+        {
+          "adaptationPolicy": "FIXED",
+          "alphaQ48": "35184372088832",
+          "dimensionId": "energy.reserve",
+          "enabled": true,
+          "kind": "LOW_DEFICIT",
+          "loadRateQ48": "35184372088832",
+          "outerHighQ48": "281474976710656",
+          "outerLowQ48": "0",
+          "pressureKbQ48": "140737488355328",
+          "pressureKpQ48": "140737488355328",
+          "pressureTtlMs": 2000,
+          "reliefRateQ48": "17592186044416",
+          "source": {
+            "mode": "SHADOW",
+            "producerCoreId": "METAB",
+            "schemaId": "urn:stay:p1-r0:schema:metab-energy-reserve-payload:v1",
+            "topic": "metab.energy.reserve.v1",
+            "unit": "ratio"
+          },
+          "targetHighQ48": "281474976710656",
+          "targetLowQ48": "70368744177664",
+          "weightQ48": "281474976710656"
+        }
+      ],
+      "frameMs": 250,
+      "holdFrames": 4,
+      "maxAdaptationPer24hQ48": "562949953421",
+      "maxLifetimeAdaptationQ48": "14073748835533",
+      "minimumConfidenceQ48": "211106232532992",
+      "numericPolicy": "Q16.48-half-even-saturating-v1",
+      "profileId": "homeos.p1-r0.normalized-lab.v1"
+    },
+    "INTERO": {
+      "adaptationConfidenceQ48": "253327479039590",
+      "adaptationMinimumFrames": 172800,
+      "axes": [
+        {
+          "axisId": "resource.sufficiency",
+          "requiredCoverageQ48": "281474976710656",
+          "weights": [
+            {
+              "channelId": "energy.availability",
+              "levelQ48": "281474976710656",
+              "persistenceQ48": "140737488355328",
+              "trendQ48": "70368744177664"
+            },
+            {
+              "channelId": "energy.reserve",
+              "levelQ48": "281474976710656",
+              "persistenceQ48": "140737488355328",
+              "trendQ48": "70368744177664"
+            }
+          ]
+        },
+        {
+          "axisId": "regulatory.strain",
+          "requiredCoverageQ48": "281474976710656",
+          "weights": [
+            {
+              "channelId": "regulatory.stability",
+              "levelQ48": "281474976710656",
+              "persistenceQ48": "140737488355328",
+              "trendQ48": "140737488355328"
+            }
+          ]
+        }
+      ],
+      "channels": [
+        {
+          "alphaQ48": "70368744177664",
+          "baselinePolicy": "SLOW_ADAPT",
+          "channelId": "energy.availability",
+          "delayFrames": 2,
+          "founderBaselineQ48": "225179981368525",
+          "freshnessMs": 2000,
+          "imperfectionAmplitudeQ48": "1407374883553",
+          "lifetimeDriftMaxQ48": "8444249301320",
+          "persistenceLoadQ48": "35184372088832",
+          "persistenceReliefQ48": "17592186044416",
+          "required": true,
+          "resolutionQ48": "274877906944",
+          "salienceWeights": {
+            "deviationQ48": "140737488355328",
+            "persistenceQ48": "70368744177664",
+            "trendQ48": "70368744177664"
+          },
+          "source": {
+            "mode": "SHADOW",
+            "producerCoreId": "METAB",
+            "schemaId": "urn:stay:p1-r0:schema:metab-energy-availability-payload:v1",
+            "topic": "metab.energy.availability.v1",
+            "unit": "ratio"
+          },
+          "sourceHighQ48": "281474976710656",
+          "sourceLowQ48": "0",
+          "trendMaxQ48": "281474976710656",
+          "trendWindowFrames": 16
+        },
+        {
+          "alphaQ48": "35184372088832",
+          "baselinePolicy": "SLOW_ADAPT",
+          "channelId": "energy.reserve",
+          "delayFrames": 3,
+          "founderBaselineQ48": "140737488355328",
+          "freshnessMs": 2000,
+          "imperfectionAmplitudeQ48": "1407374883553",
+          "lifetimeDriftMaxQ48": "8444249301320",
+          "persistenceLoadQ48": "35184372088832",
+          "persistenceReliefQ48": "17592186044416",
+          "required": true,
+          "resolutionQ48": "274877906944",
+          "salienceWeights": {
+            "deviationQ48": "140737488355328",
+            "persistenceQ48": "70368744177664",
+            "trendQ48": "70368744177664"
+          },
+          "source": {
+            "mode": "SHADOW",
+            "producerCoreId": "METAB",
+            "schemaId": "urn:stay:p1-r0:schema:metab-energy-reserve-payload:v1",
+            "topic": "metab.energy.reserve.v1",
+            "unit": "ratio"
+          },
+          "sourceHighQ48": "281474976710656",
+          "sourceLowQ48": "0",
+          "trendMaxQ48": "281474976710656",
+          "trendWindowFrames": 32
+        },
+        {
+          "alphaQ48": "70368744177664",
+          "baselinePolicy": "FIXED",
+          "channelId": "regulatory.stability",
+          "delayFrames": 2,
+          "founderBaselineQ48": "0",
+          "freshnessMs": 2000,
+          "imperfectionAmplitudeQ48": "1407374883553",
+          "lifetimeDriftMaxQ48": "0",
+          "persistenceLoadQ48": "35184372088832",
+          "persistenceReliefQ48": "17592186044416",
+          "required": true,
+          "resolutionQ48": "274877906944",
+          "salienceWeights": {
+            "deviationQ48": "140737488355328",
+            "persistenceQ48": "70368744177664",
+            "trendQ48": "70368744177664"
+          },
+          "source": {
+            "mode": "SHADOW",
+            "producerCoreId": "HOMEOS",
+            "schemaId": "urn:stay:p1-r0:schema:homeos-stability-summary-payload:v1",
+            "topic": "homeos.stability.summary.v1",
+            "unit": "ratio"
+          },
+          "sourceHighQ48": "281474976710656",
+          "sourceLowQ48": "0",
+          "trendMaxQ48": "281474976710656",
+          "trendWindowFrames": 16
+        }
+      ],
+      "frameMs": 250,
+      "maxAdaptationPer24hQ48": "281474976711",
+      "maxLifetimeAdaptationQ48": "8444249301320",
+      "minimumConfidenceQ48": "211106232532992",
+      "noiseKeyHex": "0123456789abcdef",
+      "numericPolicy": "Q16.48-half-even-saturating-v1",
+      "profileId": "intero.p1-r0.normalized-lab.v1",
+      "transformVersion": "splitmix64-fnv1a64-q0.48-triangular-v1"
+    },
+    "METAB": {
+      "allocationClasses": [
+        {
+          "class": "ESSENTIAL",
+          "maximumQ48": "281474976710656",
+          "minimumQ48": "28147497671066",
+          "weightQ48": "1125899906842624"
+        },
+        {
+          "class": "REGULATORY",
+          "maximumQ48": "281474976710656",
+          "minimumQ48": "14073748835533",
+          "weightQ48": "844424930131968"
+        },
+        {
+          "class": "ADAPTIVE",
+          "maximumQ48": "281474976710656",
+          "minimumQ48": "0",
+          "weightQ48": "562949953421312"
+        },
+        {
+          "class": "OPTIONAL",
+          "maximumQ48": "281474976710656",
+          "minimumQ48": "0",
+          "weightQ48": "281474976710656"
+        }
+      ],
+      "basalPhaseKnotsQ48": [
+        "35184372088832",
+        "35184372088832",
+        "35184372088832",
+        "35184372088832",
+        "35184372088832",
+        "35184372088832",
+        "35184372088832",
+        "35184372088832"
+      ],
+      "budgetExpiryMaxMs": 2000,
+      "capacityHoldFrames": 4,
+      "etaFounderQ48": "281474976710656",
+      "frameMs": 250,
+      "numericPolicy": "Q16.48-half-even-saturating-v1",
+      "profileId": "metab.p1-r0.normalized-lab.v1",
+      "reserve": {
+        "capacityQ48": "281474976710656",
+        "chargeEfficiencyQ48": "267401227875123",
+        "dischargeEfficiencyQ48": "267401227875123",
+        "initialFractionQ48": "140737488355328",
+        "maxDischargeQ48PerSecond": "70368744177664"
+      },
+      "scarcity": {
+        "abundantHoldFrames": 2400,
+        "availabilityAbundantThresholdQ48": "225179981368525",
+        "debtGainQ48": "281474976710656",
+        "debtRecoveryQ48": "17592186044416",
+        "reserveConservingThresholdQ48": "70368744177664",
+        "reserveDepletedThresholdQ48": "14073748835533"
+      }
+    }
+  },
+  "schemaBindings": {
+    "HOMEOS": "urn:stay:p1-r0:schema:homeos-founder-profile:v1",
+    "INTERO": "urn:stay:p1-r0:schema:intero-founder-profile:v1",
+    "METAB": "urn:stay:p1-r0:schema:metab-founder-profile:v1"
+  },
+  "variationBounds": {
+    "HOMEOS": {
+      "center": "+/-3% source span",
+      "halfWidth": "8-20% source span",
+      "lifetimeAdaptation": "<=5%"
+    },
+    "INTERO": {
+      "baselineCenter": "+/-3% source span",
+      "delay": "+/-2 frames within 0..20",
+      "lifetimeAdaptation": "<=3%",
+      "transformAndFilterCoefficients": "+/-10% inside proven bounds"
+    },
+    "METAB": {
+      "efficiency": "+/-3%",
+      "reserveCapacityAndInitial": "+/-5%",
+      "reserveEfficiencies": "+/-2% and <=1"
+    }
+  },
+  "version": "P1-R0-Founder-Profiles-C0-v1.0"
+}

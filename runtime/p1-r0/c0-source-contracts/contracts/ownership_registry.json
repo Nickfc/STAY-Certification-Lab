@@ -1,0 +1,47 @@
+{
+  "law": "one authoritative owner per biological truth",
+  "nonOwners": {
+    "CHIP_UI": [
+      "all biological and authority state"
+    ],
+    "HOMEOS": [
+      "METAB reserve",
+      "CARD rhythm",
+      "RESP rhythm",
+      "AUTON tone"
+    ],
+    "INTERO": [
+      "source truth",
+      "emotion",
+      "cause",
+      "self",
+      "action"
+    ]
+  },
+  "owners": {
+    "HOMEOS": [
+      "dimension registry",
+      "local regulatory observation",
+      "signed deviation",
+      "directional burden",
+      "stability load",
+      "target-independent pressure"
+    ],
+    "INTERO": [
+      "delayed internal perception",
+      "perceptual baseline",
+      "persistence",
+      "salience",
+      "body axes",
+      "body frame"
+    ],
+    "METAB": [
+      "usable energy production",
+      "energy reserve",
+      "energy availability",
+      "metabolic debt",
+      "consumer biological budget"
+    ]
+  },
+  "version": "P1-R0-Ownership-C0-v1.0"
+}

@@ -1,0 +1,133 @@
+{
+  "$id": "urn:stay:p1-r0:schema:chip-record:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Observation only. A chip cannot create or mutate founder, resident, route, mode, checkpoint, budget or biology.",
+  "properties": {
+    "born": {
+      "const": true
+    },
+    "checkpointGeneration": {
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "type": "string"
+    },
+    "chipId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "coreId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "coreVersion": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "coverageBand": {
+      "enum": [
+        "FULL",
+        "PARTIAL",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ]
+    },
+    "currentState": {
+      "enum": [
+        "NEUTRAL",
+        "SHADOW",
+        "LIVE",
+        "DEGRADED",
+        "RECOVERING",
+        "QUARANTINED",
+        "OFFLINE"
+      ]
+    },
+    "evidenceRefs": {
+      "items": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "type": "array"
+    },
+    "firstActivationFrame": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "firstResidencyId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "healthReasonCode": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "historyHeadHash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "lastTrustedFrame": {
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "lifecycle": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "NEUTRAL",
+        "SHADOW",
+        "LIVE",
+        "NONE"
+      ]
+    },
+    "observedUtc": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "organismId": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "publicName": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "recordVersion": {
+      "const": "CoreChipRecordV1"
+    },
+    "stateSchemaVersion": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "recordVersion",
+    "chipId",
+    "organismId",
+    "coreId",
+    "publicName",
+    "born",
+    "firstActivationFrame",
+    "firstResidencyId",
+    "currentState",
+    "mode",
+    "lifecycle",
+    "healthReasonCode",
+    "coreVersion",
+    "stateSchemaVersion",
+    "checkpointGeneration",
+    "lastTrustedFrame",
+    "coverageBand",
+    "evidenceRefs",
+    "historyHeadHash",
+    "observedUtc"
+  ],
+  "title": "Universal persistent core chip record",
+  "type": "object"
+}

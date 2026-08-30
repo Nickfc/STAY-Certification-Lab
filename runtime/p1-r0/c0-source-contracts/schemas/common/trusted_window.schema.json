@@ -1,0 +1,22 @@
+{
+  "$id": "urn:stay:p1-r0:schema:trusted-window:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Inclusive source window in 250 ms Trusted Organism Time frames; semantic validation requires startFrame <= endFrame.",
+  "properties": {
+    "endFrame": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "startFrame": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "startFrame",
+    "endFrame"
+  ],
+  "title": "Trusted organism-time window",
+  "type": "object"
+}

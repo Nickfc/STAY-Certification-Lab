@@ -1,0 +1,104 @@
+{
+  "forbiddenEdges": [
+    "INTERO->HOMEOS",
+    "SNTSS->METAB",
+    "SNTSS->HOMEOS",
+    "SNTSS->INTERO",
+    "HOMEOS->CARD",
+    "HOMEOS->RESP"
+  ],
+  "initialMode": "ABSENT",
+  "registryVersion": "P1-R0-Routes-C0-v1.0",
+  "routes": [
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "METAB",
+      "minDelayFrames": 1,
+      "producer": "KERNEL_RESOURCE",
+      "requirement": "REQUIRED",
+      "revocable": true,
+      "routeId": "p1r0.capacity.metab",
+      "topic": "resource.capacity.eligible.v1"
+    },
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "METAB",
+      "minDelayFrames": 1,
+      "producer": "KERNEL_RESOURCE",
+      "requirement": "REQUIRED",
+      "revocable": true,
+      "routeId": "p1r0.capacity-quality.metab",
+      "topic": "resource.capacity.quality.v1"
+    },
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "HOMEOS",
+      "minDelayFrames": 1,
+      "producer": "METAB",
+      "requirement": "REQUIRED",
+      "revocable": true,
+      "routeId": "p1r0.metab-availability.homeos",
+      "topic": "metab.energy.availability.v1"
+    },
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "HOMEOS",
+      "minDelayFrames": 1,
+      "producer": "METAB",
+      "requirement": "REQUIRED",
+      "revocable": true,
+      "routeId": "p1r0.metab-reserve.homeos",
+      "topic": "metab.energy.reserve.v1"
+    },
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "INTERO",
+      "minDelayFrames": 1,
+      "producer": "METAB",
+      "requirement": "REQUIRED",
+      "revocable": true,
+      "routeId": "p1r0.metab-availability.intero",
+      "topic": "metab.energy.availability.v1"
+    },
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "INTERO",
+      "minDelayFrames": 1,
+      "producer": "METAB",
+      "requirement": "REQUIRED",
+      "revocable": true,
+      "routeId": "p1r0.metab-reserve.intero",
+      "topic": "metab.energy.reserve.v1"
+    },
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "INTERO",
+      "minDelayFrames": 1,
+      "producer": "HOMEOS",
+      "requirement": "REQUIRED",
+      "revocable": true,
+      "routeId": "p1r0.homeos-dimension.intero",
+      "topic": "homeos.dimension.summary.v1"
+    },
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "INTERO",
+      "minDelayFrames": 1,
+      "producer": "HOMEOS",
+      "requirement": "REQUIRED",
+      "revocable": true,
+      "routeId": "p1r0.homeos-stability.intero",
+      "topic": "homeos.stability.summary.v1"
+    },
+    {
+      "activation": "post-R110F owner-authorized tranche only",
+      "consumer": "SNTSS_RECEPTOR_P1_R0",
+      "minDelayFrames": 1,
+      "producer": "INTERO",
+      "requirement": "GATED",
+      "revocable": true,
+      "routeId": "p1r0.intero.sntss-receptor",
+      "topic": "intero.body.frame.v1"
+    }
+  ]
+}

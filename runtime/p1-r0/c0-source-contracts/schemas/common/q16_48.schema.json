@@ -1,0 +1,8 @@
+{
+  "$id": "urn:stay:p1-r0:schema:q16-48:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Raw signed Q16.48 integer encoded as a canonical decimal string. Runtime arithmetic uses signed 64-bit storage, 128-bit intermediates, half-even rounding and saturation.",
+  "pattern": "^-?(0|[1-9][0-9]*)$",
+  "title": "Canonical signed Q16.48 transport value",
+  "type": "string"
+}

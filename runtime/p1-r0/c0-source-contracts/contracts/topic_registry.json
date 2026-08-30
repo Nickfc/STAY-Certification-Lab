@@ -1,0 +1,269 @@
+{
+  "catalogueVersion": "P1-R0-Topics-C0-v1.0",
+  "laboratoryOnly": true,
+  "reservedDisabled": [
+    "intero.body.dimension.v1",
+    "homeos.regulatory.pressure.v1->AUTON",
+    "auton.card.modulation.v1",
+    "auton.resp.modulation.v1",
+    "card.interoceptive.summary.v1",
+    "resp.interoceptive.summary.v1",
+    "target.regulatory.feedback.v1"
+  ],
+  "topics": [
+    {
+      "canonicalProducer": "KERNEL_RESOURCE",
+      "class": "SUMMARY",
+      "consumers": [
+        "METAB"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "capacity_eligible_payload",
+      "topic": "resource.capacity.eligible.v1",
+      "ttlMs": 1000,
+      "unit": "capacity-unit"
+    },
+    {
+      "canonicalProducer": "KERNEL_RESOURCE",
+      "class": "INTEGRITY",
+      "consumers": [
+        "METAB"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "capacity_quality_payload",
+      "topic": "resource.capacity.quality.v1",
+      "ttlMs": 1000,
+      "unit": "ratio"
+    },
+    {
+      "canonicalProducer": "ENROLLED_CONSUMER",
+      "class": "DEMAND",
+      "consumers": [
+        "METAB"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "consumer_demand_payload",
+      "topic": "metab.consumer.demand.v1",
+      "ttlMs": 2000,
+      "unit": "energy-unit/s"
+    },
+    {
+      "canonicalProducer": "METAB",
+      "class": "SUMMARY",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "energy_flux_payload",
+      "topic": "metab.energy.flux.v1",
+      "ttlMs": null,
+      "unit": "energy-unit/s"
+    },
+    {
+      "canonicalProducer": "METAB",
+      "class": "SUMMARY",
+      "consumers": [
+        "HOMEOS",
+        "INTERO"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "energy_reserve_payload",
+      "topic": "metab.energy.reserve.v1",
+      "ttlMs": null,
+      "unit": "energy-unit"
+    },
+    {
+      "canonicalProducer": "METAB",
+      "class": "SUMMARY",
+      "consumers": [
+        "HOMEOS",
+        "INTERO"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "energy_availability_payload",
+      "topic": "metab.energy.availability.v1",
+      "ttlMs": null,
+      "unit": "ratio"
+    },
+    {
+      "canonicalProducer": "METAB",
+      "class": "MODULATION",
+      "consumers": [
+        "ENROLLED_CONSUMER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "consumer_budget_payload",
+      "topic": "metab.consumer.budget.v1",
+      "ttlMs": 2000,
+      "unit": "energy-unit/s"
+    },
+    {
+      "canonicalProducer": "METAB",
+      "class": "FACT",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "scarcity_payload",
+      "topic": "metab.scarcity.v1",
+      "ttlMs": null,
+      "unit": "state"
+    },
+    {
+      "canonicalProducer": "METAB",
+      "class": "FACT",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "transition_payload",
+      "topic": "metab.transition.v1",
+      "ttlMs": null,
+      "unit": "state"
+    },
+    {
+      "canonicalProducer": "METAB",
+      "class": "INTEGRITY",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "integrity_payload",
+      "topic": "metab.integrity.v1",
+      "ttlMs": null,
+      "unit": "state"
+    },
+    {
+      "canonicalProducer": "HOMEOS",
+      "class": "SUMMARY",
+      "consumers": [
+        "INTERO"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "dimension_summary_payload",
+      "topic": "homeos.dimension.summary.v1",
+      "ttlMs": null,
+      "unit": "ratio"
+    },
+    {
+      "canonicalProducer": "HOMEOS",
+      "class": "DEMAND",
+      "consumers": [],
+      "frameDelayMin": 1,
+      "payloadSchema": "regulatory_pressure_payload",
+      "topic": "homeos.regulatory.pressure.v1",
+      "ttlMs": 2000,
+      "unit": "ratio"
+    },
+    {
+      "canonicalProducer": "HOMEOS",
+      "class": "SUMMARY",
+      "consumers": [
+        "INTERO"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "stability_summary_payload",
+      "topic": "homeos.stability.summary.v1",
+      "ttlMs": null,
+      "unit": "ratio"
+    },
+    {
+      "canonicalProducer": "HOMEOS",
+      "class": "FACT",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "transition_payload",
+      "topic": "homeos.transition.v1",
+      "ttlMs": null,
+      "unit": "state"
+    },
+    {
+      "canonicalProducer": "HOMEOS",
+      "class": "INTEGRITY",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "integrity_payload",
+      "topic": "homeos.integrity.v1",
+      "ttlMs": null,
+      "unit": "state"
+    },
+    {
+      "canonicalProducer": "INTERO",
+      "class": "SUMMARY",
+      "consumers": [
+        "SNTSS_RECEPTOR_P1_R0"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "body_frame_payload",
+      "topic": "intero.body.frame.v1",
+      "ttlMs": null,
+      "unit": "body-vector"
+    },
+    {
+      "canonicalProducer": "INTERO",
+      "class": "SUMMARY",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "body_summary_payload",
+      "topic": "intero.body.summary.v1",
+      "ttlMs": null,
+      "unit": "body-band"
+    },
+    {
+      "canonicalProducer": "INTERO",
+      "class": "FACT",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "salience_transition_payload",
+      "topic": "intero.salience.transition.v1",
+      "ttlMs": null,
+      "unit": "state"
+    },
+    {
+      "canonicalProducer": "INTERO",
+      "class": "FACT",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "transition_payload",
+      "topic": "intero.transition.v1",
+      "ttlMs": null,
+      "unit": "state"
+    },
+    {
+      "canonicalProducer": "INTERO",
+      "class": "INTEGRITY",
+      "consumers": [
+        "KERNEL_OBSERVER"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "integrity_payload",
+      "topic": "intero.integrity.v1",
+      "ttlMs": null,
+      "unit": "state"
+    },
+    {
+      "canonicalProducer": "CHRONOBIOLOGY",
+      "class": "CONTEXT",
+      "consumers": [
+        "METAB",
+        "HOMEOS",
+        "INTERO"
+      ],
+      "frameDelayMin": 1,
+      "payloadSchema": "external",
+      "topic": "chronobiology.phase.context.v1",
+      "ttlMs": null,
+      "unit": "phase"
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "birth": {
+    "condition": "first registered resident accepted after manifest, identity and lifecycle validation",
+    "persistentAfterBirth": true,
+    "plannedCoreHasChip": false
+  },
+  "dashboard": {
+    "failureRule": "failure remains visible and cannot be laundered by a downstream healthy chip",
+    "plannedRendering": "roadmap metadata only; no status color/value",
+    "railOrder": [
+      "BSF",
+      "SNTSS",
+      "CHRONOBIOLOGY",
+      "METAB",
+      "HOMEOS",
+      "INTERO",
+      "AUTON",
+      "CARD",
+      "RESP",
+      "PRINSS",
+      "ALLOS",
+      "NOCI",
+      "AFFECT",
+      "SOMNA",
+      "SOCIO"
+    ],
+    "uiOutage": "UNKNOWN observation; biology unchanged"
+  },
+  "forbiddenEffects": [
+    "create/delete founder",
+    "create/revoke route",
+    "attach/detach resident",
+    "change mode",
+    "write checkpoint",
+    "supply demand/capacity",
+    "mutate biological value",
+    "erase transition history"
+  ],
+  "observationOnly": true,
+  "precedence": [
+    "QUARANTINED",
+    "OFFLINE",
+    "RECOVERING",
+    "DEGRADED",
+    "LIVE",
+    "SHADOW",
+    "NEUTRAL"
+  ],
+  "protectedFields": [
+    "founder phenotype",
+    "noiseKey",
+    "exact reserve",
+    "exact burden",
+    "exact body values",
+    "raw capacity",
+    "budgets",
+    "baselines",
+    "private source windows",
+    "security-sensitive ancestry"
+  ],
+  "safePublicFields": [
+    "chipId",
+    "publicName",
+    "coreVersion",
+    "mode",
+    "lifecycle",
+    "publicState",
+    "stateSchemaVersion",
+    "checkpointGeneration",
+    "lastTrustedFrame",
+    "coverageBand",
+    "coarseReasonCode"
+  ],
+  "states": {
+    "DEGRADED": "resident running with validated coverage, integrity, scarcity, strain, saturation or protected impairment",
+    "LIVE": "explicitly promoted authoritative mode plus healthy lifecycle",
+    "NEUTRAL": "accepted resident; zero biological output permission",
+    "OFFLINE": "previously activated core lacks accepted resident/liveness and is not recovering",
+    "QUARANTINED": "validated isolation or authority conflict; highest precedence",
+    "RECOVERING": "retained identity actively replaying/reconstructing readiness",
+    "SHADOW": "running, non-authoritative and route-bounded"
+  },
+  "version": "Universal-Core-Chip-C0-v1.0"
+}
