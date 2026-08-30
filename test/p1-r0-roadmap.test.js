@@ -6,14 +6,14 @@ const test = require('node:test');
 const roadmap = require('../runtime/p1-r0/lab-roadmap.json');
 const { projectObservationChips } = require('../runtime/ui/chip-projection');
 
-test('P1-ROADMAP-01 laboratory metadata is non-live LAB BUILD in fixed physiology order', () => {
+test('P1-ROADMAP-01 qualified laboratory metadata remains non-live in fixed physiology order', () => {
   const projection = projectObservationChips({ roadmap });
   assert.deepEqual(
     projection.roadmap.map(entry => [entry.coreId, entry.stage, entry.nonLive, entry.observationOnly]),
     [
-      ['metab', 'LAB BUILD', true, true],
-      ['homeos', 'LAB BUILD', true, true],
-      ['intero', 'LAB BUILD', true, true]
+      ['metab', 'LAB QUALIFIED', true, true],
+      ['homeos', 'LAB QUALIFIED', true, true],
+      ['intero', 'LAB QUALIFIED', true, true]
     ]
   );
   assert.deepEqual(projection.mutationEndpoints, []);

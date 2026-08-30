@@ -2,16 +2,16 @@
   {
     "coreId": "metab",
     "label": "METAB",
-    "stage": "LAB BUILD"
+    "stage": "LAB QUALIFIED"
   },
   {
     "coreId": "homeos",
     "label": "HOMEOS",
-    "stage": "LAB BUILD"
+    "stage": "LAB QUALIFIED"
   },
   {
     "coreId": "intero",
     "label": "INTERO",
-    "stage": "LAB BUILD"
+    "stage": "LAB QUALIFIED"
   }
 ]
