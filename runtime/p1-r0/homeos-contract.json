@@ -7,6 +7,7 @@
   "sources": [
     {
       "key": "availability",
+      "dimensionId": "energy.availability",
       "producer": "METAB",
       "producerMode": "SHADOW",
       "routeId": "p1r0.metab-availability.homeos",
@@ -24,6 +25,7 @@
     },
     {
       "key": "reserve",
+      "dimensionId": "energy.reserve",
       "producer": "METAB",
       "producerMode": "SHADOW",
       "routeId": "p1r0.metab-reserve.homeos",

@@ -153,7 +153,13 @@ function validateHomeosFounderProfile(input) {
   const identities = new Set();
   for (const dimension of input.dimensions) {
     const source = contract.sources.find(candidate => candidate.topic === dimension?.source?.topic);
-    if (!source || dimension.source.producerCoreId !== source.producer || dimension.source.schemaId !== source.schemaId || dimension.source.mode !== source.producerMode) {
+    if (
+      !source ||
+      dimension.dimensionId !== source.dimensionId ||
+      dimension.source.producerCoreId !== source.producer ||
+      dimension.source.schemaId !== source.schemaId ||
+      dimension.source.mode !== source.producerMode
+    ) {
       fail('HOMEOS dimension source is not canonical METAB evidence', 'P1_HOMEOS_PROFILE_SOURCE');
     }
     if (identities.has(source.key)) fail('HOMEOS has two canonical sources for one dimension', 'P1_HOMEOS_PROFILE_SOURCE');
