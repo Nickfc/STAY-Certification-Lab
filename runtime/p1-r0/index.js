@@ -5,6 +5,7 @@ module.exports = Object.freeze({
   deterministicNoise: require('./deterministic-noise'),
   contractRegistry: require('./contract-registry'),
   homeosContract: require('./homeos-contract'),
+  metabEngine: require('./metab-engine'),
   causalFrame: require('./causal-frame'),
   records: require('./records'),
   laboratoryPersistence: require('./laboratory-persistence')
