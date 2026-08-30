@@ -392,7 +392,33 @@ function createMetabEngine(options = {}) {
         confidenceQ48: confidence.toString(),
         coverageQ48: coverage.toString()
       }));
-      state.outputSequence = (firstSequence + 1n).toString();
+      outputs.push(buildFrame({
+        identity,
+        state,
+        routeId: 'p1r0.metab-availability.intero',
+        consumerCoreId: 'INTERO',
+        topic: 'metab.energy.availability.v1',
+        schemaId: 'urn:stay:p1-r0:schema:metab-energy-availability-payload:v1',
+        payload: availabilityPayload,
+        sequence: firstSequence + 2n,
+        qualityStatus: frameQuality,
+        confidenceQ48: confidence.toString(),
+        coverageQ48: coverage.toString()
+      }));
+      outputs.push(buildFrame({
+        identity,
+        state,
+        routeId: 'p1r0.metab-reserve.intero',
+        consumerCoreId: 'INTERO',
+        topic: 'metab.energy.reserve.v1',
+        schemaId: 'urn:stay:p1-r0:schema:metab-energy-reserve-payload:v1',
+        payload: reservePayload,
+        sequence: firstSequence + 3n,
+        qualityStatus: frameQuality,
+        confidenceQ48: confidence.toString(),
+        coverageQ48: coverage.toString()
+      }));
+      state.outputSequence = (firstSequence + 3n).toString();
     }
     return deepFreeze({ state: snapshot(), outputs: deepFreeze(outputs), duplicate: false });
   }
