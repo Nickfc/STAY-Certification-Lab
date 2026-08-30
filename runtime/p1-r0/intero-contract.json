@@ -1,0 +1,93 @@
+{
+  "contractVersion": "P1-R0-INTERO-DELAYED-INPUT-v1",
+  "consumer": "INTERO",
+  "laboratoryOnly": true,
+  "routeStage": "ABSENT",
+  "sources": [
+    {
+      "key": "availability",
+      "channelId": "energy.availability",
+      "producer": "METAB",
+      "producerMode": "SHADOW",
+      "routeId": "p1r0.metab-availability.intero",
+      "topic": "metab.energy.availability.v1",
+      "topicClass": "SUMMARY",
+      "schemaId": "urn:stay:p1-r0:schema:metab-energy-availability-payload:v1",
+      "unit": "ratio",
+      "delayFrames": 2,
+      "valueField": "availabilityQ48",
+      "payloadFields": [
+        "availabilityQ48",
+        "confidenceQ48",
+        "coverageQ48",
+        "debtQ48",
+        "scarcityState"
+      ]
+    },
+    {
+      "key": "reserve",
+      "channelId": "energy.reserve",
+      "producer": "METAB",
+      "producerMode": "SHADOW",
+      "routeId": "p1r0.metab-reserve.intero",
+      "topic": "metab.energy.reserve.v1",
+      "topicClass": "SUMMARY",
+      "schemaId": "urn:stay:p1-r0:schema:metab-energy-reserve-payload:v1",
+      "unit": "ratio",
+      "delayFrames": 3,
+      "valueField": "reserveFractionQ48",
+      "payloadFields": [
+        "confidenceQ48",
+        "cumulativeChargeQ48",
+        "cumulativeDischargeQ48",
+        "reserveFractionQ48",
+        "reserveQ48",
+        "trendQ48PerSecond"
+      ]
+    },
+    {
+      "key": "stability",
+      "channelId": "regulatory.stability",
+      "producer": "HOMEOS",
+      "producerMode": "SHADOW",
+      "routeId": "p1r0.homeos-stability.intero",
+      "topic": "homeos.stability.summary.v1",
+      "topicClass": "SUMMARY",
+      "schemaId": "urn:stay:p1-r0:schema:homeos-stability-summary-payload:v1",
+      "unit": "ratio",
+      "delayFrames": 2,
+      "valueField": "stabilityLoadQ48",
+      "payloadFields": [
+        "activePressureCount",
+        "confidenceQ48",
+        "coverageQ48",
+        "stabilityLoadQ48",
+        "state"
+      ]
+    }
+  ],
+  "coherence": [
+    "same organism",
+    "one canonical frame per channel",
+    "coherent METAB producer identity and committed frame",
+    "HOMEOS stability descends from the same METAB committed frame",
+    "founder-declared channel delay satisfied"
+  ],
+  "forbiddenInputFields": [
+    "viewerId",
+    "viewerCount",
+    "payment",
+    "owner",
+    "chipState"
+  ],
+  "forbiddenInteroSemantics": [
+    "emotion",
+    "fear",
+    "pain",
+    "hunger",
+    "diagnosis",
+    "cause",
+    "self",
+    "action"
+  ]
+}
