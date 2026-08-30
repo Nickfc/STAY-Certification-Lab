@@ -232,7 +232,8 @@ done
   abort source-release-hash-invalid 1707
 cmp \
   <({ awk '{sub(/^\.\//,"",$2); print $2}' "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE";
-      echo "$SOURCE_RELEASE_MANIFEST_RELATIVE"; echo 'P1_R118F_RELEASE.env'; } | LC_ALL=C sort) \
+      echo "$SOURCE_RELEASE_MANIFEST_RELATIVE";
+      echo 'P1_PRODUCTION_HARDENING_RELEASE.env'; echo 'P1_R118F_RELEASE.env'; } | LC_ALL=C sort) \
   <(cd "$SOURCE_RELEASE" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null ||
   abort source-release-file-set-invalid 1707
 [[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-socket-invalid 1708
