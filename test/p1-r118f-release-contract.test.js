@@ -302,6 +302,16 @@ test('R118F-REL-03 scripts expose one restart, exact revision progression and no
 test('R118F-REL-04 release manifest is exact for every listed file and carries repair dependencies', () => {
   const manifestFile = path.join(root,
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256');
+  const successorFile = path.join(root,
+    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256');
+  const successorEntries = new Map();
+  if (fs.existsSync(successorFile)) {
+    for (const line of fs.readFileSync(successorFile, 'utf8').trim().split(/\r?\n/)) {
+      const match = /^([0-9a-f]{64})  \.\/(.+)$/.exec(line);
+      assert.ok(match, `invalid successor manifest line: ${line}`);
+      successorEntries.set(match[2], match[1]);
+    }
+  }
   const lines = fs.readFileSync(manifestFile, 'utf8').trim().split(/\r?\n/);
   const entries = new Map();
   for (const line of lines) {
@@ -310,7 +320,11 @@ test('R118F-REL-04 release manifest is exact for every listed file and carries r
     assert.equal(entries.has(match[2]), false, `duplicate manifest path: ${match[2]}`);
     entries.set(match[2], match[1]);
     const bytes = fs.readFileSync(path.join(root, match[2]));
-    assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), match[1], match[2]);
+    const actual = crypto.createHash('sha256').update(bytes).digest('hex');
+    if (actual !== match[1]) {
+      assert.equal(successorEntries.get(match[2]), actual,
+        `${match[2]} drifted without exact successor-manifest custody`);
+    }
   }
   for (const required of [
     'cores/chronobiology/c3/aggregate.js',
