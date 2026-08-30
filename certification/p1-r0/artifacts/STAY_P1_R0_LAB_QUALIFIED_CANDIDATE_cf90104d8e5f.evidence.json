@@ -1,0 +1,20 @@
+{
+  "format": "stay-p1-r0-laboratory-candidate-v1",
+  "result": "PASS",
+  "commit": "cf90104d8e5fa874ebacb033304ff2e6faaae4da",
+  "tree": "0ed7392de31f077138fec74e8cd89e5a8251c3ac",
+  "archive": "STAY_P1_R0_LAB_QUALIFIED_CANDIDATE_cf90104d8e5f.tar.gz",
+  "archiveSha256": "sha256:1fb4bfbf2a1b24cefc9e6c44b2cda4551f53616675356c5a077f7fff818c288a",
+  "sidecar": "STAY_P1_R0_LAB_QUALIFIED_CANDIDATE_cf90104d8e5f.tar.gz.sha256",
+  "inventory": "STAY_P1_R0_LAB_QUALIFIED_CANDIDATE_cf90104d8e5f.inventory.json",
+  "inventorySha256": "sha256:624bd665ac4285cff4d763cbc46cabc4bb2a9e8381235eb049fefc896ff3bd29",
+  "focusedTests": 108,
+  "completeTests": 1034,
+  "ciRunId": "33314754554",
+  "ciUrl": "https://github.com/Nickfc/STAY-Certification-Lab/actions/runs/33314754554",
+  "realEntryPreflight": "PASS",
+  "secureServerPreflight": "PASS",
+  "cleanExtraction": "PASS",
+  "productionTouched": false,
+  "evidenceHash": "sha256:76d74477789fb17224838a48a8f15579cfe826d335da1ea2742debec533a4f07"
+}
