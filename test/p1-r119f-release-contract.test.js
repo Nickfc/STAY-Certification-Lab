@@ -314,6 +314,7 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward, /SOURCE_RELEASE_MANIFEST_RECORD_COUNT=188/);
   assert.match(forward, /SOURCE_RELEASE_PRESENT_RECORD_COUNT=183/);
   assert.match(forward, /SOURCE_RELEASE_FILE_COUNT=186/);
+  assert.match(forward, /TARGET_RELEASE_MANIFEST_RECORD_COUNT=221/);
   assert.match(forward, /TARGET_CANDIDATE_FILE_COUNT=224/);
   assert.match(forward, /TARGET_RELEASE_FILE_COUNT=225/);
   assert.match(forward, /source_release_records_present/);
@@ -392,6 +393,7 @@ test('R119F-REL-04 release manifest is exact for every listed file and carries r
     'runtime/kernel/living-kernel.js',
     'runtime/kernel/resident-manager.js',
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256',
+    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256',
     'deploy/live-physiology-transplant/p1-r119f-forward.sh',
     'deploy/live-physiology-transplant/p1-r119f-forward-recovery.sh',
     'deploy/live-physiology-transplant/p1-r119f-chronobiology-bounded-catchup-repair.js',
@@ -423,7 +425,9 @@ test('R119F-REL-04A installed R118 and reconciled R119F inventories are exact', 
     'docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md',
   ];
   assert.equal(source.size, 188);
-  assert.equal(target.size, 220);
+  assert.equal(target.size, 221);
+  assert.equal(target.get('deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'),
+    '129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0');
   for (const relative of absent) {
     assert.equal(source.has(relative), true, relative);
     assert.equal(target.get(relative), source.get(relative), relative);
