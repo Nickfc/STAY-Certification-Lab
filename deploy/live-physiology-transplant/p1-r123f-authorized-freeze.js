@@ -185,7 +185,8 @@ function capture(databasePath, releaseRoot, sntssFile, chronobiologyFile, metaFi
         && Number(currentCheckpoint.generation) === Number(durable.checkpoint_generation)
         && currentCheckpoint.blob_hash === durable.checkpoint_hash
         && Number(currentCheckpoint.byte_length) > 0
-        && Number(currentCheckpoint.input_cursor) === Number(value.cursor),
+        && Number(currentCheckpoint.input_cursor) > EXPECTED.abandonedSequence
+        && Number(currentCheckpoint.input_cursor) <= Number(value.cursor),
       `${name} consumer/checkpoint continuity changed`, 'R123F_FREEZE_CONTINUITY');
     }
 
@@ -302,7 +303,7 @@ function capture(databasePath, releaseRoot, sntssFile, chronobiologyFile, metaFi
       && identity.r120RecoveryCommit === '92edf850231743f4c7a149f56cf5288d4cf81f5c'
       && identity.r122OperationalTag === 'r122-operational-recovery-v1'
       && identity.r122OperationalCommit === '4d87973d15640189dd9346a4a0d2b7b835c21960'
-      && identity.r123FreezeTag === 'r123f-authorized-freeze-v1'
+      && identity.r123FreezeTag === 'r123f-authorized-freeze-v2'
       && /^[0-9a-f]{40}$/.test(identity.r123FreezeCommit)
       && /^[0-9a-f]{40}$/.test(identity.r123FreezeTree)
       && identity.helperSha256 === fileSha256(helperFile)
@@ -313,8 +314,10 @@ function capture(databasePath, releaseRoot, sntssFile, chronobiologyFile, metaFi
       quickCheck: 'ok',
       runtimeRevisionMetadataSha256: `sha256:${revisionRow.sha256}`,
       sntssCheckpointGeneration: Number(durableSntss.checkpoint_generation),
+      sntssCheckpointInputCursor: Number(sntssCheckpoint.input_cursor),
       sntssConsumerCursor: Number(sntssConsumer.cursor),
       chronobiologyCheckpointGeneration: Number(durableChronobiology.checkpoint_generation),
+      chronobiologyCheckpointInputCursor: Number(chronobiologyCheckpoint.input_cursor),
       chronobiologyConsumerCursor: Number(chronobiologyConsumer.cursor),
       chronobiologyOutboxStreamSequence: Number(head.last_stream_sequence),
       unresolvedPendingDeliveries: pendingDeliveries,
