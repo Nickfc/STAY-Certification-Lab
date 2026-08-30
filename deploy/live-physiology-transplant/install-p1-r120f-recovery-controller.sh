@@ -4,7 +4,7 @@ umask 077
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_WRAPPER_SHA256='67d176af4ed71b6e52b1a83da3f97cbce05c90a120bf61d8c88406c1e9741fef'
+EXPECTED_WRAPPER_SHA256='491cb2217af45589113e3b135c4ed677e04dbc49e3f20f64aeca77095a2e0b6b'
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-r120f-recovery-controller"
 TARGET_WRAPPER='/usr/local/sbin/stay-p1-production-controller'

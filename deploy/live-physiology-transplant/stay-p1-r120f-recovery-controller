@@ -5,10 +5,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_TAG='r120f-recovery-v1'
-EXPECTED_COMMIT='60cd5a685ba5049ccb72b757c36ac014b403c146'
-EXPECTED_TREE='5b6b22af1db1a567c35badd5ae6d3bb2145bea93'
-EXPECTED_HELPER_SHA256='34c685f38ef39814dda4a91af7f4bdd6dc9f5465fe6974ff309b8ce438e3d511'
+EXPECTED_TAG='r120f-recovery-v2'
+EXPECTED_COMMIT='92edf850231743f4c7a149f56cf5288d4cf81f5c'
+EXPECTED_TREE='32467f11b6dac9ca52bf80013003fbb658b11615'
+EXPECTED_HELPER_SHA256='1c55578ff1db859777274f795ae50dbb3c1465e4142a99ccffd55cd77606ba73'
 EXPECTED_RECOVERY_SHA256='a19d5e228254298b0b875d56d04774b7ee1e8f0400ba3af4f893a0c7f72dd47f'
 EXPECTED_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2961f9a48173'
 INCOMING='/opt/stay/incoming'
@@ -31,7 +31,7 @@ validate_plain_tree() {
 }
 validate_run_root() {
   local root="$1" mode
-  [[ "$root" =~ ^/opt/stay/incoming/r120f-recovery-v1-[0-9]+$ && -d "$root" && ! -L "$root" ]] || return 1
+  [[ "$root" =~ ^/opt/stay/incoming/r120f-recovery-v2-[0-9]+$ && -d "$root" && ! -L "$root" ]] || return 1
   [[ "$(readlink -f "$(dirname "$root")")" == "$(readlink -f "$INCOMING")" ]] || return 1
   [[ "$(stat -Lc '%U:%G' "$root")" == staydeploy:staydeploy ]] || return 1
   mode="$(stat -Lc '%a' "$root")" || return 1
@@ -62,7 +62,7 @@ cleanup() {
 trusted_root_file "$0" || abort 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
 [[ "$(ip -4 -o addr show scope global | awk '{split($4,a,"/");print a[1]}' | sort -u)" == "$EXPECTED_PRIVATE_IPV4" ]] ||
   abort 67 HOST_IDENTITY_FAILED host-identity-mismatch
-[[ "$1" == recover-r120f && "$3" == AUTHORIZE_R120F_V1_FENCED_RECOVERY_WITHOUT_ANOTHER_RESTART ]] ||
+[[ "$1" == recover-r120f && "$3" == AUTHORIZE_R120F_V2_FENCED_RECOVERY_WITHOUT_ANOTHER_RESTART ]] ||
   abort 74 AUTHORIZATION_FAILED recovery-authorization-missing
 validate_run_root "$2" || abort 78 PATH_VALIDATION_FAILED invalid-run-root
 RUN_ROOT="$2"
