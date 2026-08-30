@@ -2,10 +2,13 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const q48 = require('../runtime/p1-r0/q16-48');
 const { stableStringify } = require('../runtime/kernel/canonical-json');
 const { collectHomeosInputs } = require('../runtime/p1-r0/homeos-contract');
+const { ROUTES } = require('../runtime/p1-r0/contract-registry');
 const profile = require('../runtime/p1-r0/c0-source-contracts/contracts/founder_profile_templates.json').profiles.METAB;
 
 let implementation = null;
@@ -124,4 +127,75 @@ test('METAB-R10 UI/chip input is outside the engine schema and produces zero bio
   const before = stableStringify(engine.snapshot());
   assert.throws(() => engine.advance({ ...capacity(1), chipState: 'LIVE' }), { code: 'P1_METAB_INPUT_SCHEMA' });
   assert.equal(stableStringify(engine.snapshot()), before);
+});
+
+test('METAB-Q01 NEUTRAL computes contained state but emits no biological frames', () => {
+  const engine = createEngine({
+    identity: {
+      organismId: 'stay-p1-r0-test',
+      founderLineageId: 'lineage-metab-0001',
+      residencyId: 'resident:metab',
+      coreVersion: '0.1.0-lab',
+      authorityEpoch: '0',
+      mode: 'NEUTRAL'
+    }
+  });
+  const result = engine.advance(capacity(1));
+  assert.equal(result.state.frameIndex, 1);
+  assert.deepEqual(result.outputs, []);
+});
+
+test('METAB-Q02 laboratory identity is authority-zero and cannot instantiate LIVE', () => {
+  assert.throws(() => createEngine({
+    identity: {
+      organismId: 'stay-p1-r0-test',
+      founderLineageId: 'lineage-metab-0001',
+      residencyId: 'resident:metab',
+      coreVersion: '0.1.0-lab',
+      authorityEpoch: '1',
+      mode: 'SHADOW'
+    }
+  }), { code: 'P1_METAB_AUTHORITY' });
+  assert.throws(() => createEngine({
+    identity: {
+      organismId: 'stay-p1-r0-test',
+      founderLineageId: 'lineage-metab-0001',
+      residencyId: 'resident:metab',
+      coreVersion: '0.1.0-lab',
+      authorityEpoch: '0',
+      mode: 'LIVE'
+    }
+  }), { code: 'P1_METAB_AUTHORITY' });
+});
+
+test('METAB-Q03 conflicting content under one producer sequence is quarantined', () => {
+  const engine = createEngine();
+  engine.advance(capacity(1));
+  assert.throws(() => engine.advance(capacity(1, 1, { eligibleCapacityQ48: '0' })), { code: 'P1_METAB_REPLAY_CONFLICT' });
+});
+
+test('METAB-Q04 invalid capacity is explicit UNKNOWN and cannot charge reserve', () => {
+  const engine = createEngine();
+  const before = engine.snapshot();
+  const result = engine.advance(capacity(1, 1, { qualityStatus: 'INVALID', ceilingVerified: false }));
+  assert.equal(result.state.lifecycle, 'UNRESOLVED');
+  assert.equal(result.state.productionQ48, '0');
+  assert.equal(result.state.cumulativeChargeQ48, before.cumulativeChargeQ48);
+  assert.equal(result.outputs.every(frame => frame.quality.status === 'UNKNOWN'), true);
+  assert.throws(() => collectHomeosInputs(homeosOutputs(result), 2), { code: 'P1_HOMEOS_INPUT_UNKNOWN' });
+});
+
+test('METAB-Q05 identical founders and inputs produce byte-identical state and summaries', () => {
+  const left = createEngine().advance(capacity(1));
+  const right = createEngine().advance(capacity(1));
+  assert.equal(stableStringify(left), stableStringify(right));
+});
+
+test('METAB-Q06 implementation has no wall clock, RNG, StateStore, UI or production attachment path', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'runtime', 'p1-r0', 'metab-engine.js'), 'utf8');
+  assert.doesNotMatch(source, /\bDate[.(]|\bperformance\.|\bMath\.random|\brandomBytes/);
+  assert.doesNotMatch(source, /state-store|continuity\.sqlite|chip-projection|live-bridge|resident-manager/i);
+  assert.equal(ROUTES['p1r0.capacity.metab'].stage, 'ABSENT');
+  assert.equal(ROUTES['p1r0.metab-availability.homeos'].stage, 'ABSENT');
+  assert.equal(ROUTES['p1r0.metab-reserve.homeos'].stage, 'ABSENT');
 });
