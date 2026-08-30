@@ -268,16 +268,28 @@ jobs:
               '048bdec2ab67e2a2ff0114e8d5fecec1c81879addbfe9b13a53b70b7c263602c  ./docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md'
               '42aae340f5dfc8a43dc8c3f38855df1b3e681e51102d0ab1b5be14ebfb456404  ./test/p1-r118f-release-contract.test.js'
             )
+            source_reconciled_records=(
+              '4d95813956acee06cd963ad8dc11a52d402ebeedadc3262046202a1cc9682a1c  ./runtime/kernel/hardened-living-kernel.js|90552599da3c3c2f189ea3426b25ea25d91e6d22d796449f4fc27b388d172b46  ./runtime/kernel/hardened-living-kernel.js'
+              '46c7a51b8f256f3c6b9fdb1a183b087a676eace03c3c19d7d4cf05f3e0481429  ./runtime/kernel/resident-promotion-authority.js|bb187de6a8f6d7013db2b5658391da81ad4adf375ad810674466ee329bb30103  ./runtime/kernel/resident-promotion-authority.js'
+            )
             source_metadata_files=(
               "$source_manifest"
               'P1_PRODUCTION_HARDENING_RELEASE.env'
               'P1_R118F_RELEASE.env'
             )
             source_records_present() {
-              local record absent
+              local record absent reconciliation source_record installed_record
               while IFS= read -r record; do
                 for absent in "${source_absent_records[@]}"; do
                   [[ "$record" == "$absent" ]] && continue 2
+                done
+                for reconciliation in "${source_reconciled_records[@]}"; do
+                  source_record="${reconciliation%%|*}"
+                  installed_record="${reconciliation#*|}"
+                  if [[ "$record" == "$source_record" ]]; then
+                    printf '%s\n' "$installed_record"
+                    continue 2
+                  fi
                 done
                 printf '%s\n' "$record"
               done < "$source_release/$source_manifest"

@@ -34,12 +34,26 @@ class HardenedLivingKernel extends BaseLivingKernel {
   constructor(options = {}) {
     const {
       trustedTimePulseIntervalMs = process.env.STAY_TRUSTED_TIME_PULSE_INTERVAL_MS || 0,
+      trustedOrganismTimePulseIntervalMs = process.env.STAY_TRUSTED_ORGANISM_TIME_PULSE_INTERVAL_MS || 0,
       ...kernelOptions
     } = options;
     super(kernelOptions);
     this.trustedTimePulseIntervalMs = normalizeTrustedTimePulseIntervalMs(trustedTimePulseIntervalMs);
     this.trustedTimePulseTimer = null;
     this.trustedTimePulseInFlight = false;
+    this.trustedOrganismTimePulseIntervalMs = normalizeTrustedTimePulseIntervalMs(trustedOrganismTimePulseIntervalMs);
+    this.trustedOrganismTimePulseTimer = null;
+    this.trustedOrganismTimePulseInFlight = false;
+  }
+
+  trustedOrganismTimePulseStatus() {
+    return {
+      enabled: this.trustedOrganismTimePulseIntervalMs > 0,
+      running: Boolean(this.trustedOrganismTimePulseTimer),
+      inFlight: this.trustedOrganismTimePulseInFlight,
+      intervalMs: this.trustedOrganismTimePulseIntervalMs,
+      sequence: this.trustedOrganismTimePulseSequence
+    };
   }
 
   trustedTimePulseStatus() {
@@ -83,6 +97,45 @@ class HardenedLivingKernel extends BaseLivingKernel {
     }
   }
 
+  startTrustedOrganismTimePulseScheduler() {
+    if (
+      this.trustedOrganismTimePulseIntervalMs === 0 ||
+      this.trustedOrganismTimePulseTimer ||
+      !this.trustedOrganismTime
+    ) return false;
+
+    this.runTrustedOrganismTimePulse()
+      .catch(error => this.recordMaintenanceError('trusted-organism-time-pulse', error));
+    this.trustedOrganismTimePulseTimer = setInterval(() => {
+      this.runTrustedOrganismTimePulse()
+        .catch(error => this.recordMaintenanceError('trusted-organism-time-pulse', error));
+    }, this.trustedOrganismTimePulseIntervalMs);
+    this.trustedOrganismTimePulseTimer.unref?.();
+    return true;
+  }
+
+  stopTrustedOrganismTimePulseScheduler() {
+    if (!this.trustedOrganismTimePulseTimer) return false;
+    clearInterval(this.trustedOrganismTimePulseTimer);
+    this.trustedOrganismTimePulseTimer = null;
+    return true;
+  }
+
+  async runTrustedOrganismTimePulse() {
+    if (this.trustedOrganismTimePulseInFlight || !this.trustedOrganismTime) return false;
+    this.trustedOrganismTimePulseInFlight = true;
+    try {
+      await this.publishTrustedOrganismTimePulse();
+      this.clearMaintenanceError('trusted-organism-time-pulse');
+      return true;
+    } catch (error) {
+      this.recordMaintenanceError('trusted-organism-time-pulse', error);
+      return false;
+    } finally {
+      this.trustedOrganismTimePulseInFlight = false;
+    }
+  }
+
   residentHasTrustedTimeInput() {
     if (!this.residentManager) {
       return false;
@@ -102,6 +155,13 @@ class HardenedLivingKernel extends BaseLivingKernel {
     );
   }
 
+  residentHasTrustedOrganismTimeInput() {
+    if (!this.residentManager) return false;
+    return [...this.residentManager.units.values()].some(
+      unit => unit.manifest.inputs.includes('runtime.trusted-organism-time.pulse')
+    );
+  }
+
   async start() {
     await super.start();
 
@@ -114,6 +174,10 @@ class HardenedLivingKernel extends BaseLivingKernel {
       this.residentHasTrustedTimeInput()
     ) {
       this.startTrustedTimePulseScheduler();
+    }
+
+    if (this.residentHasTrustedOrganismTimeInput()) {
+      this.startTrustedOrganismTimePulseScheduler();
     }
 
     return this;
@@ -135,6 +199,10 @@ class HardenedLivingKernel extends BaseLivingKernel {
         )
     ) {
       this.startTrustedTimePulseScheduler();
+    }
+
+    if (unit?.manifest?.inputs?.includes('runtime.trusted-organism-time.pulse')) {
+      this.startTrustedOrganismTimePulseScheduler();
     }
 
     return unit;
@@ -207,7 +275,11 @@ class HardenedLivingKernel extends BaseLivingKernel {
 
   async health(knownCores = null) {
     const base = await super.health(knownCores);
-    return { ...base, trustedTimePulse: this.trustedTimePulseStatus() };
+    return {
+      ...base,
+      trustedTimePulse: this.trustedTimePulseStatus(),
+      trustedOrganismTimePulse: this.trustedOrganismTimePulseStatus()
+    };
   }
 
   async publishKernelEvent(topic, payload, meta = {}) {
@@ -263,6 +335,7 @@ class HardenedLivingKernel extends BaseLivingKernel {
 
   async stop() {
     this.stopTrustedTimePulseScheduler();
+    this.stopTrustedOrganismTimePulseScheduler();
     await super.stop();
   }
 }

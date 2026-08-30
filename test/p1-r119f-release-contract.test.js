@@ -319,6 +319,10 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward, /TARGET_RELEASE_FILE_COUNT=225/);
   assert.match(forward, /source_release_records_present/);
   assert.match(forward, /sha256sum -c <\(source_release_records_present\)/);
+  assert.match(forward,
+    /4d95813956acee06cd963ad8dc11a52d402ebeedadc3262046202a1cc9682a1c  \.\/runtime\/kernel\/hardened-living-kernel\.js\|90552599da3c3c2f189ea3426b25ea25d91e6d22d796449f4fc27b388d172b46/);
+  assert.match(forward,
+    /46c7a51b8f256f3c6b9fdb1a183b087a676eace03c3c19d7d4cf05f3e0481429  \.\/runtime\/kernel\/resident-promotion-authority\.js\|bb187de6a8f6d7013db2b5658391da81ad4adf375ad810674466ee329bb30103/);
   assert.match(forward, /sha256sum -c "\$TARGET_RELEASE_MANIFEST_RELATIVE"/);
   assert.match(forward, /candidate-file-set-invalid/);
   assert.match(forward, /target-release-file-set-invalid/);
@@ -392,7 +396,9 @@ test('R119F-REL-04 release manifest is exact for every listed file and carries r
     'runtime/kernel/core-host-client.js',
     'runtime/kernel/core-loader.js',
     'runtime/kernel/chronobiology-resident-contracts.js',
+    'runtime/kernel/hardened-living-kernel.js',
     'runtime/kernel/living-kernel.js',
+    'runtime/kernel/resident-promotion-authority.js',
     'runtime/kernel/resident-manager.js',
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.sha256',
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256',
@@ -446,6 +452,14 @@ test('R119F-REL-04A installed R118 and reconciled R119F inventories are exact', 
   assert.equal(target.size, 221);
   assert.equal(target.get('deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'),
     '129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0');
+  assert.equal(source.get('runtime/kernel/hardened-living-kernel.js'),
+    '4d95813956acee06cd963ad8dc11a52d402ebeedadc3262046202a1cc9682a1c');
+  assert.equal(target.get('runtime/kernel/hardened-living-kernel.js'),
+    '90552599da3c3c2f189ea3426b25ea25d91e6d22d796449f4fc27b388d172b46');
+  assert.equal(source.get('runtime/kernel/resident-promotion-authority.js'),
+    '46c7a51b8f256f3c6b9fdb1a183b087a676eace03c3c19d7d4cf05f3e0481429');
+  assert.equal(target.get('runtime/kernel/resident-promotion-authority.js'),
+    'bb187de6a8f6d7013db2b5658391da81ad4adf375ad810674466ee329bb30103');
   for (const [relative, sourceHash, targetHash] of absent) {
     assert.equal(source.has(relative), true, relative);
     assert.equal(source.get(relative), sourceHash, `${relative}:source`);

@@ -40,6 +40,10 @@ SOURCE_RELEASE_ABSENT_RECORDS=(
   '048bdec2ab67e2a2ff0114e8d5fecec1c81879addbfe9b13a53b70b7c263602c  ./docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md'
   '42aae340f5dfc8a43dc8c3f38855df1b3e681e51102d0ab1b5be14ebfb456404  ./test/p1-r118f-release-contract.test.js'
 )
+SOURCE_RELEASE_RECONCILED_RECORDS=(
+  '4d95813956acee06cd963ad8dc11a52d402ebeedadc3262046202a1cc9682a1c  ./runtime/kernel/hardened-living-kernel.js|90552599da3c3c2f189ea3426b25ea25d91e6d22d796449f4fc27b388d172b46  ./runtime/kernel/hardened-living-kernel.js'
+  '46c7a51b8f256f3c6b9fdb1a183b087a676eace03c3c19d7d4cf05f3e0481429  ./runtime/kernel/resident-promotion-authority.js|bb187de6a8f6d7013db2b5658391da81ad4adf375ad810674466ee329bb30103  ./runtime/kernel/resident-promotion-authority.js'
+)
 SOURCE_RELEASE_METADATA_FILES=(
   "$SOURCE_RELEASE_MANIFEST_RELATIVE"
   'P1_PRODUCTION_HARDENING_RELEASE.env'
@@ -76,7 +80,9 @@ OVERLAY_FILES=(
   'cores/chronobiology/c3r5/trig-table.js'
   'cores/chronobiology/c3r5/validation.js'
   'runtime/kernel/chronobiology-resident-contracts.js'
+  'runtime/kernel/hardened-living-kernel.js'
   'runtime/kernel/living-kernel.js'
+  'runtime/kernel/resident-promotion-authority.js'
   'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md'
   'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md'
   'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256'
@@ -173,10 +179,18 @@ tree_digest() {
 }
 
 source_release_records_present() {
-  local record absent
+  local record absent reconciliation source_record installed_record
   while IFS= read -r record; do
     for absent in "${SOURCE_RELEASE_ABSENT_RECORDS[@]}"; do
       [[ "$record" == "$absent" ]] && continue 2
+    done
+    for reconciliation in "${SOURCE_RELEASE_RECONCILED_RECORDS[@]}"; do
+      source_record="${reconciliation%%|*}"
+      installed_record="${reconciliation#*|}"
+      if [[ "$record" == "$source_record" ]]; then
+        printf '%s\n' "$installed_record"
+        continue 2
+      fi
     done
     printf '%s\n' "$record"
   done < "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE"

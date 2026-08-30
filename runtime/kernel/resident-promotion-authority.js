@@ -25,6 +25,9 @@ const FORMAT =
 const AUTHORIZATION_CLASS =
   'sntss-resident-zero-authority';
 
+const CHRONOBIOLOGY_AUTHORIZATION_CLASS =
+  'chronobiology-resident-shadow-none';
+
 const HASH =
   /^sha256:[0-9a-f]{64}$/;
 
@@ -55,6 +58,34 @@ function identityHash(
       identity
     )
   );
+}
+
+
+function authorizationClassForContract(contract) {
+  if (
+    contract?.coreId === 'sntss' &&
+    contract?.residencyId === 'resident:sntss' &&
+    contract?.productionEligible === false &&
+    (
+      contract?.signalling === undefined ||
+      contract?.signalling === 'FORBIDDEN'
+    ) &&
+    Array.isArray(contract?.outputs) &&
+    contract.outputs.length === 0
+  ) return AUTHORIZATION_CLASS;
+
+  if (
+    contract?.coreId === 'chronobiology' &&
+    contract?.residencyId === 'resident:chronobiology' &&
+    contract?.productionEligible === false &&
+    contract?.authorityMode === 'shadow' &&
+    contract?.signalling === 'LAB_SHADOW_ONLY' &&
+    Array.isArray(contract?.outputs) &&
+    contract.outputs.length === 1 &&
+    contract.outputs[0] === 'chronobiology.phase.summary'
+  ) return CHRONOBIOLOGY_AUTHORIZATION_CLASS;
+
+  fail('resident promotion contract has no bounded authorization class', 'RESIDENT_PROMOTION_CLASS');
 }
 
 
@@ -195,10 +226,7 @@ function verifyResidentPromotionCertificate(
     definition.manifest;
 
 
-  if (
-    body.authorizationClass !==
-      AUTHORIZATION_CLASS
-  ) {
+  if (body.authorizationClass !== authorizationClassForContract(contract)) {
     fail(
       'resident promotion authorization class is invalid',
       'RESIDENT_PROMOTION_CLASS'
@@ -230,7 +258,7 @@ function verifyResidentPromotionCertificate(
       false
   ) {
     fail(
-      'resident SNTSS must remain production-ineligible',
+      'resident must remain production-ineligible',
       'RESIDENT_PROMOTION_AUTHORITY'
     );
   }
@@ -260,19 +288,11 @@ function verifyResidentPromotionCertificate(
   }
 
 
-  if (
-    !Array.isArray(
-      body.allowedOutputs
-    ) ||
-    body.allowedOutputs.length !==
-      0 ||
-    manifest.outputs.length !==
-      0 ||
-    contract.outputs.length !==
-      0
-  ) {
+  if (!Array.isArray(body.allowedOutputs) ||
+    stableStringify(body.allowedOutputs) !== stableStringify([...manifest.outputs]) ||
+    stableStringify(body.allowedOutputs) !== stableStringify([...contract.outputs])) {
     fail(
-      'resident promotion may not authorize outputs',
+      'resident promotion output contract mismatch',
       'RESIDENT_PROMOTION_OUTPUTS'
     );
   }
@@ -522,6 +542,8 @@ function loadAndVerifyResidentPromotion({
 module.exports = {
   FORMAT,
   AUTHORIZATION_CLASS,
+  CHRONOBIOLOGY_AUTHORIZATION_CLASS,
+  authorizationClassForContract,
   identityHash,
   certificateFileName,
   verifyResidentPromotionCertificate,

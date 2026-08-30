@@ -141,6 +141,13 @@ test('R119F-BRIDGE-07 production preflight is read-only and recovery-cohort fenc
     '048bdec2ab67e2a2ff0114e8d5fecec1c81879addbfe9b13a53b70b7c263602c',
     '42aae340f5dfc8a43dc8c3f38855df1b3e681e51102d0ab1b5be14ebfb456404',
   ]) assert.equal(preflight.includes(absentHash), true, absentHash);
+  for (const reconciliation of [
+    '4d95813956acee06cd963ad8dc11a52d402ebeedadc3262046202a1cc9682a1c',
+    '90552599da3c3c2f189ea3426b25ea25d91e6d22d796449f4fc27b388d172b46',
+    '46c7a51b8f256f3c6b9fdb1a183b087a676eace03c3c19d7d4cf05f3e0481429',
+    'bb187de6a8f6d7013db2b5658391da81ad4adf375ad810674466ee329bb30103',
+  ]) assert.equal(preflight.includes(reconciliation), true, reconciliation);
+  assert.match(preflight, /source_reconciled_records/);
   assert.match(preflight, /sha256sum -c <\(source_records_present\)/);
   assert.match(preflight, /cmp \\\n[\s\S]*source_metadata_files[\s\S]*find \. -type f -printf/);
   assert.match(preflight, /R119F_SOURCE_RELEASE_INVENTORY=PASS/);
