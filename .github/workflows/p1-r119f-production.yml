@@ -1,5 +1,5 @@
-name: R119F V2 guarded production recovery
-run-name: R119F V2 · ${{ inputs.operation }} · ${{ github.actor }}
+name: R119F V3 guarded production recovery
+run-name: R119F V3 · ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -19,29 +19,29 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R119F_V2_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
-          - AUTHORIZE_R119F_V2_FORWARD_RECOVERY_ONLY
+          - AUTHORIZE_R119F_V3_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
+          - AUTHORIZE_R119F_V3_FORWARD_RECOVERY_ONLY
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r119f-v2-production
+  group: stay-r119f-v3-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r119f-v2
-  RELEASE_TAG_OBJECT: 2bc49668ae05fa2408000bd41ba20761ab2b172e
-  RELEASE_COMMIT: 1d2c4ce7c2ba5f6b670b4a2ec7272796e90ac289
-  RELEASE_TREE: a6de972fd5a9c22e5b268a0f57267883b0b947d9
-  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V2_BUNDLE_20260830.tar.gz
-  ARCHIVE_SHA256: b22a6e239065171bac1bfea69fec610ae7185445f8ba40938e6788fa48637a25
-  SIDECAR_SHA256: 7a71bdb659b606b0ffcc99f329a96954d2536a204ec0919026ad0d81f6e71c0e
-  MANIFEST_SHA256: 1290b006d6b6b942dd6c6a83c7fa471fa6177cece58e57538807909583772574
-  FORWARD_SHA256: 43f67fed4596e711eb7dcc0f302be794392475a0626d8a4c40a656f3b11cccc3
+  RELEASE_TAG: r119f-v3
+  RELEASE_TAG_OBJECT: 0c33062cf22a3a57cadaed7461170e9813bc67f2
+  RELEASE_COMMIT: e5ec672e97555fbf84f4d5ff8fed68e6fc4a558c
+  RELEASE_TREE: 7281fa808194a4e5014763c5eb1a46cf11d30331
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V3_BUNDLE_20260830.tar.gz
+  ARCHIVE_SHA256: a5ddd851e43017cac69475dc88997cfbc685073544a3b2a642aaf71cb9a5c8b5
+  SIDECAR_SHA256: 673aa77db992ea6b1b3d9ea39d2d4e133fc1fe15f12897032f25823d9a0965c9
+  MANIFEST_SHA256: 2b5234c6d766bc81b4421a706768d2aab0401af68c43690f94e64c91820e1248
+  FORWARD_SHA256: 832f8c5a6356073eb84c9859022ca437dc5b8276840396e38b0097a5a0a43cd2
   RECOVERY_SHA256: c6a44bfc956beb07aa0b3ef3fa6a36da9e27926d3a347d0ef20a72a7ddaf9f00
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2c1a36ee2c74
-  WRAPPER_SHA256: 190b6631d3d21cf0dbba4116c2910d6c8f0acc52f901ac0269065022f5afdbee
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-e76a2826d744
+  WRAPPER_SHA256: 53d520c367df530773da3828153416d6e4e239f8907b6907863d6466eda246d9
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
@@ -63,10 +63,10 @@ jobs:
           [[ "$GITHUB_REF" == refs/heads/main ]]
           case "$OPERATION" in
             harden-r119f)
-              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V2_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
+              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V3_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
               ;;
             recover-r119f)
-              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V2_FORWARD_RECOVERY_ONLY ]]
+              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V3_FORWARD_RECOVERY_ONLY ]]
               ;;
             *) exit 64 ;;
           esac
@@ -184,7 +184,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r119f-v2-validated-release-${{ github.run_id }}
+          name: r119f-v3-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r119f-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r119f-release/${{ env.ARCHIVE }}.sha256
@@ -202,7 +202,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r119f-v2-validated-release-${{ github.run_id }}
+          name: r119f-v3-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -253,6 +253,56 @@ jobs:
               ;;
             *) exit 64 ;;
           esac
+          if [[ "$operation" == harden-r119f ]]; then
+            source_manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'
+            source_manifest_sha256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'
+            source_manifest_records=188
+            source_present_records=181
+            source_file_count=184
+            source_absent_records=(
+              'bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37  ./deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md'
+              '259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md'
+              '7b5370cd244b427bbdac062b9be09af1e853ece9a416dd22a72e220e03789fcc  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256'
+              '433430f1e360d1183e29e016978c9610fd1b2d1070aab5415facb39aab8896df  ./deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js'
+              '386da10cf952cd448ffc8315e797165c292208561246e47a223565825a922d52  ./deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh'
+              '048bdec2ab67e2a2ff0114e8d5fecec1c81879addbfe9b13a53b70b7c263602c  ./docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md'
+              '42aae340f5dfc8a43dc8c3f38855df1b3e681e51102d0ab1b5be14ebfb456404  ./test/p1-r118f-release-contract.test.js'
+            )
+            source_metadata_files=(
+              "$source_manifest"
+              'P1_PRODUCTION_HARDENING_RELEASE.env'
+              'P1_R118F_RELEASE.env'
+            )
+            source_records_present() {
+              local record absent
+              while IFS= read -r record; do
+                for absent in "${source_absent_records[@]}"; do
+                  [[ "$record" == "$absent" ]] && continue 2
+                done
+                printf '%s\n' "$record"
+              done < "$source_release/$source_manifest"
+            }
+            [[ -d "$source_release" && ! -L "$source_release"
+              && -f "$source_release/$source_manifest"
+              && ! -L "$source_release/$source_manifest"
+              && "$(sha256sum "$source_release/$source_manifest" | awk '{print $1}')" == "$source_manifest_sha256"
+              && -z "$(find -P "$source_release" -xdev \
+                \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
+            [[ "$(wc -l < "$source_release/$source_manifest")" -eq "$source_manifest_records" ]]
+            for record in "${source_absent_records[@]}"; do
+              [[ "$(grep -Fxc "$record" "$source_release/$source_manifest")" -eq 1 ]]
+              relative="${record#*  ./}"
+              [[ ! -e "$source_release/$relative" && ! -L "$source_release/$relative" ]]
+            done
+            [[ "$(source_records_present | wc -l)" -eq "$source_present_records" ]]
+            (cd "$source_release" && sha256sum -c <(source_records_present) >/dev/null)
+            cmp \
+              <({ source_records_present | awk '{sub(/^\.\//,"",$2); print $2}';
+                  printf '%s\n' "${source_metadata_files[@]}"; } | LC_ALL=C sort) \
+              <(cd "$source_release" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null
+            [[ "$(find "$source_release" -type f | wc -l)" -eq "$source_file_count" ]]
+            echo 'R119F_SOURCE_RELEASE_INVENTORY=PASS'
+          fi
           active="$(systemctl show stay.service -p ActiveState --value)"
           sub="$(systemctl show stay.service -p SubState --value)"
           pid="$(systemctl show stay.service -p MainPID --value)"
@@ -404,7 +454,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r119f-v2-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r119f-v3-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -428,7 +478,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r119f-v2-controller-output-${{ github.run_id }}
+          name: r119f-v3-controller-output-${{ github.run_id }}
           path: controller.output
           if-no-files-found: warn
           retention-days: 14
