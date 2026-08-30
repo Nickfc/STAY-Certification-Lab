@@ -330,6 +330,13 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.equal((recovery.match(/systemctl start stay\.service/g) || []).length, 1);
   assert.match(recovery, /revision" == 118[\s\S]*systemctl start stay\.service/);
   assert.match(recovery, /elif \[\[ "\$revision" != 119 \]\]/);
+  assert.match(recovery, /validate_repair_state 118/);
+  assert.match(recovery, /validate_repair_state 119/);
+  assert.match(recovery,
+    /Number\(resident\?\.checkpoint_generation\) > REPAIR\.checkpointGeneration[\s\S]*currentCheckpointExact/);
+  assert.match(recovery,
+    /currentCheckpoint\?\.blob_hash === resident\?\.checkpoint_hash[\s\S]*Number\(currentCheckpoint\?\.input_cursor\) === Number\(consumer\?\.cursor\)/);
+  assert.doesNotMatch(recovery, /validate_repair_state \|\|/);
   assert.equal((forward.match(/point_current "\$SOURCE_RELEASE"/g) || []).length, 1);
   assert.doesNotMatch(forward, /chronobiology-bounded-catchup-repair\.js"\s+rollback/);
   assert.match(forward,

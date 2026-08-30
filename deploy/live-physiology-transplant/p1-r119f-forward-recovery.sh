@@ -48,11 +48,14 @@ NODE
 }
 
 validate_repair_state() {
-  STAY_DATABASE="$DATABASE" STAY_RELEASE="$R119F_RELEASE" node <<'NODE'
+  local runtime_revision="$1"
+  STAY_DATABASE="$DATABASE" STAY_RELEASE="$R119F_RELEASE" \
+    STAY_RUNTIME_REVISION="$runtime_revision" node <<'NODE'
 'use strict';
 const { DatabaseSync } = require('node:sqlite');
 const { BASELINE, REPAIR } = require(
   process.env.STAY_RELEASE + '/deploy/live-physiology-transplant/p1-r119f-chronobiology-bounded-catchup-repair.js');
+const runtimeRevision = Number(process.env.STAY_RUNTIME_REVISION);
 const database = new DatabaseSync(process.env.STAY_DATABASE, { readOnly: true });
 try {
   database.exec('PRAGMA query_only=ON');
@@ -64,7 +67,44 @@ try {
   const checkpoint = database.prepare(`
     SELECT * FROM resident_checkpoints WHERE residency_id=? AND generation=?
   `).get(BASELINE.residencyId, REPAIR.checkpointGeneration);
+  const currentCheckpoint = database.prepare(`
+    SELECT * FROM resident_checkpoints WHERE residency_id=? AND generation=?
+  `).get(BASELINE.residencyId, Number(resident?.checkpoint_generation));
+  const repairRow = database.prepare(`
+    SELECT detail_json FROM recovery_records
+    WHERE type='resident.implementation-repaired' AND core_id='chronobiology'
+    ORDER BY id DESC LIMIT 1
+  `).get();
+  let repair = null;
+  try { repair = JSON.parse(repairRow?.detail_json || 'null'); } catch {}
   const count = sql => Number(database.prepare(sql).get()?.value || 0);
+  const repairCheckpointExact = checkpoint?.checkpoint_id === REPAIR.checkpointId
+    && checkpoint?.instance_id === BASELINE.instanceId
+    && checkpoint?.version === REPAIR.version
+    && Number(checkpoint?.state_schema) === REPAIR.stateSchema
+    && checkpoint?.blob_hash === BASELINE.checkpointHash
+    && Number(checkpoint?.byte_length) === BASELINE.checkpointByteLength
+    && Number(checkpoint?.input_cursor) === BASELINE.checkpointInputCursor;
+  const currentCheckpointExact = currentCheckpoint?.instance_id === BASELINE.instanceId
+    && currentCheckpoint?.version === REPAIR.version
+    && Number(currentCheckpoint?.state_schema) === REPAIR.stateSchema
+    && Number(currentCheckpoint?.generation) === Number(resident?.checkpoint_generation)
+    && currentCheckpoint?.blob_hash === resident?.checkpoint_hash
+    && Number(currentCheckpoint?.byte_length) > 0
+    && Number(currentCheckpoint?.input_cursor) === Number(consumer?.cursor)
+    && Number(currentCheckpoint?.input_cursor) > BASELINE.consumerCursor;
+  const revisionContinuity = runtimeRevision === 118
+    ? (Number(resident?.checkpoint_generation) === REPAIR.checkpointGeneration
+      && resident?.status === 'RESYNC_REQUIRED'
+      && Number(consumer?.active) === 0
+      && repairCheckpointExact)
+    : (runtimeRevision === 119
+      && resident?.status === 'RUNNING'
+      && Number(consumer?.active) === 1
+      && (Number(resident?.checkpoint_generation) === REPAIR.checkpointGeneration
+        ? repairCheckpointExact
+        : (Number(resident?.checkpoint_generation) > REPAIR.checkpointGeneration
+          && currentCheckpointExact)));
   if (!(resident?.instance_id === BASELINE.instanceId
     && resident?.version === REPAIR.version
     && Number(resident?.state_schema) === REPAIR.stateSchema
@@ -72,17 +112,24 @@ try {
     && resident?.module_hash === REPAIR.moduleHash
     && resident?.manifest_hash === REPAIR.manifestHash
     && resident?.package_policy_hash === REPAIR.packagePolicyHash
-    && Number(resident?.checkpoint_generation) >= REPAIR.checkpointGeneration
-    && ['RESYNC_REQUIRED', 'RUNNING'].includes(resident?.status)
     && consumer?.consumer_id === BASELINE.residencyId
     && Number(consumer?.required) === 0
     && Number(consumer?.authority_epoch) === 0
-    && checkpoint?.checkpoint_id === REPAIR.checkpointId
-    && checkpoint?.instance_id === BASELINE.instanceId
-    && checkpoint?.version === REPAIR.version
-    && checkpoint?.blob_hash === BASELINE.checkpointHash
-    && Number(checkpoint?.byte_length) === BASELINE.checkpointByteLength
-    && Number(checkpoint?.input_cursor) === BASELINE.checkpointInputCursor
+    && consumer?.checkpoint_hash === resident?.checkpoint_hash
+    && revisionContinuity
+    && repair?.repairId === REPAIR.repairId
+    && repair?.instanceId === BASELINE.instanceId
+    && repair?.sourceCheckpointId === BASELINE.checkpointId
+    && repair?.checkpointHash === BASELINE.checkpointHash
+    && Number(repair?.checkpointByteLength) === BASELINE.checkpointByteLength
+    && Number(repair?.checkpointInputCursor) === BASELINE.checkpointInputCursor
+    && Number(repair?.consumerCursor) === BASELINE.consumerCursor
+    && repair?.biologicalStateChanged === false
+    && repair?.checkpointBytesChanged === false
+    && Number(repair?.abandonedCount) === 0
+    && repair?.inventedBiologicalTime === false
+    && repair?.authorityChanged === false
+    && repair?.resourceLimitsChanged === false
     && count("SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id='resident:chronobiology' AND status='PENDING'") === 0
     && count("SELECT COUNT(*) value FROM biological_outbox_intents WHERE status='PENDING'") === 0
     && count("SELECT COUNT(*) value FROM authority WHERE core_id='chronobiology'") === 0)) process.exit(1);
@@ -144,7 +191,7 @@ if [[ "$revision" == 118 ]]; then
   if ! STAY_REQUIRE_CORE_PACKAGE_POLICY=1 node \
     "$R119F_RELEASE/deploy/live-physiology-transplant/p1-r119f-chronobiology-bounded-catchup-repair.js" \
     preflight "$DATABASE" "$R119F_RELEASE" >/dev/null 2>&1; then
-    validate_repair_state || abort r118-repair-state-invalid 1908
+    validate_repair_state 118 || abort r118-repair-state-invalid 1908
   fi
   cat > "$WORK/p1-r119-recovery-once.conf" <<EOF
 [Service]
@@ -174,7 +221,7 @@ done
   && "$(systemctl show stay.service -p ActiveState --value)" == active \
   && "$(systemctl show stay.service -p SubState --value)" == running ]] ||
   abort running-r119-required 1908
-validate_repair_state || abort running-r119-repair-state-invalid 1908
+validate_repair_state 119 || abort running-r119-repair-state-invalid 1908
 
 if [[ "$DROPIN_CREATED" -eq 1 ]]; then
   rm -f -- "$RECOVERY_DROPIN"
