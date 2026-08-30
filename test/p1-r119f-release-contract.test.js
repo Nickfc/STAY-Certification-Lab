@@ -311,9 +311,28 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward, /durable_runtime_revision\)" == 118/);
   assert.match(forward,
     /SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'/);
-  assert.match(forward, /sha256sum -c "\$SOURCE_RELEASE_MANIFEST_RELATIVE"/);
-  assert.match(forward, /echo 'P1_PRODUCTION_HARDENING_RELEASE\.env'/);
-  assert.match(forward, /echo 'P1_R118F_RELEASE\.env'/);
+  assert.match(forward, /SOURCE_RELEASE_MANIFEST_RECORD_COUNT=188/);
+  assert.match(forward, /SOURCE_RELEASE_PRESENT_RECORD_COUNT=183/);
+  assert.match(forward, /SOURCE_RELEASE_FILE_COUNT=186/);
+  assert.match(forward, /TARGET_CANDIDATE_FILE_COUNT=224/);
+  assert.match(forward, /TARGET_RELEASE_FILE_COUNT=225/);
+  assert.match(forward, /source_release_records_present/);
+  assert.match(forward, /sha256sum -c <\(source_release_records_present\)/);
+  assert.match(forward, /sha256sum -c "\$TARGET_RELEASE_MANIFEST_RELATIVE"/);
+  assert.match(forward, /candidate-file-set-invalid/);
+  assert.match(forward, /target-release-file-set-invalid/);
+  assert.match(forward, /'P1_PRODUCTION_HARDENING_RELEASE\.env'/);
+  assert.match(forward, /'P1_R118F_RELEASE\.env'/);
+  for (const absent of [
+    'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md',
+    'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256',
+    'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js',
+    'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh',
+    'docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md',
+  ]) {
+    assert.equal((forward.match(new RegExp(absent.replace(/[.*+?^${}()|[\]\\]/g,
+      '\\$&'), 'g')) || []).length, 2, absent);
+  }
   assert.match(forward, /--property=Delegate=yes/);
   assert.match(forward, /STAY_REQUIRE_CGROUPS=1/);
   assert.match(forward, /payloadCpuMax\)" == '20000 100000'/);
@@ -385,6 +404,47 @@ test('R119F-REL-04 release manifest is exact for every listed file and carries r
     'scripts/chronobiology-c3r4-performance-lab.js',
     'tools/generate-c3r4-local-kernel.js',
   ]) assert.equal(entries.has(required), true, required);
+});
+
+test('R119F-REL-04A installed R118 and reconciled R119F inventories are exact', () => {
+  const parse = name => new Map(fs.readFileSync(path.join(root,
+    'deploy/live-physiology-transplant', name), 'utf8').trim().split(/\r?\n/).map(line => {
+    const match = /^([0-9a-f]{64})  \.\/(.+)$/.exec(line);
+    assert.ok(match, line);
+    return [match[2], match[1]];
+  }));
+  const source = parse('P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256');
+  const target = parse('P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256');
+  const absent = [
+    'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md',
+    'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256',
+    'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js',
+    'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh',
+    'docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md',
+  ];
+  assert.equal(source.size, 188);
+  assert.equal(target.size, 220);
+  for (const relative of absent) {
+    assert.equal(source.has(relative), true, relative);
+    assert.equal(target.get(relative), source.get(relative), relative);
+  }
+  const sourceInstalled = new Set([...source.keys()].filter(value => !absent.includes(value)));
+  for (const relative of [
+    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256',
+    'P1_PRODUCTION_HARDENING_RELEASE.env',
+    'P1_R118F_RELEASE.env',
+  ]) sourceInstalled.add(relative);
+  assert.equal(sourceInstalled.size, 186);
+  const candidate = new Set(target.keys());
+  for (const relative of [
+    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256',
+    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256',
+    'P1_PRODUCTION_HARDENING_RELEASE.env',
+    'P1_R118F_RELEASE.env',
+  ]) candidate.add(relative);
+  assert.equal(candidate.size, 224);
+  candidate.add('P1_R119F_RELEASE.env');
+  assert.equal(candidate.size, 225);
 });
 
 test('R119F-REL-05 durable implementation identity selects only its matching contract', t => {
