@@ -389,7 +389,7 @@ jobs:
               && chrono.resident?.authorityOwned === false
               && chrono.resident?.observedOutputs === 0)) process.exit(1);
             if (operation === 'harden-r119f' && revision !== 118) process.exit(2);
-            NODE
+          NODE
           fi
           [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" ]]
           [[ "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
