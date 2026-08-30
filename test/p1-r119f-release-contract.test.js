@@ -313,10 +313,12 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
     /SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'/);
   assert.match(forward, /SOURCE_RELEASE_MANIFEST_RECORD_COUNT=188/);
   assert.match(forward, /SOURCE_RELEASE_PRESENT_RECORD_COUNT=181/);
-  assert.match(forward, /SOURCE_RELEASE_FILE_COUNT=184/);
+  assert.match(forward, /SOURCE_RELEASE_FILE_COUNT=571/);
+  assert.match(forward,
+    /SOURCE_RELEASE_TREE_SHA256='e8f8ab054b0c6510d3b24535fdc8f556a8c17df4acb2377621a8533becec3c8f'/);
   assert.match(forward, /TARGET_RELEASE_MANIFEST_RECORD_COUNT=221/);
-  assert.match(forward, /TARGET_CANDIDATE_FILE_COUNT=224/);
-  assert.match(forward, /TARGET_RELEASE_FILE_COUNT=225/);
+  assert.match(forward, /TARGET_CANDIDATE_FILE_COUNT=611/);
+  assert.match(forward, /TARGET_RELEASE_FILE_COUNT=612/);
   assert.match(forward, /source_release_records_present/);
   assert.match(forward, /sha256sum -c <\(source_release_records_present\)/);
   assert.match(forward,
@@ -326,6 +328,8 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward, /sha256sum -c "\$TARGET_RELEASE_MANIFEST_RELATIVE"/);
   assert.match(forward, /candidate-file-set-invalid/);
   assert.match(forward, /target-release-file-set-invalid/);
+  assert.match(forward, /candidate_file_set/);
+  assert.match(forward, /release_inventory_digest/);
   assert.match(forward, /'P1_PRODUCTION_HARDENING_RELEASE\.env'/);
   assert.match(forward, /'P1_R118F_RELEASE\.env'/);
   for (const absent of [

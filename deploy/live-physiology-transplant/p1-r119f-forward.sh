@@ -26,10 +26,11 @@ SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2a
 TARGET_RELEASE_MANIFEST_RELATIVE='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'
 SOURCE_RELEASE_MANIFEST_RECORD_COUNT=188
 SOURCE_RELEASE_PRESENT_RECORD_COUNT=181
-SOURCE_RELEASE_FILE_COUNT=184
+SOURCE_RELEASE_FILE_COUNT=571
+SOURCE_RELEASE_TREE_SHA256='e8f8ab054b0c6510d3b24535fdc8f556a8c17df4acb2377621a8533becec3c8f'
 TARGET_RELEASE_MANIFEST_RECORD_COUNT=221
-TARGET_CANDIDATE_FILE_COUNT=224
-TARGET_RELEASE_FILE_COUNT=225
+TARGET_CANDIDATE_FILE_COUNT=611
+TARGET_RELEASE_FILE_COUNT=612
 
 SOURCE_RELEASE_ABSENT_RECORDS=(
   'bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37  ./deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md'
@@ -44,12 +45,6 @@ SOURCE_RELEASE_RECONCILED_RECORDS=(
   '4d95813956acee06cd963ad8dc11a52d402ebeedadc3262046202a1cc9682a1c  ./runtime/kernel/hardened-living-kernel.js|90552599da3c3c2f189ea3426b25ea25d91e6d22d796449f4fc27b388d172b46  ./runtime/kernel/hardened-living-kernel.js'
   '46c7a51b8f256f3c6b9fdb1a183b087a676eace03c3c19d7d4cf05f3e0481429  ./runtime/kernel/resident-promotion-authority.js|bb187de6a8f6d7013db2b5658391da81ad4adf375ad810674466ee329bb30103  ./runtime/kernel/resident-promotion-authority.js'
 )
-SOURCE_RELEASE_METADATA_FILES=(
-  "$SOURCE_RELEASE_MANIFEST_RELATIVE"
-  'P1_PRODUCTION_HARDENING_RELEASE.env'
-  'P1_R118F_RELEASE.env'
-)
-
 : "${STAY_R119F_RELEASE_TAG:?}"
 : "${STAY_R119F_RELEASE_COMMIT:?}"
 : "${STAY_R119F_RELEASE_TREE:?}"
@@ -178,6 +173,16 @@ tree_digest() {
   (cd "$root" && find "$relative" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
 }
 
+release_inventory_digest() {
+  (cd "$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+}
+
+candidate_file_set() {
+  { (cd "$SOURCE_RELEASE" && find . -type f -printf '%P\n')
+    printf '%s\n' "${OVERLAY_FILES[@]}"
+  } | LC_ALL=C sort -u
+}
+
 source_release_records_present() {
   local record absent reconciliation source_record installed_record
   while IFS= read -r record; do
@@ -294,13 +299,10 @@ done
   abort source-release-present-record-count-invalid 1707
 (cd "$SOURCE_RELEASE" && sha256sum -c <(source_release_records_present) >/dev/null) ||
   abort source-release-hash-invalid 1707
-cmp \
-  <({ source_release_records_present | awk '{sub(/^\.\//,"",$2); print $2}';
-      printf '%s\n' "${SOURCE_RELEASE_METADATA_FILES[@]}"; } | LC_ALL=C sort) \
-  <(cd "$SOURCE_RELEASE" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null ||
-  abort source-release-file-set-invalid 1707
 [[ "$(find "$SOURCE_RELEASE" -type f | wc -l)" -eq "$SOURCE_RELEASE_FILE_COUNT" ]] ||
   abort source-release-file-count-invalid 1707
+[[ "$(release_inventory_digest "$SOURCE_RELEASE")" == "$SOURCE_RELEASE_TREE_SHA256" ]] ||
+  abort source-release-tree-invalid 1707
 [[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-socket-invalid 1708
 [[ "$(systemctl show stay-p1-physiology-benchmark.service -p ActiveState --value 2>/dev/null || true)" != active ]] ||
   abort prior-benchmark-still-active 1709
@@ -386,9 +388,7 @@ done
 (cd "$CANDIDATE" && sha256sum -c "$TARGET_RELEASE_MANIFEST_RELATIVE" >/dev/null) ||
   abort candidate-manifest-hash-invalid 1715
 cmp \
-  <({ awk '{sub(/^\.\//,"",$2); print $2}' "$CANDIDATE/$TARGET_RELEASE_MANIFEST_RELATIVE";
-      echo "$TARGET_RELEASE_MANIFEST_RELATIVE";
-      printf '%s\n' "${SOURCE_RELEASE_METADATA_FILES[@]}"; } | LC_ALL=C sort) \
+  <(candidate_file_set) \
   <(cd "$CANDIDATE" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null ||
   abort candidate-file-set-invalid 1715
 [[ "$(find "$CANDIDATE" -type f | wc -l)" -eq "$TARGET_CANDIDATE_FILE_COUNT" ]] ||
@@ -537,10 +537,7 @@ EOF
 chown root:root "$CANDIDATE/P1_R119F_RELEASE.env"
 chmod 0444 "$CANDIDATE/P1_R119F_RELEASE.env"
 cmp \
-  <({ awk '{sub(/^\.\//,"",$2); print $2}' "$CANDIDATE/$TARGET_RELEASE_MANIFEST_RELATIVE";
-      echo "$TARGET_RELEASE_MANIFEST_RELATIVE";
-      printf '%s\n' "${SOURCE_RELEASE_METADATA_FILES[@]}";
-      echo 'P1_R119F_RELEASE.env'; } | LC_ALL=C sort) \
+  <({ candidate_file_set; echo 'P1_R119F_RELEASE.env'; } | LC_ALL=C sort -u) \
   <(cd "$CANDIDATE" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null ||
   abort target-release-file-set-invalid 1725
 [[ "$(find "$CANDIDATE" -type f | wc -l)" -eq "$TARGET_RELEASE_FILE_COUNT" ]] ||

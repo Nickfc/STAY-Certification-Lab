@@ -131,7 +131,9 @@ test('R119F-BRIDGE-07 production preflight is read-only and recovery-cohort fenc
     /source_manifest_sha256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'/);
   assert.match(preflight, /source_manifest_records=188/);
   assert.match(preflight, /source_present_records=181/);
-  assert.match(preflight, /source_file_count=184/);
+  assert.match(preflight, /source_file_count=571/);
+  assert.match(preflight,
+    /source_tree_sha256='e8f8ab054b0c6510d3b24535fdc8f556a8c17df4acb2377621a8533becec3c8f'/);
   for (const absentHash of [
     'bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37',
     '259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f',
@@ -149,7 +151,7 @@ test('R119F-BRIDGE-07 production preflight is read-only and recovery-cohort fenc
   ]) assert.equal(preflight.includes(reconciliation), true, reconciliation);
   assert.match(preflight, /source_reconciled_records/);
   assert.match(preflight, /sha256sum -c <\(source_records_present\)/);
-  assert.match(preflight, /cmp \\\n[\s\S]*source_metadata_files[\s\S]*find \. -type f -printf/);
+  assert.match(preflight, /find \. -type f -print0 \| sort -z \| xargs -0 sha256sum/);
   assert.match(preflight, /R119F_SOURCE_RELEASE_INVENTORY=PASS/);
   assert.match(preflight, /new DatabaseSync\(process\.argv\[2\], \{ open: true, readOnly: true \}\)/);
   assert.match(preflight, /PRAGMA query_only=ON/);

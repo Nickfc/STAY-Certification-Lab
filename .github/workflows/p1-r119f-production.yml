@@ -258,7 +258,8 @@ jobs:
             source_manifest_sha256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'
             source_manifest_records=188
             source_present_records=181
-            source_file_count=184
+            source_file_count=571
+            source_tree_sha256='e8f8ab054b0c6510d3b24535fdc8f556a8c17df4acb2377621a8533becec3c8f'
             source_absent_records=(
               'bc21dd1aded8cf68eb60f630fe9f6c8afdcb4e8a6bf8c928184b85e8258dcc37  ./deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md'
               '259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md'
@@ -271,11 +272,6 @@ jobs:
             source_reconciled_records=(
               '4d95813956acee06cd963ad8dc11a52d402ebeedadc3262046202a1cc9682a1c  ./runtime/kernel/hardened-living-kernel.js|90552599da3c3c2f189ea3426b25ea25d91e6d22d796449f4fc27b388d172b46  ./runtime/kernel/hardened-living-kernel.js'
               '46c7a51b8f256f3c6b9fdb1a183b087a676eace03c3c19d7d4cf05f3e0481429  ./runtime/kernel/resident-promotion-authority.js|bb187de6a8f6d7013db2b5658391da81ad4adf375ad810674466ee329bb30103  ./runtime/kernel/resident-promotion-authority.js'
-            )
-            source_metadata_files=(
-              "$source_manifest"
-              'P1_PRODUCTION_HARDENING_RELEASE.env'
-              'P1_R118F_RELEASE.env'
             )
             source_records_present() {
               local record absent reconciliation source_record installed_record
@@ -308,11 +304,9 @@ jobs:
             done
             [[ "$(source_records_present | wc -l)" -eq "$source_present_records" ]]
             (cd "$source_release" && sha256sum -c <(source_records_present) >/dev/null)
-            cmp \
-              <({ source_records_present | awk '{sub(/^\.\//,"",$2); print $2}';
-                  printf '%s\n' "${source_metadata_files[@]}"; } | LC_ALL=C sort) \
-              <(cd "$source_release" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null
             [[ "$(find "$source_release" -type f | wc -l)" -eq "$source_file_count" ]]
+            [[ "$(cd "$source_release" && find . -type f -print0 | sort -z | xargs -0 sha256sum |
+              sha256sum | awk '{print $1}')" == "$source_tree_sha256" ]]
             echo 'R119F_SOURCE_RELEASE_INVENTORY=PASS'
           fi
           active="$(systemctl show stay.service -p ActiveState --value)"
