@@ -12,5 +12,6 @@ module.exports = Object.freeze({
   causalFrame: require('./causal-frame'),
   records: require('./records'),
   laboratoryPersistence: require('./laboratory-persistence'),
-  residentContracts: require('./resident-contracts')
+  residentContracts: require('./resident-contracts'),
+  sntssReceptor: require('./sntss-receptor')
 });

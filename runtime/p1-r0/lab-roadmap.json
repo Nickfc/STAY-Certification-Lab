@@ -1,0 +1,17 @@
+[
+  {
+    "coreId": "metab",
+    "label": "METAB",
+    "stage": "LAB BUILD"
+  },
+  {
+    "coreId": "homeos",
+    "label": "HOMEOS",
+    "stage": "LAB BUILD"
+  },
+  {
+    "coreId": "intero",
+    "label": "INTERO",
+    "stage": "LAB BUILD"
+  }
+]
