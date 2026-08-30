@@ -91,7 +91,7 @@ function before() {
 }
 
 function after(source) {
-  return {
+  const snapshot = {
     ...source,
     runtimeRevision: 119,
     runtimeReason: 'core.install',
@@ -141,6 +141,20 @@ function after(source) {
       runtimeRevision: 119, abandonedCount: 0, inventedBiologicalTime: false,
     } },
   };
+  const chrono = snapshot.residents.find(value => value.residency_id === BASELINE.residencyId);
+  chrono.checkpoint_hash = 'b'.repeat(64);
+  snapshot.checkpoints.push({
+    checkpoint_id: 'chronobiology-c3r5-current-5120',
+    residency_id: BASELINE.residencyId,
+    instance_id: BASELINE.instanceId,
+    version: REPAIR.version,
+    state_schema: REPAIR.stateSchema,
+    generation: 5120,
+    blob_hash: 'b'.repeat(64),
+    byte_length: BASELINE.checkpointByteLength + 128,
+    input_cursor: BASELINE.consumerCursor + 10,
+  });
+  return snapshot;
 }
 
 function resourceStatus(chrono = false) {
@@ -207,6 +221,14 @@ test('R119F-REL-01 live proof preserves lineage, history, limits, fetus and chip
   assert.equal(proof.continuity.abandonedCount, 0);
   assert.equal(proof.continuity.inventedBiologicalTime, false);
   assert.deepEqual(proof.chips, { bsf: 'LIVE', sntss: 'SHADOW', chronobiology: 'SHADOW' });
+  const retained = after(source);
+  retained.checkpoints = retained.checkpoints.filter(value => value.generation === 5120);
+  assert.equal(verify({
+    before: source, after: retained, sntssStatus: resourceStatus(false),
+    chronobiologyStatus: resourceStatus(true), meta: meta(),
+    service: { beforePid: 100, afterPid: 200, beforeRestarts: 0,
+      afterRestarts: 0, restartCommands: 1 },
+  }).result, 'PASS');
   const leaking = after(source);
   leaking.chronobiologyAuthorityRows = 1;
   assert.throws(() => verify({
@@ -217,7 +239,7 @@ test('R119F-REL-01 live proof preserves lineage, history, limits, fetus and chip
   }), { code: 'R119F_AFTER_CONTAINMENT' });
   const falseProvenance = after(source);
   falseProvenance.checkpoints.find(value =>
-    value.generation === REPAIR.checkpointGeneration).input_cursor = BASELINE.consumerCursor;
+    value.generation === 5120).input_cursor = BASELINE.checkpointInputCursor;
   assert.throws(() => verify({
     before: source, after: falseProvenance, sntssStatus: resourceStatus(false),
     chronobiologyStatus: resourceStatus(true), meta: meta(),

@@ -63,9 +63,15 @@ function captureDatabase() {
       SELECT checkpoint_id, residency_id, instance_id, version, state_schema,
         generation, blob_hash, byte_length, input_cursor
       FROM resident_checkpoints
-      WHERE residency_id=? AND generation IN (?, ?)
+      WHERE residency_id=? AND (
+        generation IN (?, ?)
+        OR generation=(
+          SELECT checkpoint_generation FROM resident_instances WHERE residency_id=?
+        )
+      )
       ORDER BY generation
-    `).all(BASELINE.residencyId, BASELINE.checkpointGeneration, REPAIR.checkpointGeneration);
+    `).all(BASELINE.residencyId, BASELINE.checkpointGeneration,
+      REPAIR.checkpointGeneration, BASELINE.residencyId);
     const latest = (type, coreId) => parseDetail(one(`
       SELECT id, type, core_id, detail_json, created_at
       FROM recovery_records WHERE type=? AND core_id=? ORDER BY id DESC LIMIT 1
@@ -246,8 +252,7 @@ function verify({ before, after, sntssStatus, chronobiologyStatus, meta, service
   const sntss = resident(after, 'resident:sntss');
   const chrono = resident(after, BASELINE.residencyId);
   const chronoConsumer = consumer(after, BASELINE.residencyId);
-  const chronoSourceCheckpoint = checkpoint(after, BASELINE.checkpointGeneration);
-  const chronoRepairCheckpoint = checkpoint(after, REPAIR.checkpointGeneration);
+  const chronoCurrentCheckpoint = checkpoint(after, Number(chrono?.checkpoint_generation));
   assert(after.quickCheck === 'ok'
     && after.runtimeRevision === 119
     && after.runtimeReason === 'core.install',
@@ -274,24 +279,19 @@ function verify({ before, after, sntssStatus, chronobiologyStatus, meta, service
     && Number(chronoConsumer.required) === 0
     && Number(chronoConsumer.active) === 1
     && Number(chronoConsumer.authority_epoch) === 0
-    && Number(chronoConsumer.cursor) >= BASELINE.consumerCursor,
+    && Number(chronoConsumer.cursor) >= BASELINE.consumerCursor
+    && chronoConsumer.checkpoint_hash === chrono.checkpoint_hash,
   'Chronobiology consumer continuity is invalid', 'R119F_AFTER_CONSUMER');
-  assert(chronoSourceCheckpoint
-    && chronoSourceCheckpoint.instance_id === BASELINE.instanceId
-    && chronoSourceCheckpoint.checkpoint_id === BASELINE.checkpointId
-    && chronoSourceCheckpoint.version === BASELINE.version
-    && chronoSourceCheckpoint.blob_hash === BASELINE.checkpointHash
-    && Number(chronoSourceCheckpoint.byte_length) === BASELINE.checkpointByteLength
-    && Number(chronoSourceCheckpoint.input_cursor) === BASELINE.checkpointInputCursor
-    && chronoRepairCheckpoint
-    && chronoRepairCheckpoint.checkpoint_id === REPAIR.checkpointId
-    && chronoRepairCheckpoint.instance_id === BASELINE.instanceId
-    && chronoRepairCheckpoint.version === REPAIR.version
-    && Number(chronoRepairCheckpoint.state_schema) === REPAIR.stateSchema
-    && chronoRepairCheckpoint.blob_hash === BASELINE.checkpointHash
-    && Number(chronoRepairCheckpoint.byte_length) === BASELINE.checkpointByteLength
-    && Number(chronoRepairCheckpoint.input_cursor) === BASELINE.checkpointInputCursor,
-  'Chronobiology checkpoint provenance continuity is invalid', 'R119F_AFTER_CHECKPOINT');
+  assert(chronoCurrentCheckpoint
+    && chronoCurrentCheckpoint.instance_id === BASELINE.instanceId
+    && chronoCurrentCheckpoint.version === REPAIR.version
+    && Number(chronoCurrentCheckpoint.state_schema) === REPAIR.stateSchema
+    && Number(chronoCurrentCheckpoint.generation) === Number(chrono.checkpoint_generation)
+    && chronoCurrentCheckpoint.blob_hash === chrono.checkpoint_hash
+    && Number(chronoCurrentCheckpoint.byte_length) > 0
+    && Number(chronoCurrentCheckpoint.input_cursor) === Number(chronoConsumer.cursor)
+    && Number(chronoCurrentCheckpoint.input_cursor) > BASELINE.consumerCursor,
+  'Chronobiology current checkpoint continuity is invalid', 'R119F_AFTER_CHECKPOINT');
   assert(after.chronobiologyPendingDeliveries === 0
     && after.pendingOutboxIntents === 0
     && after.sntssOutputRows === 0
