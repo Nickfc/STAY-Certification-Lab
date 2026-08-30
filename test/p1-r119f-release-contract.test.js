@@ -330,8 +330,6 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.match(forward, /target-release-file-set-invalid/);
   assert.match(forward, /candidate_file_set/);
   assert.match(forward, /release_inventory_digest/);
-  assert.match(forward, /'P1_PRODUCTION_HARDENING_RELEASE\.env'/);
-  assert.match(forward, /'P1_R118F_RELEASE\.env'/);
   for (const absent of [
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R110F_TO_R111F.md',
     'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md',

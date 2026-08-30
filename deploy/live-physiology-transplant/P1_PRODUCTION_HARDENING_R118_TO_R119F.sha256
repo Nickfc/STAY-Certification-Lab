@@ -215,7 +215,7 @@ f5c49fbf6fae4472ecc5d415211f6bd23ade3fb685d4e7c2d3b1e5aa5b3fe7cd  ./test/core-lo
 c130eb5aab0c0bb40eb728185cbce79328e809d792b3f12195e5d3dda52d28f4  ./test/p1-r118f-release-contract.test.js
 2a440cba18dc21c2c767e43cf99322d9974f337ec664438f432f5d478c5d5d6e  ./test/p1-r119f-chronobiology-bounded-catchup-repair.test.js
 6fdb75ce11c3dfc178046c82e4159697c749cf64ab5c159146757d4d3afd2094  ./test/p1-r119f-entry-path.test.js
-28d6869e8646a1a779f8c1361c04a1904560f82bf7dc130273a39448f9161d2a  ./test/p1-r119f-release-contract.test.js
+e2bb3a5eddd0aea75a468ad8be18f89ac3dc4cf14a1cf67ccc02f26a5f96aa1f  ./test/p1-r119f-release-contract.test.js
 9661cac9c77ea30f5250adc8c668fe0f1d31e6ab14c818c8bd9037ff4ca7e391  ./test/production-hardening-entry-path.test.js
 3031bc6ae51c0a209ef841d34a82be10b17296d07649ff682238d6c67179d2ca  ./test/production-hardening.test.js
 dd31f68721e0b35e6fb4da3d2d20dbc854252abe5f99bec7b2571d3b31615cba  ./tools/generate-c3r4-local-kernel.js

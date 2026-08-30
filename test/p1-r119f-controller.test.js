@@ -320,6 +320,12 @@ test('R119F-BRIDGE-10 extracted remote preflight executes through both nested ve
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, relative === sourceManifestRelative ? sourceManifest : 'fixture\n');
     }
+    for (let index = 0; index < 387; index += 1) {
+      const target = path.join(fixtureRelease, 'historical-source-fixture',
+        `${String(index).padStart(3, '0')}.txt`);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, `historical-${index}\n`);
+    }
     const source = rawSource.replaceAll(
       '/opt/stay/releases/0.8.11.3-p1m-r118f-chrono-repair-934069400d62',
       fixtureRelease);
@@ -328,7 +334,8 @@ set -euo pipefail
 case "$(basename "$0")" in
   ip) printf '%s\\n' '2: ens5 inet 172.26.9.207/20 scope global ens5' ;;
   sha256sum)
-    if [[ "\${1:-}" == -c ]]; then cat "$2" >/dev/null
+    if [[ "$#" -eq 0 ]]; then cat >/dev/null; printf '%s  -\n' "$FIXTURE_SOURCE_TREE_SHA"
+    elif [[ "\${1:-}" == -c ]]; then cat "$2" >/dev/null
     elif [[ "$1" == *P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256 ]]; then
       printf '%s  %s\\n' "$FIXTURE_SOURCE_MANIFEST_SHA" "$1"
     else printf '%s  %s\\n' "$FIXTURE_WRAPPER_SHA" "$1"
@@ -371,6 +378,8 @@ esac
           FIXTURE_WRAPPER_SHA: wrapperSha256,
           FIXTURE_SOURCE_MANIFEST_SHA:
             '129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0',
+          FIXTURE_SOURCE_TREE_SHA:
+            'e8f8ab054b0c6510d3b24535fdc8f556a8c17df4acb2377621a8533becec3c8f',
           FIXTURE_SOURCE_RELEASE: fixtureRelease,
           FIXTURE_SNAPSHOT: JSON.stringify(snapshot),
           FIXTURE_META: JSON.stringify(meta),
