@@ -46,8 +46,23 @@ const CHRONOBIOLOGY_R4_RESIDENT_CONTRACT =
       'sha256:b4a309490e276df8916475549c796f624c9bb06c4c34507beeddb03121dfbd3e'
   });
 
+const CHRONOBIOLOGY_R5_RESIDENT_CONTRACT =
+  Object.freeze({
+    ...CHRONOBIOLOGY_RESIDENT_CONTRACT,
+
+    version:
+      '1.0.0-c3rc.5',
+
+    stage:
+      'c3-shadow-jitless-bounded-catchup-repair',
+
+    packagePolicyHash:
+      'sha256:887ff83909b360a75abc1ea6f755db597e613186acaa9b7b20d33b1d21d2232b'
+  });
+
 module.exports = Object.freeze({
   CHRONOBIOLOGY_R2_RESIDENT_CONTRACT,
   CHRONOBIOLOGY_R3_RESIDENT_CONTRACT,
-  CHRONOBIOLOGY_R4_RESIDENT_CONTRACT
+  CHRONOBIOLOGY_R4_RESIDENT_CONTRACT,
+  CHRONOBIOLOGY_R5_RESIDENT_CONTRACT
 });
