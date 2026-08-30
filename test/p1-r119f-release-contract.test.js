@@ -287,6 +287,10 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
   assert.equal((finalize.match(/systemctl restart stay\.service/g) || []).length, 0);
   assert.match(forward, /STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=119/);
   assert.match(forward, /durable_runtime_revision\)" == 118/);
+  assert.match(forward,
+    /SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'/);
+  assert.match(forward, /sha256sum -c "\$SOURCE_RELEASE_MANIFEST_RELATIVE"/);
+  assert.match(forward, /echo 'P1_R118F_RELEASE\.env'/);
   assert.match(forward, /--property=Delegate=yes/);
   assert.match(forward, /STAY_REQUIRE_CGROUPS=1/);
   assert.match(forward, /payloadCpuMax\)" == '20000 100000'/);

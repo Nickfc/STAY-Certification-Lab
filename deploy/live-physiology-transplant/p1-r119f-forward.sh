@@ -21,6 +21,8 @@ ENTRY_PREFLIGHT="$SCRIPT_DIRECTORY/p1-r119f-entry-preflight.js"
 LIVE_PROOF="$SCRIPT_DIRECTORY/p1-r119f-live-proof.js"
 FINALIZE="$SCRIPT_DIRECTORY/p1-r119f-finalize.sh"
 SOURCE_MANIFEST="$SCRIPT_DIRECTORY/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256"
+SOURCE_RELEASE_MANIFEST_RELATIVE='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'
+SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'
 
 : "${STAY_R119F_RELEASE_TAG:?}"
 : "${STAY_R119F_RELEASE_COMMIT:?}"
@@ -220,6 +222,19 @@ for file in "$DATABASE" "$RUNTIME_DROPIN" "$BWRAP" "$SOURCE_MANIFEST" \
 done
 [[ -d "$SOURCE_RELEASE" && ! -L "$SOURCE_RELEASE" \
   && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]] || abort source-release-invalid 1707
+[[ -f "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE" \
+  && ! -L "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE" \
+  && "$(sha256sum "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE" | awk '{print $1}')" == \
+    "$SOURCE_RELEASE_MANIFEST_SHA256" \
+  && -z "$(find -P "$SOURCE_RELEASE" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]] ||
+  abort source-release-inventory-invalid 1707
+(cd "$SOURCE_RELEASE" && sha256sum -c "$SOURCE_RELEASE_MANIFEST_RELATIVE" >/dev/null) ||
+  abort source-release-hash-invalid 1707
+cmp \
+  <({ awk '{sub(/^\.\//,"",$2); print $2}' "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE";
+      echo "$SOURCE_RELEASE_MANIFEST_RELATIVE"; echo 'P1_R118F_RELEASE.env'; } | LC_ALL=C sort) \
+  <(cd "$SOURCE_RELEASE" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null ||
+  abort source-release-file-set-invalid 1707
 [[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-socket-invalid 1708
 [[ "$(systemctl show stay-p1-physiology-benchmark.service -p ActiveState --value 2>/dev/null || true)" != active ]] ||
   abort prior-benchmark-still-active 1709
