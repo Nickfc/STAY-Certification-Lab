@@ -111,7 +111,6 @@ function validateLiveResident(status, expected, label) {
     && value.health?.ok === true
     && value.authorityOwned === false
     && value.productionEligible === false
-    && value.observedOutputs === 0
     && value.resyncRequired === false
     && value.queue?.depth === 0
     && value.queue?.closed === false
@@ -260,11 +259,14 @@ function capture(databasePath, releaseRoot, sntssFile, chronobiologyFile, metaFi
     const liveChronobiology = validateLiveResident(
       chronobiologyStatus, EXPECTED.chronobiology, 'Chronobiology');
     assert(liveSntss.declaredOutputs === 0
+      && liveSntss.observedOutputs === 0
       && liveSntss.health?.lineageSha256 === EXPECTED.sntss.lineageSha256
       && liveSntss.health?.biologicalOutputs === 0
       && liveSntss.health?.runtimeRevision === EXPECTED.revision,
     'SNTSS lineage or zero-output contract changed', 'R123F_FREEZE_SNTSS');
-    assert(liveChronobiology.health?.stage === 'c3-shadow-jitless-bounded-catchup-repair'
+    assert(liveChronobiology.declaredOutputs === 1
+      && Number(liveChronobiology.observedOutputs) >= 1
+      && liveChronobiology.health?.stage === 'c3-shadow-jitless-bounded-catchup-repair'
       && Number(liveChronobiology.handledEvents) > 0,
     'Chronobiology is not running the contained repair', 'R123F_FREEZE_CHRONOBIOLOGY');
 
@@ -303,7 +305,7 @@ function capture(databasePath, releaseRoot, sntssFile, chronobiologyFile, metaFi
       && identity.r120RecoveryCommit === '92edf850231743f4c7a149f56cf5288d4cf81f5c'
       && identity.r122OperationalTag === 'r122-operational-recovery-v1'
       && identity.r122OperationalCommit === '4d87973d15640189dd9346a4a0d2b7b835c21960'
-      && identity.r123FreezeTag === 'r123f-authorized-freeze-v2'
+      && identity.r123FreezeTag === 'r123f-authorized-freeze-v3'
       && /^[0-9a-f]{40}$/.test(identity.r123FreezeCommit)
       && /^[0-9a-f]{40}$/.test(identity.r123FreezeTree)
       && identity.helperSha256 === fileSha256(helperFile)
@@ -393,7 +395,7 @@ function capture(databasePath, releaseRoot, sntssFile, chronobiologyFile, metaFi
         mode: 'SHADOW', status: 'RUNNING', outputs: 0, authority: 'NONE' },
       chronobiology: { instanceId: EXPECTED.chronobiology.instanceId,
         version: EXPECTED.chronobiology.version, mode: 'SHADOW', status: 'RUNNING',
-        authority: 'NONE' },
+        observedOutputs: Number(liveChronobiology.observedOutputs), authority: 'NONE' },
       fetus: { status: 'healthy', warnAtMiB: 192, recycleAtMiB: 256 },
     },
     chips: { bsf: 'LIVE', sntss: 'SHADOW', chronobiology: 'SHADOW' },

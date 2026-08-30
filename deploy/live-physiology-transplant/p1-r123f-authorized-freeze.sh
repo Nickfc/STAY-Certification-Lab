@@ -14,7 +14,7 @@ for name in STAY_R123F_SOURCE_TAG STAY_R123F_SOURCE_COMMIT STAY_R123F_SOURCE_TRE
   STAY_R123F_HELPER_SHA256 STAY_R123F_SHELL_SHA256; do
   [[ -n "${!name:-}" ]] || abort source-identity-missing 2203
 done
-[[ "$STAY_R123F_SOURCE_TAG" == 'r123f-authorized-freeze-v2' \
+[[ "$STAY_R123F_SOURCE_TAG" == 'r123f-authorized-freeze-v3' \
   && "$STAY_R123F_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ \
   && "$STAY_R123F_SOURCE_TREE" =~ ^[0-9a-f]{40}$ \
   && "$STAY_R123F_HELPER_SHA256" =~ ^sha256:[0-9a-f]{64}$ \
