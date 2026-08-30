@@ -23,6 +23,26 @@ FINALIZE="$SCRIPT_DIRECTORY/p1-r119f-finalize.sh"
 SOURCE_MANIFEST="$SCRIPT_DIRECTORY/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256"
 SOURCE_RELEASE_MANIFEST_RELATIVE='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256'
 SOURCE_RELEASE_MANIFEST_SHA256='129dd8aa818f211444cddcf79665745d2490718e45cc1b2aba32a375c0dfddd0'
+TARGET_RELEASE_MANIFEST_RELATIVE='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'
+SOURCE_RELEASE_MANIFEST_RECORD_COUNT=188
+SOURCE_RELEASE_PRESENT_RECORD_COUNT=183
+SOURCE_RELEASE_FILE_COUNT=186
+TARGET_RELEASE_MANIFEST_RECORD_COUNT=220
+TARGET_CANDIDATE_FILE_COUNT=224
+TARGET_RELEASE_FILE_COUNT=225
+
+SOURCE_RELEASE_ABSENT_RECORDS=(
+  '259341d04759ee74550d5d3fe34aa869c15b2e2cea4efe2e637a8f700804472f  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md'
+  '7b5370cd244b427bbdac062b9be09af1e853ece9a416dd22a72e220e03789fcc  ./deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256'
+  '433430f1e360d1183e29e016978c9610fd1b2d1070aab5415facb39aab8896df  ./deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js'
+  '386da10cf952cd448ffc8315e797165c292208561246e47a223565825a922d52  ./deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh'
+  '048bdec2ab67e2a2ff0114e8d5fecec1c81879addbfe9b13a53b70b7c263602c  ./docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md'
+)
+SOURCE_RELEASE_METADATA_FILES=(
+  "$SOURCE_RELEASE_MANIFEST_RELATIVE"
+  'P1_PRODUCTION_HARDENING_RELEASE.env'
+  'P1_R118F_RELEASE.env'
+)
 
 : "${STAY_R119F_RELEASE_TAG:?}"
 : "${STAY_R119F_RELEASE_COMMIT:?}"
@@ -55,7 +75,11 @@ OVERLAY_FILES=(
   'cores/chronobiology/c3r5/validation.js'
   'runtime/kernel/chronobiology-resident-contracts.js'
   'runtime/kernel/living-kernel.js'
+  'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.md'
+  'deploy/live-physiology-transplant/P1_SNTSS_I4G_REHEARSAL_R105F.sha256'
   'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'
+  'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.js'
+  'deploy/live-physiology-transplant/p1-sntss-i4g-rehearsal.sh'
   'deploy/live-physiology-transplant/p1-r119f-chronobiology-bounded-catchup-repair.js'
   'deploy/live-physiology-transplant/p1-r119f-entry-preflight.js'
   'deploy/live-physiology-transplant/p1-r119f-live-proof.js'
@@ -67,6 +91,7 @@ OVERLAY_FILES=(
   'test/p1-r119f-chronobiology-bounded-catchup-repair.test.js'
   'test/p1-r119f-entry-path.test.js'
   'test/p1-r119f-release-contract.test.js'
+  'docs/sntss/R13_CONTINUITY_GENESIS_SHADOW.md'
 )
 
 WORK=''
@@ -141,6 +166,16 @@ point_current() {
 tree_digest() {
   local root="$1" relative="$2"
   (cd "$root" && find "$relative" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+}
+
+source_release_records_present() {
+  local record absent
+  while IFS= read -r record; do
+    for absent in "${SOURCE_RELEASE_ABSENT_RECORDS[@]}"; do
+      [[ "$record" == "$absent" ]] && continue 2
+    done
+    printf '%s\n' "$record"
+  done < "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE"
 }
 
 archive_failure_work() {
@@ -228,14 +263,26 @@ done
     "$SOURCE_RELEASE_MANIFEST_SHA256" \
   && -z "$(find -P "$SOURCE_RELEASE" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]] ||
   abort source-release-inventory-invalid 1707
-(cd "$SOURCE_RELEASE" && sha256sum -c "$SOURCE_RELEASE_MANIFEST_RELATIVE" >/dev/null) ||
+[[ "$(wc -l < "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE")" -eq \
+  "$SOURCE_RELEASE_MANIFEST_RECORD_COUNT" ]] || abort source-release-record-count-invalid 1707
+for record in "${SOURCE_RELEASE_ABSENT_RECORDS[@]}"; do
+  grep -Fx "$record" "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE" >/dev/null ||
+    abort source-release-absent-record-invalid 1707
+  relative="${record#*  ./}"
+  [[ ! -e "$SOURCE_RELEASE/$relative" && ! -L "$SOURCE_RELEASE/$relative" ]] ||
+    abort source-release-absent-file-present 1707
+done
+[[ "$(source_release_records_present | wc -l)" -eq "$SOURCE_RELEASE_PRESENT_RECORD_COUNT" ]] ||
+  abort source-release-present-record-count-invalid 1707
+(cd "$SOURCE_RELEASE" && sha256sum -c <(source_release_records_present) >/dev/null) ||
   abort source-release-hash-invalid 1707
 cmp \
-  <({ awk '{sub(/^\.\//,"",$2); print $2}' "$SOURCE_RELEASE/$SOURCE_RELEASE_MANIFEST_RELATIVE";
-      echo "$SOURCE_RELEASE_MANIFEST_RELATIVE";
-      echo 'P1_PRODUCTION_HARDENING_RELEASE.env'; echo 'P1_R118F_RELEASE.env'; } | LC_ALL=C sort) \
+  <({ source_release_records_present | awk '{sub(/^\.\//,"",$2); print $2}';
+      printf '%s\n' "${SOURCE_RELEASE_METADATA_FILES[@]}"; } | LC_ALL=C sort) \
   <(cd "$SOURCE_RELEASE" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null ||
   abort source-release-file-set-invalid 1707
+[[ "$(find "$SOURCE_RELEASE" -type f | wc -l)" -eq "$SOURCE_RELEASE_FILE_COUNT" ]] ||
+  abort source-release-file-count-invalid 1707
 [[ -S "$SOCKET" && ! -L "$SOCKET" ]] || abort resident-socket-invalid 1708
 [[ "$(systemctl show stay-p1-physiology-benchmark.service -p ActiveState --value 2>/dev/null || true)" != active ]] ||
   abort prior-benchmark-still-active 1709
@@ -314,6 +361,20 @@ for file in "${OVERLAY_FILES[@]}"; do
   [[ "$(sha256sum "$CANDIDATE/$file" | awk '{print $1}')" == \
     "$(sha256sum "$STAGE_ROOT/$file" | awk '{print $1}')" ]] || abort candidate-overlay-mismatch 1715
 done
+[[ "$(wc -l < "$CANDIDATE/$TARGET_RELEASE_MANIFEST_RELATIVE")" -eq \
+  "$TARGET_RELEASE_MANIFEST_RECORD_COUNT" \
+  && "$(sha256sum "$CANDIDATE/$TARGET_RELEASE_MANIFEST_RELATIVE" | awk '{print $1}')" == \
+    "${STAY_R119F_MANIFEST_SHA256#sha256:}" ]] || abort candidate-manifest-invalid 1715
+(cd "$CANDIDATE" && sha256sum -c "$TARGET_RELEASE_MANIFEST_RELATIVE" >/dev/null) ||
+  abort candidate-manifest-hash-invalid 1715
+cmp \
+  <({ awk '{sub(/^\.\//,"",$2); print $2}' "$CANDIDATE/$TARGET_RELEASE_MANIFEST_RELATIVE";
+      echo "$TARGET_RELEASE_MANIFEST_RELATIVE";
+      printf '%s\n' "${SOURCE_RELEASE_METADATA_FILES[@]}"; } | LC_ALL=C sort) \
+  <(cd "$CANDIDATE" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null ||
+  abort candidate-file-set-invalid 1715
+[[ "$(find "$CANDIDATE" -type f | wc -l)" -eq "$TARGET_CANDIDATE_FILE_COUNT" ]] ||
+  abort candidate-file-count-invalid 1715
 [[ "$(tree_digest "$CANDIDATE" cores/sntss/i4g)" == "$source_sntss_digest" \
   && "$(tree_digest "$CANDIDATE" cores/chronobiology/c3)" == "$source_c3_digest" \
   && "$(tree_digest "$CANDIDATE" cores/chronobiology/c3r4)" == "$source_c3r4_digest" ]] ||
@@ -457,6 +518,15 @@ CHRONOBIOLOGY_INVENTED_BIOLOGICAL_TIME=NO
 EOF
 chown root:root "$CANDIDATE/P1_R119F_RELEASE.env"
 chmod 0444 "$CANDIDATE/P1_R119F_RELEASE.env"
+cmp \
+  <({ awk '{sub(/^\.\//,"",$2); print $2}' "$CANDIDATE/$TARGET_RELEASE_MANIFEST_RELATIVE";
+      echo "$TARGET_RELEASE_MANIFEST_RELATIVE";
+      printf '%s\n' "${SOURCE_RELEASE_METADATA_FILES[@]}";
+      echo 'P1_R119F_RELEASE.env'; } | LC_ALL=C sort) \
+  <(cd "$CANDIDATE" && find . -type f -printf '%P\n' | LC_ALL=C sort) >/dev/null ||
+  abort target-release-file-set-invalid 1725
+[[ "$(find "$CANDIDATE" -type f | wc -l)" -eq "$TARGET_RELEASE_FILE_COUNT" ]] ||
+  abort target-release-file-count-invalid 1725
 mv -T "$CANDIDATE" "$NEW_RELEASE"
 CANDIDATE=''
 TARGET_CREATED=1
