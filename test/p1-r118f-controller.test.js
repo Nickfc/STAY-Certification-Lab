@@ -219,6 +219,9 @@ test('R118F-BRIDGE-08 diagnostic is exact, read-only, and preserves live generat
   assert.match(recoveryDiagnosticWorkflow, /chronobiologyPendingDeliveries/);
   assert.match(recoveryDiagnosticWorkflow, /pendingOutboxIntents/);
   assert.match(recoveryDiagnosticWorkflow, /physiologyAuthorityRows/);
+  assert.match(recoveryDiagnosticWorkflow, /R118F_SNAPSHOT_DIAGNOSTIC/);
+  assert.match(recoveryDiagnosticWorkflow, /afterR116Cursor/);
+  assert.match(recoveryDiagnosticWorkflow, /slice\(-24\)/);
   assert.match(recoveryDiagnosticWorkflow, /R118F_DIAGNOSTIC_SSH_EXIT/);
   assert.match(recoveryDiagnosticWorkflow, /R118F_DIAGNOSTIC_POINTER/);
   assert.match(recoveryDiagnosticWorkflow, /R118F_DIAGNOSTIC_CONTROLLER_SHA256/);

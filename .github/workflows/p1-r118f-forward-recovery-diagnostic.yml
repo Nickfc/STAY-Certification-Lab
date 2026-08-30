@@ -205,6 +205,81 @@ jobs:
             database.close();
           }
           NODE
+          STAY_SNAPSHOTS=/var/lib/stay/data/snapshots /usr/local/bin/node <<'NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { DatabaseSync } = require('node:sqlite');
+          const root = process.env.STAY_SNAPSHOTS;
+          const snapshots = fs.readdirSync(root, { withFileTypes: true })
+            .filter(entry => entry.isDirectory() && !entry.isSymbolicLink())
+            .map(entry => entry.name).sort().slice(-24).map(name => {
+              const directory = path.join(root, name);
+              const databasePath = path.join(directory, 'continuity.sqlite3');
+              const manifestPath = path.join(directory, 'SNAPSHOT_MANIFEST.json');
+              const databaseStat = fs.lstatSync(databasePath);
+              const manifestStat = fs.lstatSync(manifestPath);
+              if (!databaseStat.isFile() || databaseStat.isSymbolicLink()
+                || !manifestStat.isFile() || manifestStat.isSymbolicLink()) {
+                throw new Error(`unsafe snapshot shape: ${name}`);
+              }
+              const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+              const database = new DatabaseSync(databasePath, { open: true, readOnly: true });
+              database.exec('PRAGMA query_only=ON');
+              try {
+                const one = (sql, ...parameters) => database.prepare(sql).get(...parameters) || null;
+                const scalar = (sql, ...parameters) => Number(one(sql, ...parameters)?.value || 0);
+                const revision = JSON.parse(one(
+                  "SELECT json FROM metadata WHERE key='life:runtime-revision'"
+                )?.json || '{}');
+                const resident = one(`
+                  SELECT residency_id, instance_id, core_id, version, status,
+                         checkpoint_generation, checkpoint_hash, updated_at
+                  FROM resident_instances WHERE residency_id='resident:chronobiology'
+                `);
+                const consumer = one(`
+                  SELECT consumer_id, core_id, required, active, cursor,
+                         authority_epoch, checkpoint_hash, updated_at
+                  FROM biological_consumers WHERE consumer_id='resident:chronobiology'
+                `);
+                const recovery = database.prepare(`
+                  SELECT id, type, detail_json, created_at FROM recovery_records
+                  WHERE core_id='chronobiology' ORDER BY id DESC LIMIT 12
+                `).all().map(row => ({
+                  id: Number(row.id), type: row.type, createdAt: row.created_at,
+                  detail: (() => { try { return JSON.parse(row.detail_json); } catch { return null; } })()
+                }));
+                return {
+                  name,
+                  manifest: {
+                    format: manifest.format,
+                    createdAt: manifest.createdAt,
+                    reason: manifest.reason,
+                    databaseSha256: manifest.files?.['continuity.sqlite3'] || null
+                  },
+                  quickCheck: one('PRAGMA quick_check')?.quick_check || null,
+                  runtimeRevision: Number(revision.revision),
+                  runtimeRevisionReason: revision.reason || null,
+                  resident,
+                  consumer,
+                  biologicalEvents: {
+                    count: scalar('SELECT COUNT(*) value FROM biological_events'),
+                    minimum: scalar('SELECT COALESCE(MIN(sequence),0) value FROM biological_events'),
+                    maximum: scalar('SELECT COALESCE(MAX(sequence),0) value FROM biological_events'),
+                    afterR116Cursor: scalar('SELECT COUNT(*) value FROM biological_events WHERE sequence>2094162')
+                  },
+                  chronobiologyPendingDeliveries: scalar(
+                    "SELECT COUNT(*) value FROM biological_deliveries WHERE consumer_id='resident:chronobiology' AND status='PENDING'"
+                  ),
+                  recoveryHighWaterId: scalar('SELECT COALESCE(MAX(id),0) value FROM recovery_records'),
+                  recovery
+                };
+              } finally {
+                database.close();
+              }
+            });
+          console.log(`R118F_SNAPSHOT_DIAGNOSTIC=${JSON.stringify(snapshots)}`);
+          NODE
           [[ "$(systemctl show stay.service -p MainPID -p NRestarts -p ActiveState -p SubState --no-pager)" == "$before_service" ]]
           [[ "$(readlink -f /opt/stay/current)" == "$before_pointer" ]]
           after_health="$(curl -fsS --max-time 5 http://127.0.0.1:8787/healthz)"
@@ -233,6 +308,7 @@ jobs:
           grep -Fx 'STATESTORE_WRITE=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
           grep -Fx 'RESIDENT_OPERATION=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
           grep -Fx 'AUTHORITY_CHANGE=NO' "$RUNNER_TEMP/r118f-diagnostic.raw"
+          grep -F 'R118F_SNAPSHOT_DIAGNOSTIC=' "$RUNNER_TEMP/r118f-diagnostic.raw"
       - name: Upload read-only diagnostic evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
