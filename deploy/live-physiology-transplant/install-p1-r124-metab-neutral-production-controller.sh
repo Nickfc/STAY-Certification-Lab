@@ -5,14 +5,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_WRAPPER_SHA256='11ccd13023daeb29b20076e2dab2c4af1b3ce516480449eeb8ffc917575c0b7d'
+EXPECTED_WRAPPER_SHA256='e844f03b40ed24b095ea071dd79b130c150523a4ea4b915b6867f08262ee3fc4'
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-r124-metab-neutral-production-controller"
 TARGET_WRAPPER='/usr/local/sbin/stay-p1-production-controller'
 TARGET_SUDOERS='/etc/sudoers.d/stay-p1-production-controller'
 
 [[ "$EUID" -eq 0 ]] || {
-  echo 'R124_BOOTSTRAP_ABORT=root-required' >&2
+  echo 'R127_BOOTSTRAP_ABORT=root-required' >&2
   exit 60
 }
 observed_private_ipv4="$({
@@ -21,27 +21,27 @@ observed_private_ipv4="$({
     sort -u
 })"
 [[ "$observed_private_ipv4" == "$EXPECTED_PRIVATE_IPV4" ]] || {
-  echo 'R124_BOOTSTRAP_ABORT=host-identity-mismatch' >&2
+  echo 'R127_BOOTSTRAP_ABORT=host-identity-mismatch' >&2
   exit 61
 }
 [[ -f "$SOURCE_WRAPPER" && ! -L "$SOURCE_WRAPPER" ]] || {
-  echo 'R124_BOOTSTRAP_ABORT=wrapper-source-invalid' >&2
+  echo 'R127_BOOTSTRAP_ABORT=wrapper-source-invalid' >&2
   exit 62
 }
 [[ "$(sha256sum "$SOURCE_WRAPPER" | awk '{print $1}')" == "$EXPECTED_WRAPPER_SHA256" ]] || {
-  echo 'R124_BOOTSTRAP_ABORT=wrapper-source-hash-mismatch' >&2
+  echo 'R127_BOOTSTRAP_ABORT=wrapper-source-hash-mismatch' >&2
   exit 63
 }
 command -v visudo >/dev/null 2>&1 || {
-  echo 'R124_BOOTSTRAP_ABORT=visudo-unavailable' >&2
+  echo 'R127_BOOTSTRAP_ABORT=visudo-unavailable' >&2
   exit 64
 }
 id staydeploy >/dev/null 2>&1 || {
-  echo 'R124_BOOTSTRAP_ABORT=staydeploy-user-missing' >&2
+  echo 'R127_BOOTSTRAP_ABORT=staydeploy-user-missing' >&2
   exit 65
 }
 
-staging="$(mktemp -d /run/stay-r124-metab-neutral-v4-bootstrap.XXXXXX)"
+staging="$(mktemp -d /run/stay-r127-metab-repair-v1-bootstrap.XXXXXX)"
 trap 'rm -rf -- "$staging"' EXIT
 sudoers_staged="$staging/stay-p1-production-controller.sudoers"
 cat > "$sudoers_staged" <<'SUDOERS'
@@ -70,5 +70,4 @@ echo "OBSERVED_PRIVATE_IPV4=$observed_private_ipv4"
 echo "ROOT_WRAPPER=$TARGET_WRAPPER"
 echo "ROOT_WRAPPER_SHA256=sha256:$EXPECTED_WRAPPER_SHA256"
 echo 'SUDOERS_SCOPE=STAYDEPLOY_TO_PINNED_P1_CONTROLLER_ONLY'
-echo 'R124_FORWARD_AUTHORIZED=NO'
-echo 'R124_RECOVERY_AUTHORIZED=NO'
+echo 'R127_REPAIR_AUTHORIZED=NO'

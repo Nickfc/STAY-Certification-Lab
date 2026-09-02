@@ -7,28 +7,27 @@ export LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
 INCOMING_ROOT='/opt/stay/incoming'
-EXPECTED_RELEASE_TAG='r124-metab-neutral-v4'
-EXPECTED_RELEASE_TAG_OBJECT='ed7f3d045ee8d005f2537fd35f7f629958fcdf52'
-EXPECTED_RELEASE_COMMIT='16e8e2d9ca04c8829425f99b91a49b3e495777cc'
-EXPECTED_RELEASE_TREE='316f94dc20c29a431cbe009f3564e6f0b6687a24'
-EXPECTED_ARCHIVE='STAY_P1_R124_METAB_NEUTRAL_V4_BUNDLE_20260902.tar.gz'
-EXPECTED_ARCHIVE_SHA256='ebbfca81636d5952a7db3b8c771d5c7660c841ecb023ae6cb212f71fa2775458'
-EXPECTED_SIDECAR_SHA256='5043ceac8913aa81f41b5edfacbed9e9da70b9fe45599374055b8db39ab96273'
-EXPECTED_MANIFEST_SHA256='a1999132f935054dc7c482313b88b0679f73475a225b9706c27ed2686d822b26'
-EXPECTED_FORWARD_SHA256='556caedb4e6a70bd0a3494182f733ef8877f8e439684fee2a737bede7d92ffa4'
-EXPECTED_RECOVERY_SHA256='960fbb96772b8b9f6668f6d98da4075c44f7aafd8036fc08e923734a14fd8ccc'
+EXPECTED_RELEASE_TAG='r127-metab-repair-v1'
+EXPECTED_RELEASE_TAG_OBJECT='881df1b74521a9d2e26b85f570eb8333f27fd184'
+EXPECTED_RELEASE_COMMIT='6d52633225ff394c118652cecd2326a7d7c8a8ba'
+EXPECTED_RELEASE_TREE='50af738ceea3c2b1774f919e5700a8144927d92b'
+EXPECTED_ARCHIVE='STAY_P1_R127_METAB_REPAIR_V1_BUNDLE_20260902.tar.gz'
+EXPECTED_ARCHIVE_SHA256='20fa31ec4b890ffc1854355fc37926f9c575fab2d3ef450d936604dca9f56f3a'
+EXPECTED_SIDECAR_SHA256='1326fc796fe0b4cd8812e18d39ef84b0c8b667ec642bc2bf8ea590bf60f23162'
+EXPECTED_MANIFEST_SHA256='6677c444d77f801d5f36e5afc9b7a2b17bc182f6e5fabefe5e8d708b507d51c7'
+EXPECTED_FORWARD_SHA256='47ecff4b8ab2090a8942be36b801eb0cc85fa8dd46f10d20785ec2ce2d91297a'
+EXPECTED_RECOVERY_SHA256='47ecff4b8ab2090a8942be36b801eb0cc85fa8dd46f10d20785ec2ce2d91297a'
 EXPECTED_BIRTH_CERTIFICATE_SHA256='5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'
 EXPECTED_BIRTH_DOSSIER_SHA256='3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'
 EXPECTED_BIRTH_PUBLIC_KEY_SHA256='754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e'
-EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-a1999132f935'
+EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-repair-6677c444d77f'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R123F_TO_R124.sha256'
 FORWARD='deploy/live-physiology-transplant/p1-r124-metab-neutral-forward.sh'
-RECOVERY='deploy/live-physiology-transplant/p1-r124-metab-neutral-forward-recovery.sh'
+RECOVERY='deploy/live-physiology-transplant/p1-r124-metab-neutral-forward.sh'
 CERTIFICATE_NAME='metab-neutral-birth-certificate.json'
 DOSSIER_NAME='metab-neutral-founder-dossier.json'
 PUBLIC_KEY_NAME='birth-authority-public.pem'
-FORWARD_RUNTIME_SECONDS=900
-RECOVERY_RUNTIME_SECONDS=600
+RECOVERY_RUNTIME_SECONDS=900
 
 RUN_ROOT=''
 WORK_ROOT=''
@@ -75,7 +74,7 @@ validate_run_root() {
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
   parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
   [[ "$parent_real" == "$incoming_real" ]] || return 1
-  [[ "$(basename -- "$candidate")" =~ ^r124-metab-neutral-v4-[0-9]+$ ]] || return 1
+  [[ "$(basename -- "$candidate")" =~ ^r127-metab-repair-v1-[0-9]+$ ]] || return 1
   [[ "$(stat -Lc '%U:%G' "$candidate")" == 'staydeploy:staydeploy' ]] || return 1
   mode="$(stat -Lc '%a' "$candidate")" || return 1
   [[ "$mode" == 700 || "$mode" == 2700 ]] || return 1
@@ -94,7 +93,7 @@ safe_cleanup_run_root() {
 
 safe_cleanup_work_root() {
   local candidate="$1"
-  [[ "$candidate" =~ ^/run/stay-r124-metab-neutral-v4-controller\.[A-Za-z0-9]+$ ]] || return 96
+  [[ "$candidate" =~ ^/run/stay-r127-metab-repair-v1-controller\.[A-Za-z0-9]+$ ]] || return 96
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 97
   [[ "$(stat -Lc '%U:%G' "$candidate")" == 'root:root' ]] || return 98
   [[ -z "$(findmnt -rn -R -o TARGET "$candidate" 2>/dev/null || true)" ]] || return 99
@@ -136,11 +135,11 @@ verify_archive_shape() {
   local archive="$1" entry
   local -a entries
   mapfile -t entries < <(tar -tzf "$archive") || return 1
-  [[ "${#entries[@]}" -eq 62 ]] || return 1
-  [[ "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq 62 ]] || return 1
+  [[ "${#entries[@]}" -eq 63 ]] || return 1
+  [[ "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq 63 ]] || return 1
   for entry in "${entries[@]}"; do
     [[ -n "$entry" && "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) \
-      && ! "$entry" =~ ^[A-Za-z]: ]] || return 1
+      && "$entry" != *\\* && ! "$entry" =~ ^[A-Za-z]: ]] || return 1
   done
   tar -tvzf "$archive" |
     awk 'substr($1,1,1) !~ /[-d]/ { bad=1 } END { exit bad }'
@@ -187,16 +186,16 @@ EOF
 verify_release_tree() {
   local root="$1" expected_list actual_list relative
   validate_plain_tree "$root" || return 1
-  [[ "$(find -P "$root" -xdev -type f | wc -l)" -eq 44 ]] || return 1
-  [[ "$(wc -l < "$root/$MANIFEST")" -eq 43 ]] || return 1
+  [[ "$(find -P "$root" -xdev -type f | wc -l)" -eq 45 ]] || return 1
+  [[ "$(wc -l < "$root/$MANIFEST")" -eq 44 ]] || return 1
   verify_hash "$root/$MANIFEST" "$EXPECTED_MANIFEST_SHA256" || return 1
   verify_hash "$root/$FORWARD" "$EXPECTED_FORWARD_SHA256" || return 1
   verify_hash "$root/$RECOVERY" "$EXPECTED_RECOVERY_SHA256" || return 1
   awk 'NF != 2 || $1 !~ /^[0-9a-f]{64}$/ || $2 !~ /^\.\/[A-Za-z0-9._\/-]+$/ \
-    { exit 1 } END { if (NR != 43) exit 1 }' "$root/$MANIFEST" || return 1
+    { exit 1 } END { if (NR != 44) exit 1 }' "$root/$MANIFEST" || return 1
   (cd "$root" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
-  expected_list="$(mktemp /run/stay-r124-v4-expected.XXXXXX)" || return 1
-  actual_list="$(mktemp /run/stay-r124-v4-actual.XXXXXX)" || {
+  expected_list="$(mktemp /run/stay-r127-v1-expected.XXXXXX)" || return 1
+  actual_list="$(mktemp /run/stay-r127-v1-actual.XXXXXX)" || {
     rm -f -- "$expected_list"
     return 1
   }
@@ -218,7 +217,7 @@ verify_release_tree() {
 
 prepare_private_release() {
   local private_archive
-  WORK_ROOT="$(mktemp -d /run/stay-r124-metab-neutral-v4-controller.XXXXXX)" || return 1
+  WORK_ROOT="$(mktemp -d /run/stay-r127-metab-repair-v1-controller.XXXXXX)" || return 1
   [[ "$(stat -Lc '%U:%G:%a' "$WORK_ROOT")" == 'root:root:700' ]] || return 1
   private_archive="$WORK_ROOT/$EXPECTED_ARCHIVE"
   install -o root -g root -m 0400 "$RUN_ROOT/$EXPECTED_ARCHIVE" "$private_archive" || return 1
@@ -339,15 +338,29 @@ if (!(database.quickCheck === 'ok' && database.queryOnly === true &&
   freeze.release?.archiveSha256 === archiveSha256 &&
   freeze.release?.manifestSha256 === manifestSha256 &&
   freeze.metab?.mode === 'NEUTRAL' && freeze.metab?.authorityOwned === false &&
-  freeze.metab?.observedOutputs === 0 && freeze.birthAuthority?.active === false)) process.exit(1);
+  freeze.metab?.observedOutputs === 0 && freeze.birthAuthority?.active === false &&
+  freeze.freezeType === 'R127_METAB_NEUTRAL_FORWARD_REPAIR' &&
+  JSON.stringify(freeze.runtime?.progression) === JSON.stringify([123, 124, 125, 126, 127]) &&
+  freeze.runtime?.restartCommands === 2 &&
+  freeze.recovery?.sourceRevision === 125 && freeze.recovery?.birthRevision === 126 &&
+  freeze.recovery?.acceptedRevision === 127 && freeze.recovery?.revisionFenced === true &&
+  freeze.recovery?.pointerRewound === false &&
+  freeze.recovery?.failureMarkerSha256 ===
+    'sha256:933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e' &&
+  freeze.recovery?.failureEvidence ===
+    '/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2')) {
+  process.exit(1);
+}
 NODE
   [[ ! -e /etc/systemd/system/stay.service.d/p1-r124-metab-neutral-birth-once.conf \
     && ! -L /etc/systemd/system/stay.service.d/p1-r124-metab-neutral-birth-once.conf \
     && ! -e /etc/stay/resident-promotions/resident-metab-neutral-birth.json \
     && ! -L /etc/stay/resident-promotions/resident-metab-neutral-birth.json \
     && ! -e /etc/stay/metab-neutral-birth-authority.pub \
-    && ! -L /etc/stay/metab-neutral-birth-authority.pub ]] || return 1
-  echo 'R124_CONTROLLER_LIVE_PROOF=PASS'
+    && ! -L /etc/stay/metab-neutral-birth-authority.pub \
+    && ! -e /run/stay-r124-metab-neutral-recovery.env \
+    && ! -L /run/stay-r124-metab-neutral-recovery.env ]] || return 1
+  echo 'R127_CONTROLLER_LIVE_PROOF=PASS'
 }
 
 main() {
@@ -360,17 +373,13 @@ main() {
   [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]] ||
     abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
   case "$operation" in
-    harden-r124)
-      [[ "$authorization" == 'AUTHORIZE_R124_METAB_NEUTRAL_V4_CONTAINED_BIRTH_WITH_FENCED_RECOVERY' ]] ||
-        abort_controller 74 AUTHORIZATION_FAILED forward-authorization-missing
-      ;;
     recover-r124)
-      [[ "$authorization" == 'AUTHORIZE_R124_METAB_NEUTRAL_V4_FORWARD_RECOVERY_ONLY' ]] ||
+      [[ "$authorization" == 'AUTHORIZE_R127_METAB_REPAIR_V1_FORWARD_ONLY' ]] ||
         abort_controller 75 AUTHORIZATION_FAILED recovery-authorization-missing
       ;;
     *) abort_controller 76 OPERATION_REJECTED unsupported-operation ;;
   esac
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r124-metab-neutral-v4-[0-9]+$ ]] ||
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r127-metab-repair-v1-[0-9]+$ ]] ||
     abort_controller 77 PATH_VALIDATION_FAILED invalid-run-root-pattern
   validate_run_root "$requested_root" ||
     abort_controller 78 PATH_VALIDATION_FAILED invalid-run-root
@@ -379,49 +388,23 @@ main() {
   verify_staged_identity || abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
   CLEANUP_ARMED=1
   prepare_private_release || abort_controller 81 STAGED_IDENTITY_FAILED private-release-invalid
-  OUTPUT_FILE="$(mktemp /run/stay-r124-v4-output.XXXXXX)"
-  if [[ "$operation" == harden-r124 ]]; then
-    script="$WORK_ROOT/release/$FORWARD"
-    expected_marker='R124_METAB_NEUTRAL_FORWARD=PASS'
-    if run_bounded_script "$script" STAY_R124_AUTHORIZATION \
-      AUTHORIZE_R124_METAB_NEUTRAL_ZERO_AUTHORITY_BIRTH "$FORWARD_RUNTIME_SECONDS"; then
-      child_status=0
-    else
-      child_status=$?
-    fi
-    if [[ "$child_status" -ne 0 ]] &&
-       grep -Fxq 'R124_FORWARD_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY' \
-         "$OUTPUT_FILE"; then
-      echo 'R124_CONTROLLER_RECOVERY=AUTOMATIC'
-      : > "$OUTPUT_FILE"
-      script="$WORK_ROOT/release/$RECOVERY"
-      expected_marker='R124_METAB_NEUTRAL_RECOVERY=PASS'
-      if run_bounded_script "$script" STAY_R124_RECOVERY_AUTHORIZATION \
-        AUTHORIZE_R124_METAB_NEUTRAL_FORWARD_RECOVERY_ONLY "$RECOVERY_RUNTIME_SECONDS"; then
-        child_status=0
-      else
-        child_status=$?
-      fi
-    fi
+  OUTPUT_FILE="$(mktemp /run/stay-r127-v1-output.XXXXXX)"
+  script="$WORK_ROOT/release/$RECOVERY"
+  expected_marker='R124_METAB_NEUTRAL_RECOVERY=PASS'
+  if run_bounded_script "$script" STAY_R124_RECOVERY_AUTHORIZATION \
+    AUTHORIZE_R124_METAB_NEUTRAL_FORWARD_RECOVERY_ONLY "$RECOVERY_RUNTIME_SECONDS"; then
+    child_status=0
   else
-    script="$WORK_ROOT/release/$RECOVERY"
-    expected_marker='R124_METAB_NEUTRAL_RECOVERY=PASS'
-    if run_bounded_script "$script" STAY_R124_RECOVERY_AUTHORIZATION \
-      AUTHORIZE_R124_METAB_NEUTRAL_FORWARD_RECOVERY_ONLY "$RECOVERY_RUNTIME_SECONDS"; then
-      child_status=0
-    else
-      child_status=$?
-    fi
+    child_status=$?
   fi
   [[ "$child_status" -eq 0 ]] || abort_controller "$child_status" R124_EXECUTION_FAILED child-failed
   grep -Fx "$expected_marker" "$OUTPUT_FILE" >/dev/null ||
     abort_controller 82 RESULT_MARKER_MISSING result-marker-missing
-  mapfile -t revision_markers < <(grep -E '^RUNTIME_REVISION_AFTER=(124|125)$' "$OUTPUT_FILE")
+  mapfile -t revision_markers < <(grep -E '^RUNTIME_REVISION_AFTER=127$' "$OUTPUT_FILE")
   [[ "${#revision_markers[@]}" -eq 1 ]] ||
     abort_controller 83 RESULT_CONTRACT_FAILED revision-marker-invalid
   revision="${revision_markers[0]#RUNTIME_REVISION_AFTER=}"
-  [[ "$operation" != harden-r124 || "$expected_marker" != 'R124_METAB_NEUTRAL_FORWARD=PASS' \
-    || "$revision" == 124 ]] || abort_controller 83 RESULT_CONTRACT_FAILED forward-revision-invalid
+  [[ "$revision" == 127 ]] || abort_controller 83 RESULT_CONTRACT_FAILED repair-revision-invalid
   grep -Fx "REVISION_LABEL=R${revision}F" "$OUTPUT_FILE" >/dev/null ||
     abort_controller 83 RESULT_CONTRACT_FAILED freeze-marker-missing
   grep -Fx "CURRENT_RELEASE=$EXPECTED_TARGET_RELEASE" "$OUTPUT_FILE" >/dev/null ||
@@ -432,12 +415,19 @@ main() {
     'SNTSS_AUTHORITY=NONE' \
     'SNTSS_OUTPUTS=0' \
     'CHRONOBIOLOGY_MODE=SHADOW' \
+    'CHRONOBIOLOGY_STATUS=RUNNING' \
     'CHRONOBIOLOGY_AUTHORITY=NONE' \
     'METAB_MODE=NEUTRAL' \
     'METAB_STATUS=RUNNING' \
     'METAB_AUTHORITY=NONE' \
     'METAB_OUTPUTS=0' \
+    'METAB_SIGNALLING=FORBIDDEN' \
+    'RESTART_COMMANDS=2' \
     'FETUS_CONTINUITY=PASS' \
+    'WEB_CHIP_BSF=LIVE' \
+    'WEB_CHIP_SNTSS=SHADOW' \
+    'WEB_CHIP_CHRONOBIOLOGY=SHADOW' \
+    'WEB_CHIP_METAB=NEUTRAL' \
     'BIRTH_AUTHORITY_ACTIVE=NO'; do
     grep -Fx "$marker" "$OUTPUT_FILE" >/dev/null ||
       abort_controller 83 RESULT_CONTRACT_FAILED result-contract-incomplete
@@ -445,8 +435,8 @@ main() {
   validate_live_contract "$revision" ||
     abort_controller 84 LIVE_ACCEPTANCE_FAILED independent-live-proof-failed
   CONTROLLER_FAILURE_CLASS='NONE'
-  echo "R124_CONTROLLER_REVISION=R${revision}F"
-  echo 'R124_CONTROLLER_RESULT=PASS'
+  echo "R127_CONTROLLER_REVISION=R${revision}F"
+  echo 'R127_CONTROLLER_RESULT=PASS'
 }
 
 main "$@"
