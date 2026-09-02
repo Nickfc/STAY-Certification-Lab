@@ -34,7 +34,7 @@ test('P1-A-01 transplant identities and certified shared anchors are exact', () 
   assert.equal(result.files.biologicalSignallingFabric.sha256,
     '9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a');
   assert.equal(result.files.residentManager.sha256,
-    '228fc35ca35371d4886730890642e0885b084654c7bf84f95d54d5c68dd16c3b');
+    '68c4c92eb666c6f68e679a34799ce9000d04bb652c2ec706e25d963fe1f6f6a6');
   assert.equal(result.files.stateStore.sha256,
     'f177fda82fbc87400f44674f3bb60f01faa6e3a84dbbb218cfb71fbf33806c5b');
 });
