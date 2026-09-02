@@ -34,6 +34,7 @@ const EXPECTED_OVERLAY = Object.freeze([
   'runtime/kernel/living-kernel.js',
   'runtime/kernel/resident-control-socket.js',
   'runtime/kernel/resident-manager.js',
+  'runtime/kernel/upgrades.js',
   'runtime/p1-r0/c0-source-contracts/contracts/founder_profile_templates.json',
   'runtime/p1-r0/causal-frame.js',
   'runtime/p1-r0/contract-registry.js',
@@ -59,6 +60,7 @@ const EXPECTED_OVERLAY = Object.freeze([
   'test/p1-r124-metab-neutral-birth.test.js',
   'test/p1-r124-metab-neutral-production-proof.test.js',
   'test/p1-r124-release-contract.test.js',
+  'test/p1-r127-post-restart-continuity.test.js',
   'test/p1-resident-control-socket.test.js',
   'test/p1-surgery-a-transplant.test.js',
   'test/production-hardening.test.js',
@@ -201,49 +203,59 @@ test('R124-REL-06 clean overlay loads the real preflight proof in isolation', ()
   }
 });
 
-test('R127-PRESERVE-REL-01 exact stranded R127 state recovers and freezes without widening limits', () => {
+test('R127-PRESERVE-REL-01 exact stopped R127 cohort recovers and freezes without widening limits', () => {
   const source = read(MARKER_RECOVERY);
   const proof = read(path.join(ROOT, 'deploy', 'live-physiology-transplant',
     'p1-r124-metab-neutral-live-proof.js'));
   for (const identity of [
-    "ACTIVE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-repair-fb8d675114b4'",
-    "ACTIVE_MANIFEST_SHA256='fb8d675114b4d35a8d478c69b547910014234e63df1b928876fed7c49cbf2dcf'",
-    "ACTIVE_RELEASE_ENV_SHA256='c82a2454d50ca1602dbdab0b3db532963a17e8913b3ff2475182eb7b004f921d'",
-    'ACTIVE_FILE_COUNT=644',
-    'TARGET_FILE_COUNT=645',
+    "ACTIVE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-7b649384afdf'",
+    "ACTIVE_MANIFEST_SHA256='7b649384afdf5152b49d608cb36902fad042168274d4200a2d72a481d44a0979'",
+    "ACTIVE_RELEASE_ENV_SHA256='122ec82740207d8aead50a6e46130b6400dd38109397897cbe718e740e6aeea9'",
+    "ACTIVE_RELEASE_TAG='r127-metab-final-recovery-v3'",
+    "ACTIVE_RELEASE_COMMIT='38ae95f43c32c7234a31fa13eb78e6706a49054e'",
+    "ACTIVE_RELEASE_TREE='f43d4bb0bb770f340c9b8d4a5351f4be3a8199a0'",
+    'ACTIVE_FILE_COUNT=645',
+    'TARGET_FILE_COUNT=646',
     "RECOVERY_MARKER_SHA256='933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e'",
-    "ACTIVE_TREE_SHA256='ce832ae2a465804a917d40fbbf2475d367af2e537101fe471593d0f2ad4d24d8'",
-    "FAILED_R127_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R127-MARKER-20260902T171244Z.x3NznR'",
-    "FAILED_R127_TREE_SHA256='d8116e02ac70747929950a36186795134f272905da5663d18d61c68c8e826466'",
-    'EXPECTED_STRANDED_PID=436477',
-    'EXPECTED_STRANDED_PENDING_DELIVERIES=0',
-    'AUTHORIZE_R127_METAB_REVISION_PRESERVING_FORWARD_RECOVERY_ONLY'
+    "ACTIVE_TREE_SHA256='5108d022880238934d8fd40ab88a5ece1493e7e6b46bad4e2ff698991a54ec76'",
+    "FAILED_R127_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R127-PRESERVE-20260902T185222Z.rHU3XL'",
+    "FAILED_R127_TREE_SHA256='cda199f86533aed8217b84a76bbf9744b58a2611e6b84ec7211001b221809dba'",
+    'EXPECTED_STRANDED_PID=0',
+    'EXPECTED_STRANDED_PENDING_DELIVERIES=2',
+    'AUTHORIZE_R127_POST_RESTART_FETUS_SNTSS_CHRONOBIOLOGY_CONTINUITY_ONLY'
   ]) assert.equal(source.includes(identity), true, identity);
-  assert.equal((source.match(/systemctl restart stay\.service/g) || []).length, 1);
-  assert.equal((source.match(/systemctl start stay\.service/g) || []).length, 0);
+  assert.equal((source.match(/systemctl restart stay\.service/g) || []).length, 0);
+  assert.equal((source.match(/systemctl start stay\.service/g) || []).length, 1);
+  assert.match(source, /RESTART_COMMITTED=1\s+systemctl start stay\.service/);
   assert.match(source, /durable_runtime_revision\)" == 127/);
   assert.match(source, /STAY_ALLOW_METAB_NEUTRAL_RECOVERY_REVISION_PRESERVATION=1/);
+  assert.match(source, /STAY_ALLOW_R127_POST_RESTART_CONTINUITY_RECOVERY=/);
   assert.match(source, /--test-name-pattern='\^R127-METAB-RECOVERY-05'/);
-  assert.match(source, /restartCommands: 4/);
-  assert.match(source, /R127_METAB_NEUTRAL_REVISION_PRESERVING_FORWARD_RECOVERY/);
+  assert.match(source, /--test-name-pattern='\^R127-POST-RESTART-ENTRY-05'/);
+  assert.match(source, /startCommands: 1, restartCommands: 0/);
+  assert.match(source, /R127_POST_RESTART_CONTINUITY_FORWARD_RECOVERY/);
   assert.match(source, /kernelRevisionPreserved: true/);
   assert.match(source, /fetusInstallRevisionPreserved: true/);
-  assert.match(source, /value\.pendingDeliveries === expectedPendingDeliveries/);
-  assert.match(source, /expectedPendingDeliveries === 0/);
+  assert.match(source, /value\.pendingDeliveries === 2/);
   assert.match(source, /value\.abandonedDeliveries === 0/);
-  assert.match(source, /before\.pendingDeliveries === 0/);
+  assert.match(source, /before\.pendingDeliveries === 2/);
   assert.match(source, /before\.abandonedDeliveries === 0/);
   assert.doesNotMatch(source, /pendingDeliveries > 0/);
   assert.match(source, /missing_active_overlay_files=\(\)/);
-  assert.match(source, /missing_active_overlay_files\[0\][\s\S]*p1-r127-metab-marker-forward-recovery\.sh/);
+  assert.match(source, /missing_active_overlay_files\[0\][\s\S]*p1-r127-post-restart-continuity\.test\.js/);
   assert.match(source, /find "\$CANDIDATE" -type f \| wc -l\)" -eq "\$TARGET_FILE_COUNT"/);
-  assert.match(source, /markerAccessRepaired: true,[\s\S]*?revisionFenced: true, pointerRewound: false/);
+  assert.match(source, /acknowledgedPendingDeliveries: 2, supersededRestartPulses: 1289/);
+  assert.match(source, /inventedBiologicalTime: false, authorityChanged: false/);
+  assert.match(source, /revisionFenced: true, pointerRewound: false/);
   assert.match(source, /R127_PRESERVATION_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
-  assert.match(proof, /function validateR127RevisionPreservingAfter\(input\)/);
+  assert.match(proof, /function captureDatabase\(databasePath\)/);
+  assert.match(source, /runtime\.r127-post-restart-continuity-recovered/);
+  assert.match(source, /biological\.consumer-resynchronized/);
+  assert.match(source, /resident\.restart-pulse-superseded/);
   const committed = source.slice(source.indexOf('RESTART_COMMITTED=1'));
   assert.doesNotMatch(committed, /point_current "\$ACTIVE_RELEASE"/);
   assert.doesNotMatch(source,
-    /TimeoutStartSec|TimeoutStopSec|CPUQuota=|handlerTimeoutMs\s*=|healthTimeoutMs\s*=|git reset|sqlite3\s+.*(?:DELETE|UPDATE)/);
+    /TimeoutStartSec|TimeoutStopSec|CPUQuota=|handlerTimeoutMs\s*=(?!=)|healthTimeoutMs\s*=(?!=)|git reset|sqlite3\s+.*(?:DELETE|UPDATE)/);
 });
 
 module.exports = Object.freeze({ EXPECTED_OVERLAY });
