@@ -9,11 +9,17 @@ const test = require('node:test');
 
 const { EventFabric } = require('../runtime/kernel/event-fabric');
 const { stableStringify } = require('../runtime/kernel/canonical-json');
+const { LivingKernel } = require('../runtime/kernel/living-kernel');
 const { ResidentManager, RESIDENT_SIGNALLING } = require('../runtime/kernel/resident-manager');
 const { StateStore } = require('../runtime/kernel/state-store');
 const {
+  FORMAT: REVISION_FREEZE_FORMAT,
+  sealRevisionFreeze
+} = require('../runtime/revision-freeze');
+const {
   METAB_NEUTRAL_AUTHORIZATION_CLASS,
   METAB_NEUTRAL_BIRTH_FORMAT,
+  loadAndVerifyMetabNeutralBirth,
   verifyMetabNeutralBirthCertificate
 } = require('../runtime/p1-r0/metab-neutral-birth-authority');
 const {
@@ -25,6 +31,7 @@ const {
 } = require('../runtime/p1-r0/residents/metab-neutral');
 const {
   PRODUCTION_STORAGE_AUTHORIZATION,
+  PRODUCTION_SCHEMA_NAME,
   P1ProductionPersistence
 } = require('../runtime/p1-r0/production-persistence');
 const { recordHash } = require('../runtime/p1-r0/records');
@@ -38,6 +45,7 @@ const {
   verifyManifestAgainstPackagePolicy
 } = require('../runtime/kernel/package-policy');
 const { validateRequest } = require('../runtime/kernel/resident-control-socket');
+const { projectObservationChips } = require('../runtime/ui/chip-projection');
 
 const ROOT = path.resolve(__dirname, '..');
 const HASH_A = `sha256:${'a'.repeat(64)}`;
@@ -104,6 +112,23 @@ function founderRecord() {
   };
 }
 
+function birthAuthorization() {
+  return Object.freeze({
+    ok: true,
+    certificateId: 'r124-metab-neutral-test-certificate',
+    authorizationClass: METAB_NEUTRAL_AUTHORIZATION_CLASS,
+    founderDossierSha256: recordHash({
+      status: 'PRODUCTION_FOUNDER_CANDIDATE',
+      reviewedProfile: founderBinding().profile,
+      noAuthority: true
+    }),
+    founderRecord: founderRecord(),
+    founderBinding: founderBinding(),
+    targetRevision: 124,
+    parentFreezeRecordSha256: HASH_A
+  });
+}
+
 function chip(checkpoint, observedUtc = '2026-09-02T10:00:01.000Z') {
   return {
     recordVersion: 'CoreChipObservationV1',
@@ -128,15 +153,131 @@ function chip(checkpoint, observedUtc = '2026-09-02T10:00:01.000Z') {
   };
 }
 
-async function makeStore(t) {
+async function makeStore(t, registerCleanup = true) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r124-neutral-'));
   const stateStore = new StateStore(root);
   await stateStore.init();
+  if (registerCleanup) {
+    t.after(async () => {
+      try { stateStore.close(); } catch {}
+      await fs.rm(root, { recursive: true, force: true });
+    });
+  }
+  return { root, stateStore };
+}
+
+async function writeReadOnlyJson(file, value) {
+  await fs.writeFile(file, `${stableStringify(value)}\n`, { encoding: 'utf8', mode: 0o444 });
+  await fs.chmod(file, 0o444);
+}
+
+async function makeKernelHarness(t) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r124-kernel-'));
+  const freezeDirectory = path.join(root, 'runtime-freezes');
+  const publicKeyPath = path.join(root, 'release-authority.pub');
+  const certificateFile = path.join(root, 'metab-neutral-birth.json');
+  await fs.mkdir(freezeDirectory, { recursive: true });
+
+  const seed = new StateStore(root);
+  await seed.init();
+  await seed.writeLife('identity', IDENTITY);
+  await seed.writeLife('organism-binding', binding());
+  await seed.writeLife('runtime-revision', {
+    revision: 123,
+    reason: 'r123f.accepted',
+    at: '2026-09-02T09:59:59.000Z',
+    kernelVersion: '0.8.11.3'
+  });
+  seed.close();
+
+  const parentFreeze = sealRevisionFreeze({
+    format: REVISION_FREEZE_FORMAT,
+    result: 'PASS',
+    acceptance: 'ACCEPTED',
+    freezeType: 'R123F_72_HOUR_ACCEPTANCE',
+    runtime: {
+      revision: 123,
+      revisionLabel: 'R123F'
+    }
+  });
+  await writeReadOnlyJson(path.join(freezeDirectory, 'R123.json'), parentFreeze);
+
+  const nowMs = 1_800_000_000_000;
+  const kernel = new LivingKernel({
+    dataDir: root,
+    releaseRoot: ROOT,
+    logger: { log() {}, info() {}, warn() {}, error() {} },
+    clock: () => nowMs,
+    heartbeatIntervalMs: 0,
+    snapshotIntervalMs: 0,
+    allowMetabNeutralBirth: true,
+    residentPromotionPublicKeyPath: publicKeyPath,
+    metabNeutralBirthCertificateFile: certificateFile,
+    runtimeFreezeDirectory: freezeDirectory
+  });
+  await kernel.start();
+  assert.equal(kernel.runtimeRevision, 124);
+
+  const inspected = await kernel.ensureResidentManager().inspect(
+    'cores/p1-r0/metab-neutral/index.js',
+    'resident:metab'
+  );
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
+  await fs.writeFile(publicKeyPath, publicKey.export({ type: 'spki', format: 'pem' }), {
+    encoding: 'utf8',
+    mode: 0o444
+  });
+  await fs.chmod(publicKeyPath, 0o444);
+  const body = {
+    allowedAction: 'birth-metab-neutral',
+    authorizationClass: METAB_NEUTRAL_AUTHORIZATION_CLASS,
+    certificateId: 'r124-metab-neutral-kernel-entry-test',
+    expiresAtMs: nowMs + 60_000,
+    founderBinding: founderBinding(),
+    founderDossierSha256: recordHash({
+      status: 'PRODUCTION_FOUNDER_CANDIDATE',
+      reviewedProfile: founderBinding().profile,
+      noAuthority: true
+    }),
+    founderRecord: founderRecord(),
+    issuedAtMs: nowMs - 1_000,
+    manifestHash: inspected.manifestHash,
+    moduleHash: inspected.definition.moduleDigest,
+    organismId: IDENTITY.organismId,
+    organismIdentityHash: IDENTITY_HASH,
+    packagePolicyHash: inspected.definition.packagePolicyHash,
+    parentFreezeRecordSha256: parentFreeze.recordSha256,
+    parentRevision: 123,
+    residencyId: 'resident:metab',
+    targetRevision: 124,
+    version: neutralManifest.version
+  };
+  await writeReadOnlyJson(certificateFile, {
+    format: METAB_NEUTRAL_BIRTH_FORMAT,
+    body,
+    signature: crypto.sign(
+      null,
+      Buffer.from(stableStringify(body)),
+      privateKey
+    ).toString('base64')
+  });
+
   t.after(async () => {
-    try { stateStore.close(); } catch {}
+    await kernel.stop().catch(() => {});
+    await fs.chmod(publicKeyPath, 0o666).catch(() => {});
+    await fs.chmod(certificateFile, 0o666).catch(() => {});
+    await fs.chmod(path.join(freezeDirectory, 'R123.json'), 0o666).catch(() => {});
     await fs.rm(root, { recursive: true, force: true });
   });
-  return { root, stateStore };
+  return {
+    kernel,
+    parentFreeze,
+    root,
+    freezeDirectory,
+    publicKeyPath,
+    certificateFile,
+    nowMs
+  };
 }
 
 test('R124-METAB-RED-01 neutral contract grants no physiology route or output permission', () => {
@@ -215,6 +356,14 @@ test('R124-METAB-RED-04 production persistence requires its own token and commit
     stateStore,
     authorization: PRODUCTION_STORAGE_AUTHORIZATION
   }).initialize();
+  assert.equal(
+    stateStore.db.prepare('SELECT version FROM schema_versions WHERE name=?').get(PRODUCTION_SCHEMA_NAME).version,
+    1
+  );
+  assert.equal(
+    stateStore.db.prepare("SELECT COUNT(*) AS count FROM schema_versions WHERE name='p1-r0-laboratory'").get().count,
+    0
+  );
   const registration = {
     residencyId: 'resident:metab',
     coreId: 'METAB',
@@ -228,14 +377,21 @@ test('R124-METAB-RED-04 production persistence requires its own token and commit
     packagePolicyHash: packageHashes.METAB_NEUTRAL,
     organismIdentityHash: IDENTITY_HASH
   };
-  const accepted = storage.commitNeutralBirth({ founder: founderRecord(), resident: registration });
+  const accepted = storage.commitNeutralBirth({
+    founder: founderRecord(),
+    resident: registration,
+    authorization: birthAuthorization()
+  });
   assert.deepEqual(accepted.founder, founderRecord());
   assert.equal(accepted.resident.status, 'ATTACHED');
+  assert.equal(accepted.dossier.certificateId, birthAuthorization().certificateId);
+  assert.deepEqual(storage.readBirthDossier(), accepted.dossier);
   assert.equal(stateStore.getResident('resident:metab').instanceId, registration.instanceId);
   assert.throws(
     () => storage.commitNeutralBirth({
       founder: { ...founderRecord(), phenotypeHash: HASH_A },
-      resident: registration
+      resident: registration,
+      authorization: birthAuthorization()
     }),
     { code: 'P1_FOUNDER_REROLL' }
   );
@@ -243,7 +399,7 @@ test('R124-METAB-RED-04 production persistence requires its own token and commit
 });
 
 test('R124-METAB-RED-05 accepted RUNNING transition and persistent NEUTRAL chip share one transaction', async t => {
-  const { stateStore } = await makeStore(t);
+  const { root, stateStore } = await makeStore(t, false);
   const storage = new P1ProductionPersistence({
     stateStore,
     authorization: PRODUCTION_STORAGE_AUTHORIZATION
@@ -263,7 +419,11 @@ test('R124-METAB-RED-05 accepted RUNNING transition and persistent NEUTRAL chip 
     logger: { log() {}, info() {}, warn() {}, error() {} },
     contracts: [METAB_NEUTRAL_RESIDENT_CONTRACT]
   });
-  t.after(() => manager.shutdown().catch(() => {}));
+  t.after(async () => {
+    await manager.shutdown().catch(() => {});
+    try { stateStore.close(); } catch {}
+    await fs.rm(root, { recursive: true, force: true });
+  });
   const initialState = createNeutralMetabInitialState({
     binding: binding(),
     founder: founderBinding()
@@ -274,7 +434,8 @@ test('R124-METAB-RED-05 accepted RUNNING transition and persistent NEUTRAL chip 
     initialState,
     registerResident: registration => storage.commitNeutralBirth({
       founder: founderRecord(),
-      resident: registration
+      resident: registration,
+      authorization: birthAuthorization()
     }).resident,
     acceptanceCommit: ({ checkpoint }) => storage.appendNeutralChip(chip(checkpoint))
   });
@@ -381,4 +542,356 @@ test('R124-METAB-RED-07 control surface exposes exact birth but forbids generic 
     operation: 'promote',
     residencyId: 'resident:metab'
   }), { code: 'RESIDENT_CONTROL_OPERATION' });
+});
+
+test('R124-METAB-ENTRY-01 real LivingKernel path births one neutral resident without advancing R124', async t => {
+  const { kernel, parentFreeze } = await makeKernelHarness(t);
+  const revisionBefore = await kernel.stateStore.readLife('runtime-revision', null);
+  const biologicalEventsBefore = kernel.stateStore.db.prepare(
+    'SELECT COUNT(*) AS count FROM biological_events'
+  ).get().count;
+
+  const unit = await kernel.birthMetabNeutral();
+  const resident = kernel.stateStore.getResident('resident:metab');
+  const status = await kernel.ensureResidentManager().status('resident:metab');
+  const consumer = kernel.stateStore.getBiologicalConsumer('resident:metab');
+  const storage = new P1ProductionPersistence({
+    stateStore: kernel.stateStore,
+    authorization: PRODUCTION_STORAGE_AUTHORIZATION
+  }).initialize();
+  const persistentChip = storage.readChip('resident:metab');
+
+  assert.equal(unit.residencyId, 'resident:metab');
+  assert.equal(kernel.runtimeRevision, 124);
+  assert.equal((await kernel.stateStore.readLife('runtime-revision', null)).revision, 124);
+  assert.equal(revisionBefore.revision, 124);
+  assert.equal(resident.status, 'RUNNING');
+  assert.equal(resident.version, neutralManifest.version);
+  assert.equal(status.health.mode, 'NEUTRAL');
+  assert.equal(status.authorityOwned, false);
+  assert.equal(status.observedOutputs, 0);
+  assert.deepEqual(consumer.topics, ['runtime.organism.binding']);
+  assert.equal(consumer.authorityEpoch, 0);
+  assert.equal(kernel.stateStore.getAuthority('METAB'), null);
+  assert.equal(kernel.stateStore.getResident('resident:homeos'), null);
+  assert.equal(kernel.stateStore.getResident('resident:intero'), null);
+  assert.equal(
+    kernel.stateStore.db.prepare(
+      "SELECT COUNT(*) AS count FROM biological_outbox_intents WHERE producer_core_id='METAB'"
+    ).get().count,
+    0
+  );
+  assert.equal(
+    kernel.stateStore.db.prepare(
+      'SELECT COUNT(*) AS count FROM biological_events'
+    ).get().count,
+    biologicalEventsBefore
+  );
+  assert.equal(persistentChip.currentState, 'NEUTRAL');
+  assert.equal(persistentChip.mode, 'NEUTRAL');
+  assert.equal(persistentChip.checkpointGeneration, String(resident.checkpointGeneration));
+  assert.equal(storage.verifyChipHistory('resident:metab'), true);
+  assert.match(parentFreeze.recordSha256, /^sha256:[0-9a-f]{64}$/);
+});
+
+test('R124-METAB-ENTRY-02 real birth path is fail-closed without its exact gate', async t => {
+  const { kernel } = await makeKernelHarness(t);
+  kernel.allowMetabNeutralBirth = false;
+  await assert.rejects(
+    () => kernel.birthMetabNeutral(),
+    { code: 'P1_METAB_BIRTH_NOT_AUTHORIZED' }
+  );
+  assert.equal(kernel.stateStore.getResident('resident:metab'), null);
+  assert.equal(
+    kernel.stateStore.db.prepare(
+      "SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name LIKE 'p1_%'"
+    ).get().count,
+    0
+  );
+});
+
+test('R124-METAB-ROLLBACK-01 founder and resident registration roll back together', async t => {
+  const { stateStore } = await makeStore(t);
+  const storage = new P1ProductionPersistence({
+    stateStore,
+    authorization: PRODUCTION_STORAGE_AUTHORIZATION
+  }).initialize();
+  const originalRegister = stateStore.registerResident.bind(stateStore);
+  stateStore.registerResident = () => {
+    throw Object.assign(new Error('injected registration failure'), {
+      code: 'INJECTED_REGISTRATION_FAILURE'
+    });
+  };
+  const registration = {
+    residencyId: 'resident:metab',
+    coreId: 'METAB',
+    role: 'metabolism',
+    instanceId: '00000000-0000-4000-8000-000000000124',
+    version: neutralManifest.version,
+    stateSchema: neutralManifest.stateSchema,
+    moduleRelativePath: 'cores/p1-r0/metab-neutral/index.js',
+    moduleHash: HASH_A,
+    manifestHash: HASH_B,
+    packagePolicyHash: packageHashes.METAB_NEUTRAL,
+    organismIdentityHash: IDENTITY_HASH
+  };
+  assert.throws(
+    () => storage.commitNeutralBirth({
+      founder: founderRecord(),
+      resident: registration,
+      authorization: birthAuthorization()
+    }),
+    { code: 'INJECTED_REGISTRATION_FAILURE' }
+  );
+  stateStore.registerResident = originalRegister;
+  assert.equal(storage.readFounder({ organismId: IDENTITY.organismId, coreId: 'METAB' }), null);
+  assert.equal(stateStore.getResident('resident:metab'), null);
+});
+
+test('R124-METAB-ROLLBACK-02 failed acceptance preserves checkpoint and retries forward without reroll', async t => {
+  const { root, stateStore } = await makeStore(t, false);
+  const storage = new P1ProductionPersistence({
+    stateStore,
+    authorization: PRODUCTION_STORAGE_AUTHORIZATION
+  }).initialize();
+  let now = 20_000;
+  const fabric = new EventFabric({
+    clock: () => now++,
+    sequenceAllocator: ({ minimum }) => stateStore.reserveEventSequence(minimum),
+    durableAppender: envelope => stateStore.appendBiologicalEvent(envelope)
+  });
+  const manager = new ResidentManager({
+    releaseRoot: ROOT,
+    stateStore,
+    fabric,
+    identity: IDENTITY,
+    clock: () => now++,
+    logger: { log() {}, info() {}, warn() {}, error() {} },
+    contracts: [METAB_NEUTRAL_RESIDENT_CONTRACT]
+  });
+  t.after(async () => {
+    await manager.shutdown().catch(() => {});
+    try { stateStore.close(); } catch {}
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const initialState = createNeutralMetabInitialState({
+    binding: binding(),
+    founder: founderBinding()
+  });
+  await assert.rejects(
+    () => manager.attach({
+      moduleRelativePath: 'cores/p1-r0/metab-neutral/index.js',
+      binding: binding(),
+      initialState,
+      instanceId: '00000000-0000-4000-8000-000000000124',
+      registerResident: registration => storage.commitNeutralBirth({
+        founder: founderRecord(),
+        resident: registration,
+        authorization: birthAuthorization()
+      }).resident,
+      acceptanceCommit: () => {
+        throw Object.assign(new Error('injected chip failure'), {
+          code: 'INJECTED_CHIP_FAILURE'
+        });
+      }
+    }),
+    { code: 'INJECTED_CHIP_FAILURE' }
+  );
+  const retainedCheckpoint = await stateStore.readResidentCheckpoint('resident:metab');
+  assert.equal(stateStore.getResident('resident:metab').status, 'ATTACHED');
+  assert.equal(retainedCheckpoint.generation, 1);
+  assert.equal(stateStore.getBiologicalConsumer('resident:metab').active, false);
+  assert.equal(storage.readChip('resident:metab'), null);
+  assert.deepEqual(
+    storage.readFounder({ organismId: IDENTITY.organismId, coreId: 'METAB' }),
+    founderRecord()
+  );
+  assert.equal(manager.units.has('resident:metab'), false);
+
+  await manager.recover('resident:metab', binding(), {
+    acceptanceCommit: ({ checkpoint }) =>
+      storage.appendNeutralChip(chip(checkpoint, '2026-09-02T10:00:02.000Z'))
+  });
+  const recovered = stateStore.getResident('resident:metab');
+  assert.equal(recovered.status, 'RUNNING');
+  assert.equal(recovered.instanceId, '00000000-0000-4000-8000-000000000124');
+  assert.equal(stateStore.getBiologicalConsumer('resident:metab').active, true);
+  assert.equal(storage.readChip('resident:metab').currentState, 'NEUTRAL');
+  assert.equal(storage.verifyChipHistory('resident:metab'), true);
+  assert.equal(stateStore.getAuthority('METAB'), null);
+});
+
+test('R124-METAB-RECOVERY-01 whole-kernel R125 recovery preserves founder, instance and neutral containment', async t => {
+  const { kernel, root } = await makeKernelHarness(t);
+  await kernel.birthMetabNeutral();
+  const bornResident = kernel.stateStore.getResident('resident:metab');
+  const bornStorage = new P1ProductionPersistence({
+    stateStore: kernel.stateStore,
+    authorization: PRODUCTION_STORAGE_AUTHORIZATION
+  }).initialize();
+  const bornFounder = bornStorage.readFounder({
+    organismId: IDENTITY.organismId,
+    coreId: 'METAB'
+  });
+  const bornChip = bornStorage.readChip('resident:metab');
+  await kernel.stop();
+
+  const restarted = new LivingKernel({
+    dataDir: root,
+    releaseRoot: ROOT,
+    logger: { log() {}, info() {}, warn() {}, error() {} },
+    clock: () => 1_800_000_001_000,
+    heartbeatIntervalMs: 0,
+    snapshotIntervalMs: 0,
+    runtimeFreezeDirectory: path.join(root, 'runtime-freezes')
+  });
+  try {
+    await restarted.start();
+    const recoveredResident = restarted.stateStore.getResident('resident:metab');
+    const recoveredStatus = await restarted.ensureResidentManager().status('resident:metab');
+    const recoveredStorage = new P1ProductionPersistence({
+      stateStore: restarted.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const recoveredChip = recoveredStorage.readChip('resident:metab');
+    assert.equal(restarted.runtimeRevision, 125);
+    assert.equal(recoveredResident.status, 'RUNNING');
+    assert.equal(recoveredResident.instanceId, bornResident.instanceId);
+    assert.equal(
+      recoveredResident.checkpointGeneration,
+      bornResident.checkpointGeneration + 2,
+      'orderly shutdown and R125 recovery each persist one monotonic checkpoint'
+    );
+    assert.deepEqual(
+      recoveredStorage.readFounder({ organismId: IDENTITY.organismId, coreId: 'METAB' }),
+      bornFounder
+    );
+    assert.equal(recoveredChip.currentState, 'NEUTRAL');
+    assert.equal(recoveredChip.checkpointGeneration, String(recoveredResident.checkpointGeneration));
+    assert.notEqual(recoveredChip.historyHeadHash, bornChip.historyHeadHash);
+    assert.equal(recoveredStorage.verifyChipHistory('resident:metab'), true);
+    assert.equal(recoveredStatus.health.mode, 'NEUTRAL');
+    assert.equal(recoveredStatus.authorityOwned, false);
+    assert.equal(recoveredStatus.observedOutputs, 0);
+    assert.equal(restarted.stateStore.getAuthority('METAB'), null);
+    assert.equal(restarted.stateStore.getResident('resident:homeos'), null);
+    assert.equal(restarted.stateStore.getResident('resident:intero'), null);
+  } finally {
+    await restarted.stop().catch(() => {});
+  }
+});
+
+test('R124-METAB-WEB-01 accepted METAB replaces only its roadmap label with an observation-only NEUTRAL chip', () => {
+  const projection = projectObservationChips({
+    systems: [{
+      id: 'bsf', label: 'BSF', mode: 'LIVE', status: 'RUNNING', running: true,
+      healthOk: true
+    }],
+    residents: [{
+      residencyId: 'resident:sntss', coreId: 'sntss', version: '0.5.0-i4g1',
+      mode: 'SHADOW', status: 'RUNNING', lifecycle: 'RUNNING', running: true,
+      healthOk: true, observedOutputs: 0
+    }, {
+      residencyId: 'resident:chronobiology', coreId: 'chronobiology',
+      version: '1.0.0-c3rc.5', mode: 'SHADOW', status: 'RUNNING',
+      lifecycle: 'RUNNING', running: true, healthOk: true
+    }, {
+      residencyId: 'resident:metab', coreId: 'METAB', version: neutralManifest.version,
+      mode: 'NEUTRAL', status: 'RUNNING', lifecycle: 'RUNNING', running: true,
+      healthOk: true, checkpointGeneration: 1, handledEvents: 0, observedOutputs: 0
+    }]
+  });
+  assert.deepEqual(
+    projection.lifecycle.map(entry => `${entry.label} · ${entry.state}`),
+    ['BSF · LIVE', 'SNTSS · SHADOW', 'CHRONOBIOLOGY · SHADOW', 'METAB · NEUTRAL']
+  );
+  assert.deepEqual(
+    projection.roadmap.map(entry => `${entry.label} · ${entry.stage}`),
+    ['HOMEOS · LAB QUALIFIED', 'INTERO · LAB QUALIFIED']
+  );
+  assert.equal(projection.lifecycle.at(-1).symbol, '◇');
+  assert.equal(projection.lifecycle.at(-1).observationOnly, true);
+  assert.deepEqual(projection.mutationEndpoints, []);
+});
+
+test('R124-METAB-RECOVERY-02 R125 resumes a power-loss window after atomic dossier registration and before checkpoint', async t => {
+  const {
+    kernel,
+    root,
+    freezeDirectory,
+    publicKeyPath,
+    certificateFile,
+    parentFreeze,
+    nowMs
+  } = await makeKernelHarness(t);
+  const manager = kernel.ensureResidentManager();
+  const inspected = await manager.inspect(
+    'cores/p1-r0/metab-neutral/index.js',
+    'resident:metab'
+  );
+  const authorization = loadAndVerifyMetabNeutralBirth({
+    inspected,
+    identity: IDENTITY,
+    runtimeRevision: 124,
+    parentFreezeRecordSha256: parentFreeze.recordSha256,
+    publicKeyPath,
+    certificateFile,
+    nowMs
+  });
+  const storage = new P1ProductionPersistence({
+    stateStore: kernel.stateStore,
+    authorization: PRODUCTION_STORAGE_AUTHORIZATION
+  }).initialize();
+  storage.commitNeutralBirth({
+    founder: authorization.founderRecord,
+    authorization,
+    resident: {
+      residencyId: 'resident:metab',
+      coreId: 'METAB',
+      role: 'metabolism',
+      instanceId: '00000000-0000-4000-8000-000000000125',
+      version: inspected.definition.manifest.version,
+      stateSchema: inspected.definition.manifest.stateSchema,
+      moduleRelativePath: inspected.moduleRelativePath,
+      moduleHash: inspected.definition.moduleDigest,
+      manifestHash: inspected.manifestHash,
+      packagePolicyHash: inspected.definition.packagePolicyHash,
+      organismIdentityHash: IDENTITY_HASH
+    }
+  });
+  assert.equal(kernel.stateStore.getResident('resident:metab').status, 'ATTACHED');
+  assert.equal(await kernel.stateStore.readResidentCheckpoint('resident:metab'), null);
+  assert.equal(storage.readChip('resident:metab'), null);
+  await kernel.stop();
+
+  const restarted = new LivingKernel({
+    dataDir: root,
+    releaseRoot: ROOT,
+    logger: { log() {}, info() {}, warn() {}, error() {} },
+    clock: () => nowMs + 1_000,
+    heartbeatIntervalMs: 0,
+    snapshotIntervalMs: 0,
+    runtimeFreezeDirectory: freezeDirectory
+  });
+  try {
+    await restarted.start();
+    const resident = restarted.stateStore.getResident('resident:metab');
+    const status = await restarted.ensureResidentManager().status('resident:metab');
+    const recoveredStorage = new P1ProductionPersistence({
+      stateStore: restarted.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    assert.equal(restarted.runtimeRevision, 125);
+    assert.equal(resident.status, 'RUNNING');
+    assert.equal(resident.instanceId, '00000000-0000-4000-8000-000000000125');
+    assert.equal(resident.checkpointGeneration, 1);
+    assert.equal(status.health.mode, 'NEUTRAL');
+    assert.equal(status.authorityOwned, false);
+    assert.equal(status.observedOutputs, 0);
+    assert.equal(recoveredStorage.readChip('resident:metab').currentState, 'NEUTRAL');
+    assert.equal(recoveredStorage.verifyChipHistory('resident:metab'), true);
+    assert.equal(restarted.stateStore.getAuthority('METAB'), null);
+  } finally {
+    await restarted.stop().catch(() => {});
+  }
 });

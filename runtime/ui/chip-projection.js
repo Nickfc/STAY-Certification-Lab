@@ -26,9 +26,9 @@ const ROADMAP_STAGES = Object.freeze([
 ]);
 
 const RELEASE_ROADMAP = Object.freeze([
-  Object.freeze({ coreId: 'metab', label: 'METAB', stage: 'PLANNED' }),
-  Object.freeze({ coreId: 'homeos', label: 'HOMEOS', stage: 'PLANNED' }),
-  Object.freeze({ coreId: 'intero', label: 'INTERO', stage: 'PLANNED' })
+  Object.freeze({ coreId: 'metab', label: 'METAB', stage: 'LAB QUALIFIED' }),
+  Object.freeze({ coreId: 'homeos', label: 'HOMEOS', stage: 'LAB QUALIFIED' }),
+  Object.freeze({ coreId: 'intero', label: 'INTERO', stage: 'LAB QUALIFIED' })
 ]);
 
 function text(value, fallback = '') {

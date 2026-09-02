@@ -39,6 +39,16 @@ class LivingKernel {
     allowBoundedSntssContinuityGenesisPromotion =
       process.env.STAY_ALLOW_SNTSS_I4G_PROMOTION === '1',
 
+    allowMetabNeutralBirth =
+      process.env.STAY_ALLOW_METAB_NEUTRAL_BIRTH === '1',
+
+    metabNeutralBirthCertificateFile =
+      process.env.STAY_METAB_NEUTRAL_BIRTH_CERTIFICATE ||
+      '/etc/stay/resident-promotions/resident-metab-neutral-birth.json',
+
+    runtimeFreezeDirectory =
+      process.env.STAY_RUNTIME_FREEZE_DIR || undefined,
+
     residentPromotionPublicKeyPath =
       process.env.STAY_CORE_PROMOTION_PUBLIC_KEY ||
       '/etc/stay/release-authority.pub',
@@ -120,6 +130,17 @@ class LivingKernel {
     this.allowBoundedSntssContinuityGenesisPromotion =
       Boolean(allowBoundedSntssContinuityGenesisPromotion);
 
+    this.allowMetabNeutralBirth =
+      Boolean(allowMetabNeutralBirth);
+
+    this.metabNeutralBirthCertificateFile =
+      String(metabNeutralBirthCertificateFile);
+
+    this.runtimeFreezeDirectory =
+      runtimeFreezeDirectory == null
+        ? undefined
+        : path.resolve(String(runtimeFreezeDirectory));
+
     this.residentPromotionPublicKeyPath =
       String(
         residentPromotionPublicKeyPath
@@ -184,6 +205,10 @@ class LivingKernel {
       CHRONOBIOLOGY_R5_RESIDENT_CONTRACT
     } = require('./chronobiology-resident-contracts');
 
+    const {
+      METAB_NEUTRAL_RESIDENT_CONTRACT
+    } = require('../p1-r0/metab-neutral-contract');
+
     const durableSntss =
       this.stateStore
         .getResident(
@@ -240,7 +265,8 @@ class LivingKernel {
         contracts:
           [
             sntssContract,
-            chronobiologyContract
+            chronobiologyContract,
+            METAB_NEUTRAL_RESIDENT_CONTRACT
           ]
       });
 
@@ -811,6 +837,314 @@ class LivingKernel {
         runtimeRevision:
           this.runtimeRevision
       });
+
+    return unit;
+  }
+
+
+  metabNeutralAcceptanceCommit(storage, healthReasonCode) {
+    return ({ checkpoint, resident, manifest }) =>
+      storage.appendNeutralChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:metab',
+        organismId: this.identity.organismId,
+        coreId: 'METAB',
+        publicName: 'METAB',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:metab',
+        currentState: 'NEUTRAL',
+        mode: 'NEUTRAL',
+        lifecycle: 'RUNNING',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion: String(manifest.stateSchema),
+        checkpointGeneration: String(resident.checkpointGeneration),
+        lastTrustedFrame: null,
+        coverageBand: 'UNKNOWN',
+        evidenceRefs: [`sha256:${checkpoint.blobHash}`],
+        observedUtc: new Date(Number(this.clock())).toISOString()
+      });
+  }
+
+
+  async birthMetabNeutral() {
+    if (!this.allowMetabNeutralBirth) {
+      throw Object.assign(
+        new Error('R124 METAB neutral birth is not enabled'),
+        { code: 'P1_METAB_BIRTH_NOT_AUTHORIZED' }
+      );
+    }
+
+    if (this.runtimeRevision !== 124) {
+      throw Object.assign(
+        new Error('METAB neutral birth is fenced to runtime R124'),
+        { code: 'P1_METAB_BIRTH_REVISION' }
+      );
+    }
+
+    const { readRevisionFreeze } =
+      require('../revision-freeze');
+    const parentFreeze =
+      readRevisionFreeze(123, {
+        directory: this.runtimeFreezeDirectory
+      });
+
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(
+        new Error('R123F parent freeze is absent or invalid'),
+        { code: 'P1_METAB_BIRTH_PARENT_FREEZE' }
+      );
+    }
+
+    const forbiddenResidents =
+      this.stateStore.listResidents().filter(resident =>
+        ['resident:homeos', 'resident:intero'].includes(
+          resident.residencyId
+        )
+      );
+
+    if (forbiddenResidents.length) {
+      throw Object.assign(
+        new Error('dependent P1 residents already exist'),
+        { code: 'P1_METAB_BIRTH_DEPENDENCY_FENCE' }
+      );
+    }
+
+    const forbiddenAuthority =
+      this.stateStore.listAuthority().filter(entry =>
+        ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+      );
+
+    if (forbiddenAuthority.length) {
+      throw Object.assign(
+        new Error('P1 authority already exists'),
+        { code: 'P1_METAB_BIRTH_AUTHORITY_FENCE' }
+      );
+    }
+
+    const manager =
+      this.ensureResidentManager();
+    const moduleRelativePath =
+      'cores/p1-r0/metab-neutral/index.js';
+    const inspected =
+      await manager.inspect(
+        moduleRelativePath,
+        'resident:metab'
+      );
+    const {
+      loadAndVerifyMetabNeutralBirth
+    } = require('../p1-r0/metab-neutral-birth-authority');
+    const authorization =
+      loadAndVerifyMetabNeutralBirth({
+        inspected,
+        identity: this.identity,
+        runtimeRevision: this.runtimeRevision,
+        parentFreezeRecordSha256:
+          parentFreeze.recordSha256,
+        publicKeyPath:
+          this.residentPromotionPublicKeyPath,
+        certificateFile:
+          this.metabNeutralBirthCertificateFile,
+        nowMs: Number(this.clock())
+      });
+    const binding =
+      await this.ensureOrganismBinding({
+        allowCreate: false
+      });
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage =
+      new P1ProductionPersistence({
+        stateStore: this.stateStore,
+        authorization:
+          PRODUCTION_STORAGE_AUTHORIZATION
+      }).initialize();
+    const {
+      createNeutralMetabInitialState
+    } = require('../p1-r0/residents/metab-neutral');
+    const initialState =
+      createNeutralMetabInitialState({
+        binding,
+        founder: authorization.founderBinding
+      });
+    const existing =
+      this.stateStore.getResident(
+        'resident:metab'
+      );
+    const committedFounder =
+      storage.readFounder({
+        organismId: this.identity.organismId,
+        coreId: 'METAB'
+      });
+    const committedDossier =
+      storage.readBirthDossier('resident:metab');
+
+    if (
+      committedFounder &&
+      stableStringify(committedFounder) !==
+        stableStringify(authorization.founderRecord)
+    ) {
+      throw Object.assign(
+        new Error('committed METAB founder disagrees with the signed dossier'),
+        { code: 'P1_METAB_BIRTH_FOUNDER_CONFLICT' }
+      );
+    }
+
+    if (
+      committedDossier &&
+      (
+        committedDossier.certificateId !==
+          authorization.certificateId ||
+        committedDossier.parentFreezeRecordSha256 !==
+          authorization.parentFreezeRecordSha256 ||
+        committedDossier.founderDossierSha256 !==
+          authorization.founderDossierSha256 ||
+        stableStringify(committedDossier.founderRecord) !==
+          stableStringify(authorization.founderRecord) ||
+        stableStringify(committedDossier.founderBinding) !==
+          stableStringify(authorization.founderBinding)
+      )
+    ) {
+      throw Object.assign(
+        new Error('committed METAB birth dossier disagrees with signed authority'),
+        { code: 'P1_METAB_BIRTH_DOSSIER_CONFLICT' }
+      );
+    }
+
+    const acceptanceCommit =
+      this.metabNeutralAcceptanceCommit(
+        storage,
+        existing
+          ? 'R124_NEUTRAL_RECOVERED'
+          : 'R124_NEUTRAL_ACCEPTED'
+      );
+    let unit;
+
+    if (existing) {
+      manager.verifyExistingIdentity(
+        existing,
+        inspected
+      );
+
+      if (!committedFounder || !committedDossier) {
+        throw Object.assign(
+          new Error('durable METAB residency has no committed founder dossier'),
+          { code: 'P1_METAB_BIRTH_DOSSIER_MISSING' }
+        );
+      }
+
+      if (manager.units.has('resident:metab')) {
+        const chip = storage.readChip('resident:metab');
+        if (
+          existing.status !== 'RUNNING' ||
+          !chip ||
+          chip.currentState !== 'NEUTRAL'
+        ) {
+          throw Object.assign(
+            new Error('running METAB acceptance evidence is incomplete'),
+            { code: 'P1_METAB_BIRTH_ACCEPTANCE_MISSING' }
+          );
+        }
+        unit = manager.units.get('resident:metab');
+      } else {
+        const checkpoint =
+          await this.stateStore.readResidentCheckpoint(
+            'resident:metab'
+          );
+        unit = checkpoint
+          ? await manager.recover(
+              'resident:metab',
+              binding,
+              { acceptanceCommit }
+            )
+          : await manager.resumeInitialAttachment({
+              residencyId: 'resident:metab',
+              binding,
+              initialState,
+              acceptanceCommit
+            });
+      }
+    } else {
+      const instanceDigest =
+        crypto.createHash('sha256')
+          .update(authorization.certificateId)
+          .digest();
+      instanceDigest[6] =
+        (instanceDigest[6] & 0x0f) | 0x40;
+      instanceDigest[8] =
+        (instanceDigest[8] & 0x3f) | 0x80;
+      const instanceHex =
+        instanceDigest.subarray(0, 16).toString('hex');
+      const instanceId = [
+        instanceHex.slice(0, 8),
+        instanceHex.slice(8, 12),
+        instanceHex.slice(12, 16),
+        instanceHex.slice(16, 20),
+        instanceHex.slice(20)
+      ].join('-');
+
+      unit = await manager.attach({
+        moduleRelativePath,
+        binding,
+        initialState,
+        instanceId,
+        registerResident: registration =>
+          storage.commitNeutralBirth({
+            founder:
+              authorization.founderRecord,
+            resident:
+              registration,
+            authorization
+          }).resident,
+        acceptanceCommit
+      });
+    }
+
+    const status =
+      await manager.status('resident:metab');
+    const consumer =
+      this.stateStore.getBiologicalConsumer(
+        'resident:metab'
+      );
+    const authority =
+      this.stateStore.getAuthority('METAB');
+
+    if (
+      status.status !== 'RUNNING' ||
+      status.authorityOwned !== false ||
+      status.observedOutputs !== 0 ||
+      status.health?.mode !== 'NEUTRAL' ||
+      authority !== null ||
+      !consumer ||
+      stableStringify(consumer.topics) !==
+        stableStringify(['runtime.organism.binding']) ||
+      consumer.authorityEpoch !== 0
+    ) {
+      throw Object.assign(
+        new Error('METAB neutral post-birth containment proof failed'),
+        { code: 'P1_METAB_BIRTH_CONTAINMENT' }
+      );
+    }
+
+    this.statusCache = null;
+    await this.stateStore.appendJournal({
+      type: 'resident.metab-neutral-birth',
+      at: new Date(Number(this.clock())).toISOString(),
+      residencyId: 'resident:metab',
+      version: status.version,
+      runtimeRevision: this.runtimeRevision,
+      parentFreezeRecordSha256:
+        parentFreeze.recordSha256,
+      certificateId:
+        authorization.certificateId,
+      founderDossierSha256:
+        authorization.founderDossierSha256,
+      authorityOwned: false,
+      observedOutputs: 0
+    });
 
     return unit;
   }
@@ -1482,10 +1816,108 @@ class LivingKernel {
       }
 
       try {
-        await manager.recover(
-          resident.residencyId,
-          binding
-        );
+        let recoveryOptions;
+        let resumeInitialState = null;
+
+        if (
+          resident.residencyId === 'resident:metab' &&
+          resident.coreId === 'METAB' &&
+          resident.version === '0.1.0-p1r0-neutral.1' &&
+          resident.stateSchema === 1 &&
+          resident.moduleRelativePath ===
+            'cores/p1-r0/metab-neutral/index.js'
+        ) {
+          const {
+            PRODUCTION_STORAGE_AUTHORIZATION,
+            P1ProductionPersistence
+          } = require('../p1-r0/production-persistence');
+          const storage =
+            new P1ProductionPersistence({
+              stateStore: this.stateStore,
+              authorization:
+                PRODUCTION_STORAGE_AUTHORIZATION
+            }).initialize();
+          const founder =
+            storage.readFounder({
+              organismId:
+                this.identity.organismId,
+              coreId: 'METAB'
+            });
+          const dossier =
+            storage.readBirthDossier(
+              'resident:metab'
+            );
+
+          if (!founder || !dossier) {
+            throw Object.assign(
+              new Error('durable neutral METAB resident has no founder dossier'),
+              { code: 'P1_METAB_RECOVERY_DOSSIER_MISSING' }
+            );
+          }
+
+          const { readRevisionFreeze } =
+            require('../revision-freeze');
+          const parentFreeze =
+            readRevisionFreeze(123, {
+              directory:
+                this.runtimeFreezeDirectory
+            });
+
+          if (
+            !parentFreeze.frozen ||
+            parentFreeze.recordSha256 !==
+              dossier.parentFreezeRecordSha256
+          ) {
+            throw Object.assign(
+              new Error('neutral METAB recovery parent freeze disagrees with birth dossier'),
+              { code: 'P1_METAB_RECOVERY_PARENT_FREEZE' }
+            );
+          }
+
+          recoveryOptions = {
+            acceptanceCommit:
+              this.metabNeutralAcceptanceCommit(
+                storage,
+                'R124_NEUTRAL_FORWARD_RECOVERED'
+              )
+          };
+
+          if (
+            resident.status === 'ATTACHED' &&
+            !await this.stateStore
+              .readResidentCheckpoint(
+                resident.residencyId
+              )
+          ) {
+            const {
+              createNeutralMetabInitialState
+            } = require('../p1-r0/residents/metab-neutral');
+            resumeInitialState =
+              createNeutralMetabInitialState({
+                binding,
+                founder:
+                  dossier.founderBinding
+              });
+          }
+        }
+
+        if (resumeInitialState) {
+          await manager.resumeInitialAttachment({
+            residencyId:
+              resident.residencyId,
+            binding,
+            initialState:
+              resumeInitialState,
+            acceptanceCommit:
+              recoveryOptions.acceptanceCommit
+          });
+        } else {
+          await manager.recover(
+            resident.residencyId,
+            binding,
+            recoveryOptions
+          );
+        }
 
         results.push({
           residencyId:
