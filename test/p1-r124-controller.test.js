@@ -18,26 +18,27 @@ const wrapperSha256 = sha256(Buffer.from(wrapper));
 
 test('R127-BRIDGE-01 controller binds the exact certified immutable repair cohort', () => {
   for (const identity of [
-    "EXPECTED_RELEASE_TAG='r127-metab-final-recovery-v2'",
-    "EXPECTED_RELEASE_TAG_OBJECT='c2b78b6a4bd97ea35cea6bcbe87fa488a14a85e8'",
-    "EXPECTED_RELEASE_COMMIT='644b004e24ed90846600d438038cab2b95a8947f'",
-    "EXPECTED_RELEASE_TREE='22af20c7b6eee5023ae1605ad9367f8ad653123d'",
-    "EXPECTED_ARCHIVE='STAY_P1_R127_METAB_FINAL_RECOVERY_V2_BUNDLE_20260902.tar.gz'",
-    "EXPECTED_ARCHIVE_SHA256='cf44ae6459d70381a89a7d787bcc1585643d4155ba68393ec2e411558f9becc2'",
-    "EXPECTED_SIDECAR_SHA256='3b670a896369b9c1f435e80de4324bcfd1a3d5d8624231c0f9ac13fcadaf8115'",
-    "EXPECTED_MANIFEST_SHA256='a5da808bf6851b54c11c07c24c16cba42f98af5f269a75dd34a2a1de43d6eda3'",
-    "EXPECTED_FORWARD_SHA256='c78dfe8b884be70ed35582b60458c4eaccde7a198bee6522d6b5ede0b0b3df6e'",
-    "EXPECTED_RECOVERY_SHA256='c78dfe8b884be70ed35582b60458c4eaccde7a198bee6522d6b5ede0b0b3df6e'",
+    "EXPECTED_RELEASE_TAG='r127-metab-final-recovery-v3'",
+    "EXPECTED_RELEASE_TAG_OBJECT='36913b25db4198a988caea17b5acbdd0a1272adc'",
+    "EXPECTED_RELEASE_COMMIT='38ae95f43c32c7234a31fa13eb78e6706a49054e'",
+    "EXPECTED_RELEASE_TREE='f43d4bb0bb770f340c9b8d4a5351f4be3a8199a0'",
+    "EXPECTED_ARCHIVE='STAY_P1_R127_METAB_FINAL_RECOVERY_V3_BUNDLE_20260902.tar.gz'",
+    "EXPECTED_ARCHIVE_SHA256='b1e86eb09014d762f0149f0d509543f60f36f9a052f9dbfcedeee3fcb2256eaa'",
+    "EXPECTED_SIDECAR_SHA256='bd1152cd89767860f05a8a34126c4a3539076108e276ce03cb691cd7bab998a4'",
+    "EXPECTED_MANIFEST_SHA256='7b649384afdf5152b49d608cb36902fad042168274d4200a2d72a481d44a0979'",
+    "EXPECTED_FORWARD_SHA256='eaf0ab6d385c5a32ea03bc9f83ab868b58879c9307a1d39840f562da858a3f8b'",
+    "EXPECTED_RECOVERY_SHA256='eaf0ab6d385c5a32ea03bc9f83ab868b58879c9307a1d39840f562da858a3f8b'",
     "EXPECTED_BIRTH_CERTIFICATE_SHA256='5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'",
     "EXPECTED_BIRTH_DOSSIER_SHA256='3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'",
     "EXPECTED_BIRTH_PUBLIC_KEY_SHA256='754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e'",
-    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-a5da808bf685'",
-    "EXPECTED_ACTIVE_RELEASE_TAG='r127-metab-final-recovery-v2'",
-    "EXPECTED_ACTIVE_RELEASE_COMMIT='644b004e24ed90846600d438038cab2b95a8947f'",
-    "EXPECTED_ACTIVE_RELEASE_TREE='22af20c7b6eee5023ae1605ad9367f8ad653123d'",
+    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-7b649384afdf'",
+    "EXPECTED_ACTIVE_RELEASE_TAG='r127-metab-final-recovery-v3'",
+    "EXPECTED_ACTIVE_RELEASE_COMMIT='38ae95f43c32c7234a31fa13eb78e6706a49054e'",
+    "EXPECTED_ACTIVE_RELEASE_TREE='f43d4bb0bb770f340c9b8d4a5351f4be3a8199a0'",
   ]) assert.equal(wrapper.includes(identity), true, identity);
   assert.match(wrapper, /"\$\{#entries\[@\]\}" -eq 64/);
   assert.match(wrapper, /-type f \| wc -l\)" -eq 46/);
+  assert.match(wrapper, /find "\$EXPECTED_TARGET_RELEASE" -type f \| wc -l\)" -eq 645/);
   assert.match(wrapper, /wc -l < "\$root\/\$MANIFEST"\)" -eq 45/);
   assert.match(wrapper, /if \(NR != 45\) exit 1/);
 });
@@ -48,9 +49,9 @@ test('R127-BRIDGE-02 wrapper exposes only the exact forward-repair operation', (
     wrapper.indexOf('esac', wrapper.indexOf('case "$operation" in')));
   assert.match(operationBlock, /recover-r127-final\)/);
   assert.doesNotMatch(operationBlock, /harden-r124|diagnostic|shell|command|script-path/);
-  assert.match(wrapper, /AUTHORIZE_R127_METAB_FINAL_RECOVERY_V2_FORWARD_ONLY/);
+  assert.match(wrapper, /AUTHORIZE_R127_METAB_FINAL_RECOVERY_V3_FORWARD_ONLY/);
   assert.match(wrapper, /AUTHORIZE_R127_METAB_REVISION_PRESERVING_FORWARD_RECOVERY_ONLY/);
-  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r127-metab-final-recovery-v2-\[0-9\]\+\$/);
+  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r127-metab-final-recovery-v3-\[0-9\]\+\$/);
   assert.equal((wrapper.match(/if run_bounded_script/g) || []).length, 1);
 });
 
@@ -111,14 +112,14 @@ test('R127-BRIDGE-05 evidence access is exact, read-only, probed, and always res
 
 test('R127-BRIDGE-06 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    '2f1e6337b854d41ccc1c10ca4b11f0b0598e2352fb19d5c9b3d8d83375dd715e');
+    '7ad3e1522f8408fa2c1a577bb28a364866e78f360f7f2e91b048d2f9bd1feef0');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(installer, /NOPASSWD:\s+(?:ALL|\/bin\/(?:bash|sh)|\/usr\/bin\/env)/);
   assert.match(installer, /visudo -cf "\$sudoers_staged"/);
   assert.match(installer, /root:root:555/);
-  assert.match(installer, /R127_FINAL_RECOVERY_V5_AUTHORIZED=NO/);
+  assert.match(installer, /R127_FINAL_RECOVERY_V6_AUTHORIZED=NO/);
 });
 
 test('R127-BRIDGE-07 completion contract independently proves repair and containment', () => {
