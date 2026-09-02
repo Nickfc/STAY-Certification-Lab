@@ -20,8 +20,8 @@ const IDENTITIES = Object.freeze({
   sntssProductionOutputs: 0,
   anchors: Object.freeze({
     biologicalSignallingFabric: '9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a',
-    residentManager: '68c4c92eb666c6f68e679a34799ce9000d04bb652c2ec706e25d963fe1f6f6a6',
-    stateStore: 'f177fda82fbc87400f44674f3bb60f01faa6e3a84dbbb218cfb71fbf33806c5b'
+    residentManager: '744bf91b5374a7f99f3542eb95616cee0c87c3f21cad552493461b41c4e6d45b',
+    stateStore: '28dde80f852294e243ed7a70689a0626062f7f3efa6536d3682e770b4bb521a1'
   })
 });
 
