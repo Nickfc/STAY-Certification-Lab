@@ -7,7 +7,8 @@ const test = require('node:test');
 const {
   EXPECTED,
   validateAfter,
-  validateBefore
+  validateBefore,
+  validateRepairBefore
 } = require('../deploy/live-physiology-transplant/p1-r124-metab-neutral-live-proof');
 const { recordHash } = require('../runtime/p1-r0/records');
 const { sha256 } = require('../runtime/p1-r0/resident-support');
@@ -257,4 +258,45 @@ test('R124-METAB-PROOF-03 forward R125 recovery is accepted only with the same f
     service: { beforePid: 1, afterPid: 2, beforeRestarts: 0, afterRestarts: 2,
       restartCommands: 1 }
   }), { code: 'R124_METAB_PROOF_AFTER' });
+});
+
+test('R127-METAB-PROOF-04 failed R125 birth repairs forward with the same contained residents', () => {
+  const before = beforeDatabase();
+  before.runtimeRevision = 125;
+  const repairProof = validateRepairBefore({
+    database: before,
+    sntssStatus: resources(EXPECTED.sntss),
+    chronobiologyStatus: resources(EXPECTED.chronobiology),
+    meta: meta(125),
+    service: { mainPid: 426795, nRestarts: 0, activeState: 'active', subState: 'running' }
+  });
+  assert.deepEqual(repairProof, {
+    result: 'PASS', runtimeRevision: 125,
+    sntssCheckpointGeneration: 2_000_000,
+    chronobiologyCheckpointGeneration: 9000
+  });
+
+  const after = afterDatabase();
+  after.runtimeRevision = 127;
+  const accepted = validateAfter({
+    before: repairProof,
+    database: after,
+    sntssStatus: resources(EXPECTED.sntss),
+    chronobiologyStatus: resources(EXPECTED.chronobiology),
+    metabStatus: resources(EXPECTED.metab, 'metab-instance-1'),
+    meta: meta(127, true),
+    service: { beforePid: 426795, afterPid: 430000, beforeRestarts: 0,
+      afterRestarts: 0, restartCommands: 2 }
+  });
+  assert.equal(accepted.runtimeRevision, 127);
+  assert.equal(accepted.authorityOwned, false);
+  const wrongRevision = structuredClone(before);
+  wrongRevision.runtimeRevision = 126;
+  assert.throws(() => validateRepairBefore({
+    database: wrongRevision,
+    sntssStatus: resources(EXPECTED.sntss),
+    chronobiologyStatus: resources(EXPECTED.chronobiology),
+    meta: meta(126),
+    service: { mainPid: 1, nRestarts: 0, activeState: 'active', subState: 'running' }
+  }), { code: 'R124_METAB_PROOF_REPAIR_BEFORE' });
 });

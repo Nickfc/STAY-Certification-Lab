@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
 const { EventFabric } = require('./event-fabric');
 const {
   DURABILITY,
@@ -14,6 +15,163 @@ const { ComputeFabric } = require('../compute/compute-fabric');
 const { stableStringify } = require('./canonical-json');
 
 const KERNEL_VERSION = '0.8.11.3';
+
+const R124_METAB_RECOVERY = Object.freeze({
+  markerSha256: 'sha256:933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e',
+  failureEvidence:
+    '/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2',
+  release: '/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-a1999132f935',
+  releaseTag: 'r124-metab-neutral-v4',
+  releaseCommit: '16e8e2d9ca04c8829425f99b91a49b3e495777cc',
+  releaseTree: '316f94dc20c29a431cbe009f3564e6f0b6687a24',
+  archiveSha256:
+    'sha256:ebbfca81636d5952a7db3b8c771d5c7660c841ecb023ae6cb212f71fa2775458',
+  manifestSha256:
+    'sha256:a1999132f935054dc7c482313b88b0679f73475a225b9706c27ed2686d822b26',
+  controllerSha256:
+    'sha256:11ccd13023daeb29b20076e2dab2c4af1b3ce516480449eeb8ffc917575c0b7d',
+  certificateSha256:
+    'sha256:5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6',
+  dossierSha256:
+    'sha256:3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f',
+  publicKeySha256:
+    'sha256:754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e',
+  evidence: Object.freeze({
+    'before.proof.json':
+      '40e54a2d6ed649132c5f1395d8cdf0ed7075cbe0ff5c4d89a2c57707c84ca4da',
+    'service.before.json':
+      '95d99d8b56d6299680928d10bacc5cc41bd5cc3fedf584ee519ce69729c5cb74',
+    'R123.freeze.json':
+      '34baedccaa9227ebd20c0b11a9e32fa6b98deb3c25ca2db03fa846bf49251a92',
+    'benchmark.proof.json':
+      '9dc732e26d7974f4a5998a936051bd1f52909399179b8313a2311f5299f1fcac'
+  })
+});
+
+function sha256Bytes(value) {
+  return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
+}
+
+function readR124MetabRecoveryFence({
+  markerFile,
+  expectedMarkerSha256,
+  trustedUid
+}) {
+  if (
+    expectedMarkerSha256 !== R124_METAB_RECOVERY.markerSha256 ||
+    typeof markerFile !== 'string'
+  ) {
+    throw Object.assign(
+      new Error('R124 METAB recovery marker identity is not authorized'),
+      { code: 'P1_METAB_RECOVERY_MARKER' }
+    );
+  }
+  let markerStat;
+  let raw;
+  try {
+    markerStat = fs.lstatSync(markerFile);
+    raw = fs.readFileSync(markerFile);
+  } catch (error) {
+    throw Object.assign(
+      new Error(`R124 METAB recovery marker is unavailable: ${error.message}`),
+      { code: 'P1_METAB_RECOVERY_MARKER' }
+    );
+  }
+  if (
+    !markerStat.isFile() ||
+    markerStat.isSymbolicLink() ||
+    markerStat.uid !== trustedUid ||
+    (markerStat.mode & 0o022) !== 0 ||
+    raw.length < 1 ||
+    raw.length > 8192 ||
+    sha256Bytes(raw) !== expectedMarkerSha256
+  ) {
+    throw Object.assign(
+      new Error('R124 METAB recovery marker trust fence failed'),
+      { code: 'P1_METAB_RECOVERY_MARKER' }
+    );
+  }
+  const lines = raw.toString('utf8').trimEnd().split('\n');
+  const values = new Map();
+  for (const line of lines) {
+    const index = line.indexOf('=');
+    if (index < 1) {
+      throw Object.assign(new Error('R124 METAB recovery marker is malformed'), {
+        code: 'P1_METAB_RECOVERY_MARKER'
+      });
+    }
+    const key = line.slice(0, index);
+    if (values.has(key)) {
+      throw Object.assign(new Error('R124 METAB recovery marker repeats a field'), {
+        code: 'P1_METAB_RECOVERY_MARKER'
+      });
+    }
+    values.set(key, line.slice(index + 1));
+  }
+  const expected = new Map([
+    ['R124_FAILURE_EVIDENCE', R124_METAB_RECOVERY.failureEvidence],
+    ['R124_RELEASE', R124_METAB_RECOVERY.release],
+    ['R124_RELEASE_TAG', R124_METAB_RECOVERY.releaseTag],
+    ['R124_RELEASE_COMMIT', R124_METAB_RECOVERY.releaseCommit],
+    ['R124_RELEASE_TREE', R124_METAB_RECOVERY.releaseTree],
+    ['R124_ARCHIVE_SHA256', R124_METAB_RECOVERY.archiveSha256],
+    ['R124_MANIFEST_SHA256', R124_METAB_RECOVERY.manifestSha256],
+    ['R124_CONTROLLER_SHA256', R124_METAB_RECOVERY.controllerSha256],
+    ['R124_BIRTH_CERTIFICATE_SHA256', R124_METAB_RECOVERY.certificateSha256],
+    ['R124_BIRTH_DOSSIER_SHA256', R124_METAB_RECOVERY.dossierSha256],
+    ['R124_BIRTH_PUBLIC_KEY_SHA256', R124_METAB_RECOVERY.publicKeySha256]
+  ]);
+  if (
+    values.size !== expected.size ||
+    [...expected].some(([key, value]) => values.get(key) !== value)
+  ) {
+    throw Object.assign(
+      new Error('R124 METAB recovery marker cohort is not exact'),
+      { code: 'P1_METAB_RECOVERY_MARKER' }
+    );
+  }
+  let evidenceStat;
+  try {
+    evidenceStat = fs.lstatSync(R124_METAB_RECOVERY.failureEvidence);
+  } catch (error) {
+    throw Object.assign(
+      new Error(`R124 METAB failure evidence is unavailable: ${error.message}`),
+      { code: 'P1_METAB_RECOVERY_EVIDENCE' }
+    );
+  }
+  if (
+    !evidenceStat.isDirectory() ||
+    evidenceStat.isSymbolicLink() ||
+    evidenceStat.uid !== trustedUid ||
+    (evidenceStat.mode & 0o022) !== 0
+  ) {
+    throw Object.assign(
+      new Error('R124 METAB failure evidence trust fence failed'),
+      { code: 'P1_METAB_RECOVERY_EVIDENCE' }
+    );
+  }
+  for (const [name, expectedHash] of Object.entries(R124_METAB_RECOVERY.evidence)) {
+    const file = path.join(R124_METAB_RECOVERY.failureEvidence, name);
+    const stat = fs.lstatSync(file);
+    const body = fs.readFileSync(file);
+    if (
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.uid !== trustedUid ||
+      (stat.mode & 0o022) !== 0 ||
+      sha256Bytes(body) !== `sha256:${expectedHash}`
+    ) {
+      throw Object.assign(
+        new Error(`R124 METAB failure evidence is invalid: ${name}`),
+        { code: 'P1_METAB_RECOVERY_EVIDENCE' }
+      );
+    }
+  }
+  return Object.freeze({
+    markerSha256: expectedMarkerSha256,
+    failureEvidence: R124_METAB_RECOVERY.failureEvidence
+  });
+}
 
 class LivingKernel {
   constructor({
@@ -41,6 +199,21 @@ class LivingKernel {
 
     allowMetabNeutralBirth =
       process.env.STAY_ALLOW_METAB_NEUTRAL_BIRTH === '1',
+
+    allowMetabNeutralRecovery =
+      process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY === '1',
+
+    metabNeutralRecoveryMarkerFile =
+      process.env.STAY_METAB_NEUTRAL_RECOVERY_MARKER ||
+      '/run/stay-r124-metab-neutral-recovery.env',
+
+    metabNeutralRecoveryMarkerSha256 =
+      process.env.STAY_METAB_NEUTRAL_RECOVERY_MARKER_SHA256 || '',
+
+    metabNeutralRecoveryTrustedUid = 0,
+
+    metabNeutralRecoveryFenceReader =
+      readR124MetabRecoveryFence,
 
     metabNeutralBirthCertificateFile =
       process.env.STAY_METAB_NEUTRAL_BIRTH_CERTIFICATE ||
@@ -136,6 +309,27 @@ class LivingKernel {
 
     this.allowMetabNeutralBirth =
       Boolean(allowMetabNeutralBirth);
+
+    this.allowMetabNeutralRecovery =
+      Boolean(allowMetabNeutralRecovery);
+
+    this.metabNeutralRecoveryMarkerFile =
+      String(metabNeutralRecoveryMarkerFile);
+
+    this.metabNeutralRecoveryMarkerSha256 =
+      String(metabNeutralRecoveryMarkerSha256);
+
+    this.metabNeutralRecoveryTrustedUid =
+      Number(metabNeutralRecoveryTrustedUid);
+
+    if (typeof metabNeutralRecoveryFenceReader !== 'function') {
+      throw Object.assign(
+        new Error('METAB neutral recovery fence reader is invalid'),
+        { code: 'P1_METAB_RECOVERY_FENCE_READER' }
+      );
+    }
+    this.metabNeutralRecoveryFenceReader =
+      metabNeutralRecoveryFenceReader;
 
     this.metabNeutralBirthCertificateFile =
       String(metabNeutralBirthCertificateFile);
@@ -875,7 +1069,12 @@ class LivingKernel {
   }
 
 
-  async birthMetabNeutral() {
+  async recoverMetabNeutralBirth() {
+    return this.birthMetabNeutral({ recovery: true });
+  }
+
+
+  async birthMetabNeutral({ recovery = false } = {}) {
     if (!this.allowMetabNeutralBirth) {
       throw Object.assign(
         new Error('R124 METAB neutral birth is not enabled'),
@@ -883,7 +1082,36 @@ class LivingKernel {
       );
     }
 
-    if (this.runtimeRevision !== 124) {
+    let recoveryFence = null;
+    if (recovery) {
+      if (!this.allowMetabNeutralRecovery) {
+        throw Object.assign(
+          new Error('R124 METAB forward recovery is not enabled'),
+          { code: 'P1_METAB_RECOVERY_NOT_AUTHORIZED' }
+        );
+      }
+      if (this.runtimeRevision !== 126) {
+        throw Object.assign(
+          new Error('METAB forward recovery is fenced to runtime R126'),
+          { code: 'P1_METAB_RECOVERY_REVISION' }
+        );
+      }
+      recoveryFence = this.metabNeutralRecoveryFenceReader({
+        markerFile: this.metabNeutralRecoveryMarkerFile,
+        expectedMarkerSha256: this.metabNeutralRecoveryMarkerSha256,
+        trustedUid: this.metabNeutralRecoveryTrustedUid
+      });
+      if (
+        !recoveryFence ||
+        recoveryFence.markerSha256 !== R124_METAB_RECOVERY.markerSha256 ||
+        recoveryFence.failureEvidence !== R124_METAB_RECOVERY.failureEvidence
+      ) {
+        throw Object.assign(
+          new Error('METAB forward recovery fence result is invalid'),
+          { code: 'P1_METAB_RECOVERY_MARKER' }
+        );
+      }
+    } else if (this.runtimeRevision !== 124) {
       throw Object.assign(
         new Error('METAB neutral birth is fenced to runtime R124'),
         { code: 'P1_METAB_BIRTH_REVISION' }
@@ -946,7 +1174,7 @@ class LivingKernel {
       loadAndVerifyMetabNeutralBirth({
         inspected,
         identity: this.identity,
-        runtimeRevision: this.runtimeRevision,
+        runtimeRevision: recovery ? 124 : this.runtimeRevision,
         parentFreezeRecordSha256:
           parentFreeze.recordSha256,
         publicKeyPath:
@@ -990,6 +1218,16 @@ class LivingKernel {
       storage.readBirthDossier('resident:metab');
 
     if (
+      recovery &&
+      (existing || committedFounder || committedDossier)
+    ) {
+      throw Object.assign(
+        new Error('R126 METAB forward recovery requires an empty birth cohort'),
+        { code: 'P1_METAB_RECOVERY_NOT_EMPTY' }
+      );
+    }
+
+    if (
       committedFounder &&
       stableStringify(committedFounder) !==
         stableStringify(authorization.founderRecord)
@@ -1024,7 +1262,9 @@ class LivingKernel {
     const acceptanceCommit =
       this.metabNeutralAcceptanceCommit(
         storage,
-        existing
+        recovery
+          ? 'R126_NEUTRAL_FORWARD_RECOVERED'
+          : existing
           ? 'R124_NEUTRAL_RECOVERED'
           : 'R124_NEUTRAL_ACCEPTED'
       );
@@ -1149,6 +1389,10 @@ class LivingKernel {
         authorization.certificateId,
       founderDossierSha256:
         authorization.founderDossierSha256,
+      recoveryMarkerSha256:
+        recoveryFence?.markerSha256 || null,
+      certificateTargetRevision:
+        authorization.targetRevision,
       authorityOwned: false,
       observedOutputs: 0
     });
@@ -2542,4 +2786,9 @@ class LivingKernel {
   }
 }
 
-module.exports = { LivingKernel, KERNEL_VERSION };
+module.exports = {
+  LivingKernel,
+  KERNEL_VERSION,
+  R124_METAB_RECOVERY,
+  readR124MetabRecoveryFence
+};

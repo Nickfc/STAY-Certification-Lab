@@ -234,12 +234,52 @@ function validateBefore({ database, freeze, sntssStatus, chronobiologyStatus, me
     chronobiologyCheckpointGeneration: Number(residentRow(database, EXPECTED.chronobiology).checkpoint_generation) });
 }
 
+function validateRepairBefore({ database, sntssStatus, chronobiologyStatus, meta, service }) {
+  assert(database.quickCheck === 'ok' && database.queryOnly === true &&
+    database.runtimeRevision === 125 && database.pendingDeliveries === 0 &&
+    database.pendingOutboxIntents === 0 && database.p1Authority === 0 &&
+    database.sntssAuthority === 0 && database.chronobiologyAuthority === 0 &&
+    !residentRow(database, EXPECTED.metab) && database.founders.length === 0 &&
+    database.dossiers.length === 0 && database.chips.length === 0,
+  'R125 failed-birth database fence failed', 'R124_METAB_PROOF_REPAIR_BEFORE');
+  assertExistingResident(residentRow(database, EXPECTED.sntss), EXPECTED.sntss, 'SNTSS');
+  assertExistingResident(residentRow(database, EXPECTED.chronobiology), EXPECTED.chronobiology,
+    'Chronobiology');
+  const sntss = assertResources(sntssStatus, 'SNTSS');
+  const chronobiology = assertResources(chronobiologyStatus, 'Chronobiology');
+  const chip = id => meta?.chipProjection?.lifecycle?.find(value => value.coreId === id);
+  const fetus = meta?.cores?.find(value => value.id === 'fetus-legacy');
+  const bsf = meta?.systems?.find(value => value.id === 'bsf');
+  assert(sntss.version === EXPECTED.sntss.version &&
+    sntss.host?.instanceId === EXPECTED.sntss.instanceId &&
+    sntss.observedOutputs === 0 && sntss.health?.biologicalOutputs === 0 &&
+    chronobiology.version === EXPECTED.chronobiology.version &&
+    chronobiology.host?.instanceId === EXPECTED.chronobiology.instanceId &&
+    meta?.ok === true && meta.revision === 125 && meta.revisionFrozen === false &&
+    chip('bsf')?.state === 'LIVE' && chip('sntss')?.state === 'SHADOW' &&
+    chip('chronobiology')?.state === 'SHADOW' && !chip('metab')?.born &&
+    bsf?.mode === 'LIVE' && bsf?.status === 'RUNNING' && bsf?.healthOk === true &&
+    fetus?.ok === true && fetus?.memoryGuardian?.status === 'healthy' &&
+    fetus?.memoryGuardian?.warnAtMiB === 192 && fetus?.memoryGuardian?.recycleAtMiB === 256 &&
+    Number(service?.mainPid) > 0 && Number(service?.nRestarts) >= 0 &&
+    service?.activeState === 'active' && service?.subState === 'running',
+  'R125 failed-birth live fence failed', 'R124_METAB_PROOF_REPAIR_BEFORE');
+  return Object.freeze({
+    result: 'PASS',
+    runtimeRevision: 125,
+    sntssCheckpointGeneration:
+      Number(residentRow(database, EXPECTED.sntss).checkpoint_generation),
+    chronobiologyCheckpointGeneration:
+      Number(residentRow(database, EXPECTED.chronobiology).checkpoint_generation)
+  });
+}
+
 function validateAfter({ before, database, sntssStatus, chronobiologyStatus, metabStatus, meta, service }) {
   const metab = residentRow(database, EXPECTED.metab);
   const consumer = database.consumers.find(value => value.consumer_id === EXPECTED.metab.residencyId);
   const schema = database.schemas.find(value => value.name === 'p1-r0-production');
   assert(database.quickCheck === 'ok' && database.queryOnly === true &&
-    [124, 125].includes(database.runtimeRevision) && database.pendingDeliveries === 0 &&
+    [124, 125, 127].includes(database.runtimeRevision) && database.pendingDeliveries === 0 &&
     database.pendingOutboxIntents === 0 && database.p1Authority === 0 &&
     database.sntssAuthority === 0 && database.chronobiologyAuthority === 0 &&
     Number(schema?.version) === 1 && database.founders.length === 1 &&
@@ -301,7 +341,7 @@ function validateAfter({ before, database, sntssStatus, chronobiologyStatus, met
         Number.isSafeInteger(service.afterRestarts) &&
         service.afterRestarts >= service.beforeRestarts &&
         service.afterRestarts <= service.beforeRestarts + 1) &&
-    service.restartCommands === 1,
+    service.restartCommands === (database.runtimeRevision === 127 ? 2 : 1),
   'R124 live acceptance failed', 'R124_METAB_PROOF_AFTER');
   return Object.freeze({
     result: 'PASS', runtimeRevision: database.runtimeRevision,
@@ -332,5 +372,6 @@ module.exports = Object.freeze({
   captureDatabase,
   validateAfter,
   validateBefore,
+  validateRepairBefore,
   validateBenchmark
 });

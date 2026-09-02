@@ -48,6 +48,7 @@ const EXPECTED_OVERLAY = Object.freeze([
   'runtime/release/surgery-a-control.js',
   'runtime/revision-freeze.js',
   'runtime/ui/chip-projection.js',
+  'server.js',
   'test/p1-r118f-release-contract.test.js',
   'test/p1-r119f-release-contract.test.js',
   'test/p1-r123f-benchmark-closure.test.js',
@@ -93,24 +94,31 @@ test('R124-REL-01 successor manifest is exact, minimal and excludes future resid
   ]) assert.equal(entries.has(forbidden), false, forbidden);
 });
 
-test('R124-REL-02 forward path binds the exact R123F host and permits one guarded restart', () => {
+test('R124-REL-02 repair binds the exact failed R124 cohort and permits one guarded restart', () => {
   const source = read(FORWARD);
   for (const identity of [
-    "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2961f9a48173'",
-    "SOURCE_MANIFEST_SHA256='021c837c3b1d2a1e855e39e6154790e48a0ecc6f5bbb07dddc9776d63ad733eb'",
-    "SOURCE_FILE_COUNT=612",
-    "SOURCE_TREE_SHA256='c97d4850e4747de7a6d80231047140ef99bfabdf69e762b8b52367f1ce30d9a2'",
+    "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-a1999132f935'",
+    "SOURCE_MANIFEST_SHA256='a1999132f935054dc7c482313b88b0679f73475a225b9706c27ed2686d822b26'",
+    'SOURCE_MANIFEST_RECORDS=43',
+    'SOURCE_FILE_COUNT=644',
+    "SOURCE_TREE_SHA256='7899d884fcdf619bec84835de2c57aab19813d3d2cba0665ba3ffeacef6af1e5'",
+    "SOURCE_RELEASE_ENV_SHA256='bbf952d6de2434ed8f77bf458cd821d3b30253167fea953e9f8aef28b70e49aa'",
     "'sha256:161b5fe340ef01836447e21c0e77167cac86033973f8a06b3c1af1d7b44fa3cc'",
-    'AUTHORIZE_R124_METAB_NEUTRAL_ZERO_AUTHORITY_BIRTH'
+    "RECOVERY_MARKER_SHA256='933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e'",
+    "FAILED_R124_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2'",
+    'AUTHORIZE_R124_METAB_NEUTRAL_FORWARD_RECOVERY_ONLY'
   ]) assert.equal(source.includes(identity), true, identity);
   assert.equal((source.match(/systemctl restart stay\.service/g) || []).length, 1);
+  assert.equal((source.match(/systemctl start stay\.service/g) || []).length, 0);
   assert.match(source, /RESTART_COMMITTED=1\s+systemctl restart stay\.service/);
-  assert.match(source, /durable_runtime_revision\)" == 123/);
-  assert.match(source, /durable_runtime_revision\)" == 124/);
-  assert.match(source, /birth resident:metab/);
+  assert.match(source, /durable_runtime_revision\)" == 125/);
+  assert.match(source, /durable_runtime_revision\)" == 127/);
+  assert.doesNotMatch(source, /birth resident:metab/);
+  assert.match(source, /STAY_ALLOW_METAB_NEUTRAL_RECOVERY=1/);
+  assert.match(source, /STAY_METAB_NEUTRAL_RECOVERY_MARKER_SHA256/);
   assert.match(source, /remove_active_birth_material/);
-  assert.match(source, /R124_METAB_NEUTRAL_ZERO_AUTHORITY_BIRTH/);
-  assert.match(source, /R124_FORWARD_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
+  assert.match(source, /R124_METAB_NEUTRAL_RECOVERY=PASS/);
+  assert.match(source, /R127_REPAIR_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
   assert.doesNotMatch(source, /git reset|sqlite3\s+.*(?:DELETE|UPDATE)|restore.*continuity|TimeoutStopSec|handlerTimeoutMs\s*=/);
 });
 
@@ -121,7 +129,7 @@ test('R124-REL-03 candidate validation covers exact packages and real bubblewrap
   assert.match(source, /cores\/sntss\/i4g/);
   assert.match(source, /cores\/chronobiology\/c3r5/);
   assert.match(source, /cores\/p1-r0\/metab-neutral\/index\.js/);
-  assert.match(source, /--test-name-pattern='\^R124-METAB-ENTRY-01'/);
+  assert.match(source, /--test-name-pattern='\^R126-METAB-RECOVERY-03'/);
   assert.match(source, /p1-r119f-entry-preflight\.js/);
   assert.match(source, /STAY_REQUIRE_OS_CORE_SANDBOX=1/);
   assert.match(source, /STAY_REQUIRE_CGROUPS=1/);
@@ -131,18 +139,22 @@ test('R124-REL-03 candidate validation covers exact packages and real bubblewrap
   assert.doesNotMatch(source, /CPUQuota=|handlerTimeoutMs.*(?:[3-9][0-9]{2}|[1-9][0-9]{3,})/);
 });
 
-test('R124-REL-04 recovery is revision-fenced, founder-preserving and never rewinds the pointer', () => {
-  const source = read(RECOVERY);
+test('R124-REL-04 repair is startup-only, revision-fenced and never rewinds after restart', () => {
+  const source = read(FORWARD);
+  const server = read(path.join(ROOT, 'server.js'));
   assert.match(source, /AUTHORIZE_R124_METAB_NEUTRAL_FORWARD_RECOVERY_ONLY/);
-  assert.match(source, /revision" == 124 \|\| "\$revision" == 125/);
-  assert.match(source, /inactive-r124-has-no-durable-birth/);
-  assert.equal((source.match(/systemctl start stay\.service/g) || []).length, 1);
-  assert.equal((source.match(/systemctl restart stay\.service/g) || []).length, 0);
-  assert.match(source, /birth resident:metab/);
+  assert.match(source, /R125 FAILED-BIRTH PREFLIGHT/);
+  assert.match(source, /R127_METAB_NEUTRAL_FORWARD_REPAIR/);
+  assert.match(source, /sourceRevision: 125, birthRevision: 126, acceptedRevision: 127/);
+  assert.match(source, /revisionFenced: true, pointerRewound: false/);
+  assert.match(source, /remove_active_birth_material[\s\S]*?rm -f -- "\$RECOVERY_MARKER"/);
   assert.match(source, /pointerRewound: false/);
   assert.match(source, /after\.founderId/);
   assert.match(source, /after\.instanceId/);
-  assert.doesNotMatch(source, /point_current|SOURCE_RELEASE.*current|git reset|restore.*continuity/);
+  assert.match(server, /await kernel\.start\(\);[\s\S]*?await kernel\.recoverMetabNeutralBirth\(\);[\s\S]*?await kernel\.installCore/);
+  const committed = source.slice(source.indexOf('RESTART_COMMITTED=1'));
+  assert.doesNotMatch(committed, /point_current "\$SOURCE_RELEASE"/);
+  assert.doesNotMatch(source, /git reset|sqlite3\s+.*(?:DELETE|UPDATE)|restore.*continuity/);
 });
 
 test('R124-REL-05 release preserves exact resource and authority contracts', () => {

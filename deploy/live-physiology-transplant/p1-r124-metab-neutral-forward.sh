@@ -5,13 +5,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2961f9a48173'
-SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'
-SOURCE_MANIFEST_SHA256='021c837c3b1d2a1e855e39e6154790e48a0ecc6f5bbb07dddc9776d63ad733eb'
-SOURCE_MANIFEST_RECORDS=221
-SOURCE_FILE_COUNT=612
-SOURCE_TREE_SHA256='c97d4850e4747de7a6d80231047140ef99bfabdf69e762b8b52367f1ce30d9a2'
-SOURCE_RELEASE_ENV_SHA256='37d1a01ed5040ab05de89ff2b57f935df00f786b4f486af262fdf9b741bd5bde'
+SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-a1999132f935'
+SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R123F_TO_R124.sha256'
+SOURCE_MANIFEST_SHA256='a1999132f935054dc7c482313b88b0679f73475a225b9706c27ed2686d822b26'
+SOURCE_MANIFEST_RECORDS=43
+SOURCE_FILE_COUNT=644
+SOURCE_TREE_SHA256='7899d884fcdf619bec84835de2c57aab19813d3d2cba0665ba3ffeacef6af1e5'
+SOURCE_RELEASE_ENV_SHA256='bbf952d6de2434ed8f77bf458cd821d3b30253167fea953e9f8aef28b70e49aa'
 TARGET_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R123F_TO_R124.sha256'
 TARGET_RELEASE_ENV='P1_R124_RELEASE.env'
 DATABASE='/var/lib/stay/data/continuity.sqlite3'
@@ -22,10 +22,12 @@ BIRTH_DROPIN='/etc/systemd/system/stay.service.d/p1-r124-metab-neutral-birth-onc
 ACTIVE_CERTIFICATE='/etc/stay/resident-promotions/resident-metab-neutral-birth.json'
 ACTIVE_PUBLIC_KEY='/etc/stay/metab-neutral-birth-authority.pub'
 PARENT_FREEZE='/var/lib/stay/evidence/runtime-freezes/R123.json'
-TARGET_FREEZE='/var/lib/stay/evidence/runtime-freezes/R124.json'
+TARGET_FREEZE='/var/lib/stay/evidence/runtime-freezes/R127.json'
 BENCHMARK_ROOT='/var/lib/stay/evidence/physiology-benchmark/R123F'
 EVIDENCE_ROOT='/var/lib/stay/evidence/production-hardening'
 RECOVERY_MARKER='/run/stay-r124-metab-neutral-recovery.env'
+RECOVERY_MARKER_SHA256='933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e'
+FAILED_R124_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2'
 SCRIPT_DIRECTORY="$(dirname -- "$(readlink -f -- "$0")")"
 STAGE_ROOT="$(readlink -f -- "$SCRIPT_DIRECTORY/../..")"
 LIVE_PROOF="$SCRIPT_DIRECTORY/p1-r124-metab-neutral-live-proof.js"
@@ -53,7 +55,7 @@ NEW_RELEASE=''
 TARGET_CREATED=0
 POINTER_CHANGED=0
 RESTART_COMMITTED=0
-BIRTH_MATERIAL_ACTIVE=0
+DROPIN_CHANGED=0
 COMPLETED=0
 FAILURE_EVIDENCE=''
 
@@ -156,7 +158,7 @@ candidate_file_set() {
 archive_failure_work() {
   if [[ -n "$WORK" && -d "$WORK" ]]; then
     local failed
-    failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R124-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+    failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R127-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
     rmdir -- "$failed"
     if mv -T "$WORK" "$failed"; then
       WORK=''
@@ -165,27 +167,6 @@ archive_failure_work() {
       printf 'R124_FAILURE_EVIDENCE=%s\n' "$failed" >&2
     fi
   fi
-}
-
-write_recovery_marker() {
-  [[ -n "$FAILURE_EVIDENCE" ]] || return 0
-  local temporary
-  temporary="$(mktemp /run/.stay-r124-metab-recovery.XXXXXX)"
-  cat > "$temporary" <<EOF
-R124_FAILURE_EVIDENCE=$FAILURE_EVIDENCE
-R124_RELEASE=$NEW_RELEASE
-R124_RELEASE_TAG=$STAY_R124_RELEASE_TAG
-R124_RELEASE_COMMIT=$STAY_R124_RELEASE_COMMIT
-R124_RELEASE_TREE=$STAY_R124_RELEASE_TREE
-R124_ARCHIVE_SHA256=$STAY_R124_ARCHIVE_SHA256
-R124_MANIFEST_SHA256=$STAY_R124_MANIFEST_SHA256
-R124_CONTROLLER_SHA256=$STAY_R124_CONTROLLER_SHA256
-R124_BIRTH_CERTIFICATE_SHA256=$STAY_R124_BIRTH_CERTIFICATE_SHA256
-R124_BIRTH_DOSSIER_SHA256=$STAY_R124_BIRTH_DOSSIER_SHA256
-R124_BIRTH_PUBLIC_KEY_SHA256=$STAY_R124_BIRTH_PUBLIC_KEY_SHA256
-EOF
-  install -o root -g root -m 0600 "$temporary" "$RECOVERY_MARKER"
-  rm -f -- "$temporary"
 }
 
 remove_active_birth_material() {
@@ -197,7 +178,7 @@ remove_active_birth_material() {
     fi
   done
   systemctl daemon-reload
-  BIRTH_MATERIAL_ACTIVE=0
+  DROPIN_CHANGED=0
 }
 
 cleanup() {
@@ -205,21 +186,36 @@ cleanup() {
   trap - EXIT
   set +e
   if [[ "$COMPLETED" -eq 0 && "$RESTART_COMMITTED" -eq 0 ]]; then
-    [[ "$BIRTH_MATERIAL_ACTIVE" -eq 1 ]] && remove_active_birth_material || true
+    if [[ "$DROPIN_CHANGED" -eq 1 && -f "$WORK/p1-r124-metab-neutral-birth-original.conf" ]]; then
+      install_atomic "$WORK/p1-r124-metab-neutral-birth-original.conf" "$BIRTH_DROPIN" 0644 || true
+      systemctl daemon-reload || true
+    fi
     [[ "$POINTER_CHANGED" -eq 1 ]] && point_current "$SOURCE_RELEASE" || true
     if [[ "$TARGET_CREATED" -eq 1 && -n "$NEW_RELEASE" \
-      && "$NEW_RELEASE" == /opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-* \
+      && "$NEW_RELEASE" == /opt/stay/releases/0.8.11.3-p1m-r127-metab-repair-* \
       && -d "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]]; then
       rm -rf --one-file-system -- "$NEW_RELEASE"
     fi
     archive_failure_work
-    printf 'R124_FORWARD_ROLLBACK=PRE_RESTART_STATE_RESTORED\n' >&2
+    printf 'R127_REPAIR_ROLLBACK=PRE_RESTART_STATE_RESTORED\n' >&2
   elif [[ "$COMPLETED" -eq 0 ]]; then
+    [[ -f "$ACTIVE_CERTIFICATE" && ! -L "$ACTIVE_CERTIFICATE" ]] ||
+      install_atomic "$STAY_R124_BIRTH_CERTIFICATE_FILE" "$ACTIVE_CERTIFICATE" 0444 || true
+    [[ -f "$ACTIVE_PUBLIC_KEY" && ! -L "$ACTIVE_PUBLIC_KEY" ]] ||
+      install_atomic "$STAY_R124_BIRTH_PUBLIC_KEY_FILE" "$ACTIVE_PUBLIC_KEY" 0444 || true
+    if [[ (! -e "$BIRTH_DROPIN" || -L "$BIRTH_DROPIN") \
+      && -f "$WORK/p1-r124-metab-neutral-birth-original.conf" ]]; then
+      install_atomic "$WORK/p1-r124-metab-neutral-birth-original.conf" "$BIRTH_DROPIN" 0644 || true
+      systemctl daemon-reload || true
+    fi
+    if [[ (! -e "$RECOVERY_MARKER" || -L "$RECOVERY_MARKER") \
+      && -f "$WORK/r124-failed-birth-recovery.env" ]]; then
+      install_atomic "$WORK/r124-failed-birth-recovery.env" "$RECOVERY_MARKER" 0600 || true
+    fi
     archive_failure_work
-    write_recovery_marker
-    printf 'R124_FORWARD_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY\n' >&2
+    printf 'R127_REPAIR_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY\n' >&2
   fi
-  if [[ -n "$CANDIDATE" && "$CANDIDATE" == /opt/stay/releases/.p1m-r124-metab-neutral.* \
+  if [[ -n "$CANDIDATE" && "$CANDIDATE" == /opt/stay/releases/.p1m-r127-metab-repair.* \
     && -d "$CANDIDATE" ]]; then
     rm -rf --one-file-system -- "$CANDIDATE"
   fi
@@ -229,15 +225,15 @@ cleanup() {
 trap cleanup EXIT
 
 [[ "$EUID" -eq 0 ]] || abort root-required 2401
-[[ "${STAY_R124_AUTHORIZATION:-}" == 'AUTHORIZE_R124_METAB_NEUTRAL_ZERO_AUTHORITY_BIRTH' ]] ||
+[[ "${STAY_R124_RECOVERY_AUTHORIZATION:-}" == 'AUTHORIZE_R124_METAB_NEUTRAL_FORWARD_RECOVERY_ONLY' ]] ||
   abort authorization-required 2402
-[[ "$STAY_R124_RELEASE_TAG" =~ ^r124-metab-neutral-v[0-9]+$ \
+[[ "$STAY_R124_RELEASE_TAG" =~ ^r127-metab-repair-v[0-9]+$ \
   && "$STAY_R124_RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ \
   && "$STAY_R124_RELEASE_TREE" =~ ^[0-9a-f]{40}$ \
   && "$STAY_R124_ARCHIVE_SHA256" =~ ^sha256:[0-9a-f]{64}$ \
   && "$STAY_R124_MANIFEST_SHA256" =~ ^sha256:[0-9a-f]{64}$ \
   && "$STAY_R124_CONTROLLER_SHA256" =~ ^sha256:[0-9a-f]{64}$ \
-  && "$STAY_R124_TARGET_RELEASE" =~ ^/opt/stay/releases/0\.8\.11\.3-p1m-r124-metab-neutral-[0-9a-f]{12}$ \
+  && "$STAY_R124_TARGET_RELEASE" =~ ^/opt/stay/releases/0\.8\.11\.3-p1m-r127-metab-repair-[0-9a-f]{12}$ \
   && "$STAY_R124_BIRTH_CERTIFICATE_SHA256" =~ ^sha256:[0-9a-f]{64}$ \
   && "$STAY_R124_BIRTH_DOSSIER_SHA256" =~ ^sha256:[0-9a-f]{64}$ \
   && "$STAY_R124_BIRTH_PUBLIC_KEY_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]] ||
@@ -254,12 +250,29 @@ done
   && "$(sha256_file "$STAY_R124_BIRTH_DOSSIER_FILE")" == "${STAY_R124_BIRTH_DOSSIER_SHA256#sha256:}" \
   && "$(sha256_file "$STAY_R124_BIRTH_PUBLIC_KEY_FILE")" == "${STAY_R124_BIRTH_PUBLIC_KEY_SHA256#sha256:}" ]] ||
   abort immutable-input-hash-invalid 2405
-[[ ! -e "$RECOVERY_MARKER" && ! -L "$RECOVERY_MARKER" \
-  && ! -e "$BIRTH_DROPIN" && ! -L "$BIRTH_DROPIN" \
-  && ! -e "$ACTIVE_CERTIFICATE" && ! -L "$ACTIVE_CERTIFICATE" \
-  && ! -e "$ACTIVE_PUBLIC_KEY" && ! -L "$ACTIVE_PUBLIC_KEY" \
+[[ -f "$RECOVERY_MARKER" && ! -L "$RECOVERY_MARKER" \
+  && "$(stat -Lc '%U:%G:%a' "$RECOVERY_MARKER")" == 'root:root:600' \
+  && "$(sha256_file "$RECOVERY_MARKER")" == "$RECOVERY_MARKER_SHA256" \
+  && -d "$FAILED_R124_EVIDENCE" && ! -L "$FAILED_R124_EVIDENCE" \
+  && -f "$BIRTH_DROPIN" && ! -L "$BIRTH_DROPIN" \
+  && -f "$ACTIVE_CERTIFICATE" && ! -L "$ACTIVE_CERTIFICATE" \
+  && -f "$ACTIVE_PUBLIC_KEY" && ! -L "$ACTIVE_PUBLIC_KEY" \
+  && "$(sha256_file "$ACTIVE_CERTIFICATE")" == "${STAY_R124_BIRTH_CERTIFICATE_SHA256#sha256:}" \
+  && "$(sha256_file "$ACTIVE_PUBLIC_KEY")" == "${STAY_R124_BIRTH_PUBLIC_KEY_SHA256#sha256:}" \
   && ! -e "$TARGET_FREEZE" && ! -L "$TARGET_FREEZE" ]] ||
-  abort prior-attempt-or-target-evidence-present 2406
+  abort failed-r124-recovery-cohort-invalid 2406
+node - "$STAGE_ROOT/runtime/kernel/living-kernel.js" "$RECOVERY_MARKER" <<'NODE'
+'use strict';
+const [helper, markerFile] = process.argv.slice(2);
+const { R124_METAB_RECOVERY, readR124MetabRecoveryFence } = require(helper);
+const result = readR124MetabRecoveryFence({
+  markerFile,
+  expectedMarkerSha256: R124_METAB_RECOVERY.markerSha256,
+  trustedUid: 0
+});
+if (!(result.markerSha256 === R124_METAB_RECOVERY.markerSha256 &&
+  result.failureEvidence === R124_METAB_RECOVERY.failureEvidence)) process.exit(1);
+NODE
 
 observed_ip="$(ip -4 -o addr show scope global | awk '{split($4,a,"/"); print a[1]}' | sort -u)"
 [[ "$observed_ip" == "$EXPECTED_PRIVATE_IPV4" ]] || abort host-identity-mismatch 2407
@@ -269,7 +282,7 @@ observed_ip="$(ip -4 -o addr show scope global | awk '{split($4,a,"/"); print a[
   && ! -L "$SOURCE_RELEASE/$SOURCE_MANIFEST" \
   && "$(sha256_file "$SOURCE_RELEASE/$SOURCE_MANIFEST")" == "$SOURCE_MANIFEST_SHA256" \
   && "$(wc -l < "$SOURCE_RELEASE/$SOURCE_MANIFEST")" -eq "$SOURCE_MANIFEST_RECORDS" \
-  && "$(sha256_file "$SOURCE_RELEASE/P1_R119F_RELEASE.env")" == "$SOURCE_RELEASE_ENV_SHA256" \
+  && "$(sha256_file "$SOURCE_RELEASE/P1_R124_RELEASE.env")" == "$SOURCE_RELEASE_ENV_SHA256" \
   && "$(find "$SOURCE_RELEASE" -type f | wc -l)" -eq "$SOURCE_FILE_COUNT" \
   && "$(release_inventory_digest "$SOURCE_RELEASE")" == "$SOURCE_TREE_SHA256" \
   && -z "$(find -P "$SOURCE_RELEASE" -xdev \
@@ -290,11 +303,13 @@ before_active="$(systemctl show stay.service -p ActiveState --value)"
 before_sub="$(systemctl show stay.service -p SubState --value)"
 [[ "$before_pid" =~ ^[1-9][0-9]*$ && "$before_restarts" =~ ^[0-9]+$ \
   && "$before_active" == active && "$before_sub" == running \
-  && "$(durable_runtime_revision)" == 123 ]] || abort source-service-invalid 2412
+  && "$(durable_runtime_revision)" == 125 ]] || abort source-service-invalid 2412
 
-WORK="$(mktemp -d "$EVIDENCE_ROOT/.R124-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+WORK="$(mktemp -d "$EVIDENCE_ROOT/.R127-repair-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+install -o root -g root -m 0400 "$BIRTH_DROPIN" \
+  "$WORK/p1-r124-metab-neutral-birth-original.conf"
 
-phase 'EXACT READ-ONLY R123F PREFLIGHT'
+phase 'EXACT READ-ONLY R125 FAILED-BIRTH PREFLIGHT'
 node - "$before_pid" "$before_restarts" > "$WORK/service.before.json" <<'NODE'
 'use strict';
 const [mainPid, nRestarts] = process.argv.slice(2).map(Number);
@@ -328,8 +343,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const [helper, root] = process.argv.slice(2);
 const read = name => JSON.parse(fs.readFileSync(path.join(root, name), 'utf8'));
-const proof = require(helper).validateBefore({
-  database: read('database.before.json'), freeze: read('R123.freeze.json'),
+const proof = require(helper).validateRepairBefore({
+  database: read('database.before.json'),
   sntssStatus: read('sntss.before.json'),
   chronobiologyStatus: read('chronobiology.before.json'),
   meta: read('meta.before.json'), service: read('service.before.json')
@@ -338,11 +353,11 @@ process.stdout.write(`${JSON.stringify(proof)}\n`);
 NODE
 [[ "$(systemctl show stay.service -p MainPID --value)" == "$before_pid" \
   && "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" \
-  && "$(durable_runtime_revision)" == 123 \
+  && "$(durable_runtime_revision)" == 125 \
   && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]] ||
   abort read-only-preflight-mutated-production 2413
 
-phase 'BUILD SOURCE-SEALED R124 CANDIDATE'
+phase 'BUILD SOURCE-SEALED R127 REPAIR CANDIDATE'
 mapfile -t overlay_files < <(manifest_paths)
 [[ "${#overlay_files[@]}" -gt 0 \
   && "$(printf '%s\n' "${overlay_files[@]}" | LC_ALL=C sort -u | wc -l)" -eq "${#overlay_files[@]}" \
@@ -357,7 +372,7 @@ done
 (cd "$STAGE_ROOT" && sha256sum -c "$TARGET_MANIFEST" >/dev/null) ||
   abort stage-manifest-verification-failed 2414
 
-CANDIDATE="$(mktemp -d /opt/stay/releases/.p1m-r124-metab-neutral.XXXXXX)"
+CANDIDATE="$(mktemp -d /opt/stay/releases/.p1m-r127-metab-repair.XXXXXX)"
 cp -a --reflink=auto "$SOURCE_RELEASE/." "$CANDIDATE/"
 chmod --reference="$SOURCE_RELEASE" "$CANDIDATE"
 chown --reference="$SOURCE_RELEASE" "$CANDIDATE"
@@ -427,7 +442,7 @@ if ! systemd-run --wait --pipe --collect --quiet \
     STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 \
     /usr/local/bin/node --disable-sigusr1 --test --test-isolation=none \
     --test-concurrency=1 \
-    --test-name-pattern='^R124-METAB-ENTRY-01' \
+    --test-name-pattern='^R126-METAB-RECOVERY-03' \
     "$CANDIDATE/test/p1-r124-metab-neutral-birth.test.js" \
     > "$WORK/real-metab-entry.tap" 2>&1; then
   cat "$WORK/real-metab-entry.tap" >&2
@@ -455,12 +470,12 @@ fi
 
 [[ "$(systemctl show stay.service -p MainPID --value)" == "$before_pid" \
   && "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" \
-  && "$(durable_runtime_revision)" == 123 \
+  && "$(durable_runtime_revision)" == 125 \
   && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]] ||
   abort candidate-tests-mutated-production 2420
 
 manifest_digest="$(sha256_file "$STAGE_ROOT/$TARGET_MANIFEST")"
-NEW_RELEASE="/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-${manifest_digest:0:12}"
+NEW_RELEASE="/opt/stay/releases/0.8.11.3-p1m-r127-metab-repair-${manifest_digest:0:12}"
 [[ "$NEW_RELEASE" == "$STAY_R124_TARGET_RELEASE" \
   && ! -e "$NEW_RELEASE" && ! -L "$NEW_RELEASE" ]] ||
   abort target-release-identity-invalid 2421
@@ -468,8 +483,8 @@ NEW_RELEASE="/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-${manifest_diges
 cat > "$CANDIDATE/$TARGET_RELEASE_ENV" <<EOF
 P1_R124_RELEASE=PASS
 SOURCE_RELEASE=$SOURCE_RELEASE
-SOURCE_RUNTIME_REVISION=R123F
-TARGET_RUNTIME_REVISION=R124F
+SOURCE_RUNTIME_REVISION=R125_FAILED_BIRTH
+TARGET_RUNTIME_REVISION=R127F
 RELEASE_TAG=$STAY_R124_RELEASE_TAG
 RELEASE_COMMIT=$STAY_R124_RELEASE_COMMIT
 RELEASE_TREE=$STAY_R124_RELEASE_TREE
@@ -477,6 +492,8 @@ ARCHIVE_SHA256=$STAY_R124_ARCHIVE_SHA256
 MANIFEST_SHA256=$STAY_R124_MANIFEST_SHA256
 SOURCE_RELEASE_TREE_SHA256=sha256:$SOURCE_TREE_SHA256
 PARENT_FREEZE_RECORD_SHA256=sha256:161b5fe340ef01836447e21c0e77167cac86033973f8a06b3c1af1d7b44fa3cc
+RECOVERY_MARKER_SHA256=sha256:$RECOVERY_MARKER_SHA256
+FAILED_R124_EVIDENCE=$FAILED_R124_EVIDENCE
 BENCHMARK_SAMPLES=4312
 BIRTH_CERTIFICATE_SHA256=$STAY_R124_BIRTH_CERTIFICATE_SHA256
 BIRTH_DOSSIER_SHA256=$STAY_R124_BIRTH_DOSSIER_SHA256
@@ -501,42 +518,52 @@ CANDIDATE=''
 TARGET_CREATED=1
 chmod -R a-w "$NEW_RELEASE"
 
-phase 'STAGE ONE-SHOT BIRTH AUTHORITY AND COMMIT ONE RESTART'
-install_atomic "$STAY_R124_BIRTH_PUBLIC_KEY_FILE" "$ACTIVE_PUBLIC_KEY" 0444
-install_atomic "$STAY_R124_BIRTH_CERTIFICATE_FILE" "$ACTIVE_CERTIFICATE" 0444
+phase 'STAGE EXACT STARTUP RECOVERY FENCE AND COMMIT ONE REPAIR RESTART'
 cat > "$WORK/p1-r124-metab-neutral-birth-once.conf" <<EOF
 [Service]
 Environment=STAY_ALLOW_METAB_NEUTRAL_BIRTH=1
 Environment=STAY_METAB_NEUTRAL_BIRTH_CERTIFICATE=$ACTIVE_CERTIFICATE
 Environment=STAY_METAB_NEUTRAL_BIRTH_PUBLIC_KEY=$ACTIVE_PUBLIC_KEY
+Environment=STAY_ALLOW_METAB_NEUTRAL_RECOVERY=1
+Environment=STAY_METAB_NEUTRAL_RECOVERY_MARKER=$RECOVERY_MARKER
+Environment=STAY_METAB_NEUTRAL_RECOVERY_MARKER_SHA256=sha256:$RECOVERY_MARKER_SHA256
 EOF
 install_atomic "$WORK/p1-r124-metab-neutral-birth-once.conf" "$BIRTH_DROPIN" 0644
-BIRTH_MATERIAL_ACTIVE=1
+DROPIN_CHANGED=1
 systemctl daemon-reload
 point_current "$NEW_RELEASE"
 POINTER_CHANGED=1
 [[ "$(readlink -f /opt/stay/current)" == "$NEW_RELEASE" \
-  && "$(durable_runtime_revision)" == 123 \
+  && "$(durable_runtime_revision)" == 125 \
   && "$(systemctl show stay.service -p MainPID --value)" == "$before_pid" \
   && "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" ]] ||
   abort pre-restart-fence-failed 2423
 
 RESTART_COMMITTED=1
 systemctl restart stay.service
-after_pid="$(systemctl show stay.service -p MainPID --value)"
-after_restarts="$(systemctl show stay.service -p NRestarts --value)"
-after_active="$(systemctl show stay.service -p ActiveState --value)"
-after_sub="$(systemctl show stay.service -p SubState --value)"
-[[ "$after_pid" =~ ^[1-9][0-9]*$ && "$after_pid" != "$before_pid" \
-  && "$after_restarts" == "$before_restarts" \
-  && "$after_active" == active && "$after_sub" == running \
-  && "$(durable_runtime_revision)" == 124 \
-  && "$(readlink -f /opt/stay/current)" == "$NEW_RELEASE" ]] ||
-  abort r124-restart-fence-failed 2424
+ready=0
+for attempt in $(seq 1 20); do
+  after_pid="$(systemctl show stay.service -p MainPID --value)"
+  after_restarts="$(systemctl show stay.service -p NRestarts --value)"
+  after_active="$(systemctl show stay.service -p ActiveState --value)"
+  after_sub="$(systemctl show stay.service -p SubState --value)"
+  if [[ "$after_pid" =~ ^[1-9][0-9]*$ && "$after_pid" != "$before_pid" \
+    && "$after_restarts" == "$before_restarts" \
+    && "$after_active" == active && "$after_sub" == running \
+    && "$(durable_runtime_revision)" == 127 \
+    && "$(readlink -f /opt/stay/current)" == "$NEW_RELEASE" \
+    && -S "$SOCKET" && ! -L "$SOCKET" ]] \
+    && curl --fail --silent --max-time 1 http://127.0.0.1:8787/healthz \
+      | grep -q '"revision":127'; then
+    ready=1
+    printf '%s\n' "$attempt" > "$WORK/restart-readiness.attempts"
+    break
+  fi
+  sleep 0.25
+done
+[[ "$ready" -eq 1 ]] || abort r127-restart-readiness-failed 2424
 
-phase 'ATOMIC METAB NEUTRAL BIRTH'
-node "$NEW_RELEASE/deploy/live-physiology-transplant/p1-resident-control-client.js" \
-  birth resident:metab > "$WORK/metab.birth.json" || abort metab-birth-failed 2425
+phase 'PROVE ATOMIC STARTUP METAB NEUTRAL RECOVERY'
 
 capture_quiescent_database "$WORK/database.after.json" \
   "$NEW_RELEASE/deploy/live-physiology-transplant/p1-r124-metab-neutral-live-proof.js" ||
@@ -553,7 +580,7 @@ node - "$before_pid" "$after_pid" "$before_restarts" "$after_restarts" \
 'use strict';
 const [beforePid, afterPid, beforeRestarts, afterRestarts] = process.argv.slice(2).map(Number);
 process.stdout.write(`${JSON.stringify({ beforePid, afterPid, beforeRestarts, afterRestarts,
-  restartCommands: 1 })}\n`);
+  restartCommands: 2 })}\n`);
 NODE
 node - "$NEW_RELEASE/deploy/live-physiology-transplant/p1-r124-metab-neutral-live-proof.js" \
   "$WORK" > "$WORK/after.proof.json" <<'NODE'
@@ -580,15 +607,23 @@ install -o root -g root -m 0444 "$STAY_R124_BIRTH_PUBLIC_KEY_FILE" \
   "$WORK/metab-neutral-birth-authority.pub"
 install -o root -g root -m 0444 "$NEW_RELEASE/$TARGET_RELEASE_ENV" \
   "$WORK/P1_R124_RELEASE.env"
+install -o root -g root -m 0400 "$RECOVERY_MARKER" \
+  "$WORK/r124-failed-birth-recovery.env"
 
-phase 'REVOKE ONE-SHOT AUTHORITY AND FREEZE R124'
+phase 'REVOKE ONE-SHOT AUTHORITY AND FREEZE R127'
 remove_active_birth_material || abort birth-authority-revocation-failed 2426
 [[ ! -e "$BIRTH_DROPIN" && ! -L "$BIRTH_DROPIN" \
   && ! -e "$ACTIVE_CERTIFICATE" && ! -L "$ACTIVE_CERTIFICATE" \
   && ! -e "$ACTIVE_PUBLIC_KEY" && ! -L "$ACTIVE_PUBLIC_KEY" ]] ||
   abort birth-authority-revocation-incomplete 2426
+[[ -f "$RECOVERY_MARKER" && ! -L "$RECOVERY_MARKER" \
+  && "$(sha256_file "$RECOVERY_MARKER")" == "$RECOVERY_MARKER_SHA256" ]] ||
+  abort recovery-marker-revocation-fence-failed 2426
+rm -f -- "$RECOVERY_MARKER"
+[[ ! -e "$RECOVERY_MARKER" && ! -L "$RECOVERY_MARKER" ]] ||
+  abort recovery-marker-revocation-incomplete 2426
 
-node - "$NEW_RELEASE" "$WORK" > "$WORK/R124.freeze.json" <<'NODE'
+node - "$NEW_RELEASE" "$WORK" > "$WORK/R127.freeze.json" <<'NODE'
 'use strict';
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -607,14 +642,16 @@ const release = Object.fromEntries(fs.readFileSync(path.join(evidenceRoot,
   'P1_R124_RELEASE.env'), 'utf8').trim().split('\n').map(line => {
   const index = line.indexOf('='); return [line.slice(0, index), line.slice(index + 1)];
 }));
-if (!(before.result === 'PASS' && after.result === 'PASS' && after.runtimeRevision === 124 &&
+if (!(before.result === 'PASS' && before.runtimeRevision === 125 &&
+  after.result === 'PASS' && after.runtimeRevision === 127 &&
   after.authorityOwned === false && after.observedOutputs === 0 && after.chipState === 'NEUTRAL')) {
   process.exit(2);
 }
 const record = sealRevisionFreeze({
   format: 'stay-runtime-revision-freeze-v1', result: 'PASS', acceptance: 'ACCEPTED',
-  freezeType: 'R124_METAB_NEUTRAL_ZERO_AUTHORITY_BIRTH',
-  runtime: { revision: 124, revisionLabel: 'R124F', progression: [123, 124],
+  freezeType: 'R127_METAB_NEUTRAL_FORWARD_REPAIR',
+  runtime: { revision: 127, revisionLabel: 'R127F',
+    progression: [123, 124, 125, 126, 127],
     serviceMainPid: service.afterPid, serviceNRestarts: service.afterRestarts,
     restartCommands: service.restartCommands },
   parentFreeze: { revision: 123,
@@ -632,6 +669,10 @@ const record = sealRevisionFreeze({
   continuity: { sntssCheckpointGenerationBefore: before.sntssCheckpointGeneration,
     chronobiologyCheckpointGenerationBefore: before.chronobiologyCheckpointGeneration,
     pendingDeliveries: 0, pendingOutboxIntents: 0, inventedBiologicalTime: false },
+  recovery: { sourceRevision: 125, birthRevision: 126, acceptedRevision: 127,
+    failureMarkerSha256: release.RECOVERY_MARKER_SHA256,
+    failureEvidence: release.FAILED_R124_EVIDENCE,
+    revisionFenced: true, pointerRewound: false },
   birthAuthority: { active: false, certificateSha256: release.BIRTH_CERTIFICATE_SHA256,
     dossierSha256: release.BIRTH_DOSSIER_SHA256,
     publicKeySha256: release.BIRTH_PUBLIC_KEY_SHA256 },
@@ -639,20 +680,21 @@ const record = sealRevisionFreeze({
     'benchmark.proof.json', 'before.proof.json', 'after.proof.json',
     'database.before.json', 'database.after.json', 'sntss.after.json',
     'chronobiology.after.json', 'metab.after.json', 'meta.after.json',
-    'service.after.json', 'metab-neutral-birth-certificate.json',
+    'service.after.json', 'restart-readiness.attempts',
+    'r124-failed-birth-recovery.env', 'metab-neutral-birth-certificate.json',
     'metab-neutral-founder-dossier.json', 'metab-neutral-birth-authority.pub'
   ].map(name => [name, hash(name)])),
   capturedAt: new Date().toISOString()
 });
-if (!validateRevisionFreeze(record, 124)) process.exit(3);
+if (!validateRevisionFreeze(record, 127)) process.exit(3);
 process.stdout.write(`${JSON.stringify(record)}\n`);
 NODE
-install_atomic "$WORK/R124.freeze.json" "$TARGET_FREEZE" 0444
+install_atomic "$WORK/R127.freeze.json" "$TARGET_FREEZE" 0444
 node - "$NEW_RELEASE/runtime/revision-freeze.js" "$TARGET_FREEZE" <<'NODE'
 'use strict';
 const fs = require('node:fs');
 const [helper, file] = process.argv.slice(2);
-if (!require(helper).validateRevisionFreeze(JSON.parse(fs.readFileSync(file, 'utf8')), 124)) {
+if (!require(helper).validateRevisionFreeze(JSON.parse(fs.readFileSync(file, 'utf8')), 127)) {
   process.exit(1);
 }
 NODE
@@ -663,19 +705,19 @@ node - "$WORK/meta.frozen.json" <<'NODE'
 const fs = require('node:fs');
 const meta = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const chip = id => meta.chipProjection?.lifecycle?.find(value => value.coreId === id);
-if (!(meta.ok === true && meta.revision === 124 && meta.revisionFrozen === true &&
-  meta.revisionLabel === 'R124F' && chip('bsf')?.state === 'LIVE' &&
+if (!(meta.ok === true && meta.revision === 127 && meta.revisionFrozen === true &&
+  meta.revisionLabel === 'R127F' && chip('bsf')?.state === 'LIVE' &&
   chip('sntss')?.state === 'SHADOW' && chip('chronobiology')?.state === 'SHADOW' &&
   chip('metab')?.state === 'NEUTRAL' && chip('metab')?.born === true)) process.exit(1);
 NODE
 
 [[ "$(systemctl show stay.service -p MainPID --value)" == "$after_pid" \
   && "$(systemctl show stay.service -p NRestarts --value)" == "$after_restarts" \
-  && "$(durable_runtime_revision)" == 124 \
+  && "$(durable_runtime_revision)" == 127 \
   && "$(readlink -f /opt/stay/current)" == "$NEW_RELEASE" ]] ||
   abort final-live-fence-failed 2427
 
-final_evidence="$EVIDENCE_ROOT/R124F-$(date -u +'%Y%m%dT%H%M%SZ')"
+final_evidence="$EVIDENCE_ROOT/R127F-$(date -u +'%Y%m%dT%H%M%SZ')"
 [[ ! -e "$final_evidence" && ! -L "$final_evidence" ]] || abort evidence-target-present 2428
 mv -T "$WORK" "$final_evidence"
 WORK=''
@@ -683,13 +725,13 @@ chmod -R a-w "$final_evidence"
 COMPLETED=1
 
 printf '%s\n' \
-  'R124_METAB_NEUTRAL_FORWARD=PASS' \
-  'RUNTIME_REVISION_AFTER=124' \
-  'REVISION_LABEL=R124F' \
+  'R124_METAB_NEUTRAL_RECOVERY=PASS' \
+  'RUNTIME_REVISION_AFTER=127' \
+  'REVISION_LABEL=R127F' \
   "CURRENT_RELEASE=$NEW_RELEASE" \
   "SERVICE_PID=$after_pid" \
   "SERVICE_NRESTARTS=$after_restarts" \
-  'RESTART_COMMANDS=1' \
+  'RESTART_COMMANDS=2' \
   'BSF_MODE=LIVE' \
   'BSF_STATUS=RUNNING' \
   'SNTSS_MODE=SHADOW' \

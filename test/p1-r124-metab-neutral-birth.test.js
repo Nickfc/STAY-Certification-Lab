@@ -9,7 +9,11 @@ const test = require('node:test');
 
 const { EventFabric } = require('../runtime/kernel/event-fabric');
 const { stableStringify } = require('../runtime/kernel/canonical-json');
-const { LivingKernel } = require('../runtime/kernel/living-kernel');
+const {
+  LivingKernel,
+  R124_METAB_RECOVERY,
+  readR124MetabRecoveryFence
+} = require('../runtime/kernel/living-kernel');
 const { ResidentManager, RESIDENT_SIGNALLING } = require('../runtime/kernel/resident-manager');
 const { StateStore } = require('../runtime/kernel/state-store');
 const {
@@ -912,4 +916,120 @@ test('R124-METAB-RECOVERY-02 R125 resumes a power-loss window after atomic dossi
   } finally {
     await restarted.stop().catch(() => {});
   }
+});
+
+test('R126-METAB-RECOVERY-03 exact failed R124 cohort births before the R127 fetus revision', async t => {
+  const {
+    kernel,
+    root,
+    freezeDirectory,
+    publicKeyPath,
+    certificateFile,
+    nowMs
+  } = await makeKernelHarness(t);
+  await kernel.stop();
+
+  const seed = new StateStore(root);
+  await seed.init();
+  await seed.writeLife('runtime-revision', {
+    revision: 125,
+    reason: 'core.install',
+    at: '2026-09-02T14:43:09.828Z',
+    kernelVersion: '0.8.11.3',
+    coreId: 'fetus-legacy',
+    coreVersion: '0.6.0'
+  });
+  seed.close();
+
+  const markerSha256 =
+    'sha256:933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e';
+  const failureEvidence =
+    '/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2';
+  let fenceReads = 0;
+  const recovered = new LivingKernel({
+    dataDir: root,
+    releaseRoot: ROOT,
+    logger: { log() {}, info() {}, warn() {}, error() {} },
+    clock: () => nowMs + 1_000,
+    heartbeatIntervalMs: 0,
+    snapshotIntervalMs: 0,
+    allowMetabNeutralBirth: true,
+    allowMetabNeutralRecovery: true,
+    metabNeutralBirthPublicKeyPath: publicKeyPath,
+    metabNeutralBirthCertificateFile: certificateFile,
+    metabNeutralRecoveryMarkerSha256: markerSha256,
+    metabNeutralRecoveryFenceReader: options => {
+      fenceReads += 1;
+      assert.equal(options.markerFile, '/run/stay-r124-metab-neutral-recovery.env');
+      assert.equal(options.expectedMarkerSha256, markerSha256);
+      assert.equal(options.trustedUid, 0);
+      return Object.freeze({ markerSha256, failureEvidence });
+    },
+    runtimeFreezeDirectory: freezeDirectory
+  });
+  try {
+    await recovered.start();
+    assert.equal(recovered.runtimeRevision, 126);
+    await assert.rejects(
+      () => recovered.birthMetabNeutral(),
+      { code: 'P1_METAB_BIRTH_REVISION' }
+    );
+    await recovered.recoverMetabNeutralBirth();
+    const resident = recovered.stateStore.getResident('resident:metab');
+    const status = await recovered.ensureResidentManager().status('resident:metab');
+    const storage = new P1ProductionPersistence({
+      stateStore: recovered.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const chip = storage.readChip('resident:metab');
+    assert.equal(fenceReads, 1);
+    assert.equal(recovered.runtimeRevision, 126);
+    assert.equal(resident.status, 'RUNNING');
+    assert.equal(resident.version, neutralManifest.version);
+    assert.equal(status.health.mode, 'NEUTRAL');
+    assert.equal(status.authorityOwned, false);
+    assert.equal(status.observedOutputs, 0);
+    assert.equal(recovered.stateStore.getAuthority('METAB'), null);
+    assert.equal(storage.readFounder({
+      organismId: IDENTITY.organismId,
+      coreId: 'METAB'
+    }).founderId, founderRecord().founderId);
+    assert.equal(chip.currentState, 'NEUTRAL');
+    assert.equal(chip.healthReasonCode, 'R126_NEUTRAL_FORWARD_RECOVERED');
+    assert.equal(storage.verifyChipHistory('resident:metab'), true);
+  } finally {
+    await recovered.stop().catch(() => {});
+  }
+});
+
+test('R126-METAB-RECOVERY-04 recovery is startup-only, revision-fenced and absent from control protocol', async () => {
+  const source = await fs.readFile(path.join(ROOT, 'server.js'), 'utf8');
+  const kernelStart = source.indexOf('await kernel.start();');
+  const recovery = source.indexOf('await kernel.recoverMetabNeutralBirth();');
+  const fetusInstall = source.indexOf('if (process.env.STAY_BOOT_CORE)');
+  assert.ok(kernelStart >= 0 && recovery > kernelStart && fetusInstall > recovery);
+  assert.match(source, /STAY_ALLOW_METAB_NEUTRAL_RECOVERY === '1'/);
+  assert.doesNotMatch(
+    require('../runtime/kernel/resident-control-socket').createResidentControlDispatcher.toString(),
+    /recoverMetabNeutralBirth/
+  );
+  assert.equal(
+    R124_METAB_RECOVERY.markerSha256,
+    'sha256:933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e'
+  );
+  assert.throws(
+    () => readR124MetabRecoveryFence({
+      markerFile: '/run/stay-r124-metab-neutral-recovery.env',
+      expectedMarkerSha256: `sha256:${'0'.repeat(64)}`,
+      trustedUid: 0
+    }),
+    { code: 'P1_METAB_RECOVERY_MARKER' }
+  );
+  assert.throws(
+    () => new LivingKernel({
+      dataDir: path.join(os.tmpdir(), 'unused-r126-recovery'),
+      metabNeutralRecoveryFenceReader: null
+    }),
+    { code: 'P1_METAB_RECOVERY_FENCE_READER' }
+  );
 });
