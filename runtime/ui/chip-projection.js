@@ -103,6 +103,7 @@ function lifecycleChip(item, kind) {
     coreId,
     residencyId: kind === 'resident' ? text(item?.residencyId, null) : null,
     label: text(item?.label, coreId).toUpperCase(),
+    born: kind === 'resident' || item?.born === true,
     version: text(item?.version, null),
     mode: text(item?.mode, 'NEUTRAL').toUpperCase(),
     status: text(item?.status, 'UNKNOWN').toUpperCase(),

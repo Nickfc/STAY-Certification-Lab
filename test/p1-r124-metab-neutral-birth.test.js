@@ -827,6 +827,7 @@ test('R124-METAB-WEB-01 accepted METAB replaces only its roadmap label with an o
     ['HOMEOS · LAB QUALIFIED', 'INTERO · LAB QUALIFIED']
   );
   assert.equal(projection.lifecycle.at(-1).symbol, '◇');
+  assert.equal(projection.lifecycle.at(-1).born, true);
   assert.equal(projection.lifecycle.at(-1).observationOnly, true);
   assert.deepEqual(projection.mutationEndpoints, []);
 });

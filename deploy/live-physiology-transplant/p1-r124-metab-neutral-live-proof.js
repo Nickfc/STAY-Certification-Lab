@@ -196,10 +196,7 @@ function assertResources(status, label) {
   return value;
 }
 
-function validateBefore(
-  { database, freeze, sntssStatus, chronobiologyStatus, meta, service },
-  { expectedFreezeRecordSha256 = EXPECTED.sourceFreezeRecordSha256 } = {}
-) {
+function validateBefore({ database, freeze, sntssStatus, chronobiologyStatus, meta, service }) {
   assert(database.quickCheck === 'ok' && database.queryOnly === true &&
     database.runtimeRevision === 123 && database.pendingDeliveries === 0 &&
     database.pendingOutboxIntents === 0 && database.p1Authority === 0 &&
@@ -208,7 +205,7 @@ function validateBefore(
     database.dossiers.length === 0 && database.chips.length === 0,
   'R123F database preflight failed', 'R124_METAB_PROOF_BEFORE');
   assert(validateRevisionFreeze(freeze, 123) &&
-    freeze.recordSha256 === expectedFreezeRecordSha256,
+    freeze.recordSha256 === EXPECTED.sourceFreezeRecordSha256,
   'R123F parent freeze changed', 'R124_METAB_PROOF_BEFORE');
   assertExistingResident(residentRow(database, EXPECTED.sntss), EXPECTED.sntss, 'SNTSS');
   assertExistingResident(residentRow(database, EXPECTED.chronobiology), EXPECTED.chronobiology,
@@ -297,7 +294,13 @@ function validateAfter({ before, database, sntssStatus, chronobiologyStatus, met
     fetus?.memoryGuardian?.status === 'healthy' &&
     fetus?.memoryGuardian?.warnAtMiB === 192 && fetus?.memoryGuardian?.recycleAtMiB === 256 &&
     Number(service?.beforePid) > 0 && Number(service?.afterPid) > 0 &&
-    service.beforePid !== service.afterPid && service.beforeRestarts === service.afterRestarts &&
+    service.beforePid !== service.afterPid &&
+    (database.runtimeRevision === 124
+      ? service.beforeRestarts === service.afterRestarts
+      : Number.isSafeInteger(service.beforeRestarts) &&
+        Number.isSafeInteger(service.afterRestarts) &&
+        service.afterRestarts >= service.beforeRestarts &&
+        service.afterRestarts <= service.beforeRestarts + 1) &&
     service.restartCommands === 1,
   'R124 live acceptance failed', 'R124_METAB_PROOF_AFTER');
   return Object.freeze({

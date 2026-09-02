@@ -1,13 +1,14 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const {
   EXPECTED,
   validateAfter,
   validateBefore
 } = require('../deploy/live-physiology-transplant/p1-r124-metab-neutral-live-proof');
-const { sealRevisionFreeze } = require('../runtime/revision-freeze');
 const { recordHash } = require('../runtime/p1-r0/records');
 const { sha256 } = require('../runtime/p1-r0/resident-support');
 const profiles = require(
@@ -102,23 +103,21 @@ function beforeDatabase() {
 }
 
 function freeze() {
-  return sealRevisionFreeze({
-    format: 'stay-runtime-revision-freeze-v1', result: 'PASS', acceptance: 'ACCEPTED',
-    freezeType: 'R123F_AUTHORIZED_PRODUCTION_FREEZE_WITH_DISCLOSED_EXCEPTION',
-    runtime: { revision: 123, revisionLabel: 'R123F' }
-  });
+  return JSON.parse(fs.readFileSync(path.join(
+    __dirname, '..', 'certification', 'p1-r0', 'r123f-benchmark-closure',
+    'r123f-freeze.json'
+  ), 'utf8'));
 }
 
 function beforeProof() {
-  const parentFreeze = freeze();
   return validateBefore({
-    database: beforeDatabase(), freeze: parentFreeze,
+    database: beforeDatabase(), freeze: freeze(),
     sntssStatus: resources(EXPECTED.sntss),
     chronobiologyStatus: resources(EXPECTED.chronobiology),
     meta: meta(123),
     service: { mainPid: 395571, nRestarts: 0, activeState: 'active',
       subState: 'running', benchmarkActiveState: 'inactive' }
-  }, { expectedFreezeRecordSha256: parentFreeze.recordSha256 });
+  });
 }
 
 function founder() {
@@ -191,14 +190,12 @@ test('R124-METAB-PROOF-01 exact R123F baseline remains read-only, frozen and con
   });
   const leaking = beforeDatabase();
   leaking.p1Authority = 1;
-  const parentFreeze = freeze();
   assert.throws(() => validateBefore({
-    database: leaking, freeze: parentFreeze, sntssStatus: resources(EXPECTED.sntss),
+    database: leaking, freeze: freeze(), sntssStatus: resources(EXPECTED.sntss),
     chronobiologyStatus: resources(EXPECTED.chronobiology), meta: meta(123),
     service: { mainPid: 1, nRestarts: 0, activeState: 'active', subState: 'running',
       benchmarkActiveState: 'inactive' }
-  }, { expectedFreezeRecordSha256: parentFreeze.recordSha256 }),
-  { code: 'R124_METAB_PROOF_BEFORE' });
+  }), { code: 'R124_METAB_PROOF_BEFORE' });
 });
 
 test('R124-METAB-PROOF-02 acceptance preserves prior residents and proves one neutral zero-authority birth', () => {
@@ -238,7 +235,7 @@ test('R124-METAB-PROOF-03 forward R125 recovery is accepted only with the same f
     chronobiologyStatus: resources(EXPECTED.chronobiology),
     metabStatus: resources(EXPECTED.metab, 'metab-instance-1'), meta: meta(125, true),
     service: { beforePid: 395571, afterPid: 400001, beforeRestarts: 0,
-      afterRestarts: 0, restartCommands: 1 }
+      afterRestarts: 1, restartCommands: 1 }
   });
   assert.equal(result.runtimeRevision, 125);
   const rewound = structuredClone(database);
@@ -252,4 +249,12 @@ test('R124-METAB-PROOF-03 forward R125 recovery is accepted only with the same f
     service: { beforePid: 1, afterPid: 2, beforeRestarts: 0, afterRestarts: 0,
       restartCommands: 1 }
   }), { code: 'R124_METAB_PROOF_CONTINUITY' });
+  assert.throws(() => validateAfter({
+    before: beforeProof(), database,
+    sntssStatus: resources(EXPECTED.sntss),
+    chronobiologyStatus: resources(EXPECTED.chronobiology),
+    metabStatus: resources(EXPECTED.metab, 'metab-instance-1'), meta: meta(125, true),
+    service: { beforePid: 1, afterPid: 2, beforeRestarts: 0, afterRestarts: 2,
+      restartCommands: 1 }
+  }), { code: 'R124_METAB_PROOF_AFTER' });
 });
