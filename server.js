@@ -593,6 +593,13 @@ async function main() {
   });
   await kernel.start();
 
+  if (
+    process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY === '1' &&
+    !kernel.stateStore.getResident('resident:metab')
+  ) {
+    await kernel.recoverMetabNeutralBirth();
+  }
+
   if (process.env.STAY_BOOT_CORE) {
     await kernel.installCore(process.env.STAY_BOOT_CORE);
   }
