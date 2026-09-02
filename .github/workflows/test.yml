@@ -46,6 +46,19 @@ jobs:
           node --test --test-concurrency=1
           --test-name-pattern='the real preflight CLI entry passes through Bubblewrap on Linux'
           test/production-hardening-entry-path.test.js
+      - name: Run real METAB shadow entry preflight
+        working-directory: /tmp/stay-ci-source
+        env:
+          NODE_ENV: production
+          STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
+          STAY_R128_REAL_ENTRY: '1'
+          STAY_REQUIRE_OS_CORE_SANDBOX: '1'
+          STAY_REQUIRE_CORE_PACKAGE_POLICY: '1'
+          STAY_REQUIRE_CGROUPS: '0'
+        run: >-
+          node --disable-sigusr1 --test --test-isolation=none --test-concurrency=1
+          --test-name-pattern='^R128-METAB-ENTRY-09'
+          test/p1-r128-metab-shadow.test.js
       - name: Run secure server entry preflight
         working-directory: /tmp/stay-ci-source
         env:

@@ -796,3 +796,39 @@ test('R128-METAB-FORWARD-08 post-promotion acceptance failure never rewinds and 
   assert.equal(status.observedOutputs, 0);
   assert.equal(status.authorityOwned, false);
 });
+
+test('R128-METAB-ENTRY-09 real CoreHost path sandboxes METAB before output-firewalled SHADOW init', {
+  skip: process.env.STAY_R128_REAL_ENTRY !== '1'
+}, async t => {
+  const { stateStore, fabric, manager } = await makeManager(t);
+  await manager.promoteMetabShadow({
+    binding: binding(),
+    shadowContract: METAB_SHADOW_RESIDENT_CONTRACT,
+    publishActivation: async ({ sourceCheckpoint }) =>
+      fabric.publishBiologicalSignal(
+        activationSignal(sourceCheckpoint),
+        {
+          eventClass: 'critical',
+          sourceVersion: '0.8.11.3',
+          evidenceHash: IDENTITY_HASH
+        }
+      )
+  });
+  const status = await manager.status('resident:metab');
+  assert.equal(status.running, true);
+  assert.equal(status.health.mode, 'SHADOW');
+  assert.equal(status.observedOutputs, 0);
+  assert.equal(status.authorityOwned, false);
+  assert.equal(stateStore.getAuthority('METAB'), null);
+  assert.equal(status.host.osContainment.payloadSandboxed, true);
+  assert.equal(status.host.osContainment.payloadAttachedBeforeInit, true);
+  if (process.env.STAY_REQUIRE_CGROUPS === '1') {
+    assert.equal(status.host.osContainment.required, true);
+    assert.equal(status.host.osContainment.available, true);
+    assert.equal(status.host.osContainment.supervisorChargedToKernel, true);
+    assert.equal(status.host.osContainment.limits['memory.high'], String(64 * 1024 * 1024));
+    assert.equal(status.host.osContainment.limits['memory.max'], String(96 * 1024 * 1024));
+    assert.equal(status.host.osContainment.limits['pids.max'], '16');
+    assert.equal(status.host.osContainment.limits['cpu.max'], '20000 100000');
+  }
+});
