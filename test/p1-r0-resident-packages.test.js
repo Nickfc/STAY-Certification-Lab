@@ -21,10 +21,10 @@ const {
 
 const ROOT = path.resolve(__dirname, '..');
 
-test('P1-PKG-01 all three resident packages reproduce byte-identically from reviewed sources', () => {
+test('P1-PKG-01 all resident packages reproduce byte-identically from reviewed sources', () => {
   for (const [coreId, definition] of Object.entries(DEFINITIONS)) {
     const generatedBundle = bundle(definition.entry, ROOT);
-    const generatedPolicy = policy(coreId, definition, generatedBundle);
+    const generatedPolicy = policy(definition.policyCoreId || coreId, definition, generatedBundle);
     const packageRoot = path.join(ROOT, definition.output);
     assert.equal(fs.readFileSync(path.join(packageRoot, 'index.js'), 'utf8'), generatedBundle.output);
     assert.deepEqual(
@@ -42,7 +42,7 @@ test('P1-PKG-02 package policies deny ambient authority and retain the unchanged
     const record = enforcePackagePolicy(entrypoint);
     const resident = require(entrypoint);
     const manifest = validateManifest(resident.manifest);
-    assert.equal(record.policy.coreId, coreId);
+    assert.equal(record.policy.coreId, definition.policyCoreId || coreId);
     assert.equal(record.policy.policyHash, packageHashes[coreId]);
     assert.deepEqual(record.policy.ambientCapabilities, {
       filesystemWrite: false,
