@@ -1082,6 +1082,8 @@ class ResidentManager {
     inspected,
     binding,
     checkpoint = null,
+    initialState = null,
+    acceptanceCommit = null,
     finalizedReplay = [],
     backfillInactiveGap = false,
     replayDebtLimit = 1023,
@@ -1365,7 +1367,15 @@ class ResidentManager {
             state:
               checkpoint.state
           }
-        : {
+        : initialState
+          ? {
+              stateSchema:
+                manifest.stateSchema,
+
+              state:
+                structuredClone(initialState)
+            }
+          : {
             stateSchema:
               manifest.stateSchema,
 
@@ -1577,9 +1587,48 @@ class ResidentManager {
       );
 
       this.stateStore
-        .setResidentStatus(
-          resident.residencyId,
-          'RUNNING'
+        .withTransaction(
+          () => {
+            this.stateStore
+              .setResidentStatus(
+                resident.residencyId,
+                'RUNNING'
+              );
+
+            if (acceptanceCommit) {
+              if (typeof acceptanceCommit !== 'function') {
+                fail(
+                  'resident acceptance commit is invalid',
+                  'RESIDENT_ACCEPTANCE_COMMIT'
+                );
+              }
+
+              const result =
+                acceptanceCommit({
+                  checkpoint:
+                    persisted,
+
+                  resident:
+                    this.stateStore
+                      .getResident(
+                        resident.residencyId
+                      ),
+
+                  manifest
+                });
+
+              if (
+                result &&
+                typeof result.then ===
+                  'function'
+              ) {
+                fail(
+                  'resident acceptance commit must be synchronous',
+                  'RESIDENT_ACCEPTANCE_COMMIT'
+                );
+              }
+            }
+          }
         );
 
       unit.resident =
@@ -1674,7 +1723,11 @@ class ResidentManager {
 
   async attach({
     moduleRelativePath,
-    binding
+    binding,
+    initialState = null,
+    instanceId = null,
+    registerResident = null,
+    acceptanceCommit = null
   }) {
     if (
       this.closed
@@ -1710,13 +1763,13 @@ class ResidentManager {
       binding
     );
 
-    const instanceId =
-      crypto.randomUUID();
+    const selectedInstanceId =
+      instanceId == null
+        ? crypto.randomUUID()
+        : String(instanceId);
 
 
-    const resident =
-      this.stateStore
-        .registerResident({
+    const registration = {
           residencyId:
             contract.residencyId,
 
@@ -1726,7 +1779,8 @@ class ResidentManager {
           role:
             contract.role,
 
-          instanceId,
+          instanceId:
+            selectedInstanceId,
 
           version:
             inspected.definition
@@ -1752,7 +1806,35 @@ class ResidentManager {
 
           organismIdentityHash:
             this.organismIdentityHash
-        });
+        };
+
+    const resident =
+      registerResident
+        ? registerResident(
+            Object.freeze({
+              ...registration
+            })
+          )
+        : this.stateStore
+            .registerResident(
+              registration
+            );
+
+    if (
+      !resident ||
+      typeof resident.then ===
+        'function'
+    ) {
+      fail(
+        'resident registration must commit synchronously',
+        'RESIDENT_REGISTRATION_COMMIT'
+      );
+    }
+
+    this.verifyExistingIdentity(
+      resident,
+      inspected
+    );
 
 
     return this.startUnit({
@@ -1760,7 +1842,82 @@ class ResidentManager {
       inspected,
       binding,
       checkpoint:
-        null
+        null,
+      initialState,
+      acceptanceCommit
+    });
+  }
+
+
+  async resumeInitialAttachment({
+    residencyId,
+    binding,
+    initialState,
+    acceptanceCommit = null
+  }) {
+    if (this.closed) {
+      fail(
+        'resident manager is closed',
+        'RESIDENT_MANAGER_CLOSED'
+      );
+    }
+
+    if (this.units.has(residencyId)) {
+      fail(
+        'resident is already running in this manager',
+        'RESIDENT_ALREADY_RUNNING'
+      );
+    }
+
+    const resident =
+      this.stateStore.getResident(residencyId);
+
+    if (!resident || resident.status !== 'ATTACHED') {
+      fail(
+        'initial resident attachment is not resumable',
+        'RESIDENT_INITIAL_ATTACHMENT_NOT_RESUMABLE'
+      );
+    }
+
+    this.validateBinding(binding);
+
+    const inspected =
+      await this.inspect(
+        resident.moduleRelativePath,
+        residencyId
+      );
+
+    this.verifyExistingIdentity(
+      resident,
+      inspected
+    );
+
+    if (
+      await this.stateStore
+        .readResidentCheckpoint(
+          residencyId
+        )
+    ) {
+      fail(
+        'initial resident attachment has a checkpoint; use recovery',
+        'RESIDENT_INITIAL_ATTACHMENT_HAS_CHECKPOINT'
+      );
+    }
+
+    if (!initialState) {
+      fail(
+        'initial resident attachment state is missing',
+        'RESIDENT_INITIAL_ATTACHMENT_STATE_MISSING'
+      );
+    }
+
+    return this.startUnit({
+      resident,
+      inspected,
+      binding,
+      checkpoint: null,
+      initialState,
+      acceptanceCommit
     });
   }
 
@@ -2104,7 +2261,10 @@ class ResidentManager {
 
   async recover(
     residencyId,
-    binding
+    binding,
+    {
+      acceptanceCommit = null
+    } = {}
   ) {
     if (
       this.closed
@@ -2234,7 +2394,8 @@ class ResidentManager {
       binding,
       checkpoint,
       finalizedReplay,
-      backfillInactiveGap: true
+      backfillInactiveGap: true,
+      acceptanceCommit
     });
   }
 
