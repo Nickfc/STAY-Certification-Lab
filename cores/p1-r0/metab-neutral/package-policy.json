@@ -1,0 +1,70 @@
+{
+  "formatVersion": 1,
+  "coreId": "METAB",
+  "entrypoint": "index.js",
+  "allowedBuiltins": [
+    "node:crypto"
+  ],
+  "ambientCapabilities": {
+    "filesystemWrite": false,
+    "network": false,
+    "processSpawn": false
+  },
+  "diagnostics": false,
+  "environmentAllowlist": [
+    "LANG",
+    "LC_ALL",
+    "NODE_ENV",
+    "PATH",
+    "STAY_COREHOST",
+    "TZ"
+  ],
+  "files": {
+    "index.js": "sha256:5359d9c9fc29c64d740232395a6a0b4ec04da63251a5f2575f522b7a27367f48"
+  },
+  "resourceContract": {
+    "cgroupV2": {
+      "distribution": "stay-cores",
+      "leaf": "p1-r0-metab-<instance>",
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "kernelGovernorOwned": true,
+      "memoryHighBytes": 67108864,
+      "memoryMaxBytes": 100663296,
+      "pidsMax": 16,
+      "cpuMax": "20000 100000"
+    },
+    "manifestResources": {
+      "softRamMiB": 64,
+      "hardRamMiB": 96,
+      "softCpuPercent": 5,
+      "hardCpuPercent": 20,
+      "pidsMax": 16,
+      "queueCapacity": 256,
+      "handlerTimeoutMs": 250,
+      "healthTimeoutMs": 1000,
+      "outputCapacity": 128,
+      "outputLimitPerEvent": 16,
+      "outputBytesPerEvent": 65536,
+      "storageMiB": 4,
+      "maxRestarts": 4,
+      "restartWindowMs": 60000,
+      "restartBackoffMs": 250
+    },
+    "requiredOnProductionHost": true
+  },
+  "bounds": {
+    "checkpointBytes": 1048576,
+    "auditRecords": 64,
+    "auditRecordBytes": 4096,
+    "migrationRecords": 64,
+    "migrationWorkItems": 1,
+    "shutdownMs": 2000,
+    "pendingRequests": 128,
+    "productionOutputs": 0
+  },
+  "policyHash": "sha256:7481afb6f46e9baa1e53c9dfdd8d8f7a0776cde9af45f7989a52dd32c12be1bb"
+}
