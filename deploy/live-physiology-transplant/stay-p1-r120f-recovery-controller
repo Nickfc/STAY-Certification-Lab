@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+EXPECTED_PRIVATE_IPV4='172.26.9.207'
+EXPECTED_TAG='r120f-recovery-v2'
+EXPECTED_COMMIT='92edf850231743f4c7a149f56cf5288d4cf81f5c'
+EXPECTED_TREE='32467f11b6dac9ca52bf80013003fbb658b11615'
+EXPECTED_HELPER_SHA256='1c55578ff1db859777274f795ae50dbb3c1465e4142a99ccffd55cd77606ba73'
+EXPECTED_RECOVERY_SHA256='a19d5e228254298b0b875d56d04774b7ee1e8f0400ba3af4f893a0c7f72dd47f'
+EXPECTED_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2961f9a48173'
+INCOMING='/opt/stay/incoming'
+RUN_ROOT=''
+WORK_ROOT=''
+OUTPUT=''
+CLEANUP_ARMED=0
+FAILURE_CLASS='NONE'
+
+abort() { FAILURE_CLASS="$2"; echo "R120F_CONTROLLER_ABORT=$3" >&2; exit "$1"; }
+trusted_root_file() {
+  local file="$1" mode
+  [[ -f "$file" && ! -L "$file" && "$(stat -Lc '%U:%G' "$file")" == root:root ]] || return 1
+  mode="$(stat -Lc '%a' "$file")" || return 1
+  (( (8#$mode & 8#022) == 0 ))
+}
+validate_plain_tree() {
+  [[ -d "$1" && ! -L "$1" ]] &&
+    [[ -z "$(find -P "$1" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
+}
+validate_run_root() {
+  local root="$1" mode
+  [[ "$root" =~ ^/opt/stay/incoming/r120f-recovery-v2-[0-9]+$ && -d "$root" && ! -L "$root" ]] || return 1
+  [[ "$(readlink -f "$(dirname "$root")")" == "$(readlink -f "$INCOMING")" ]] || return 1
+  [[ "$(stat -Lc '%U:%G' "$root")" == staydeploy:staydeploy ]] || return 1
+  mode="$(stat -Lc '%a' "$root")" || return 1
+  [[ "$mode" == 700 || "$mode" == 2700 ]] && validate_plain_tree "$root"
+}
+cleanup() {
+  local status=$? cleanup_status=0
+  trap - EXIT
+  set +e
+  [[ -z "$OUTPUT" ]] || rm -f -- "$OUTPUT"
+  if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r120f-recovery-controller\.[A-Za-z0-9]+$ \
+    && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then
+    rm -rf --one-file-system -- "$WORK_ROOT" || cleanup_status=$?
+  fi
+  if [[ "$CLEANUP_ARMED" -eq 1 ]] && validate_run_root "$RUN_ROOT"; then
+    find -P "$RUN_ROOT" -xdev -type d -exec chmod u+rwx {} +
+    find -P "$RUN_ROOT" -xdev -type f -exec chmod u+rw {} +
+    rm -rf --one-file-system -- "$RUN_ROOT" || cleanup_status=$?
+  fi
+  echo "R120F_CONTROLLER_FAILURE_CLASS=$FAILURE_CLASS"
+  echo "R120F_CONTROLLER_CLEANUP_STATUS=$([[ "$cleanup_status" -eq 0 ]] && echo PASS || echo FAIL_$cleanup_status)"
+  [[ "$status" -ne 0 || "$cleanup_status" -eq 0 ]] || status="$cleanup_status"
+  exit "$status"
+}
+
+[[ "$#" -eq 3 ]] || abort 64 ARGUMENT_VALIDATION_FAILED exactly-three-arguments-required
+[[ "$EUID" -eq 0 && -x "$0" ]] || abort 65 PRIVILEGE_BOUNDARY_FAILED root-required
+trusted_root_file "$0" || abort 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
+[[ "$(ip -4 -o addr show scope global | awk '{split($4,a,"/");print a[1]}' | sort -u)" == "$EXPECTED_PRIVATE_IPV4" ]] ||
+  abort 67 HOST_IDENTITY_FAILED host-identity-mismatch
+[[ "$1" == recover-r120f && "$3" == AUTHORIZE_R120F_V2_FENCED_RECOVERY_WITHOUT_ANOTHER_RESTART ]] ||
+  abort 74 AUTHORIZATION_FAILED recovery-authorization-missing
+validate_run_root "$2" || abort 78 PATH_VALIDATION_FAILED invalid-run-root
+RUN_ROOT="$2"
+trap cleanup EXIT
+expected_files=$'R120F_RECOVERY.identity\np1-r120f-contained-recovery.js\np1-r120f-contained-recovery.sh'
+[[ "$(find "$RUN_ROOT" -maxdepth 1 -type f -printf '%f\n' | sort)" == "$expected_files" \
+  && -z "$(find -P "$RUN_ROOT" -xdev ! -user staydeploy -print -quit)" ]] ||
+  abort 80 STAGED_IDENTITY_FAILED staged-file-set-invalid
+[[ "$(sha256sum "$RUN_ROOT/p1-r120f-contained-recovery.js" | awk '{print $1}')" == "$EXPECTED_HELPER_SHA256" \
+  && "$(sha256sum "$RUN_ROOT/p1-r120f-contained-recovery.sh" | awk '{print $1}')" == "$EXPECTED_RECOVERY_SHA256" ]] ||
+  abort 80 STAGED_IDENTITY_FAILED staged-hash-invalid
+expected_identity="$(cat <<EOF
+RECOVERY_TAG=$EXPECTED_TAG
+RECOVERY_COMMIT=$EXPECTED_COMMIT
+RECOVERY_TREE=$EXPECTED_TREE
+HELPER_SHA256=$EXPECTED_HELPER_SHA256
+RECOVERY_SHA256=$EXPECTED_RECOVERY_SHA256
+TARGET_RELEASE=$EXPECTED_RELEASE
+EOF
+)"
+[[ -f "$RUN_ROOT/R120F_RECOVERY.identity" && ! -L "$RUN_ROOT/R120F_RECOVERY.identity" \
+  && "$(<"$RUN_ROOT/R120F_RECOVERY.identity")" == "$expected_identity" ]] ||
+  abort 80 STAGED_IDENTITY_FAILED staged-identity-invalid
+CLEANUP_ARMED=1
+WORK_ROOT="$(mktemp -d /run/stay-r120f-recovery-controller.XXXXXX)"
+[[ "$(stat -Lc '%U:%G:%a' "$WORK_ROOT")" == root:root:700 ]] ||
+  abort 81 STAGED_IDENTITY_FAILED private-root-invalid
+install -o root -g root -m 0400 "$RUN_ROOT/p1-r120f-contained-recovery.js" "$WORK_ROOT/p1-r120f-contained-recovery.js"
+install -o root -g root -m 0400 "$RUN_ROOT/p1-r120f-contained-recovery.sh" "$WORK_ROOT/p1-r120f-contained-recovery.sh"
+[[ "$(sha256sum "$WORK_ROOT/p1-r120f-contained-recovery.js" | awk '{print $1}')" == "$EXPECTED_HELPER_SHA256" \
+  && "$(sha256sum "$WORK_ROOT/p1-r120f-contained-recovery.sh" | awk '{print $1}')" == "$EXPECTED_RECOVERY_SHA256" ]] ||
+  abort 81 STAGED_IDENTITY_FAILED private-hash-invalid
+/usr/local/bin/node --check "$WORK_ROOT/p1-r120f-contained-recovery.js" >/dev/null ||
+  abort 81 STAGED_IDENTITY_FAILED helper-syntax-invalid
+/bin/bash -n "$WORK_ROOT/p1-r120f-contained-recovery.sh" ||
+  abort 81 STAGED_IDENTITY_FAILED recovery-syntax-invalid
+OUTPUT="$(mktemp /run/stay-r120f-recovery-output.XXXXXX)"
+controller_sha="$(sha256sum "$0" | awk '{print $1}')"
+set +e
+env -i PATH="$PATH" \
+  STAY_R120F_RECOVERY_AUTHORIZATION=COMPLETE_FENCED_R120F_WITHOUT_ANOTHER_RESTART \
+  STAY_R120F_CONTROLLER_SHA256="sha256:$controller_sha" \
+  /usr/bin/timeout --signal=TERM --kill-after=30s 900s \
+  /bin/bash "$WORK_ROOT/p1-r120f-contained-recovery.sh" 2>&1 | tee "$OUTPUT"
+statuses=("${PIPESTATUS[@]}")
+set -e
+[[ "${statuses[1]:-125}" -eq 0 ]] || abort 125 R120F_EXECUTION_FAILED output-capture-failed
+[[ "${statuses[0]:-125}" -eq 0 ]] || abort "${statuses[0]:-125}" R120F_EXECUTION_FAILED child-failed
+for marker in \
+  'R120F_CONTAINED_RECOVERY_RESULT=PASS' 'RUNTIME_REVISION_AFTER=120' 'REVISION_LABEL=R120F' \
+  "CURRENT_RELEASE=$EXPECTED_RELEASE" 'SERVICE_RESTARTS_THIS_RECOVERY=ZERO' \
+  'BSF_STATUS=FUNCTIONAL' 'SNTSS_AUTHORITY=NONE' 'SNTSS_OUTPUT_COUNT=0' \
+  'CHRONOBIOLOGY_STATUS=ACTIVE_SHADOW_RESIDENT' 'CHRONOBIOLOGY_AUTHORITY=NONE' \
+  'CHRONOBIOLOGY_ABANDONED_COUNT=0' 'CHRONOBIOLOGY_INVENTED_BIOLOGICAL_TIME=NO' \
+  'FETUS_CONTINUITY=PASS' 'WEB_CHIP_BSF=LIVE' 'WEB_CHIP_SNTSS=SHADOW' \
+  'WEB_CHIP_CHRONOBIOLOGY=SHADOW' 'BENCHMARK_SERVICE=ACTIVE'; do
+  grep -Fx "$marker" "$OUTPUT" >/dev/null || abort 83 RESULT_CONTRACT_FAILED result-marker-missing
+done
+FAILURE_CLASS='NONE'
+echo 'R120F_CONTROLLER_RESULT=PASS'
