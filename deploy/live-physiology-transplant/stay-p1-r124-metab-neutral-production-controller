@@ -7,20 +7,20 @@ export LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
 INCOMING_ROOT='/opt/stay/incoming'
-EXPECTED_RELEASE_TAG='r124-metab-neutral-v2'
-EXPECTED_RELEASE_TAG_OBJECT='c8c862739b9f22ee2a13f403fa31e6ac04d3b240'
-EXPECTED_RELEASE_COMMIT='3c03a8e7dfb1127021bff80de28896015087686e'
-EXPECTED_RELEASE_TREE='53cdec5e36a0c586a36d28b68fb3e4c5e58bf4f0'
-EXPECTED_ARCHIVE='STAY_P1_R124_METAB_NEUTRAL_V2_BUNDLE_20260902.tar.gz'
-EXPECTED_ARCHIVE_SHA256='a81f9103c8519fb2d2338abb8e19345c1d668baeca293867b165ac8364f5412e'
-EXPECTED_SIDECAR_SHA256='67b6fa9884c8d05aa42450214a49fbd59c19a62cb043649816b72d0ffae8e3f1'
-EXPECTED_MANIFEST_SHA256='d547ce8ffda7560e106e644bb542581e906c60143a62ccca4573652ccf8df7d0'
-EXPECTED_FORWARD_SHA256='7a4c22a4e30b9dfeb5ff52394d085f9cd3633567fcaf6a6f7d5357e150160ed4'
+EXPECTED_RELEASE_TAG='r124-metab-neutral-v4'
+EXPECTED_RELEASE_TAG_OBJECT='ed7f3d045ee8d005f2537fd35f7f629958fcdf52'
+EXPECTED_RELEASE_COMMIT='16e8e2d9ca04c8829425f99b91a49b3e495777cc'
+EXPECTED_RELEASE_TREE='316f94dc20c29a431cbe009f3564e6f0b6687a24'
+EXPECTED_ARCHIVE='STAY_P1_R124_METAB_NEUTRAL_V4_BUNDLE_20260902.tar.gz'
+EXPECTED_ARCHIVE_SHA256='ebbfca81636d5952a7db3b8c771d5c7660c841ecb023ae6cb212f71fa2775458'
+EXPECTED_SIDECAR_SHA256='5043ceac8913aa81f41b5edfacbed9e9da70b9fe45599374055b8db39ab96273'
+EXPECTED_MANIFEST_SHA256='a1999132f935054dc7c482313b88b0679f73475a225b9706c27ed2686d822b26'
+EXPECTED_FORWARD_SHA256='556caedb4e6a70bd0a3494182f733ef8877f8e439684fee2a737bede7d92ffa4'
 EXPECTED_RECOVERY_SHA256='960fbb96772b8b9f6668f6d98da4075c44f7aafd8036fc08e923734a14fd8ccc'
 EXPECTED_BIRTH_CERTIFICATE_SHA256='5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'
 EXPECTED_BIRTH_DOSSIER_SHA256='3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'
 EXPECTED_BIRTH_PUBLIC_KEY_SHA256='754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e'
-EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-d547ce8ffda7'
+EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-a1999132f935'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R123F_TO_R124.sha256'
 FORWARD='deploy/live-physiology-transplant/p1-r124-metab-neutral-forward.sh'
 RECOVERY='deploy/live-physiology-transplant/p1-r124-metab-neutral-forward-recovery.sh'
@@ -75,7 +75,7 @@ validate_run_root() {
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
   parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
   [[ "$parent_real" == "$incoming_real" ]] || return 1
-  [[ "$(basename -- "$candidate")" =~ ^r124-metab-neutral-v2-[0-9]+$ ]] || return 1
+  [[ "$(basename -- "$candidate")" =~ ^r124-metab-neutral-v4-[0-9]+$ ]] || return 1
   [[ "$(stat -Lc '%U:%G' "$candidate")" == 'staydeploy:staydeploy' ]] || return 1
   mode="$(stat -Lc '%a' "$candidate")" || return 1
   [[ "$mode" == 700 || "$mode" == 2700 ]] || return 1
@@ -94,7 +94,7 @@ safe_cleanup_run_root() {
 
 safe_cleanup_work_root() {
   local candidate="$1"
-  [[ "$candidate" =~ ^/run/stay-r124-metab-neutral-v2-controller\.[A-Za-z0-9]+$ ]] || return 96
+  [[ "$candidate" =~ ^/run/stay-r124-metab-neutral-v4-controller\.[A-Za-z0-9]+$ ]] || return 96
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 97
   [[ "$(stat -Lc '%U:%G' "$candidate")" == 'root:root' ]] || return 98
   [[ -z "$(findmnt -rn -R -o TARGET "$candidate" 2>/dev/null || true)" ]] || return 99
@@ -195,8 +195,8 @@ verify_release_tree() {
   awk 'NF != 2 || $1 !~ /^[0-9a-f]{64}$/ || $2 !~ /^\.\/[A-Za-z0-9._\/-]+$/ \
     { exit 1 } END { if (NR != 43) exit 1 }' "$root/$MANIFEST" || return 1
   (cd "$root" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
-  expected_list="$(mktemp /run/stay-r124-v2-expected.XXXXXX)" || return 1
-  actual_list="$(mktemp /run/stay-r124-v2-actual.XXXXXX)" || {
+  expected_list="$(mktemp /run/stay-r124-v4-expected.XXXXXX)" || return 1
+  actual_list="$(mktemp /run/stay-r124-v4-actual.XXXXXX)" || {
     rm -f -- "$expected_list"
     return 1
   }
@@ -218,7 +218,7 @@ verify_release_tree() {
 
 prepare_private_release() {
   local private_archive
-  WORK_ROOT="$(mktemp -d /run/stay-r124-metab-neutral-v2-controller.XXXXXX)" || return 1
+  WORK_ROOT="$(mktemp -d /run/stay-r124-metab-neutral-v4-controller.XXXXXX)" || return 1
   [[ "$(stat -Lc '%U:%G:%a' "$WORK_ROOT")" == 'root:root:700' ]] || return 1
   private_archive="$WORK_ROOT/$EXPECTED_ARCHIVE"
   install -o root -g root -m 0400 "$RUN_ROOT/$EXPECTED_ARCHIVE" "$private_archive" || return 1
@@ -361,16 +361,16 @@ main() {
     abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
   case "$operation" in
     harden-r124)
-      [[ "$authorization" == 'AUTHORIZE_R124_METAB_NEUTRAL_V2_CONTAINED_BIRTH_WITH_FENCED_RECOVERY' ]] ||
+      [[ "$authorization" == 'AUTHORIZE_R124_METAB_NEUTRAL_V4_CONTAINED_BIRTH_WITH_FENCED_RECOVERY' ]] ||
         abort_controller 74 AUTHORIZATION_FAILED forward-authorization-missing
       ;;
     recover-r124)
-      [[ "$authorization" == 'AUTHORIZE_R124_METAB_NEUTRAL_V2_FORWARD_RECOVERY_ONLY' ]] ||
+      [[ "$authorization" == 'AUTHORIZE_R124_METAB_NEUTRAL_V4_FORWARD_RECOVERY_ONLY' ]] ||
         abort_controller 75 AUTHORIZATION_FAILED recovery-authorization-missing
       ;;
     *) abort_controller 76 OPERATION_REJECTED unsupported-operation ;;
   esac
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r124-metab-neutral-v2-[0-9]+$ ]] ||
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r124-metab-neutral-v4-[0-9]+$ ]] ||
     abort_controller 77 PATH_VALIDATION_FAILED invalid-run-root-pattern
   validate_run_root "$requested_root" ||
     abort_controller 78 PATH_VALIDATION_FAILED invalid-run-root
@@ -379,7 +379,7 @@ main() {
   verify_staged_identity || abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
   CLEANUP_ARMED=1
   prepare_private_release || abort_controller 81 STAGED_IDENTITY_FAILED private-release-invalid
-  OUTPUT_FILE="$(mktemp /run/stay-r124-v2-output.XXXXXX)"
+  OUTPUT_FILE="$(mktemp /run/stay-r124-v4-output.XXXXXX)"
   if [[ "$operation" == harden-r124 ]]; then
     script="$WORK_ROOT/release/$FORWARD"
     expected_marker='R124_METAB_NEUTRAL_FORWARD=PASS'

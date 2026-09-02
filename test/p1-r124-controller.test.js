@@ -18,20 +18,20 @@ const wrapperSha256 = sha256(Buffer.from(wrapper));
 
 test('R124-BRIDGE-01 controller binds the exact certified immutable cohort', () => {
   for (const identity of [
-    "EXPECTED_RELEASE_TAG='r124-metab-neutral-v2'",
-    "EXPECTED_RELEASE_TAG_OBJECT='c8c862739b9f22ee2a13f403fa31e6ac04d3b240'",
-    "EXPECTED_RELEASE_COMMIT='3c03a8e7dfb1127021bff80de28896015087686e'",
-    "EXPECTED_RELEASE_TREE='53cdec5e36a0c586a36d28b68fb3e4c5e58bf4f0'",
-    "EXPECTED_ARCHIVE='STAY_P1_R124_METAB_NEUTRAL_V2_BUNDLE_20260902.tar.gz'",
-    "EXPECTED_ARCHIVE_SHA256='a81f9103c8519fb2d2338abb8e19345c1d668baeca293867b165ac8364f5412e'",
-    "EXPECTED_SIDECAR_SHA256='67b6fa9884c8d05aa42450214a49fbd59c19a62cb043649816b72d0ffae8e3f1'",
-    "EXPECTED_MANIFEST_SHA256='d547ce8ffda7560e106e644bb542581e906c60143a62ccca4573652ccf8df7d0'",
-    "EXPECTED_FORWARD_SHA256='7a4c22a4e30b9dfeb5ff52394d085f9cd3633567fcaf6a6f7d5357e150160ed4'",
+    "EXPECTED_RELEASE_TAG='r124-metab-neutral-v4'",
+    "EXPECTED_RELEASE_TAG_OBJECT='ed7f3d045ee8d005f2537fd35f7f629958fcdf52'",
+    "EXPECTED_RELEASE_COMMIT='16e8e2d9ca04c8829425f99b91a49b3e495777cc'",
+    "EXPECTED_RELEASE_TREE='316f94dc20c29a431cbe009f3564e6f0b6687a24'",
+    "EXPECTED_ARCHIVE='STAY_P1_R124_METAB_NEUTRAL_V4_BUNDLE_20260902.tar.gz'",
+    "EXPECTED_ARCHIVE_SHA256='ebbfca81636d5952a7db3b8c771d5c7660c841ecb023ae6cb212f71fa2775458'",
+    "EXPECTED_SIDECAR_SHA256='5043ceac8913aa81f41b5edfacbed9e9da70b9fe45599374055b8db39ab96273'",
+    "EXPECTED_MANIFEST_SHA256='a1999132f935054dc7c482313b88b0679f73475a225b9706c27ed2686d822b26'",
+    "EXPECTED_FORWARD_SHA256='556caedb4e6a70bd0a3494182f733ef8877f8e439684fee2a737bede7d92ffa4'",
     "EXPECTED_RECOVERY_SHA256='960fbb96772b8b9f6668f6d98da4075c44f7aafd8036fc08e923734a14fd8ccc'",
     "EXPECTED_BIRTH_CERTIFICATE_SHA256='5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'",
     "EXPECTED_BIRTH_DOSSIER_SHA256='3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'",
     "EXPECTED_BIRTH_PUBLIC_KEY_SHA256='754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e'",
-    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-d547ce8ffda7'",
+    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-a1999132f935'",
   ]) assert.equal(wrapper.includes(identity), true, identity);
   assert.match(wrapper, /"\$\{#entries\[@\]\}" -eq 62/);
   assert.match(wrapper, /-type f \| wc -l\)" -eq 44/);
@@ -47,11 +47,11 @@ test('R124-BRIDGE-02 wrapper exposes only exact forward and recovery operations'
   assert.match(operationBlock, /recover-r124\)/);
   assert.doesNotMatch(operationBlock, /diagnostic|shell|command|script-path/);
   assert.match(wrapper,
-    /AUTHORIZE_R124_METAB_NEUTRAL_V2_CONTAINED_BIRTH_WITH_FENCED_RECOVERY/);
-  assert.match(wrapper, /AUTHORIZE_R124_METAB_NEUTRAL_V2_FORWARD_RECOVERY_ONLY/);
+    /AUTHORIZE_R124_METAB_NEUTRAL_V4_CONTAINED_BIRTH_WITH_FENCED_RECOVERY/);
+  assert.match(wrapper, /AUTHORIZE_R124_METAB_NEUTRAL_V4_FORWARD_RECOVERY_ONLY/);
   assert.match(wrapper, /AUTHORIZE_R124_METAB_NEUTRAL_ZERO_AUTHORITY_BIRTH/);
   assert.match(wrapper, /AUTHORIZE_R124_METAB_NEUTRAL_FORWARD_RECOVERY_ONLY/);
-  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r124-metab-neutral-v2-\[0-9\]\+\$/);
+  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r124-metab-neutral-v4-\[0-9\]\+\$/);
   assert.equal((wrapper.match(/if run_bounded_script/g) || []).length, 3);
 });
 
@@ -80,7 +80,7 @@ test('R124-BRIDGE-04 one-shot birth material remains scoped and revocable', () =
 
 test('R124-BRIDGE-05 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    '5ff6659d1499b354a54c527e9224abd09181b17a517a6b55027b3f23bae12ac4');
+    '11ccd13023daeb29b20076e2dab2c4af1b3ce516480449eeb8ffc917575c0b7d');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
