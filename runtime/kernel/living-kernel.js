@@ -46,6 +46,10 @@ class LivingKernel {
       process.env.STAY_METAB_NEUTRAL_BIRTH_CERTIFICATE ||
       '/etc/stay/resident-promotions/resident-metab-neutral-birth.json',
 
+    metabNeutralBirthPublicKeyPath =
+      process.env.STAY_METAB_NEUTRAL_BIRTH_PUBLIC_KEY ||
+      '/etc/stay/metab-neutral-birth-authority.pub',
+
     runtimeFreezeDirectory =
       process.env.STAY_RUNTIME_FREEZE_DIR || undefined,
 
@@ -135,6 +139,9 @@ class LivingKernel {
 
     this.metabNeutralBirthCertificateFile =
       String(metabNeutralBirthCertificateFile);
+
+    this.metabNeutralBirthPublicKeyPath =
+      String(metabNeutralBirthPublicKeyPath);
 
     this.runtimeFreezeDirectory =
       runtimeFreezeDirectory == null
@@ -943,7 +950,7 @@ class LivingKernel {
         parentFreezeRecordSha256:
           parentFreeze.recordSha256,
         publicKeyPath:
-          this.residentPromotionPublicKeyPath,
+          this.metabNeutralBirthPublicKeyPath,
         certificateFile:
           this.metabNeutralBirthCertificateFile,
         nowMs: Number(this.clock())

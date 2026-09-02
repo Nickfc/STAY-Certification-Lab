@@ -211,7 +211,7 @@ async function makeKernelHarness(t) {
     heartbeatIntervalMs: 0,
     snapshotIntervalMs: 0,
     allowMetabNeutralBirth: true,
-    residentPromotionPublicKeyPath: publicKeyPath,
+    metabNeutralBirthPublicKeyPath: publicKeyPath,
     metabNeutralBirthCertificateFile: certificateFile,
     runtimeFreezeDirectory: freezeDirectory
   });

@@ -16,6 +16,8 @@ const METAB_NEUTRAL_AUTHORIZATION_CLASS =
   'metab-resident-neutral-zero-authority-r124';
 const DEFAULT_CERTIFICATE_FILE =
   '/etc/stay/resident-promotions/resident-metab-neutral-birth.json';
+const DEFAULT_PUBLIC_KEY_FILE =
+  '/etc/stay/metab-neutral-birth-authority.pub';
 const HASH = /^sha256:[0-9a-f]{64}$/;
 const BODY_KEYS = Object.freeze([
   'allowedAction',
@@ -194,8 +196,8 @@ function loadAndVerifyMetabNeutralBirth({
   identity,
   runtimeRevision,
   parentFreezeRecordSha256,
-  publicKeyPath = process.env.STAY_CORE_PROMOTION_PUBLIC_KEY ||
-    '/etc/stay/release-authority.pub',
+  publicKeyPath = process.env.STAY_METAB_NEUTRAL_BIRTH_PUBLIC_KEY ||
+    DEFAULT_PUBLIC_KEY_FILE,
   certificateFile = process.env.STAY_METAB_NEUTRAL_BIRTH_CERTIFICATE ||
     DEFAULT_CERTIFICATE_FILE,
   nowMs = Date.now()
@@ -233,6 +235,7 @@ function loadAndVerifyMetabNeutralBirth({
 
 module.exports = Object.freeze({
   DEFAULT_CERTIFICATE_FILE,
+  DEFAULT_PUBLIC_KEY_FILE,
   METAB_NEUTRAL_AUTHORIZATION_CLASS,
   METAB_NEUTRAL_BIRTH_FORMAT,
   identityHash,
