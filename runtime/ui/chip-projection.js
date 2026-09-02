@@ -26,9 +26,9 @@ const ROADMAP_STAGES = Object.freeze([
 ]);
 
 const RELEASE_ROADMAP = Object.freeze([
-  Object.freeze({ coreId: 'metab', label: 'METAB', stage: 'PLANNED' }),
-  Object.freeze({ coreId: 'homeos', label: 'HOMEOS', stage: 'PLANNED' }),
-  Object.freeze({ coreId: 'intero', label: 'INTERO', stage: 'PLANNED' })
+  Object.freeze({ coreId: 'metab', label: 'METAB', stage: 'LAB QUALIFIED' }),
+  Object.freeze({ coreId: 'homeos', label: 'HOMEOS', stage: 'LAB QUALIFIED' }),
+  Object.freeze({ coreId: 'intero', label: 'INTERO', stage: 'LAB QUALIFIED' })
 ]);
 
 function text(value, fallback = '') {
@@ -103,6 +103,7 @@ function lifecycleChip(item, kind) {
     coreId,
     residencyId: kind === 'resident' ? text(item?.residencyId, null) : null,
     label: text(item?.label, coreId).toUpperCase(),
+    born: kind === 'resident' || item?.born === true,
     version: text(item?.version, null),
     mode: text(item?.mode, 'NEUTRAL').toUpperCase(),
     status: text(item?.status, 'UNKNOWN').toUpperCase(),
