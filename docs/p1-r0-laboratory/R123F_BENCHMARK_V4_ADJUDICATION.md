@@ -1,6 +1,6 @@
 # R123F benchmark V3 observation audit and V4 adjudication contract
 
-Status: laboratory implementation in progress. Production and the running R123F collector are untouched.
+Status: PASS. The R123F collector completed normally on `2026-09-02T09:55:50.255Z`; reviewed V4 adjudication closed the sole V3 observation without rewriting V3 evidence or mutating production. Exact closure evidence is committed under `certification/p1-r0/r123f-benchmark-closure/`.
 
 ## Immutable production facts
 

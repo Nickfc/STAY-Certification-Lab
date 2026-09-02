@@ -1,0 +1,36 @@
+{
+  "format": "stay-physiology-benchmark-outbox-witness-v1",
+  "revisionLabel": "R123F",
+  "sourceLedgerSha256": "sha256:47b7b60e91e853fcd1a4c9cf8a5242d8af65bd403e47fe8a45d4dbcf19311136",
+  "capturedAt": "2026-09-02T10:23:53.461Z",
+  "databaseQuickCheck": "ok",
+  "queryOnly": true,
+  "productionMutated": false,
+  "entries": [
+    {
+      "sampleLine": 1280,
+      "sampleSha256": "sha256:89527b45360ca5632ec5d73650dc722dc95f095edd8e679f3cb2016980da2f71",
+      "previousSampleSha256": "sha256:9afc5ee049a670a0a0d4c2ca5ecf95c361f621843abf74de12e77988df0282b7",
+      "nextSampleSha256": "sha256:2d966ca99b2eddac2fd7183cdd5bdb756029d09c386a22ddf773a035e2426b30",
+      "candidateRows": [
+        {
+          "producerEventId": "19c1280980e2c8d6e5d6211d42eb6cf0465368f5fd6ec1a329a9837c2883775b",
+          "producerCoreId": "chronobiology",
+          "producerInstanceId": "f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a",
+          "producerVersion": "1.0.0-c3rc.5",
+          "authorityEpoch": 1,
+          "producerStreamId": "core:chronobiology:outputs",
+          "streamSequence": 438,
+          "transitionId": "sha256:777ac1696d78d81aaf97fafc4b41fa5901c41c5edb9cca44e3f8e50abc0a121a",
+          "checkpointGeneration": 6467,
+          "status": "PUBLISHED",
+          "fabricSequence": 2793344,
+          "fabricEventId": "evt-1nvcw-065e48e512a30c30",
+          "createdAt": "2026-08-31T07:17:10.467Z",
+          "publishedAt": "2026-08-31T07:17:10.496Z"
+        }
+      ]
+    }
+  ],
+  "evidenceHash": "sha256:72f898147d26af5efbcfc9fec47bed5826b16446b0aedda7ed8eed55daf798ea"
+}
