@@ -108,7 +108,7 @@ test('R128-REL-02 forward path is exact, one-restart, startup-only and precommit
   const source = read(FORWARD);
   for (const identity of [
     "EXPECTED_PRIVATE_IPV4='172.26.9.207'",
-    "DATABASE='/var/lib/stay/continuity.sqlite3'",
+    "DATABASE='/var/lib/stay/data/continuity.sqlite3'",
     "'/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-fb27ce309f77'",
     'AUTHORIZE_R128_METAB_OUTPUT_FIREWALLED_SHADOW_FORWARD_ONLY',
     'AUTHORIZE_R128_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_ONLY',

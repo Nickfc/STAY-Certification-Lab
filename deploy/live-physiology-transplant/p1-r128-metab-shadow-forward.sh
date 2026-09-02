@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-DATABASE='/var/lib/stay/continuity.sqlite3'
+DATABASE='/var/lib/stay/data/continuity.sqlite3'
 FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
 PARENT_FREEZE="$FREEZE_DIR/R127.json"
 TARGET_FREEZE="$FREEZE_DIR/R128.json"
