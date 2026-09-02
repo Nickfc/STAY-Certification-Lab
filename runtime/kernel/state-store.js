@@ -8238,7 +8238,9 @@ class StateStore {
     toPackagePolicyHash,
     topics,
     genesisEvent,
-    state
+    state,
+    promotionKind =
+      'SNTSS_CONTINUITY_GENESIS'
   }) {
     const textFields = {
       residencyId,
@@ -8276,6 +8278,58 @@ class StateStore {
       }
     }
 
+    const sntssPromotion =
+      promotionKind ===
+        'SNTSS_CONTINUITY_GENESIS' &&
+      genesisEvent?.topic ===
+        'runtime.sntss.continuity-genesis';
+
+    const metabShadowPromotion =
+      promotionKind ===
+        'METAB_NEUTRAL_TO_SHADOW_R128' &&
+      residencyId === 'resident:metab' &&
+      fromVersion === '0.1.0-p1r0-neutral.1' &&
+      fromStateSchema === 1 &&
+      fromModuleRelativePath ===
+        'cores/p1-r0/metab-neutral/index.js' &&
+      toVersion === '0.2.0-p1r0-shadow.1' &&
+      toStateSchema === 2 &&
+      toModuleRelativePath ===
+        'cores/p1-r0/metab-shadow/index.js' &&
+      stableStringify(topics) ===
+        stableStringify([
+          'runtime.organism.binding',
+          'runtime.metab.shadow-activation',
+          'resource.capacity.eligible.v1',
+          'resource.capacity.quality.v1'
+        ]) &&
+      genesisEvent?.topic ===
+        'runtime.metab.shadow-activation' &&
+      genesisEvent?.payload?.protocol ===
+        'stay-p1-r0-metab-shadow-activation-v1' &&
+      genesisEvent?.payload?.residencyId ===
+        residencyId &&
+      genesisEvent?.payload?.instanceId ===
+        instanceId &&
+      genesisEvent?.payload?.fromVersion ===
+        fromVersion &&
+      genesisEvent?.payload?.fromStateSchema ===
+        fromStateSchema &&
+      genesisEvent?.payload?.sourceCheckpointGeneration ===
+        fromCheckpointGeneration &&
+      genesisEvent?.payload?.sourceCheckpointHash ===
+        `sha256:${fromCheckpointHash}` &&
+      genesisEvent?.payload?.toVersion ===
+        toVersion &&
+      genesisEvent?.payload?.toStateSchema ===
+        toStateSchema &&
+      genesisEvent?.payload?.runtimeRevision === 128 &&
+      genesisEvent?.payload?.parentRevision === 127 &&
+      genesisEvent?.payload?.mode === 'SHADOW' &&
+      genesisEvent?.payload?.authorityEpoch === '0' &&
+      genesisEvent?.payload?.outputPolicy ===
+        'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT';
+
     if (
       !Number.isSafeInteger(fromStateSchema) ||
       fromStateSchema < 1 ||
@@ -8287,7 +8341,7 @@ class StateStore {
       !Array.isArray(topics) ||
       topics.some(topic => typeof topic !== 'string' || !topic) ||
       !genesisEvent ||
-      genesisEvent.topic !== 'runtime.sntss.continuity-genesis' ||
+      (!sntssPromotion && !metabShadowPromotion) ||
       genesisEvent.ledger?.durable !== true ||
       !Number.isSafeInteger(genesisEvent.sequence) ||
       genesisEvent.sequence < 1 ||
@@ -8348,7 +8402,9 @@ class StateStore {
     const transition =
       `sha256:${sha256(stableStringify({
         protocol:
-          'stay-resident-transition-v1',
+          metabShadowPromotion
+            ? 'stay-metab-mode-transition-v1'
+            : 'stay-resident-transition-v1',
         residencyId,
         eventId:
           genesisEvent.id,
@@ -8375,6 +8431,16 @@ class StateStore {
       ) {
         throw Object.assign(
           new Error('resident promotion lost the detached source generation'),
+          { code: 'RESIDENT_PROMOTION_BASELINE' }
+        );
+      }
+
+      if (
+        metabShadowPromotion &&
+        current.coreId !== 'METAB'
+      ) {
+        throw Object.assign(
+          new Error('METAB promotion changed core identity'),
           { code: 'RESIDENT_PROMOTION_BASELINE' }
         );
       }
@@ -8458,11 +8524,35 @@ class StateStore {
           )?.count || 0
         );
 
+      const authorityCount =
+        metabShadowPromotion
+          ? Number(
+              this.db.prepare(`
+                SELECT COUNT(*) AS count
+                FROM authority
+                WHERE core_id IN ('METAB', 'HOMEOS', 'INTERO')
+              `).get()?.count || 0
+            )
+          : 0;
+
+      const outputIntentCount =
+        metabShadowPromotion
+          ? Number(
+              this.db.prepare(`
+                SELECT COUNT(*) AS count
+                FROM biological_outbox_intents
+                WHERE producer_core_id='METAB'
+              `).get()?.count || 0
+            )
+          : 0;
+
       if (
         !consumer ||
         consumer.core_id !== current.coreId ||
         Number(consumer.active) !== 0 ||
-        pending !== 0
+        pending !== 0 ||
+        authorityCount !== 0 ||
+        outputIntentCount !== 0
       ) {
         throw Object.assign(
           new Error('resident consumer is not at a quiescent promotion boundary'),

@@ -47,23 +47,29 @@ function publicMetadata(status) {
   const residentStatus = Array.isArray(status.residencies)
     ? status.residencies
     : (Array.isArray(status.health?.residencies) ? status.health.residencies : []);
-  const residents = residentStatus.filter(Boolean).map((resident) => ({
-    residencyId: resident.residencyId,
-    coreId: resident.coreId,
-    version: resident.version,
-    status: resident.status,
-    lifecycle: resident.lifecycle || resident.status || null,
-    running: resident.running === true,
-    mode: resident.coreId === 'chronobiology' ||
-      (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
-      ? 'SHADOW'
-      : 'NEUTRAL',
-    authorityOwned: resident.authorityOwned === true,
-    checkpointGeneration: Number(resident.checkpointGeneration || 0),
-    handledEvents: Number(resident.handledEvents || 0),
-    observedOutputs: Number(resident.observedOutputs || 0),
-    healthOk: resident.running === true && resident.health?.ok === true
-  }));
+  const residents = residentStatus.filter(Boolean).map((resident) => {
+    const observedMode = String(resident.health?.mode || '').toUpperCase();
+    const mode = ['LIVE', 'SHADOW', 'NEUTRAL'].includes(observedMode)
+      ? observedMode
+      : resident.coreId === 'chronobiology' ||
+          (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
+        ? 'SHADOW'
+        : 'NEUTRAL';
+    return {
+      residencyId: resident.residencyId,
+      coreId: resident.coreId,
+      version: resident.version,
+      status: resident.status,
+      lifecycle: resident.lifecycle || resident.status || null,
+      running: resident.running === true,
+      mode,
+      authorityOwned: resident.authorityOwned === true,
+      checkpointGeneration: Number(resident.checkpointGeneration || 0),
+      handledEvents: Number(resident.handledEvents || 0),
+      observedOutputs: Number(resident.observedOutputs || 0),
+      healthOk: resident.running === true && resident.health?.ok === true
+    };
+  });
   const bsfLedger = status.biologicalLedger || status.health?.biologicalLedger || null;
   const bsfOk = status.health?.persistence?.ok !== false &&
     bsfLedger?.protocol === 'stay-biological-ledger-v1';
@@ -593,8 +599,23 @@ async function main() {
   });
   await kernel.start();
 
+  if (
+    process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY === '1' &&
+    !kernel.stateStore.getResident('resident:metab')
+  ) {
+    await kernel.recoverMetabNeutralBirth();
+  }
+
   if (process.env.STAY_BOOT_CORE) {
     await kernel.installCore(process.env.STAY_BOOT_CORE);
+  }
+
+  if (
+    process.env.STAY_ALLOW_METAB_SHADOW_PROMOTION === '1' &&
+    kernel.stateStore.getResident('resident:metab')?.version ===
+      '0.1.0-p1r0-neutral.1'
+  ) {
+    await kernel.promoteMetabShadow();
   }
 
   const badgeSource = await fs.readFile(badgePath, 'utf8');
