@@ -18,20 +18,20 @@ const wrapperSha256 = sha256(Buffer.from(wrapper));
 
 test('R127-BRIDGE-01 controller binds the exact certified immutable repair cohort', () => {
   for (const identity of [
-    "EXPECTED_RELEASE_TAG='r127-metab-final-recovery-v4'",
-    "EXPECTED_RELEASE_TAG_OBJECT='66bcc76dbf92f472075b561ff4151e1d721be966'",
-    "EXPECTED_RELEASE_COMMIT='2c9082a336115537c518b387d5953cdc0e44a447'",
-    "EXPECTED_RELEASE_TREE='5e213e827a9c8cb314551cbc63ff04b28073279a'",
-    "EXPECTED_ARCHIVE='STAY_P1_R127_METAB_FINAL_RECOVERY_V4_BUNDLE_20260902.tar.gz'",
-    "EXPECTED_ARCHIVE_SHA256='835dbebf1277350f0f6d36b6570041b7ea7f1d64c2a9f4801f976b9e804d43b2'",
-    "EXPECTED_SIDECAR_SHA256='94be37982b696f2871e2338c028d26dfe0dbba20a8c903c53a78e037bb25ba2a'",
-    "EXPECTED_MANIFEST_SHA256='c0aae98bfd0b34b4e0b8c4cbb1dee2a4c14955e51f3bd25cf8338e937f022f45'",
-    "EXPECTED_FORWARD_SHA256='ebcd35db3968f5bc7589ef5439472aab03080933f8ba771a8442c2514ef7d75a'",
-    "EXPECTED_RECOVERY_SHA256='ebcd35db3968f5bc7589ef5439472aab03080933f8ba771a8442c2514ef7d75a'",
+    "EXPECTED_RELEASE_TAG='r127-metab-final-recovery-v5'",
+    "EXPECTED_RELEASE_TAG_OBJECT='cc3dd612a7184968ce80c1ccec4d7150c4135ee2'",
+    "EXPECTED_RELEASE_COMMIT='d3b4a3e8005d3b50a8b82e491adf805838f31438'",
+    "EXPECTED_RELEASE_TREE='edeeac674a102048d245e24fb9689d4a985b9d99'",
+    "EXPECTED_ARCHIVE='STAY_P1_R127_METAB_FINAL_RECOVERY_V5_BUNDLE_20260902.tar.gz'",
+    "EXPECTED_ARCHIVE_SHA256='45971339022aedc9efadebb6b5a7d814a08bd9020f9527b69d637b03b73d21f3'",
+    "EXPECTED_SIDECAR_SHA256='97e082b84a21ba68398c3fbe81f7f40ea7893a37bdf5a66e6e60a93e073ded93'",
+    "EXPECTED_MANIFEST_SHA256='e29bf6b9ef3f95d5de6ae98f48830834511b29986da170682925d112dcaffd55'",
+    "EXPECTED_FORWARD_SHA256='4e1e6839dc755169875bff1048d0899382f522fca62f86dc1eedffb4d125f052'",
+    "EXPECTED_RECOVERY_SHA256='4e1e6839dc755169875bff1048d0899382f522fca62f86dc1eedffb4d125f052'",
     "EXPECTED_BIRTH_CERTIFICATE_SHA256='5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'",
     "EXPECTED_BIRTH_DOSSIER_SHA256='3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'",
     "EXPECTED_BIRTH_PUBLIC_KEY_SHA256='754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e'",
-    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-c0aae98bfd0b'",
+    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-e29bf6b9ef3f'",
     "EXPECTED_ACTIVE_RELEASE_TAG='r127-metab-final-recovery-v3'",
     "EXPECTED_ACTIVE_RELEASE_COMMIT='38ae95f43c32c7234a31fa13eb78e6706a49054e'",
     "EXPECTED_ACTIVE_RELEASE_TREE='f43d4bb0bb770f340c9b8d4a5351f4be3a8199a0'",
@@ -49,10 +49,10 @@ test('R127-BRIDGE-02 wrapper exposes only the exact forward-repair operation', (
     wrapper.indexOf('esac', wrapper.indexOf('case "$operation" in')));
   assert.match(operationBlock, /recover-r127-final\)/);
   assert.doesNotMatch(operationBlock, /harden-r124|diagnostic|shell|command|script-path/);
-  assert.match(wrapper, /AUTHORIZE_R127_METAB_FINAL_RECOVERY_V4_FORWARD_ONLY/);
+  assert.match(wrapper, /AUTHORIZE_R127_METAB_FINAL_RECOVERY_V5_FORWARD_ONLY/);
   assert.match(wrapper,
     /AUTHORIZE_R127_POST_RESTART_FETUS_SNTSS_CHRONOBIOLOGY_CONTINUITY_ONLY/);
-  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r127-metab-final-recovery-v4-\[0-9\]\+\$/);
+  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r127-metab-final-recovery-v5-\[0-9\]\+\$/);
   assert.equal((wrapper.match(/if run_bounded_script/g) || []).length, 1);
 });
 
@@ -113,14 +113,14 @@ test('R127-BRIDGE-05 evidence access is exact, read-only, probed, and always res
 
 test('R127-BRIDGE-06 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    '469342acf073b6dd37b595283bb17b0b761b484cba1c6edffaf1666056c32752');
+    '711c9bb8f1964c033625ff035236165e2713eca05868c9861cca3cff9d919546');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(installer, /NOPASSWD:\s+(?:ALL|\/bin\/(?:bash|sh)|\/usr\/bin\/env)/);
   assert.match(installer, /visudo -cf "\$sudoers_staged"/);
   assert.match(installer, /root:root:555/);
-  assert.match(installer, /R127_FINAL_RECOVERY_V7_AUTHORIZED=NO/);
+  assert.match(installer, /R127_FINAL_RECOVERY_V8_AUTHORIZED=NO/);
 });
 
 test('R127-BRIDGE-07 completion contract independently proves repair and containment', () => {
