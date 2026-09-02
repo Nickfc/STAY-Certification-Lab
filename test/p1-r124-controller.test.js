@@ -18,36 +18,39 @@ const wrapperSha256 = sha256(Buffer.from(wrapper));
 
 test('R127-BRIDGE-01 controller binds the exact certified immutable repair cohort', () => {
   for (const identity of [
-    "EXPECTED_RELEASE_TAG='r127-metab-repair-v3'",
-    "EXPECTED_RELEASE_TAG_OBJECT='f0ece5e1580dd4889f42dcce1e12a5bd2babb8ba'",
-    "EXPECTED_RELEASE_COMMIT='32285612ec0d9fedf783c2773e724ead70484e19'",
-    "EXPECTED_RELEASE_TREE='cc7fc03edb43781ad35a1fb7a25cffa8453cabfd'",
-    "EXPECTED_ARCHIVE='STAY_P1_R127_METAB_REPAIR_V3_BUNDLE_20260902.tar.gz'",
-    "EXPECTED_ARCHIVE_SHA256='aa4924851dba2b5cca30f66af607f9d6d5db31af133b41f69c61a0e0afe60fff'",
-    "EXPECTED_SIDECAR_SHA256='56b692485b85b7df30cbb4d1a6d3d2ccf95217af44f7b618b0a87581aca8c155'",
-    "EXPECTED_MANIFEST_SHA256='fb8d675114b4d35a8d478c69b547910014234e63df1b928876fed7c49cbf2dcf'",
-    "EXPECTED_FORWARD_SHA256='17533f0a1f6c3de39945edc78440246e343ca61629df98d7bf3f30d788ac243d'",
-    "EXPECTED_RECOVERY_SHA256='17533f0a1f6c3de39945edc78440246e343ca61629df98d7bf3f30d788ac243d'",
+    "EXPECTED_RELEASE_TAG='r127-metab-marker-recovery-v1'",
+    "EXPECTED_RELEASE_TAG_OBJECT='c28a311dc456e911952c810313b98e23f96fb45e'",
+    "EXPECTED_RELEASE_COMMIT='625a167e3106f434b3a4acc5fc212f43b373e633'",
+    "EXPECTED_RELEASE_TREE='092f8e7622baff33b1e0fd66b58632404ef3012f'",
+    "EXPECTED_ARCHIVE='STAY_P1_R127_MARKER_RECOVERY_V1_BUNDLE_20260902.tar.gz'",
+    "EXPECTED_ARCHIVE_SHA256='82ffc4e71dbcdce7b9b390ecb0358a368bc70736c3f78e503013704bb19720df'",
+    "EXPECTED_SIDECAR_SHA256='0ce2909cc32187485be16b624677d0ff96826c590d02599848d21bf4059310cd'",
+    "EXPECTED_MANIFEST_SHA256='ec13dc235ea7c217abdcb7a6d0ab23ce2440a367dac75c548c0e177511be2359'",
+    "EXPECTED_FORWARD_SHA256='17d1e8bebb1d99d94169f0254b7925efa131e8d9a99f73b83f33945de6e9784d'",
+    "EXPECTED_RECOVERY_SHA256='17d1e8bebb1d99d94169f0254b7925efa131e8d9a99f73b83f33945de6e9784d'",
     "EXPECTED_BIRTH_CERTIFICATE_SHA256='5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'",
     "EXPECTED_BIRTH_DOSSIER_SHA256='3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'",
     "EXPECTED_BIRTH_PUBLIC_KEY_SHA256='754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e'",
     "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-repair-fb8d675114b4'",
+    "EXPECTED_ACTIVE_RELEASE_TAG='r127-metab-repair-v3'",
+    "EXPECTED_ACTIVE_RELEASE_COMMIT='32285612ec0d9fedf783c2773e724ead70484e19'",
+    "EXPECTED_ACTIVE_RELEASE_TREE='cc7fc03edb43781ad35a1fb7a25cffa8453cabfd'",
   ]) assert.equal(wrapper.includes(identity), true, identity);
-  assert.match(wrapper, /"\$\{#entries\[@\]\}" -eq 63/);
-  assert.match(wrapper, /-type f \| wc -l\)" -eq 45/);
-  assert.match(wrapper, /wc -l < "\$root\/\$MANIFEST"\)" -eq 44/);
-  assert.match(wrapper, /if \(NR != 44\) exit 1/);
+  assert.match(wrapper, /"\$\{#entries\[@\]\}" -eq 64/);
+  assert.match(wrapper, /-type f \| wc -l\)" -eq 46/);
+  assert.match(wrapper, /wc -l < "\$root\/\$MANIFEST"\)" -eq 45/);
+  assert.match(wrapper, /if \(NR != 45\) exit 1/);
 });
 
 test('R127-BRIDGE-02 wrapper exposes only the exact forward-repair operation', () => {
   const operationBlock = wrapper.slice(
     wrapper.indexOf('case "$operation" in'),
     wrapper.indexOf('esac', wrapper.indexOf('case "$operation" in')));
-  assert.match(operationBlock, /recover-r124\)/);
+  assert.match(operationBlock, /recover-r127-marker\)/);
   assert.doesNotMatch(operationBlock, /harden-r124|diagnostic|shell|command|script-path/);
-  assert.match(wrapper, /AUTHORIZE_R127_METAB_REPAIR_V3_FORWARD_ONLY/);
-  assert.match(wrapper, /AUTHORIZE_R124_METAB_NEUTRAL_FORWARD_RECOVERY_ONLY/);
-  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r127-metab-repair-v3-\[0-9\]\+\$/);
+  assert.match(wrapper, /AUTHORIZE_R127_METAB_MARKER_RECOVERY_V1_FORWARD_ONLY/);
+  assert.match(wrapper, /AUTHORIZE_R127_METAB_MARKER_FORWARD_RECOVERY_ONLY/);
+  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r127-metab-marker-recovery-v1-\[0-9\]\+\$/);
   assert.equal((wrapper.match(/if run_bounded_script/g) || []).length, 1);
 });
 
@@ -65,9 +68,7 @@ test('R127-BRIDGE-03 archive extraction and cleanup are exact and path-fenced', 
 });
 
 test('R127-BRIDGE-04 one-shot birth material remains scoped and revocable', () => {
-  assert.match(wrapper, /STAY_R124_BIRTH_CERTIFICATE_FILE="\$WORK_ROOT\/birth\/\$CERTIFICATE_NAME"/);
-  assert.match(wrapper, /STAY_R124_BIRTH_DOSSIER_FILE="\$WORK_ROOT\/birth\/\$DOSSIER_NAME"/);
-  assert.match(wrapper, /STAY_R124_BIRTH_PUBLIC_KEY_FILE="\$WORK_ROOT\/birth\/\$PUBLIC_KEY_NAME"/);
+  assert.match(wrapper, /STAY_R127_BIRTH_DOSSIER_FILE="\$WORK_ROOT\/birth\/\$DOSSIER_NAME"/);
   assert.match(wrapper, /metab-neutral-birth-once\.conf/);
   assert.match(wrapper, /resident-metab-neutral-birth\.json/);
   assert.match(wrapper, /metab-neutral-birth-authority\.pub/);
@@ -76,14 +77,14 @@ test('R127-BRIDGE-04 one-shot birth material remains scoped and revocable', () =
 
 test('R127-BRIDGE-05 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    '36a0ad9dd228785efc28a58a0bd1bf039094be2f45da07893b9b7dd96d905d77');
+    'd343507dd3d4eb8af3bdc1d638c9346b532ca617e17780e33643039fa5119025');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(installer, /NOPASSWD:\s+(?:ALL|\/bin\/(?:bash|sh)|\/usr\/bin\/env)/);
   assert.match(installer, /visudo -cf "\$sudoers_staged"/);
   assert.match(installer, /root:root:555/);
-  assert.match(installer, /R127_REPAIR_AUTHORIZED=NO/);
+  assert.match(installer, /R127_MARKER_RECOVERY_AUTHORIZED=NO/);
 });
 
 test('R127-BRIDGE-06 completion contract independently proves repair and containment', () => {
@@ -92,7 +93,7 @@ test('R127-BRIDGE-06 completion contract independently proves repair and contain
     'SNTSS_OUTPUTS=0', 'CHRONOBIOLOGY_MODE=SHADOW', 'CHRONOBIOLOGY_STATUS=RUNNING',
     'CHRONOBIOLOGY_AUTHORITY=NONE', 'METAB_MODE=NEUTRAL',
     'METAB_STATUS=RUNNING', 'METAB_AUTHORITY=NONE', 'METAB_OUTPUTS=0',
-    'METAB_SIGNALLING=FORBIDDEN', 'RESTART_COMMANDS=2',
+    'METAB_SIGNALLING=FORBIDDEN', 'RESTART_COMMANDS=3',
     'FETUS_CONTINUITY=PASS', 'BIRTH_AUTHORITY_ACTIVE=NO',
     'WEB_CHIP_BSF=LIVE', 'WEB_CHIP_SNTSS=SHADOW',
     'WEB_CHIP_CHRONOBIOLOGY=SHADOW', 'WEB_CHIP_METAB=NEUTRAL',
@@ -106,7 +107,8 @@ test('R127-BRIDGE-06 completion contract independently proves repair and contain
   assert.match(wrapper, /metab\?\.productionEligible === false/);
   assert.match(wrapper, /chip\('metab'\)\?\.born === true/);
   assert.match(wrapper, /validateRevisionFreeze\(freeze, revision\)/);
-  assert.match(wrapper, /R127_METAB_NEUTRAL_FORWARD_REPAIR/);
+  assert.match(wrapper, /R127_METAB_NEUTRAL_MARKER_FORWARD_RECOVERY/);
+  assert.match(wrapper, /freeze\.recovery\?\.markerAccessRepaired === true/);
   assert.match(wrapper, /freeze\.recovery\?\.pointerRewound === false/);
   assert.match(wrapper, /RECOVERY_RUNTIME_SECONDS=900/);
 });
