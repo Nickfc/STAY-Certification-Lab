@@ -203,6 +203,9 @@ class LivingKernel {
     allowMetabNeutralRecovery =
       process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY === '1',
 
+    allowMetabNeutralRecoveryRevisionPreservation =
+      process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY_REVISION_PRESERVATION === '1',
+
     metabNeutralRecoveryMarkerFile =
       process.env.STAY_METAB_NEUTRAL_RECOVERY_MARKER ||
       '/run/stay-r124-metab-neutral-recovery.env',
@@ -312,6 +315,21 @@ class LivingKernel {
 
     this.allowMetabNeutralRecovery =
       Boolean(allowMetabNeutralRecovery);
+
+    this.allowMetabNeutralRecoveryRevisionPreservation =
+      Boolean(allowMetabNeutralRecoveryRevisionPreservation);
+
+    this.metabNeutralRecoveryRevisionPreserved =
+      false;
+
+    this.metabNeutralRecoveryCompletedAtPreservedRevision =
+      false;
+
+    this.metabNeutralRecoveryFetusInstallPreserved =
+      false;
+
+    this.metabNeutralRecoveryFence =
+      null;
 
     this.metabNeutralRecoveryMarkerFile =
       String(metabNeutralRecoveryMarkerFile);
@@ -538,7 +556,11 @@ class LivingKernel {
     this.runtimeRevision = Number(revisionState && revisionState.revision) || 0;
 
     this.startedAt = new Date().toISOString();
-    await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
+    const preservedRecoveryRevision =
+      await this.preserveExactR127MetabRecoveryRevision();
+    if (!preservedRecoveryRevision) {
+      await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
+    }
 
     /*
      * Durable residents are reconstructed only after:
@@ -611,6 +633,83 @@ class LivingKernel {
     await this.stateStore.writeLife('runtime-revision', record);
     await this.stateStore.appendJournal({ type: 'runtime.revision', ...record });
     return this.runtimeRevision;
+  }
+
+  async preserveExactR127MetabRecoveryRevision() {
+    if (!this.allowMetabNeutralRecoveryRevisionPreservation) {
+      return false;
+    }
+    if (
+      !this.allowMetabNeutralRecovery ||
+      this.runtimeRevision !== 127
+    ) {
+      throw Object.assign(
+        new Error('METAB revision preservation is fenced to the exact stranded R127 recovery'),
+        { code: 'P1_METAB_RECOVERY_REVISION_PRESERVATION' }
+      );
+    }
+
+    const recoveryFence =
+      this.metabNeutralRecoveryFenceReader({
+        markerFile: this.metabNeutralRecoveryMarkerFile,
+        expectedMarkerSha256: this.metabNeutralRecoveryMarkerSha256,
+        trustedUid: this.metabNeutralRecoveryTrustedUid
+      });
+    if (
+      !recoveryFence ||
+      recoveryFence.markerSha256 !== R124_METAB_RECOVERY.markerSha256 ||
+      recoveryFence.failureEvidence !== R124_METAB_RECOVERY.failureEvidence
+    ) {
+      throw Object.assign(
+        new Error('METAB revision preservation recovery fence is invalid'),
+        { code: 'P1_METAB_RECOVERY_MARKER' }
+      );
+    }
+
+    const countRows = table => {
+      const exists = this.stateStore.db.prepare(`
+        SELECT 1 AS present FROM sqlite_master
+        WHERE type='table' AND name=?
+      `).get(table);
+      return exists
+        ? Number(this.stateStore.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count)
+        : 0;
+    };
+    const checkpoint =
+      await this.stateStore.readResidentCheckpoint('resident:metab');
+    const p1Authority =
+      this.stateStore.listAuthority().filter(entry =>
+        ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+      );
+    const emptyBirthCohort =
+      !this.stateStore.getResident('resident:metab') &&
+      !this.stateStore.getBiologicalConsumer('resident:metab') &&
+      checkpoint === null &&
+      p1Authority.length === 0 &&
+      countRows('p1_founders') === 0 &&
+      countRows('p1_birth_dossiers') === 0 &&
+      countRows('p1_chip_current') === 0 &&
+      countRows('p1_chip_history') === 0;
+    if (!emptyBirthCohort) {
+      throw Object.assign(
+        new Error('METAB revision preservation requires the exact empty R127 birth cohort'),
+        { code: 'P1_METAB_RECOVERY_NOT_EMPTY' }
+      );
+    }
+
+    this.metabNeutralRecoveryFence = recoveryFence;
+    this.metabNeutralRecoveryRevisionPreserved = true;
+    await this.stateStore.appendJournal({
+      type: 'runtime.revision-preserved',
+      at: this.startedAt,
+      reason: 'resident.metab-neutral-exact-r127-forward-recovery',
+      runtimeRevision: this.runtimeRevision,
+      version: KERNEL_VERSION,
+      pid: process.pid,
+      recoveryMarkerSha256: recoveryFence.markerSha256,
+      authorityOwned: false
+    });
+    return true;
   }
 
   startMaintenance() {
@@ -702,11 +801,61 @@ class LivingKernel {
   }
 
   async installCore(modulePath) {
-    const unit = await this.upgrades.installInitial(path.resolve(modulePath));
-    await this.bumpRuntimeRevision('core.install', {
-      coreId: unit.manifest ? unit.manifest.coreId : null,
-      coreVersion: unit.manifest ? unit.manifest.version : null
-    });
+    const preserveExactFetusInstall =
+      this.metabNeutralRecoveryRevisionPreserved &&
+      this.metabNeutralRecoveryCompletedAtPreservedRevision &&
+      !this.metabNeutralRecoveryFetusInstallPreserved;
+    const resolvedModulePath = path.resolve(modulePath);
+    if (preserveExactFetusInstall) {
+      let trustedModulePath;
+      let requestedModulePath;
+      try {
+        trustedModulePath = fs.realpathSync(path.join(
+          this.releaseRoot,
+          'cores/fetus-legacy-0.6/index.js'
+        ));
+        requestedModulePath = fs.realpathSync(resolvedModulePath);
+      } catch (error) {
+        throw Object.assign(
+          new Error(`R127 fetus continuity module is unavailable: ${error.message}`),
+          { code: 'P1_METAB_RECOVERY_FETUS_FENCE' }
+        );
+      }
+      if (requestedModulePath !== trustedModulePath) {
+        throw Object.assign(
+          new Error('R127 recovery revision preservation permits only the release-sealed fetus module'),
+          { code: 'P1_METAB_RECOVERY_FETUS_FENCE' }
+        );
+      }
+    }
+    const unit = await this.upgrades.installInitial(resolvedModulePath);
+    if (preserveExactFetusInstall) {
+      if (
+        this.runtimeRevision !== 127 ||
+        unit.manifest?.coreId !== 'fetus-legacy' ||
+        unit.manifest?.version !== '0.6.0'
+      ) {
+        throw Object.assign(
+          new Error('R127 recovery revision preservation permits only the exact fetus continuity install'),
+          { code: 'P1_METAB_RECOVERY_FETUS_FENCE' }
+        );
+      }
+      this.metabNeutralRecoveryFetusInstallPreserved = true;
+      await this.stateStore.appendJournal({
+        type: 'runtime.revision-preserved',
+        at: new Date().toISOString(),
+        reason: 'fetus.install.exact-r127-metab-forward-recovery',
+        runtimeRevision: this.runtimeRevision,
+        coreId: unit.manifest.coreId,
+        coreVersion: unit.manifest.version,
+        authorityOwned: false
+      });
+    } else {
+      await this.bumpRuntimeRevision('core.install', {
+        coreId: unit.manifest ? unit.manifest.coreId : null,
+        coreVersion: unit.manifest ? unit.manifest.version : null
+      });
+    }
     if (unit.manifest?.coreId === 'sntss') await this.publishOrganismBinding();
     return unit;
   }
@@ -1090,9 +1239,15 @@ class LivingKernel {
           { code: 'P1_METAB_RECOVERY_NOT_AUTHORIZED' }
         );
       }
-      if (this.runtimeRevision !== 126) {
+      const exactR127RevisionPreservation =
+        this.runtimeRevision === 127 &&
+        this.metabNeutralRecoveryRevisionPreserved;
+      if (
+        this.runtimeRevision !== 126 &&
+        !exactR127RevisionPreservation
+      ) {
         throw Object.assign(
-          new Error('METAB forward recovery is fenced to runtime R126'),
+          new Error('METAB forward recovery is fenced to runtime R126 or the exact preserved R127 cohort'),
           { code: 'P1_METAB_RECOVERY_REVISION' }
         );
       }
@@ -1263,7 +1418,9 @@ class LivingKernel {
       this.metabNeutralAcceptanceCommit(
         storage,
         recovery
-          ? 'R126_NEUTRAL_FORWARD_RECOVERED'
+          ? this.metabNeutralRecoveryRevisionPreserved
+            ? 'R127_NEUTRAL_FORWARD_RECOVERED'
+            : 'R126_NEUTRAL_FORWARD_RECOVERED'
           : existing
           ? 'R124_NEUTRAL_RECOVERED'
           : 'R124_NEUTRAL_ACCEPTED'
@@ -1396,6 +1553,10 @@ class LivingKernel {
       authorityOwned: false,
       observedOutputs: 0
     });
+
+    if (this.metabNeutralRecoveryRevisionPreserved) {
+      this.metabNeutralRecoveryCompletedAtPreservedRevision = true;
+    }
 
     return unit;
   }

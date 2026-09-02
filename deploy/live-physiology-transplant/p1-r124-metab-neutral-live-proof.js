@@ -125,6 +125,8 @@ function captureDatabase(databasePath) {
       sntssAuthority: count(database, 'authority', "core_id='sntss'"),
       chronobiologyAuthority: count(database, 'authority', "core_id='chronobiology'"),
       pendingDeliveries: count(database, 'biological_deliveries', "status='PENDING'"),
+      failedDeliveries: count(database, 'biological_deliveries', "status='FAILED'"),
+      abandonedDeliveries: count(database, 'biological_deliveries', "status='ABANDONED'"),
       pendingOutboxIntents: count(database, 'biological_outbox_intents', "status='PENDING'")
     });
   } finally { database.close(); }
@@ -362,6 +364,22 @@ function validateMarkerRecoveryAfter(input) {
   return Object.freeze({ ...accepted, restartCommands: 3 });
 }
 
+function validateR127RevisionPreservingAfter(input) {
+  assert(input?.before?.runtimeRevision === 127 &&
+    input?.database?.runtimeRevision === 127 &&
+    input?.service?.restartCommands === 4 &&
+    input?.database?.failedDeliveries === 0 &&
+    input?.database?.abandonedDeliveries === input?.before?.abandonedDeliveries,
+  'R127 revision-preserving recovery evidence is invalid',
+  'R127_METAB_REVISION_PRESERVATION_PROOF');
+  const accepted = validateAfter({
+    ...input,
+    service: { ...input.service, restartCommands: 2 }
+  });
+  return Object.freeze({ ...accepted, restartCommands: 4,
+    abandonedDeliveries: input.database.abandonedDeliveries });
+}
+
 function main(argv = process.argv.slice(2)) {
   if (argv[0] === 'capture' && argv.length === 2) {
     process.stdout.write(`${stableStringify(captureDatabase(argv[1]))}\n`);
@@ -383,6 +401,7 @@ module.exports = Object.freeze({
   captureDatabase,
   validateAfter,
   validateMarkerRecoveryAfter,
+  validateR127RevisionPreservingAfter,
   validateBefore,
   validateRepairBefore,
   validateBenchmark

@@ -201,7 +201,7 @@ test('R124-REL-06 clean overlay loads the real preflight proof in isolation', ()
   }
 });
 
-test('R127-MARKER-REL-01 exact stranded R126 state recovers forward without widening limits', () => {
+test('R127-PRESERVE-REL-01 exact stranded R127 state recovers and freezes without widening limits', () => {
   const source = read(MARKER_RECOVERY);
   const proof = read(path.join(ROOT, 'deploy', 'live-physiology-transplant',
     'p1-r124-metab-neutral-live-proof.js'));
@@ -210,23 +210,28 @@ test('R127-MARKER-REL-01 exact stranded R126 state recovers forward without wide
     "ACTIVE_MANIFEST_SHA256='fb8d675114b4d35a8d478c69b547910014234e63df1b928876fed7c49cbf2dcf'",
     "ACTIVE_RELEASE_ENV_SHA256='c82a2454d50ca1602dbdab0b3db532963a17e8913b3ff2475182eb7b004f921d'",
     "RECOVERY_MARKER_SHA256='933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e'",
-    "FAILED_R127_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R127-20260902T163941Z.Mgo5vp'",
-    "FAILED_R127_TREE_SHA256='4ad25c8997996399919841b2b5d31059665ebd28fc0a026ac7a97b46cb8f03b4'",
-    'EXPECTED_STRANDED_PID=434252',
-    'AUTHORIZE_R127_METAB_MARKER_FORWARD_RECOVERY_ONLY'
+    "ACTIVE_TREE_SHA256='ce832ae2a465804a917d40fbbf2475d367af2e537101fe471593d0f2ad4d24d8'",
+    "FAILED_R127_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R127-MARKER-20260902T171244Z.x3NznR'",
+    "FAILED_R127_TREE_SHA256='d8116e02ac70747929950a36186795134f272905da5663d18d61c68c8e826466'",
+    'EXPECTED_STRANDED_PID=436477',
+    'AUTHORIZE_R127_METAB_REVISION_PRESERVING_FORWARD_RECOVERY_ONLY'
   ]) assert.equal(source.includes(identity), true, identity);
   assert.equal((source.match(/systemctl restart stay\.service/g) || []).length, 1);
   assert.equal((source.match(/systemctl start stay\.service/g) || []).length, 0);
-  assert.match(source, /install -o root -g staydeploy -m 0440/);
-  assert.match(source, /durable_runtime_revision\)" == 126/);
   assert.match(source, /durable_runtime_revision\)" == 127/);
-  assert.match(source, /restartCommands: 3/);
-  assert.match(source, /R127_METAB_NEUTRAL_MARKER_FORWARD_RECOVERY/);
-  assert.match(source, /markerAccessRepaired: true, revisionFenced: true, pointerRewound: false/);
-  assert.match(source, /R127_MARKER_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
-  assert.match(proof, /function validateMarkerRecoveryAfter\(input\)/);
+  assert.match(source, /STAY_ALLOW_METAB_NEUTRAL_RECOVERY_REVISION_PRESERVATION=1/);
+  assert.match(source, /--test-name-pattern='\^R127-METAB-RECOVERY-05'/);
+  assert.match(source, /restartCommands: 4/);
+  assert.match(source, /R127_METAB_NEUTRAL_REVISION_PRESERVING_FORWARD_RECOVERY/);
+  assert.match(source, /kernelRevisionPreserved: true/);
+  assert.match(source, /fetusInstallRevisionPreserved: true/);
+  assert.match(source, /markerAccessRepaired: true,[\s\S]*?revisionFenced: true, pointerRewound: false/);
+  assert.match(source, /R127_PRESERVATION_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
+  assert.match(proof, /function validateR127RevisionPreservingAfter\(input\)/);
+  const committed = source.slice(source.indexOf('RESTART_COMMITTED=1'));
+  assert.doesNotMatch(committed, /point_current "\$ACTIVE_RELEASE"/);
   assert.doesNotMatch(source,
-    /TimeoutStartSec|TimeoutStopSec|CPUQuota=|handlerTimeoutMs\s*=|healthTimeoutMs\s*=|git reset|sqlite3\s+.*(?:DELETE|UPDATE)|point_current/);
+    /TimeoutStartSec|TimeoutStopSec|CPUQuota=|handlerTimeoutMs\s*=|healthTimeoutMs\s*=|git reset|sqlite3\s+.*(?:DELETE|UPDATE)/);
 });
 
 module.exports = Object.freeze({ EXPECTED_OVERLAY });
