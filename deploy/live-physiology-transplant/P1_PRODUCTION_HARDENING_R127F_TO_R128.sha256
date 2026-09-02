@@ -44,7 +44,7 @@ c4900863319612063f252210763e3fbf4edb22ed940cc6f5ae486a9e5e8a005d  ./test/p1-r118
 65813d1c80dc7d8d562e049cb362ecee22f9729580d0186717a8bc238b3d2380  ./test/p1-r119f-release-contract.test.js
 d04e195bd10ba2516d58924b6569f834d949789894d429760876d710fc605d48  ./test/p1-r124-release-contract.test.js
 5dd697a7b7f3f33dab37041e441318ecbdc4b5eddc67c9b79980de0cc50bac36  ./test/p1-r127-post-restart-continuity.test.js
-407ee76a0cd95be8acfbe36317b4c78eadb85f1a9b357809741e7d142549a4f8  ./test/p1-r128-metab-shadow.test.js
+014fff60207d41e7d46003a6f3a4b426b80948f31631f188098f76c62fbeedc1  ./test/p1-r128-metab-shadow.test.js
 462ac13a197543091ab9e82d43136f0deb7c9e1958389c6e5d94660e8e4c94a2  ./test/p1-r128-release-contract.test.js
 80dcbb091c54094ff2eb4fe710470d699a1e9b131c48d99cd9d46f469cb73ed2  ./test/p1-resident-control-socket.test.js
 cc17a842939f131843e8363d8cb337cccc927751d7fa600e56d15a2c5291b686  ./test/p1-surgery-a-transplant.test.js

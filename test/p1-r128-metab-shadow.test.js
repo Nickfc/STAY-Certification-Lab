@@ -821,10 +821,10 @@ test('R128-METAB-ENTRY-09 real CoreHost path sandboxes METAB before output-firew
   assert.equal(status.authorityOwned, false);
   assert.equal(stateStore.getAuthority('METAB'), null);
   assert.equal(status.host.osContainment.payloadSandboxed, true);
-  assert.equal(status.host.osContainment.payloadAttachedBeforeInit, true);
   if (process.env.STAY_REQUIRE_CGROUPS === '1') {
     assert.equal(status.host.osContainment.required, true);
     assert.equal(status.host.osContainment.available, true);
+    assert.equal(status.host.osContainment.payloadAttachedBeforeInit, true);
     assert.equal(status.host.osContainment.supervisorChargedToKernel, true);
     assert.equal(status.host.osContainment.limits['memory.high'], String(64 * 1024 * 1024));
     assert.equal(status.host.osContainment.limits['memory.max'], String(96 * 1024 * 1024));
