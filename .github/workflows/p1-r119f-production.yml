@@ -1,5 +1,5 @@
-name: R119F V3 guarded production recovery
-run-name: R119F V3 · ${{ inputs.operation }} · ${{ github.actor }}
+name: R119F V4 guarded production recovery
+run-name: R119F V4 · ${{ inputs.operation }} · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -19,29 +19,29 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R119F_V3_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
-          - AUTHORIZE_R119F_V3_FORWARD_RECOVERY_ONLY
+          - AUTHORIZE_R119F_V4_CONTAINED_FORWARD_WITH_FENCED_RECOVERY
+          - AUTHORIZE_R119F_V4_FORWARD_RECOVERY_ONLY
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r119f-v3-production
+  group: stay-r119f-v4-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r119f-v3
-  RELEASE_TAG_OBJECT: 0c33062cf22a3a57cadaed7461170e9813bc67f2
-  RELEASE_COMMIT: e5ec672e97555fbf84f4d5ff8fed68e6fc4a558c
-  RELEASE_TREE: 7281fa808194a4e5014763c5eb1a46cf11d30331
-  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V3_BUNDLE_20260830.tar.gz
-  ARCHIVE_SHA256: a5ddd851e43017cac69475dc88997cfbc685073544a3b2a642aaf71cb9a5c8b5
-  SIDECAR_SHA256: 673aa77db992ea6b1b3d9ea39d2d4e133fc1fe15f12897032f25823d9a0965c9
-  MANIFEST_SHA256: 2b5234c6d766bc81b4421a706768d2aab0401af68c43690f94e64c91820e1248
+  RELEASE_TAG: r119f-v4
+  RELEASE_TAG_OBJECT: 3b91c75e0fbcfd33c2c436d6967492ad0d8210af
+  RELEASE_COMMIT: 833cf2564ed2be040c681a627de24042f9ac1538
+  RELEASE_TREE: 97a1f8dbcf596cb98f0bda9af8faacfd709cb9ef
+  ARCHIVE: STAY_P1_PRODUCTION_HARDENING_R118_TO_R119F_V4_BUNDLE_20260830.tar.gz
+  ARCHIVE_SHA256: b0da4fa781181f44299ae724dbc364a71a477dcceec860af7faf8d4f909a066b
+  SIDECAR_SHA256: aab2c4f4cd13d2bd4bc94a145ca99af7d30a1800f6a2d5414b0a8509d515fbd7
+  MANIFEST_SHA256: 021c837c3b1d2a1e855e39e6154790e48a0ecc6f5bbb07dddc9776d63ad733eb
   FORWARD_SHA256: 832f8c5a6356073eb84c9859022ca437dc5b8276840396e38b0097a5a0a43cd2
   RECOVERY_SHA256: c6a44bfc956beb07aa0b3ef3fa6a36da9e27926d3a347d0ef20a72a7ddaf9f00
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-e76a2826d744
-  WRAPPER_SHA256: 53d520c367df530773da3828153416d6e4e239f8907b6907863d6466eda246d9
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2961f9a48173
+  WRAPPER_SHA256: f5432db9af2e232cb5b4be38323d6883b3370887b967723232e81558e0482a3c
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
   PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
@@ -63,10 +63,10 @@ jobs:
           [[ "$GITHUB_REF" == refs/heads/main ]]
           case "$OPERATION" in
             harden-r119f)
-              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V3_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
+              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V4_CONTAINED_FORWARD_WITH_FENCED_RECOVERY ]]
               ;;
             recover-r119f)
-              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V3_FORWARD_RECOVERY_ONLY ]]
+              [[ "$AUTHORIZATION" == AUTHORIZE_R119F_V4_FORWARD_RECOVERY_ONLY ]]
               ;;
             *) exit 64 ;;
           esac
@@ -184,7 +184,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r119f-v3-validated-release-${{ github.run_id }}
+          name: r119f-v4-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r119f-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r119f-release/${{ env.ARCHIVE }}.sha256
@@ -202,7 +202,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r119f-v3-validated-release-${{ github.run_id }}
+          name: r119f-v4-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -460,7 +460,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r119f-v3-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r119f-v4-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -484,7 +484,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r119f-v3-controller-output-${{ github.run_id }}
+          name: r119f-v4-controller-output-${{ github.run_id }}
           path: controller.output
           if-no-files-found: warn
           retention-days: 14
