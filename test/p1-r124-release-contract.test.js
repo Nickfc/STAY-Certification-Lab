@@ -15,6 +15,8 @@ const FORWARD = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'p1-r124-metab-neutral-forward.sh');
 const RECOVERY = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'p1-r124-metab-neutral-forward-recovery.sh');
+const MARKER_RECOVERY = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'p1-r127-metab-marker-forward-recovery.sh');
 
 const EXPECTED_OVERLAY = Object.freeze([
   'certification/p1-r0/r123f-benchmark-closure/README.md',
@@ -26,6 +28,7 @@ const EXPECTED_OVERLAY = Object.freeze([
   'deploy/live-physiology-transplant/p1-r124-metab-neutral-forward-recovery.sh',
   'deploy/live-physiology-transplant/p1-r124-metab-neutral-forward.sh',
   'deploy/live-physiology-transplant/p1-r124-metab-neutral-live-proof.js',
+  'deploy/live-physiology-transplant/p1-r127-metab-marker-forward-recovery.sh',
   'deploy/live-physiology-transplant/p1-resident-control-client.js',
   'runtime/kernel/canonical-json.js',
   'runtime/kernel/living-kernel.js',
@@ -196,6 +199,34 @@ test('R124-REL-06 clean overlay loads the real preflight proof in isolation', ()
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('R127-MARKER-REL-01 exact stranded R126 state recovers forward without widening limits', () => {
+  const source = read(MARKER_RECOVERY);
+  const proof = read(path.join(ROOT, 'deploy', 'live-physiology-transplant',
+    'p1-r124-metab-neutral-live-proof.js'));
+  for (const identity of [
+    "ACTIVE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-repair-fb8d675114b4'",
+    "ACTIVE_MANIFEST_SHA256='fb8d675114b4d35a8d478c69b547910014234e63df1b928876fed7c49cbf2dcf'",
+    "ACTIVE_RELEASE_ENV_SHA256='c82a2454d50ca1602dbdab0b3db532963a17e8913b3ff2475182eb7b004f921d'",
+    "RECOVERY_MARKER_SHA256='933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e'",
+    "FAILED_R127_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R127-20260902T163941Z.Mgo5vp'",
+    "FAILED_R127_TREE_SHA256='4ad25c8997996399919841b2b5d31059665ebd28fc0a026ac7a97b46cb8f03b4'",
+    'EXPECTED_STRANDED_PID=434252',
+    'AUTHORIZE_R127_METAB_MARKER_FORWARD_RECOVERY_ONLY'
+  ]) assert.equal(source.includes(identity), true, identity);
+  assert.equal((source.match(/systemctl restart stay\.service/g) || []).length, 1);
+  assert.equal((source.match(/systemctl start stay\.service/g) || []).length, 0);
+  assert.match(source, /install -o root -g staydeploy -m 0440/);
+  assert.match(source, /durable_runtime_revision\)" == 126/);
+  assert.match(source, /durable_runtime_revision\)" == 127/);
+  assert.match(source, /restartCommands: 3/);
+  assert.match(source, /R127_METAB_NEUTRAL_MARKER_FORWARD_RECOVERY/);
+  assert.match(source, /markerAccessRepaired: true, revisionFenced: true, pointerRewound: false/);
+  assert.match(source, /R127_MARKER_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
+  assert.match(proof, /function validateMarkerRecoveryAfter\(input\)/);
+  assert.doesNotMatch(source,
+    /TimeoutStartSec|TimeoutStopSec|CPUQuota=|handlerTimeoutMs\s*=|healthTimeoutMs\s*=|git reset|sqlite3\s+.*(?:DELETE|UPDATE)|point_current/);
 });
 
 module.exports = Object.freeze({ EXPECTED_OVERLAY });

@@ -351,6 +351,17 @@ function validateAfter({ before, database, sntssStatus, chronobiologyStatus, met
   });
 }
 
+function validateMarkerRecoveryAfter(input) {
+  assert(input?.database?.runtimeRevision === 127 &&
+    input?.service?.restartCommands === 3,
+  'R127 marker-recovery restart evidence is invalid', 'R127_METAB_MARKER_PROOF');
+  const accepted = validateAfter({
+    ...input,
+    service: { ...input.service, restartCommands: 2 }
+  });
+  return Object.freeze({ ...accepted, restartCommands: 3 });
+}
+
 function main(argv = process.argv.slice(2)) {
   if (argv[0] === 'capture' && argv.length === 2) {
     process.stdout.write(`${stableStringify(captureDatabase(argv[1]))}\n`);
@@ -371,6 +382,7 @@ module.exports = Object.freeze({
   EXPECTED,
   captureDatabase,
   validateAfter,
+  validateMarkerRecoveryAfter,
   validateBefore,
   validateRepairBefore,
   validateBenchmark
