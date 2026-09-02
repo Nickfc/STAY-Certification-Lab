@@ -3,10 +3,12 @@
 const path = require('node:path');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const { EventFabric } = require('./event-fabric');
 const {
   DURABILITY,
-  createSignal
+  createSignal,
+  deriveSignal
 } = require('./biological-fabric');
 const { StateStore } = require('./state-store');
 const { RuntimeRegistry } = require('./registry');
@@ -15,6 +17,55 @@ const { ComputeFabric } = require('../compute/compute-fabric');
 const { stableStringify } = require('./canonical-json');
 
 const KERNEL_VERSION = '0.8.11.3';
+
+const R128_METAB_SHADOW = Object.freeze({
+  authorization:
+    'AUTHORIZE_R128_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_ONLY',
+  runtimeRevision: 128,
+  parentRevision: 127,
+  instanceId:
+    'd424c722-ef31-44b0-8201-ba68c418d14a',
+  neutralVersion:
+    '0.1.0-p1r0-neutral.1',
+  neutralCheckpointHash:
+    '4a16fc393b9846d1dd6f2f9849920053e3d2b5235c066dde3c5cd72699595107',
+  shadowVersion:
+    '0.2.0-p1r0-shadow.1',
+  outputPolicy:
+    'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'
+});
+
+function defaultMetabCapacitySampler() {
+  const cpuCount = os.cpus()?.length;
+  const loadAverage = os.loadavg()?.[0];
+  const freeMemoryBytes = os.freemem();
+  const totalMemoryBytes = os.totalmem();
+
+  if (
+    !Number.isSafeInteger(cpuCount) ||
+    cpuCount < 1 ||
+    !Number.isFinite(loadAverage) ||
+    loadAverage < 0 ||
+    !Number.isSafeInteger(freeMemoryBytes) ||
+    freeMemoryBytes < 0 ||
+    !Number.isSafeInteger(totalMemoryBytes) ||
+    totalMemoryBytes < 1 ||
+    freeMemoryBytes > totalMemoryBytes
+  ) {
+    throw Object.assign(
+      new Error('Kernel resource sample is unavailable'),
+      { code: 'P1_METAB_CAPACITY_SAMPLE' }
+    );
+  }
+
+  return Object.freeze({
+    cpuCount,
+    loadAverageMilli:
+      Math.max(0, Math.round(loadAverage * 1000)),
+    freeMemoryBytes,
+    totalMemoryBytes
+  });
+}
 
 const R124_METAB_RECOVERY = Object.freeze({
   markerSha256: 'sha256:933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e',
@@ -281,6 +332,15 @@ class LivingKernel {
     allowMetabNeutralRecoveryRevisionPreservation =
       process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY_REVISION_PRESERVATION === '1',
 
+    allowMetabShadowPromotion =
+      process.env.STAY_ALLOW_METAB_SHADOW_PROMOTION === '1',
+
+    metabShadowPromotionAuthorization =
+      process.env.STAY_METAB_SHADOW_PROMOTION_AUTHORIZATION || '',
+
+    metabCapacitySampler =
+      defaultMetabCapacitySampler,
+
     r127PostRestartContinuityAuthorization =
       process.env.STAY_ALLOW_R127_POST_RESTART_CONTINUITY_RECOVERY || '',
 
@@ -397,6 +457,28 @@ class LivingKernel {
     this.allowMetabNeutralRecoveryRevisionPreservation =
       Boolean(allowMetabNeutralRecoveryRevisionPreservation);
 
+    this.allowMetabShadowPromotion =
+      Boolean(allowMetabShadowPromotion);
+
+    this.metabShadowPromotionAuthorization =
+      String(metabShadowPromotionAuthorization);
+
+    if (typeof metabCapacitySampler !== 'function') {
+      throw Object.assign(
+        new Error('METAB capacity sampler is invalid'),
+        { code: 'P1_METAB_CAPACITY_SAMPLE' }
+      );
+    }
+
+    this.metabCapacitySampler =
+      metabCapacitySampler;
+
+    this.lastMetabCapacitySource =
+      null;
+
+    this.metabCapacitySourcePromise =
+      null;
+
     this.r127PostRestartContinuityAuthorization =
       String(r127PostRestartContinuityAuthorization);
 
@@ -512,6 +594,10 @@ class LivingKernel {
       METAB_NEUTRAL_RESIDENT_CONTRACT
     } = require('../p1-r0/metab-neutral-contract');
 
+    const {
+      METAB_SHADOW_RESIDENT_CONTRACT
+    } = require('../p1-r0/metab-shadow-contract');
+
     const durableSntss =
       this.stateStore
         .getResident(
@@ -545,6 +631,19 @@ class LivingKernel {
       durableChronobiology?.moduleRelativePath === moduleRelativePath
     )?.[0] || CHRONOBIOLOGY_RESIDENT_CONTRACT;
 
+    const durableMetab =
+      this.stateStore.getResident('resident:metab');
+
+    const metabContract =
+      durableMetab?.version ===
+        METAB_SHADOW_RESIDENT_CONTRACT.version &&
+      durableMetab?.stateSchema ===
+        METAB_SHADOW_RESIDENT_CONTRACT.stateSchema &&
+      durableMetab?.moduleRelativePath ===
+        'cores/p1-r0/metab-shadow/index.js'
+        ? METAB_SHADOW_RESIDENT_CONTRACT
+        : METAB_NEUTRAL_RESIDENT_CONTRACT;
+
     this.residentManager =
       new ResidentManager({
         releaseRoot:
@@ -569,7 +668,7 @@ class LivingKernel {
           [
             sntssContract,
             chronobiologyContract,
-            METAB_NEUTRAL_RESIDENT_CONTRACT
+            metabContract
           ]
       });
 
@@ -1978,6 +2077,401 @@ class LivingKernel {
   }
 
 
+  metabShadowAcceptanceCommit(
+    storage,
+    healthReasonCode,
+    parentFreezeRecordSha256
+  ) {
+    return ({ checkpoint, resident, manifest }) => {
+      const lastTrustedFrame =
+        Number(checkpoint?.state?.lastAcceptedFrame) || 0;
+
+      return storage.appendShadowChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:metab',
+        organismId: this.identity.organismId,
+        coreId: 'METAB',
+        publicName: 'METAB',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:metab',
+        currentState: 'SHADOW',
+        mode: 'SHADOW',
+        lifecycle:
+          checkpoint?.state?.engineState?.lifecycle ||
+          'UNRESOLVED',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion:
+          String(manifest.stateSchema),
+        checkpointGeneration:
+          String(resident.checkpointGeneration),
+        lastTrustedFrame:
+          lastTrustedFrame > 0
+            ? lastTrustedFrame
+            : null,
+        coverageBand:
+          lastTrustedFrame > 0
+            ? 'FULL'
+            : 'UNKNOWN',
+        evidenceRefs: [
+          `sha256:${checkpoint.blobHash}`,
+          parentFreezeRecordSha256
+        ],
+        observedUtc:
+          new Date(Number(this.clock())).toISOString()
+      });
+    };
+  }
+
+
+  async promoteMetabShadow() {
+    if (
+      !this.allowMetabShadowPromotion ||
+      this.metabShadowPromotionAuthorization !==
+        R128_METAB_SHADOW.authorization
+    ) {
+      throw Object.assign(
+        new Error('R128 METAB shadow promotion is not authorized'),
+        { code: 'P1_METAB_SHADOW_NOT_AUTHORIZED' }
+      );
+    }
+
+    if (this.runtimeRevision !== R128_METAB_SHADOW.runtimeRevision) {
+      throw Object.assign(
+        new Error('METAB shadow promotion is fenced to runtime R128'),
+        { code: 'P1_METAB_SHADOW_REVISION' }
+      );
+    }
+
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(
+      R128_METAB_SHADOW.parentRevision,
+      { directory: this.runtimeFreezeDirectory }
+    );
+
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(
+        new Error('R127F parent freeze is absent or invalid'),
+        { code: 'P1_METAB_SHADOW_PARENT_FREEZE' }
+      );
+    }
+
+    const residents = this.stateStore.listResidents();
+    const residentIds = residents
+      .map(resident => resident.residencyId)
+      .sort();
+
+    if (
+      stableStringify(residentIds) !==
+        stableStringify([
+          'resident:chronobiology',
+          'resident:metab',
+          'resident:sntss'
+        ]) ||
+      this.stateStore.getResident('resident:homeos') !== null ||
+      this.stateStore.getResident('resident:intero') !== null
+    ) {
+      throw Object.assign(
+        new Error('R128 METAB promotion resident cohort is not exact'),
+        { code: 'P1_METAB_SHADOW_COHORT' }
+      );
+    }
+
+    const manager = this.ensureResidentManager();
+    const metabResident =
+      this.stateStore.getResident('resident:metab');
+    const metabCheckpoint =
+      await this.stateStore.readResidentCheckpoint(
+        'resident:metab'
+      );
+    const metabStatus =
+      await manager.status('resident:metab');
+    const sntss =
+      await manager.status('resident:sntss');
+    const chronobiology =
+      await manager.status('resident:chronobiology');
+    const p1Authority =
+      this.stateStore.listAuthority().filter(entry =>
+        ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+      );
+    const fetusAuthority =
+      this.stateStore.getAuthority('fetus-legacy');
+    const fetusSlot =
+      (await this.registry.status())
+        .find(slot => slot.coreId === 'fetus-legacy');
+    const pendingMetabOutbox = Number(
+      this.stateStore.db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM biological_outbox_intents
+        WHERE producer_core_id='METAB'
+      `).get()?.count || 0
+    );
+
+    if (
+      metabResident?.instanceId !==
+        R128_METAB_SHADOW.instanceId ||
+      metabResident?.version !==
+        R128_METAB_SHADOW.neutralVersion ||
+      metabResident?.stateSchema !== 1 ||
+      metabResident?.moduleRelativePath !==
+        'cores/p1-r0/metab-neutral/index.js' ||
+      metabResident?.checkpointHash !==
+        R128_METAB_SHADOW.neutralCheckpointHash ||
+      metabResident?.status !== 'RUNNING' ||
+      metabCheckpoint?.blobHash !==
+        R128_METAB_SHADOW.neutralCheckpointHash ||
+      metabCheckpoint?.state?.engineState?.frameIndex !== 0 ||
+      metabCheckpoint?.state?.engineState?.outputSequence !== '0' ||
+      metabStatus?.running !== true ||
+      metabStatus?.health?.mode !== 'NEUTRAL' ||
+      metabStatus?.authorityOwned !== false ||
+      metabStatus?.observedOutputs !== 0 ||
+      metabStatus?.pendingDeliveries !== 0 ||
+      sntss?.instanceId !==
+        R127_POST_RESTART_CONTINUITY.sntss.instanceId ||
+      sntss?.version !==
+        R127_POST_RESTART_CONTINUITY.sntss.version ||
+      sntss?.running !== true ||
+      sntss?.health?.mode !== 'SHADOW' ||
+      sntss?.authorityOwned !== false ||
+      sntss?.observedOutputs !== 0 ||
+      sntss?.pendingDeliveries !== 0 ||
+      chronobiology?.instanceId !==
+        R127_POST_RESTART_CONTINUITY.chronobiology.instanceId ||
+      chronobiology?.version !==
+        R127_POST_RESTART_CONTINUITY.chronobiology.version ||
+      chronobiology?.running !== true ||
+      chronobiology?.health?.mode !== 'SHADOW' ||
+      chronobiology?.authorityOwned !== false ||
+      chronobiology?.pendingDeliveries !== 0 ||
+      p1Authority.length !== 0 ||
+      pendingMetabOutbox !== 0 ||
+      fetusAuthority?.instanceId !==
+        R127_POST_RESTART_CONTINUITY.fetus.instanceId ||
+      fetusAuthority?.version !==
+        R127_POST_RESTART_CONTINUITY.fetus.version ||
+      fetusSlot?.active?.instanceId !==
+        R127_POST_RESTART_CONTINUITY.fetus.instanceId ||
+      fetusSlot?.active?.manifest?.version !==
+        R127_POST_RESTART_CONTINUITY.fetus.version ||
+      fetusSlot?.active?.mode !== 'active' ||
+      fetusSlot?.active?.health?.ok === false
+    ) {
+      throw Object.assign(
+        new Error('R128 METAB shadow continuity cohort failed closed'),
+        { code: 'P1_METAB_SHADOW_COHORT' }
+      );
+    }
+
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const founder = storage.readFounder({
+      organismId: this.identity.organismId,
+      coreId: 'METAB'
+    });
+    const dossier = storage.readBirthDossier('resident:metab');
+    const chip = storage.readChip('resident:metab');
+
+    if (
+      !founder ||
+      !dossier ||
+      chip?.currentState !== 'NEUTRAL' ||
+      chip?.mode !== 'NEUTRAL' ||
+      chip?.firstResidencyId !== 'resident:metab' ||
+      dossier.founderRecord?.founderId !== founder.founderId ||
+      dossier.founderRecord?.lineageId !== founder.lineageId ||
+      dossier.founderRecord?.profileHash !== founder.profileHash ||
+      metabCheckpoint.state?.founder?.founderId !== founder.founderId ||
+      metabCheckpoint.state?.founder?.lineageId !== founder.lineageId ||
+      metabCheckpoint.state?.founder?.profileHash !== founder.profileHash
+    ) {
+      throw Object.assign(
+        new Error('METAB founder or chip continuity is incomplete'),
+        { code: 'P1_METAB_SHADOW_LINEAGE' }
+      );
+    }
+
+    const binding = await this.ensureOrganismBinding({
+      allowCreate: false
+    });
+    const {
+      METAB_SHADOW_RESIDENT_CONTRACT
+    } = require('../p1-r0/metab-shadow-contract');
+
+    const unit = await manager.promoteMetabShadow({
+      moduleRelativePath:
+        'cores/p1-r0/metab-shadow/index.js',
+      binding,
+      shadowContract:
+        METAB_SHADOW_RESIDENT_CONTRACT,
+      acceptanceCommit:
+        this.metabShadowAcceptanceCommit(
+          storage,
+          'R128_SHADOW_ACCEPTED_OUTPUT_FIREWALLED',
+          parentFreeze.recordSha256
+        ),
+      publishActivation:
+        async ({ sourceCheckpoint, resident }) => {
+          const payload = {
+            protocol:
+              'stay-p1-r0-metab-shadow-activation-v1',
+            organismIdentityHash:
+              manager.organismIdentityHash,
+            residencyId: 'resident:metab',
+            instanceId: resident.instanceId,
+            fromVersion: resident.version,
+            fromStateSchema: resident.stateSchema,
+            sourceCheckpointGeneration:
+              sourceCheckpoint.generation,
+            sourceCheckpointHash:
+              `sha256:${sourceCheckpoint.blobHash}`,
+            toVersion:
+              METAB_SHADOW_RESIDENT_CONTRACT.version,
+            toStateSchema:
+              METAB_SHADOW_RESIDENT_CONTRACT.stateSchema,
+            runtimeRevision: this.runtimeRevision,
+            parentRevision:
+              R128_METAB_SHADOW.parentRevision,
+            parentFreezeRecordSha256:
+              parentFreeze.recordSha256,
+            mode: 'SHADOW',
+            authorityEpoch: '0',
+            outputPolicy:
+              R128_METAB_SHADOW.outputPolicy
+          };
+          const signalId =
+            `runtime.metab.shadow-activation:r128:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`;
+          const signal = createSignal({
+            signalId,
+            topic:
+              'runtime.metab.shadow-activation',
+            payload,
+            trustedTime: {
+              source: 'kernel',
+              observedAtMs:
+                Number(this.clock()),
+              pulseId:
+                `metab-shadow-activation-r128-g${sourceCheckpoint.generation}`
+            },
+            provenance: {
+              producerType: 'kernel',
+              producerId: 'living-kernel',
+              authorityEpoch:
+                this.runtimeRevision
+            },
+            durability: DURABILITY.DURABLE
+          });
+          return this.fabric.publishBiologicalSignal(
+            signal,
+            {
+              eventClass: 'critical',
+              sourceVersion: KERNEL_VERSION,
+              evidenceHash:
+                manager.organismIdentityHash
+            }
+          );
+        }
+    });
+
+    let initialCapacitySample =
+      await this.publishMetabCapacitySample();
+
+    /*
+     * The 250 ms trusted-time scheduler can have one pre-promotion no-op in
+     * flight while the durable generation swap completes. Retry that exact
+     * collision once without sleeping or widening a deadline. Any real
+     * source/time failure still reaches the acceptance fence below.
+     */
+    if (initialCapacitySample === false) {
+      initialCapacitySample =
+        await this.publishMetabCapacitySample();
+    }
+
+    const promoted = this.stateStore.getResident('resident:metab');
+    const checkpoint =
+      await this.stateStore.readResidentCheckpoint(
+        'resident:metab'
+      );
+    const status = await manager.status('resident:metab');
+    const consumer =
+      this.stateStore.getBiologicalConsumer(
+        'resident:metab'
+      );
+
+    if (
+      unit?.residencyId !== 'resident:metab' ||
+      promoted?.instanceId !== metabResident.instanceId ||
+      promoted?.version !== R128_METAB_SHADOW.shadowVersion ||
+      promoted?.stateSchema !== 2 ||
+      promoted?.status !== 'RUNNING' ||
+      checkpoint?.state?.activation?.sourceCheckpointHash !==
+        `sha256:${R128_METAB_SHADOW.neutralCheckpointHash}` ||
+      checkpoint?.state?.lastAcceptedFrame < 1 ||
+      checkpoint?.state?.engineState?.outputSequence !== '0' ||
+      status?.running !== true ||
+      status?.health?.mode !== 'SHADOW' ||
+      status?.health?.outputPolicy !==
+        R128_METAB_SHADOW.outputPolicy ||
+      status?.authorityOwned !== false ||
+      status?.observedOutputs !== 0 ||
+      status?.declaredOutputs !== 0 ||
+      status?.pendingDeliveries !== 0 ||
+      consumer?.active !== true ||
+      consumer?.required !== false ||
+      consumer?.authorityEpoch !== 0 ||
+      stableStringify(consumer?.topics) !==
+        stableStringify(METAB_SHADOW_RESIDENT_CONTRACT.inputs) ||
+      this.stateStore.getAuthority('METAB') !== null
+    ) {
+      throw Object.assign(
+        new Error('METAB shadow acceptance proof failed'),
+        { code: 'P1_METAB_SHADOW_ACCEPTANCE' }
+      );
+    }
+
+    this.metabShadowAcceptanceCommit(
+      storage,
+      'R128_SHADOW_RUNNING_OUTPUT_FIREWALLED',
+      parentFreeze.recordSha256
+    )({
+      checkpoint,
+      resident: promoted,
+      manifest: unit.manifest
+    });
+
+    this.statusCache = null;
+    await this.stateStore.appendJournal({
+      type: 'resident.metab-shadow-promotion',
+      at: new Date(Number(this.clock())).toISOString(),
+      residencyId: 'resident:metab',
+      instanceId: promoted.instanceId,
+      fromVersion:
+        R128_METAB_SHADOW.neutralVersion,
+      toVersion: promoted.version,
+      runtimeRevision: this.runtimeRevision,
+      parentFreezeRecordSha256:
+        parentFreeze.recordSha256,
+      sourceCheckpointHash:
+        R128_METAB_SHADOW.neutralCheckpointHash,
+      acceptedFrame:
+        checkpoint.state.lastAcceptedFrame,
+      authorityOwned: false,
+      observedOutputs: 0,
+      abandonedCount: 0,
+      inventedBiologicalTime: false
+    });
+
+    return unit;
+  }
+
+
   async recoverMetabNeutralBirth() {
     return this.birthMetabNeutral({ recovery: true });
   }
@@ -3071,6 +3565,75 @@ class LivingKernel {
                   dossier.founderBinding
               });
           }
+        } else if (
+          resident.residencyId === 'resident:metab' &&
+          resident.coreId === 'METAB' &&
+          resident.version ===
+            R128_METAB_SHADOW.shadowVersion &&
+          resident.stateSchema === 2 &&
+          resident.moduleRelativePath ===
+            'cores/p1-r0/metab-shadow/index.js'
+        ) {
+          const {
+            PRODUCTION_STORAGE_AUTHORIZATION,
+            P1ProductionPersistence
+          } = require('../p1-r0/production-persistence');
+          const storage =
+            new P1ProductionPersistence({
+              stateStore: this.stateStore,
+              authorization:
+                PRODUCTION_STORAGE_AUTHORIZATION
+            }).initialize();
+          const founder = storage.readFounder({
+            organismId: this.identity.organismId,
+            coreId: 'METAB'
+          });
+          const dossier =
+            storage.readBirthDossier('resident:metab');
+          const chip =
+            storage.readChip('resident:metab');
+          const { readRevisionFreeze } =
+            require('../revision-freeze');
+          const birthFreeze =
+            readRevisionFreeze(123, {
+              directory:
+                this.runtimeFreezeDirectory
+            });
+          const shadowFreeze =
+            readRevisionFreeze(127, {
+              directory:
+                this.runtimeFreezeDirectory
+            });
+
+          if (
+            !founder ||
+            !dossier ||
+            !birthFreeze.frozen ||
+            birthFreeze.recordSha256 !==
+              dossier.parentFreezeRecordSha256 ||
+            !shadowFreeze.frozen ||
+            !shadowFreeze.recordSha256 ||
+            !chip ||
+            !['NEUTRAL', 'SHADOW'].includes(
+              chip.currentState
+            ) ||
+            chip.firstResidencyId !==
+              'resident:metab'
+          ) {
+            throw Object.assign(
+              new Error('durable shadow METAB continuity evidence is incomplete'),
+              { code: 'P1_METAB_SHADOW_RECOVERY_EVIDENCE' }
+            );
+          }
+
+          recoveryOptions = {
+            acceptanceCommit:
+              this.metabShadowAcceptanceCommit(
+                storage,
+                `R${this.runtimeRevision}_SHADOW_RECOVERED_OUTPUT_FIREWALLED`,
+                shadowFreeze.recordSha256
+              )
+          };
         }
 
         if (resumeInitialState) {
@@ -3499,6 +4062,281 @@ class LivingKernel {
     });
   }
 
+  async publishMetabCapacitySample() {
+    if (this.metabCapacitySourcePromise) {
+      return this.metabCapacitySourcePromise;
+    }
+
+    const operation =
+      this.runMetabCapacitySample();
+
+    this.metabCapacitySourcePromise =
+      operation;
+
+    try {
+      return await operation;
+    } finally {
+      if (this.metabCapacitySourcePromise === operation) {
+        this.metabCapacitySourcePromise = null;
+      }
+    }
+  }
+
+  async runMetabCapacitySample() {
+    const resident =
+      this.stateStore.getResident('resident:metab');
+    const manager = this.residentManager;
+
+    if (
+      !manager ||
+      resident?.version !==
+        R128_METAB_SHADOW.shadowVersion ||
+      resident?.stateSchema !== 2 ||
+      resident?.moduleRelativePath !==
+        'cores/p1-r0/metab-shadow/index.js' ||
+      resident?.status !== 'RUNNING' ||
+      !manager.units.has('resident:metab')
+    ) {
+      return false;
+    }
+
+    const {
+      SOURCE_CORE_ID,
+      SOURCE_STATE_KEY,
+      SOURCE_VERSION,
+      commitCapacitySample,
+      createCapacitySourceState,
+      stageCapacitySample,
+      validateCapacitySourceState
+    } = require('../p1-r0/metab-capacity-source');
+
+    let sourceState =
+      await this.stateStore.readLife(
+        SOURCE_STATE_KEY,
+        null
+      );
+    let checkpoint =
+      await this.stateStore.readResidentCheckpoint(
+        'resident:metab'
+      );
+
+    if (!sourceState) {
+      if (
+        checkpoint?.state?.lastAcceptedFrame !== 0 ||
+        checkpoint?.state?.lastAcceptedTimeMs !== null ||
+        checkpoint?.state?.pendingEligible !== null ||
+        checkpoint?.state?.pendingQuality !== null
+      ) {
+        throw Object.assign(
+          new Error('METAB capacity source history is missing'),
+          { code: 'P1_METAB_CAPACITY_SOURCE_STATE' }
+        );
+      }
+      sourceState = createCapacitySourceState({
+        instanceId: resident.instanceId,
+        residentVersion: resident.version
+      });
+      await this.stateStore.writeLife(
+        SOURCE_STATE_KEY,
+        sourceState
+      );
+    } else {
+      sourceState = validateCapacitySourceState(
+        sourceState,
+        {
+          instanceId: resident.instanceId,
+          residentVersion: resident.version
+        }
+      );
+    }
+
+    const checkpointFrame =
+      Number(checkpoint?.state?.lastAcceptedFrame);
+    const allowedCheckpointFrames =
+      sourceState.pending
+        ? [
+            sourceState.lastCommittedFrame,
+            sourceState.pending.sampleFrame
+          ]
+        : [sourceState.lastCommittedFrame];
+
+    if (
+      !allowedCheckpointFrames.includes(checkpointFrame) ||
+      checkpoint?.state?.engineState?.outputSequence !== '0'
+    ) {
+      throw Object.assign(
+        new Error('METAB capacity source disagrees with committed physiology'),
+        { code: 'P1_METAB_CAPACITY_SOURCE_STATE' }
+      );
+    }
+
+    if (!sourceState.pending) {
+      const evidence =
+        await this.sampleTrustedTimeEvidence();
+
+      if (
+        evidence.status !== 'TRUSTED' ||
+        !Number.isSafeInteger(evidence.trustedTimeUs)
+      ) {
+        this.lastMetabCapacitySource = Object.freeze({
+          ok: false,
+          reasonCode:
+            evidence.reasonCode ||
+            'TRUSTED_TIME_UNCERTAIN',
+          lastCommittedFrame:
+            sourceState.lastCommittedFrame,
+          pendingFrame: null
+        });
+        return false;
+      }
+
+      const staged = stageCapacitySample(
+        sourceState,
+        {
+          trustedTimeUs:
+            evidence.trustedTimeUs,
+          continuityEpoch:
+            evidence.continuityEpoch,
+          metrics:
+            this.metabCapacitySampler()
+        }
+      );
+
+      if (!staged.pending) {
+        this.lastMetabCapacitySource = Object.freeze({
+          ok: true,
+          reasonCode:
+            'FRAME_INTERVAL_NOT_REACHED',
+          lastCommittedFrame:
+            sourceState.lastCommittedFrame,
+          pendingFrame: null
+        });
+        return false;
+      }
+
+      sourceState = staged;
+      await this.stateStore.writeLife(
+        SOURCE_STATE_KEY,
+        sourceState
+      );
+    }
+
+    const pending = sourceState.pending;
+    const trustedTime = {
+      source: 'kernel',
+      observedAtMs: pending.observedAtMs,
+      pulseId: pending.pulseId
+    };
+    const provenance = {
+      producerType: 'kernel',
+      producerId: SOURCE_CORE_ID,
+      authorityEpoch: 0
+    };
+    const eligibleSignal = createSignal({
+      signalId: pending.eligibleSignalId,
+      topic: 'resource.capacity.eligible.v1',
+      payload: pending.eligiblePayload,
+      trustedTime,
+      provenance,
+      durability: DURABILITY.DURABLE
+    });
+    const qualitySignal = deriveSignal(
+      eligibleSignal,
+      {
+        signalId: pending.qualitySignalId,
+        topic: 'resource.capacity.quality.v1',
+        payload: pending.qualityPayload,
+        trustedTime,
+        provenance,
+        durability: DURABILITY.DURABLE
+      }
+    );
+
+    const eligibleEvent =
+      await this.fabric.publishBiologicalSignal(
+        eligibleSignal,
+        {
+          eventClass: 'durable',
+          sourceVersion: SOURCE_VERSION
+        }
+      );
+    const qualityEvent =
+      await this.fabric.publishBiologicalSignal(
+        qualitySignal,
+        {
+          eventClass: 'durable',
+          sourceVersion: SOURCE_VERSION
+        }
+      );
+
+    await manager.drain(
+      'resident:metab',
+      qualityEvent.sequence
+    );
+
+    const eligibleDelivery =
+      this.stateStore.getBiologicalDelivery(
+        'resident:metab',
+        eligibleEvent.sequence
+      );
+    const qualityDelivery =
+      this.stateStore.getBiologicalDelivery(
+        'resident:metab',
+        qualityEvent.sequence
+      );
+    checkpoint =
+      await this.stateStore.readResidentCheckpoint(
+        'resident:metab'
+      );
+
+    if (
+      eligibleDelivery?.status !== 'ACKED' ||
+      qualityDelivery?.status !== 'ACKED' ||
+      checkpoint?.state?.lastAcceptedFrame !==
+        pending.sampleFrame ||
+      checkpoint?.state?.lastAcceptedTimeMs !==
+        pending.observedAtMs ||
+      checkpoint?.state?.engineState?.frameIndex !==
+        pending.sampleFrame ||
+      checkpoint?.state?.engineState?.outputSequence !== '0' ||
+      checkpoint?.state?.pendingEligible !== null ||
+      checkpoint?.state?.pendingQuality !== null ||
+      this.stateStore.getAuthority('METAB') !== null ||
+      Number(this.stateStore.db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM biological_outbox_intents
+        WHERE producer_core_id='METAB'
+      `).get()?.count || 0) !== 0
+    ) {
+      throw Object.assign(
+        new Error('METAB capacity pair did not commit atomically into contained physiology'),
+        { code: 'P1_METAB_CAPACITY_COMMIT' }
+      );
+    }
+
+    sourceState = commitCapacitySample(sourceState);
+    await this.stateStore.writeLife(
+      SOURCE_STATE_KEY,
+      sourceState
+    );
+    this.lastMetabCapacitySource = Object.freeze({
+      ok: true,
+      reasonCode: null,
+      lastCommittedFrame:
+        sourceState.lastCommittedFrame,
+      continuityEpoch:
+        sourceState.lastContinuityEpoch,
+      pendingFrame: null,
+      eligibleSequence:
+        eligibleEvent.sequence,
+      qualitySequence:
+        qualityEvent.sequence
+    });
+    this.statusCache = null;
+
+    return true;
+  }
+
   async stageCoreUpgrade(modulePath) {
     const unit = await this.upgrades.stage(path.resolve(modulePath));
     await this.bumpRuntimeRevision('core.stage', {
@@ -3595,6 +4433,8 @@ class LivingKernel {
       eventFabric: this.fabric.status(),
       biologicalLedger: this.stateStore.biologicalLedgerStatus(),
       biologicalRetention: this.lastBiologicalRetention,
+      metabCapacitySource:
+        this.lastMetabCapacitySource,
       authority: this.stateStore.listAuthority(),
       computeFabric: this.computeFabric.status()
     };
@@ -3711,5 +4551,7 @@ module.exports = {
   LivingKernel,
   KERNEL_VERSION,
   R124_METAB_RECOVERY,
+  R128_METAB_SHADOW,
+  defaultMetabCapacitySampler,
   readR124MetabRecoveryFence
 };

@@ -13,6 +13,12 @@ const DEFINITIONS = Object.freeze({
     leaf: 'p1-r0-metab-<instance>',
     policyCoreId: 'METAB'
   }),
+  METAB_SHADOW: Object.freeze({
+    entry: 'runtime/p1-r0/residents/metab-shadow.js',
+    output: 'cores/p1-r0/metab-shadow',
+    leaf: 'p1-r0-metab-<instance>',
+    policyCoreId: 'METAB'
+  }),
   METAB: Object.freeze({
     entry: 'runtime/p1-r0/residents/metab.js',
     output: 'cores/p1-r0/metab',

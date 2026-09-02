@@ -2259,6 +2259,330 @@ class ResidentManager {
   }
 
 
+  async promoteMetabShadow({
+    moduleRelativePath =
+      'cores/p1-r0/metab-shadow/index.js',
+    binding,
+    shadowContract,
+    publishActivation,
+    acceptanceCommit = null
+  }) {
+    if (this.closed) {
+      fail(
+        'resident manager is closed',
+        'RESIDENT_MANAGER_CLOSED'
+      );
+    }
+
+    if (
+      typeof publishActivation !== 'function' ||
+      !shadowContract
+    ) {
+      fail(
+        'METAB shadow promotion configuration is incomplete',
+        'P1_METAB_SHADOW_PROMOTION_CONFIG'
+      );
+    }
+
+    const nextContract =
+      normalizeResidentContract(
+        shadowContract
+      );
+    const expectedInputs = [
+      'runtime.organism.binding',
+      'runtime.metab.shadow-activation',
+      'resource.capacity.eligible.v1',
+      'resource.capacity.quality.v1'
+    ];
+
+    if (
+      nextContract.residencyId !== 'resident:metab' ||
+      nextContract.coreId !== 'METAB' ||
+      nextContract.role !== 'metabolism' ||
+      nextContract.version !== '0.2.0-p1r0-shadow.1' ||
+      nextContract.stateSchema !== 2 ||
+      nextContract.stage !== 'p1-r0-production-shadow-r128' ||
+      nextContract.productionEligible !== false ||
+      nextContract.signalling !== RESIDENT_SIGNALLING.FORBIDDEN ||
+      nextContract.authorityMode !== 'shadow' ||
+      stableStringify(nextContract.inputs) !==
+        stableStringify(expectedInputs) ||
+      stableStringify(nextContract.outputs) !==
+        stableStringify([])
+    ) {
+      fail(
+        'METAB shadow contract is not the R128 output-firewalled contract',
+        'P1_METAB_SHADOW_PROMOTION_CONTRACT'
+      );
+    }
+
+    const residencyId = 'resident:metab';
+    const before =
+      this.stateStore.getResident(residencyId);
+    const consumer =
+      this.stateStore.getBiologicalConsumer(residencyId);
+    const authority =
+      this.stateStore.getAuthority('METAB');
+    const pending =
+      this.stateStore.listPendingBiologicalEvents(
+        residencyId,
+        1024
+      );
+    const beforeUnit =
+      this.units.get(residencyId);
+
+    if (
+      !before ||
+      before.coreId !== 'METAB' ||
+      before.role !== 'metabolism' ||
+      before.version !== '0.1.0-p1r0-neutral.1' ||
+      before.stateSchema !== 1 ||
+      before.moduleRelativePath !==
+        'cores/p1-r0/metab-neutral/index.js' ||
+      before.status !== 'RUNNING' ||
+      !beforeUnit ||
+      beforeUnit.outputViolation ||
+      beforeUnit.observedOutputs !== 0 ||
+      authority !== null ||
+      !consumer ||
+      consumer.coreId !== 'METAB' ||
+      consumer.active !== true ||
+      consumer.required !== false ||
+      consumer.authorityEpoch !== 0 ||
+      stableStringify(consumer.topics) !==
+        stableStringify(['runtime.organism.binding']) ||
+      pending.length !== 0
+    ) {
+      fail(
+        'METAB is not at the exact contained neutral promotion boundary',
+        'P1_METAB_SHADOW_PROMOTION_BASELINE'
+      );
+    }
+
+    this.validateBinding(binding);
+
+    const previousContract =
+      this.contractRegistry.byResidencyId.get(residencyId);
+    const previousInspection =
+      await this.inspect(
+        before.moduleRelativePath,
+        residencyId,
+        previousContract
+      );
+    const inspected =
+      await this.inspect(
+        moduleRelativePath,
+        residencyId,
+        nextContract
+      );
+
+    let candidate = null;
+    let committed = false;
+    let outputViolation = false;
+    let sourceCheckpoint = null;
+
+    try {
+      await this.detach(residencyId);
+      sourceCheckpoint =
+        await this.stateStore.readResidentCheckpoint(
+          residencyId
+        );
+
+      if (
+        !sourceCheckpoint ||
+        sourceCheckpoint.version !== before.version ||
+        sourceCheckpoint.stateSchema !== before.stateSchema ||
+        sourceCheckpoint.blobHash !==
+          this.stateStore.getResident(residencyId)?.checkpointHash
+      ) {
+        fail(
+          'METAB neutral source checkpoint is unavailable',
+          'P1_METAB_SHADOW_PROMOTION_CHECKPOINT'
+        );
+      }
+
+      candidate =
+        new CoreHostClient({
+          modulePath: inspected.definition.modulePath,
+          expectedManifest: inspected.definition.manifest,
+          instanceId: before.instanceId,
+          mode: 'standby',
+          logger: this.logger,
+          policy: {
+            resources: inspected.definition.manifest.resources,
+            priority: inspected.definition.manifest.priority
+          }
+        });
+
+      candidate.on('output', () => {
+        outputViolation = true;
+      });
+      candidate.on('error', () => {});
+
+      await candidate.start(
+        sourceCheckpoint.state,
+        sourceCheckpoint.stateSchema
+      );
+
+      const activationEvent =
+        await publishActivation({
+          sourceCheckpoint,
+          inspected,
+          resident: before
+        });
+      const dispatched =
+        await candidate.dispatch(
+          activationEvent,
+          {
+            coreId: 'METAB',
+            implementationInstanceId:
+              before.instanceId,
+            authorityEpoch: 0,
+            eventSequence:
+              activationEvent.sequence,
+            eventId:
+              activationEvent.id
+          }
+        );
+
+      if (outputViolation) {
+        fail(
+          'METAB emitted output during shadow activation',
+          'RESIDENT_OUTPUT_VIOLATION'
+        );
+      }
+
+      const activatedState =
+        dispatched.checkpoint != null
+          ? dispatched.checkpoint
+          : await candidate.snapshot();
+      const activation = activatedState?.activation;
+
+      if (
+        activatedState?.schema !==
+          'stay-p1-r0-resident/metab-shadow-state-v2' ||
+        activatedState?.engineState?.frameIndex !== 0 ||
+        activatedState?.engineState?.outputSequence !== '0' ||
+        activatedState?.handledEvents !== 0 ||
+        activation?.eventId !== activationEvent.id ||
+        activation?.eventSequence !== activationEvent.sequence ||
+        activation?.instanceId !== before.instanceId ||
+        activation?.sourceCheckpointGeneration !==
+          sourceCheckpoint.generation ||
+        activation?.sourceCheckpointHash !==
+          `sha256:${sourceCheckpoint.blobHash}` ||
+        activation?.organismIdentityHash !==
+          this.organismIdentityHash ||
+        activation?.authorityEpoch !== '0' ||
+        activation?.outputPolicy !==
+          'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'
+      ) {
+        fail(
+          'METAB shadow activation did not preserve neutral continuity',
+          'P1_METAB_SHADOW_PROMOTION_ACTIVATION'
+        );
+      }
+
+      const health = await candidate.health();
+      if (
+        health?.ok !== true ||
+        health?.mode !== 'SHADOW' ||
+        health?.authorityOwned !== false ||
+        health?.activated !== true ||
+        health?.frameIndex !== 0 ||
+        health?.biologicalOutputs !== 0 ||
+        health?.outputPolicy !==
+          'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'
+      ) {
+        fail(
+          'METAB shadow candidate health gate failed',
+          'P1_METAB_SHADOW_PROMOTION_HEALTH'
+        );
+      }
+
+      const promoted =
+        await this.stateStore.promoteResidentGeneration({
+          residencyId,
+          instanceId: before.instanceId,
+          organismIdentityHash:
+            before.organismIdentityHash,
+          fromVersion: before.version,
+          fromStateSchema: before.stateSchema,
+          fromModuleRelativePath:
+            before.moduleRelativePath,
+          fromCheckpointGeneration:
+            sourceCheckpoint.generation,
+          fromCheckpointHash:
+            sourceCheckpoint.blobHash,
+          toVersion:
+            inspected.definition.manifest.version,
+          toStateSchema:
+            inspected.definition.manifest.stateSchema,
+          toModuleRelativePath:
+            inspected.moduleRelativePath,
+          toModuleHash:
+            inspected.definition.moduleDigest,
+          toManifestHash:
+            inspected.manifestHash,
+          toPackagePolicyHash:
+            inspected.definition.packagePolicyHash,
+          topics:
+            inspected.definition.manifest.inputs,
+          genesisEvent: activationEvent,
+          state: activatedState,
+          promotionKind:
+            'METAB_NEUTRAL_TO_SHADOW_R128'
+        });
+
+      committed = true;
+      candidate.stopping = true;
+      await candidate.stop();
+      candidate = null;
+
+      this.activateResidentContract(nextContract);
+
+      return await this.startUnit({
+        resident: promoted.resident,
+        inspected,
+        binding,
+        checkpoint: promoted.checkpoint,
+        acceptanceCommit
+      });
+    } catch (error) {
+      if (candidate) {
+        candidate.stopping = true;
+        await candidate.stop().catch(() => {});
+      }
+
+      if (!committed && sourceCheckpoint) {
+        this.activateResidentContract(previousContract);
+        try {
+          this.stateStore.setResidentStatus(
+            residencyId,
+            'RECOVERING'
+          );
+          await this.startUnit({
+            resident:
+              this.stateStore.getResident(residencyId),
+            inspected: previousInspection,
+            binding,
+            checkpoint: sourceCheckpoint
+          });
+        } catch (rollbackError) {
+          error.rollbackError = {
+            code: rollbackError?.code || null,
+            message:
+              rollbackError?.message ||
+              String(rollbackError)
+          };
+        }
+      }
+
+      throw error;
+    }
+  }
+
+
   async recover(
     residencyId,
     binding,

@@ -11,6 +11,7 @@ const {
   validateChipObservation
 } = require('./records');
 const { METAB_NEUTRAL_RESIDENT_CONTRACT } = require('./metab-neutral-contract');
+const { METAB_SHADOW_RESIDENT_CONTRACT } = require('./metab-shadow-contract');
 const { normalizeNeutralFounder } = require('./residents/metab-neutral');
 
 const PRODUCTION_STORAGE_AUTHORIZATION =
@@ -259,6 +260,39 @@ class P1ProductionPersistence extends P1LaboratoryPersistence {
       String(resident.checkpointGeneration) !== observation.checkpointGeneration
     ) {
       fail('METAB neutral chip acceptance is not exact', 'P1_PRODUCTION_CHIP');
+    }
+    return super.appendChipObservation(observation);
+  }
+
+  appendShadowChip(input) {
+    this.assertInitialized();
+    const observation = validateChipObservation(input);
+    const resident = this.stateStore.getResident('resident:metab');
+    if (
+      observation.coreId !== 'METAB' ||
+      observation.chipId !== 'resident:metab' ||
+      observation.firstResidencyId !== 'resident:metab' ||
+      observation.currentState !== 'SHADOW' ||
+      observation.mode !== 'SHADOW' ||
+      (
+        observation.lastTrustedFrame === null
+          ? observation.coverageBand !== 'UNKNOWN'
+          : (
+              observation.lastTrustedFrame < 1 ||
+              observation.coverageBand !== 'FULL'
+            )
+      ) ||
+      observation.coreVersion !== METAB_SHADOW_RESIDENT_CONTRACT.version ||
+      observation.stateSchemaVersion !==
+        String(METAB_SHADOW_RESIDENT_CONTRACT.stateSchema) ||
+      !resident ||
+      resident.status !== 'RUNNING' ||
+      resident.version !== observation.coreVersion ||
+      resident.instanceId == null ||
+      String(resident.stateSchema) !== observation.stateSchemaVersion ||
+      String(resident.checkpointGeneration) !== observation.checkpointGeneration
+    ) {
+      fail('METAB shadow chip acceptance is not exact', 'P1_PRODUCTION_CHIP');
     }
     return super.appendChipObservation(observation);
   }
