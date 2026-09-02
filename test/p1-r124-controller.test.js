@@ -75,19 +75,45 @@ test('R127-BRIDGE-04 one-shot birth material remains scoped and revocable', () =
   assert.doesNotMatch(wrapper, /birth-authority-private|entropy\.secret|PRIVATE_KEY/);
 });
 
-test('R127-BRIDGE-05 installer pins the wrapper and grants no general sudo surface', () => {
+test('R127-BRIDGE-05 evidence access is exact, read-only, probed, and always restored', () => {
+  assert.match(wrapper,
+    /R124_FAILURE_ROOT='\/var\/lib\/stay\/evidence\/production-hardening\/FAILED-R124-20260902T144307Z\.eMKkA2'/);
+  for (const identity of [
+    '40e54a2d6ed649132c5f1395d8cdf0ed7075cbe0ff5c4d89a2c57707c84ca4da',
+    '95d99d8b56d6299680928d10bacc5cc41bd5cc3fedf584ee519ce69729c5cb74',
+    '34baedccaa9227ebd20c0b11a9e32fa6b98deb3c25ca2db03fa846bf49251a92',
+    '9dc732e26d7974f4a5998a936051bd1f52909399179b8313a2311f5299f1fcac',
+  ]) assert.equal(wrapper.includes(identity), true, identity);
+  assert.match(wrapper, /validate_r124_evidence_access original/);
+  assert.match(wrapper, /validate_r124_evidence_access staged/);
+  assert.match(wrapper, /chmod 0710 "\$R124_FAILURE_PARENT"/);
+  assert.match(wrapper, /chmod 0510 "\$R124_FAILURE_ROOT"/);
+  assert.match(wrapper, /chmod 0440 "\$file"/);
+  assert.match(wrapper, /process\.setgroups\(\[\]\)/);
+  assert.match(wrapper, /process\.setgid\(Number\(gidText\)\)/);
+  assert.match(wrapper, /process\.setuid\(Number\(uidText\)\)/);
+  assert.match(wrapper, /R127_CONTROLLER_EVIDENCE_ACCESS_PROBE=PASS/);
+  assert.match(wrapper, /if \[\[ "\$EVIDENCE_ACCESS_STAGED" -eq 1 \]\]/);
+  assert.match(wrapper, /chmod 0400 "\$file"/);
+  assert.match(wrapper, /chmod 0500 "\$R124_FAILURE_ROOT"/);
+  assert.match(wrapper, /chmod 0700 "\$R124_FAILURE_PARENT"/);
+  assert.match(wrapper, /R127_CONTROLLER_EVIDENCE_ACCESS_RESTORED=/);
+  assert.doesNotMatch(wrapper, /chmod\s+(?:[2367][0-7]{2}|0?[0-7]*[2367])\s+"\$file"/);
+});
+
+test('R127-BRIDGE-06 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    '90346bd11165174d3bf0dbd42a89b07ebf1863fbb6feabc2072deab0b6380694');
+    'a6f5167f18e0e6c917d2f4eca23093162424e50c53082658852b08d5667cdc91');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(installer, /NOPASSWD:\s+(?:ALL|\/bin\/(?:bash|sh)|\/usr\/bin\/env)/);
   assert.match(installer, /visudo -cf "\$sudoers_staged"/);
   assert.match(installer, /root:root:555/);
-  assert.match(installer, /R127_FINAL_RECOVERY_V2_AUTHORIZED=NO/);
+  assert.match(installer, /R127_FINAL_RECOVERY_V3_AUTHORIZED=NO/);
 });
 
-test('R127-BRIDGE-06 completion contract independently proves repair and containment', () => {
+test('R127-BRIDGE-07 completion contract independently proves repair and containment', () => {
   for (const marker of [
     'BSF_MODE=LIVE', 'SNTSS_MODE=SHADOW', 'SNTSS_AUTHORITY=NONE',
     'SNTSS_OUTPUTS=0', 'CHRONOBIOLOGY_MODE=SHADOW', 'CHRONOBIOLOGY_STATUS=RUNNING',
@@ -117,7 +143,7 @@ test('R127-BRIDGE-06 completion contract independently proves repair and contain
   assert.match(wrapper, /RECOVERY_RUNTIME_SECONDS=900/);
 });
 
-test('R127-BRIDGE-07 controller never rewinds biology or broadens resource limits', () => {
+test('R127-BRIDGE-08 controller never rewinds biology or broadens resource limits', () => {
   assert.doesNotMatch(wrapper,
     /git reset|git checkout|sqlite3\s+.*(?:DELETE|UPDATE)|restore.*continuity|CPUQuota=|TimeoutStopSec=/);
   assert.doesNotMatch(installer, /systemctl\s+(?:restart|start|stop)/);
@@ -125,11 +151,13 @@ test('R127-BRIDGE-07 controller never rewinds biology or broadens resource limit
   assert.equal((wrapper.match(/systemctl start stay\.service/g) || []).length, 0);
 });
 
-test('R127-BRIDGE-08 embedded independent live verifier has valid JavaScript syntax', () => {
+test('R127-BRIDGE-09 embedded JavaScript verifiers have valid syntax', () => {
   const blocks = [...wrapper.matchAll(/<<'NODE'\n([\s\S]*?)\nNODE/g)];
-  assert.equal(blocks.length, 1);
-  const result = spawnSync(process.execPath, ['--check', '-'], {
-    input: blocks[0][1], encoding: 'utf8'
-  });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(blocks.length, 2);
+  for (const block of blocks) {
+    const result = spawnSync(process.execPath, ['--check', '-'], {
+      input: block[1], encoding: 'utf8'
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  }
 });

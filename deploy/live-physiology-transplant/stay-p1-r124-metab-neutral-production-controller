@@ -33,11 +33,16 @@ CERTIFICATE_NAME='metab-neutral-birth-certificate.json'
 DOSSIER_NAME='metab-neutral-founder-dossier.json'
 PUBLIC_KEY_NAME='birth-authority-public.pem'
 RECOVERY_RUNTIME_SECONDS=900
+R124_FAILURE_PARENT='/var/lib/stay/evidence/production-hardening'
+R124_FAILURE_ROOT='/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2'
+R124_RECOVERY_MARKER='/run/stay-r124-metab-neutral-recovery.env'
+EXPECTED_R124_RECOVERY_MARKER_SHA256='933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e'
 
 RUN_ROOT=''
 WORK_ROOT=''
 OUTPUT_FILE=''
 CLEANUP_ARMED=0
+EVIDENCE_ACCESS_STAGED=0
 CONTROLLER_FAILURE_CLASS='NONE'
 
 abort_controller() {
@@ -109,12 +114,122 @@ safe_cleanup_work_root() {
   [[ ! -e "$candidate" && ! -L "$candidate" ]]
 }
 
+r124_evidence_hash() {
+  case "$1" in
+    before.proof.json)
+      echo '40e54a2d6ed649132c5f1395d8cdf0ed7075cbe0ff5c4d89a2c57707c84ca4da'
+      ;;
+    service.before.json)
+      echo '95d99d8b56d6299680928d10bacc5cc41bd5cc3fedf584ee519ce69729c5cb74'
+      ;;
+    R123.freeze.json)
+      echo '34baedccaa9227ebd20c0b11a9e32fa6b98deb3c25ca2db03fa846bf49251a92'
+      ;;
+    benchmark.proof.json)
+      echo '9dc732e26d7974f4a5998a936051bd1f52909399179b8313a2311f5299f1fcac'
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_r124_evidence_access() {
+  local state="$1" parent_identity failure_identity file name expected identity
+  case "$state" in
+    original)
+      parent_identity='root:root:700'
+      failure_identity='root:root:500'
+      file_identity='root:root:400'
+      ;;
+    staged)
+      parent_identity='root:staydeploy:710'
+      failure_identity='root:staydeploy:510'
+      file_identity='root:staydeploy:440'
+      ;;
+    *) return 1 ;;
+  esac
+  [[ -d "$R124_FAILURE_PARENT" && ! -L "$R124_FAILURE_PARENT" &&
+    "$(stat -Lc '%U:%G:%a' "$R124_FAILURE_PARENT")" == "$parent_identity" ]] || return 1
+  [[ -d "$R124_FAILURE_ROOT" && ! -L "$R124_FAILURE_ROOT" &&
+    "$(stat -Lc '%U:%G:%a' "$R124_FAILURE_ROOT")" == "$failure_identity" ]] || return 1
+  for name in before.proof.json service.before.json R123.freeze.json benchmark.proof.json; do
+    file="$R124_FAILURE_ROOT/$name"
+    expected="$(r124_evidence_hash "$name")" || return 1
+    [[ -f "$file" && ! -L "$file" ]] || return 1
+    identity="$(stat -Lc '%U:%G:%a' "$file")" || return 1
+    [[ "$identity" == "$file_identity" ]] || return 1
+    [[ "$(sha256sum "$file" | awk '{print $1}')" == "$expected" ]] || return 1
+  done
+}
+
+stage_r124_evidence_access() {
+  local file name
+  validate_r124_evidence_access original || return 1
+  EVIDENCE_ACCESS_STAGED=1
+  chgrp staydeploy "$R124_FAILURE_PARENT" || return 1
+  chmod 0710 "$R124_FAILURE_PARENT" || return 1
+  chgrp staydeploy "$R124_FAILURE_ROOT" || return 1
+  chmod 0510 "$R124_FAILURE_ROOT" || return 1
+  for name in before.proof.json service.before.json R123.freeze.json benchmark.proof.json; do
+    file="$R124_FAILURE_ROOT/$name"
+    chgrp staydeploy "$file" || return 1
+    chmod 0440 "$file" || return 1
+  done
+  validate_r124_evidence_access staged
+}
+
+restore_r124_evidence_access() {
+  local file name
+  for name in before.proof.json service.before.json R123.freeze.json benchmark.proof.json; do
+    file="$R124_FAILURE_ROOT/$name"
+    chown root:root "$file" || return 1
+    chmod 0400 "$file" || return 1
+  done
+  chown root:root "$R124_FAILURE_ROOT" || return 1
+  chmod 0500 "$R124_FAILURE_ROOT" || return 1
+  chown root:root "$R124_FAILURE_PARENT" || return 1
+  chmod 0700 "$R124_FAILURE_PARENT" || return 1
+  validate_r124_evidence_access original || return 1
+  EVIDENCE_ACCESS_STAGED=0
+}
+
+probe_r124_evidence_access() {
+  local module="$WORK_ROOT/release/runtime/kernel/living-kernel.js"
+  local staydeploy_uid staydeploy_gid
+  staydeploy_uid="$(id -u staydeploy)" || return 1
+  staydeploy_gid="$(id -g staydeploy)" || return 1
+  /usr/local/bin/node - "$module" "$R124_RECOVERY_MARKER" \
+    "sha256:$EXPECTED_R124_RECOVERY_MARKER_SHA256" "$staydeploy_uid" "$staydeploy_gid" <<'NODE'
+'use strict';
+const [modulePath, markerFile, markerSha256, uidText, gidText] = process.argv.slice(2);
+const { readR124MetabRecoveryFence } = require(modulePath);
+process.setgroups([]);
+process.setgid(Number(gidText));
+process.setuid(Number(uidText));
+const result = readR124MetabRecoveryFence({
+  markerFile,
+  expectedMarkerSha256: markerSha256,
+  trustedUid: 0
+});
+if (result?.markerSha256 !== markerSha256 ||
+  result?.failureEvidence !==
+    '/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2') {
+  process.exit(1);
+}
+console.log('R127_CONTROLLER_EVIDENCE_ACCESS_PROBE=PASS');
+NODE
+}
+
 finish_controller() {
-  local original_status=$? cleanup_status=0
+  local original_status=$? cleanup_status=0 evidence_status=0
   trap - EXIT
   set +e
+  if [[ "$EVIDENCE_ACCESS_STAGED" -eq 1 ]]; then
+    restore_r124_evidence_access
+    evidence_status=$?
+    [[ "$evidence_status" -eq 0 ]] || cleanup_status="$evidence_status"
+  fi
   [[ -z "$OUTPUT_FILE" ]] || rm -f -- "$OUTPUT_FILE"
-  if [[ -n "$WORK_ROOT" ]]; then
+  if [[ "$cleanup_status" -eq 0 && -n "$WORK_ROOT" ]]; then
     safe_cleanup_work_root "$WORK_ROOT"
     cleanup_status=$?
   fi
@@ -123,6 +238,7 @@ finish_controller() {
     cleanup_status=$?
   fi
   echo "R124_CONTROLLER_FAILURE_CLASS=$CONTROLLER_FAILURE_CLASS"
+  echo "R127_CONTROLLER_EVIDENCE_ACCESS_RESTORED=$([[ "$evidence_status" -eq 0 ]] && echo PASS || echo FAIL_$evidence_status)"
   echo "R124_CONTROLLER_CLEANUP_STATUS=$([[ "$cleanup_status" -eq 0 ]] && echo PASS || echo FAIL_$cleanup_status)"
   if [[ "$original_status" -eq 0 && "$cleanup_status" -ne 0 ]]; then
     exit "$cleanup_status"
@@ -405,6 +521,10 @@ main() {
   CLEANUP_ARMED=1
   prepare_private_release || abort_controller 81 STAGED_IDENTITY_FAILED private-release-invalid
   OUTPUT_FILE="$(mktemp /run/stay-r127-final-v1-output.XXXXXX)"
+  stage_r124_evidence_access ||
+    abort_controller 85 EVIDENCE_ACCESS_FAILED evidence-access-stage-failed
+  probe_r124_evidence_access ||
+    abort_controller 86 EVIDENCE_ACCESS_FAILED evidence-access-probe-failed
   script="$WORK_ROOT/release/$RECOVERY"
   expected_marker='R127_METAB_REVISION_PRESERVING_FORWARD_RECOVERY=PASS'
   if run_bounded_script "$script" STAY_R127_MARKER_RECOVERY_AUTHORIZATION \
@@ -413,6 +533,8 @@ main() {
   else
     child_status=$?
   fi
+  restore_r124_evidence_access ||
+    abort_controller 87 EVIDENCE_ACCESS_FAILED evidence-access-restore-failed
   [[ "$child_status" -eq 0 ]] || abort_controller "$child_status" R124_EXECUTION_FAILED child-failed
   grep -Fx "$expected_marker" "$OUTPUT_FILE" >/dev/null ||
     abort_controller 82 RESULT_MARKER_MISSING result-marker-missing
