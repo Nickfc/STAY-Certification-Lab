@@ -125,6 +125,8 @@ test('R124-REL-03 candidate validation covers exact packages and real bubblewrap
   assert.match(source, /p1-r119f-entry-preflight\.js/);
   assert.match(source, /STAY_REQUIRE_OS_CORE_SANDBOX=1/);
   assert.match(source, /STAY_REQUIRE_CGROUPS=1/);
+  assert.match(source,
+    /STAY_REQUIRE_CGROUPS=1 \\\n+    \/usr\/local\/bin\/node --disable-sigusr1 --test --test-concurrency=1/);
   assert.match(source, /payloadAttachedBeforeInit/);
   assert.doesNotMatch(source, /CPUQuota=|handlerTimeoutMs.*(?:[3-9][0-9]{2}|[1-9][0-9]{3,})/);
 });

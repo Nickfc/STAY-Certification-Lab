@@ -425,7 +425,7 @@ if ! systemd-run --wait --pipe --collect --quiet \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP="$BWRAP" \
     STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 \
-    /usr/local/bin/node --test --test-concurrency=1 \
+    /usr/local/bin/node --disable-sigusr1 --test --test-concurrency=1 \
     --test-name-pattern='^R124-METAB-ENTRY-01' \
     "$CANDIDATE/test/p1-r124-metab-neutral-birth.test.js" \
     > "$WORK/real-metab-entry.tap" 2>&1; then

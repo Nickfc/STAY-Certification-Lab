@@ -5,7 +5,7 @@ efa43842ac28b20c867a36d44cbac163f2d0322566ef483bcd36b21597ee3699  ./certificatio
 5359d9c9fc29c64d740232395a6a0b4ec04da63251a5f2575f522b7a27367f48  ./cores/p1-r0/metab-neutral/index.js
 d7924169b8399e94512cb2373bbfe07f6ae5c64d3ea6e4c48f6e44ed7bfbb7f3  ./cores/p1-r0/metab-neutral/package-policy.json
 960fbb96772b8b9f6668f6d98da4075c44f7aafd8036fc08e923734a14fd8ccc  ./deploy/live-physiology-transplant/p1-r124-metab-neutral-forward-recovery.sh
-7a4c22a4e30b9dfeb5ff52394d085f9cd3633567fcaf6a6f7d5357e150160ed4  ./deploy/live-physiology-transplant/p1-r124-metab-neutral-forward.sh
+efe0c2acaad60e3d38d4ff7193d46ea06c8734e78586cf1a29c1b0e40dfa4258  ./deploy/live-physiology-transplant/p1-r124-metab-neutral-forward.sh
 7b6c6b9c5f10608f3d30f9a8e35ead3643c5bb499ce58edfd93960f338c47739  ./deploy/live-physiology-transplant/p1-r124-metab-neutral-live-proof.js
 4a1882b0f0d359d6d12ca8d6975f26a22613c0c6192540a3c36acd7e6a12cbe3  ./deploy/live-physiology-transplant/p1-resident-control-client.js
 aafdc03899a23b00ff6a0ec2930399a0d88ffc767e0cf903d9a69f5cbf93fe9e  ./runtime/kernel/canonical-json.js
@@ -35,7 +35,7 @@ c5f8e67de9179a52018bc36c0c253858354393a7df46665cb40854a9f8d50b7f  ./test/p1-r123
 1200a5ad04ec7c8213dbac1d79d7380c5de9d27fabea8070ba5e5b63116962b1  ./test/p1-r124-metab-founder-dossier.test.js
 f7503a6a8620030f780521f4b235634f912453b7cd102b7fe7d5e0c5cc19c6cb  ./test/p1-r124-metab-neutral-birth.test.js
 fd32559e42a1d03a8e34e45664615bbac7bb2572da8ef0ae432b5230e68bb854  ./test/p1-r124-metab-neutral-production-proof.test.js
-8a18b1eddca44b3b5d27e8246357b637c03783f7bc2ade6f7cadd81e4fe98103  ./test/p1-r124-release-contract.test.js
+7308ce1dc6978a156ae9159dcad3b4d0a3492236e7acde44d5ad6955aca764c2  ./test/p1-r124-release-contract.test.js
 80dcbb091c54094ff2eb4fe710470d699a1e9b131c48d99cd9d46f469cb73ed2  ./test/p1-resident-control-socket.test.js
 a8d7d0c343f1012e5b623ac8f7561fa23cd2b3eca4bef91aa05255d83f487b67  ./test/p1-surgery-a-transplant.test.js
 18a48c496303dcbff8856f943226d9db0a66c7f81dfecddaf3aa0595907bbdc9  ./test/production-hardening.test.js
