@@ -261,17 +261,66 @@ done
   && "$(sha256_file "$ACTIVE_PUBLIC_KEY")" == "${STAY_R124_BIRTH_PUBLIC_KEY_SHA256#sha256:}" \
   && ! -e "$TARGET_FREEZE" && ! -L "$TARGET_FREEZE" ]] ||
   abort failed-r124-recovery-cohort-invalid 2406
-node - "$STAGE_ROOT/runtime/kernel/living-kernel.js" "$RECOVERY_MARKER" <<'NODE'
+node - "$RECOVERY_MARKER" "$FAILED_R124_EVIDENCE" <<'NODE'
 'use strict';
-const [helper, markerFile] = process.argv.slice(2);
-const { R124_METAB_RECOVERY, readR124MetabRecoveryFence } = require(helper);
-const result = readR124MetabRecoveryFence({
-  markerFile,
-  expectedMarkerSha256: R124_METAB_RECOVERY.markerSha256,
-  trustedUid: 0
-});
-if (!(result.markerSha256 === R124_METAB_RECOVERY.markerSha256 &&
-  result.failureEvidence === R124_METAB_RECOVERY.failureEvidence)) process.exit(1);
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const [markerFile, evidenceRoot] = process.argv.slice(2);
+const hash = value => crypto.createHash('sha256').update(value).digest('hex');
+const expectedMarkerHash =
+  '933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e';
+const markerStat = fs.lstatSync(markerFile);
+const markerBody = fs.readFileSync(markerFile);
+if (!(markerStat.isFile() && !markerStat.isSymbolicLink() && markerStat.uid === 0 &&
+  (markerStat.mode & 0o022) === 0 && markerBody.length >= 1 && markerBody.length <= 8192 &&
+  hash(markerBody) === expectedMarkerHash)) process.exit(1);
+const values = new Map();
+for (const line of markerBody.toString('utf8').trimEnd().split('\n')) {
+  const index = line.indexOf('=');
+  if (index < 1 || values.has(line.slice(0, index))) process.exit(1);
+  values.set(line.slice(0, index), line.slice(index + 1));
+}
+const expected = new Map([
+  ['R124_FAILURE_EVIDENCE',
+    '/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2'],
+  ['R124_RELEASE', '/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-a1999132f935'],
+  ['R124_RELEASE_TAG', 'r124-metab-neutral-v4'],
+  ['R124_RELEASE_COMMIT', '16e8e2d9ca04c8829425f99b91a49b3e495777cc'],
+  ['R124_RELEASE_TREE', '316f94dc20c29a431cbe009f3564e6f0b6687a24'],
+  ['R124_ARCHIVE_SHA256',
+    'sha256:ebbfca81636d5952a7db3b8c771d5c7660c841ecb023ae6cb212f71fa2775458'],
+  ['R124_MANIFEST_SHA256',
+    'sha256:a1999132f935054dc7c482313b88b0679f73475a225b9706c27ed2686d822b26'],
+  ['R124_CONTROLLER_SHA256',
+    'sha256:11ccd13023daeb29b20076e2dab2c4af1b3ce516480449eeb8ffc917575c0b7d'],
+  ['R124_BIRTH_CERTIFICATE_SHA256',
+    'sha256:5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'],
+  ['R124_BIRTH_DOSSIER_SHA256',
+    'sha256:3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'],
+  ['R124_BIRTH_PUBLIC_KEY_SHA256',
+    'sha256:754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e']
+]);
+if (values.size !== expected.size ||
+  [...expected].some(([key, value]) => values.get(key) !== value)) process.exit(1);
+const rootStat = fs.lstatSync(evidenceRoot);
+if (!(rootStat.isDirectory() && !rootStat.isSymbolicLink() && rootStat.uid === 0 &&
+  (rootStat.mode & 0o022) === 0)) process.exit(1);
+for (const [name, expectedHash] of Object.entries({
+  'before.proof.json':
+    '40e54a2d6ed649132c5f1395d8cdf0ed7075cbe0ff5c4d89a2c57707c84ca4da',
+  'service.before.json':
+    '95d99d8b56d6299680928d10bacc5cc41bd5cc3fedf584ee519ce69729c5cb74',
+  'R123.freeze.json':
+    '34baedccaa9227ebd20c0b11a9e32fa6b98deb3c25ca2db03fa846bf49251a92',
+  'benchmark.proof.json':
+    '9dc732e26d7974f4a5998a936051bd1f52909399179b8313a2311f5299f1fcac'
+})) {
+  const file = path.join(evidenceRoot, name);
+  const stat = fs.lstatSync(file);
+  if (!(stat.isFile() && !stat.isSymbolicLink() && stat.uid === 0 &&
+    (stat.mode & 0o022) === 0 && hash(fs.readFileSync(file)) === expectedHash)) process.exit(1);
+}
 NODE
 
 observed_ip="$(ip -4 -o addr show scope global | awk '{split($4,a,"/"); print a[1]}' | sort -u)"
