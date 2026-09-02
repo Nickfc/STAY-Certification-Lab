@@ -209,6 +209,8 @@ test('R127-PRESERVE-REL-01 exact stranded R127 state recovers and freezes withou
     "ACTIVE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-repair-fb8d675114b4'",
     "ACTIVE_MANIFEST_SHA256='fb8d675114b4d35a8d478c69b547910014234e63df1b928876fed7c49cbf2dcf'",
     "ACTIVE_RELEASE_ENV_SHA256='c82a2454d50ca1602dbdab0b3db532963a17e8913b3ff2475182eb7b004f921d'",
+    'ACTIVE_FILE_COUNT=644',
+    'TARGET_FILE_COUNT=645',
     "RECOVERY_MARKER_SHA256='933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e'",
     "ACTIVE_TREE_SHA256='ce832ae2a465804a917d40fbbf2475d367af2e537101fe471593d0f2ad4d24d8'",
     "FAILED_R127_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R127-MARKER-20260902T171244Z.x3NznR'",
@@ -232,6 +234,9 @@ test('R127-PRESERVE-REL-01 exact stranded R127 state recovers and freezes withou
   assert.match(source, /before\.pendingDeliveries === 0/);
   assert.match(source, /before\.abandonedDeliveries === 0/);
   assert.doesNotMatch(source, /pendingDeliveries > 0/);
+  assert.match(source, /missing_active_overlay_files=\(\)/);
+  assert.match(source, /missing_active_overlay_files\[0\][\s\S]*p1-r127-metab-marker-forward-recovery\.sh/);
+  assert.match(source, /find "\$CANDIDATE" -type f \| wc -l\)" -eq "\$TARGET_FILE_COUNT"/);
   assert.match(source, /markerAccessRepaired: true,[\s\S]*?revisionFenced: true, pointerRewound: false/);
   assert.match(source, /R127_PRESERVATION_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
   assert.match(proof, /function validateR127RevisionPreservingAfter\(input\)/);

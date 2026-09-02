@@ -14,6 +14,7 @@ ACTIVE_RELEASE_COMMIT='32285612ec0d9fedf783c2773e724ead70484e19'
 ACTIVE_RELEASE_TREE='cc7fc03edb43781ad35a1fb7a25cffa8453cabfd'
 ACTIVE_ARCHIVE_SHA256='sha256:aa4924851dba2b5cca30f66af607f9d6d5db31af133b41f69c61a0e0afe60fff'
 ACTIVE_FILE_COUNT=644
+TARGET_FILE_COUNT=645
 ACTIVE_TREE_SHA256='ce832ae2a465804a917d40fbbf2475d367af2e537101fe471593d0f2ad4d24d8'
 TARGET_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R123F_TO_R124.sha256'
 TARGET_RELEASE_ENV='P1_R124_RELEASE.env'
@@ -288,6 +289,7 @@ install -o root -g root -m 0400 "$BIRTH_DROPIN" "$WORK/birth-dropin.before.conf"
 
 phase 'BUILD SOURCE-SEALED R127 REVISION-PRESERVING CANDIDATE'
 mapfile -t overlay_files < <(manifest_paths)
+missing_active_overlay_files=()
 [[ "${#overlay_files[@]}" -gt 0 \
   && "$(printf '%s\n' "${overlay_files[@]}" | LC_ALL=C sort -u | wc -l)" -eq "${#overlay_files[@]}" \
   && "$(printf '%s\n' "${overlay_files[@]}" | LC_ALL=C sort)" == "$(printf '%s\n' "${overlay_files[@]}")" ]] ||
@@ -297,7 +299,12 @@ for file in "${overlay_files[@]}"; do
   [[ "$file" != "$TARGET_MANIFEST" && "$file" != "$TARGET_RELEASE_ENV" \
     && -f "$STAGE_ROOT/$file" && ! -L "$STAGE_ROOT/$file" ]] ||
     abort manifest-input-invalid 2510
+  [[ -e "$ACTIVE_RELEASE/$file" ]] || missing_active_overlay_files+=("$file")
 done
+[[ "${#missing_active_overlay_files[@]}" -eq 1 \
+  && "${missing_active_overlay_files[0]}" == \
+    'deploy/live-physiology-transplant/p1-r127-metab-marker-forward-recovery.sh' ]] ||
+  abort active-overlay-delta-invalid 2510
 [[ "sha256:$(sha256_file "$STAGE_ROOT/$TARGET_MANIFEST")" == \
   "$STAY_R127_RECOVERY_ARTIFACT_MANIFEST_SHA256" ]] || abort stage-manifest-identity-invalid 2510
 (cd "$STAGE_ROOT" && sha256sum -c "$TARGET_MANIFEST" >/dev/null) ||
@@ -413,7 +420,7 @@ METAB_OUTPUTS=0
 EOF
 chown root:root "$CANDIDATE/$TARGET_RELEASE_ENV"
 chmod 0444 "$CANDIDATE/$TARGET_RELEASE_ENV"
-[[ "$(find "$CANDIDATE" -type f | wc -l)" -eq "$ACTIVE_FILE_COUNT" \
+[[ "$(find "$CANDIDATE" -type f | wc -l)" -eq "$TARGET_FILE_COUNT" \
   && -z "$(find -P "$CANDIDATE" -xdev \
     \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]] ||
   abort candidate-tree-invalid 2510
