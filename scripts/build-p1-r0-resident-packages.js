@@ -7,6 +7,12 @@ const { stableStringify } = require('../runtime/kernel/canonical-json');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFINITIONS = Object.freeze({
+  METAB_NEUTRAL: Object.freeze({
+    entry: 'runtime/p1-r0/residents/metab-neutral.js',
+    output: 'cores/p1-r0/metab-neutral',
+    leaf: 'p1-r0-metab-<instance>',
+    policyCoreId: 'METAB'
+  }),
   METAB: Object.freeze({
     entry: 'runtime/p1-r0/residents/metab.js',
     output: 'cores/p1-r0/metab',
@@ -166,7 +172,7 @@ function buildAll({ root = ROOT } = {}) {
   const hashes = {};
   for (const [coreId, definition] of Object.entries(DEFINITIONS)) {
     const bundleRecord = bundle(definition.entry, root);
-    const packagePolicy = policy(coreId, definition, bundleRecord);
+    const packagePolicy = policy(definition.policyCoreId || coreId, definition, bundleRecord);
     const outputRoot = path.resolve(root, definition.output);
     fs.mkdirSync(outputRoot, { recursive: true });
     fs.writeFileSync(path.join(outputRoot, 'index.js'), bundleRecord.output);
