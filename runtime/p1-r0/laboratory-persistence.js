@@ -58,7 +58,7 @@ function chipSemanticObservation(record) {
 }
 
 class P1LaboratoryPersistence {
-  constructor({ stateStore, authorization }) {
+  constructor({ stateStore, authorization, schemaName = LAB_SCHEMA_NAME }) {
     if (authorization !== LAB_STORAGE_AUTHORIZATION) {
       fail('P1-R0 laboratory storage authorization is absent', 'P1_LAB_STORAGE_AUTHORIZATION');
     }
@@ -67,29 +67,52 @@ class P1LaboratoryPersistence {
     }
     stateStore.assertOpen();
     this.stateStore = stateStore;
+    this.schemaName = String(schemaName);
     this.initialized = false;
+  }
+
+  schemaExtensions() {
+    return Object.freeze({
+      ddl: '',
+      requiredColumns: Object.freeze({})
+    });
   }
 
   initialize() {
     const { stateStore } = this;
     stateStore.assertOpen();
-    const existing = stateStore.db.prepare('SELECT version FROM schema_versions WHERE name=?').get(LAB_SCHEMA_NAME);
+    const existing = stateStore.db.prepare('SELECT version FROM schema_versions WHERE name=?').get(this.schemaName);
     const existingVersion = Number(existing?.version ?? 0);
     if (existing && (!Number.isSafeInteger(existingVersion) || existingVersion !== LAB_SCHEMA_VERSION)) {
       fail('P1-R0 laboratory schema version is unsupported', 'P1_LAB_STORAGE_SCHEMA');
     }
-    const preexistingTables = stateStore.db.prepare(`
-      SELECT COUNT(*) AS count FROM sqlite_master
-      WHERE type='table' AND name IN ('p1_founders', 'p1_chip_history', 'p1_chip_current')
-    `).get().count;
-    if (!existing && preexistingTables !== 0) {
-      fail('unversioned P1-R0 laboratory tables are forbidden', 'P1_LAB_STORAGE_SCHEMA');
+    const extensions = this.schemaExtensions();
+    if (
+      !extensions ||
+      typeof extensions.ddl !== 'string' ||
+      !extensions.requiredColumns ||
+      typeof extensions.requiredColumns !== 'object' ||
+      Array.isArray(extensions.requiredColumns)
+    ) {
+      fail('P1-R0 storage schema extension is invalid', 'P1_LAB_STORAGE_SCHEMA');
     }
     const requiredColumns = {
       p1_founders: ['organism_id', 'core_id', 'founder_id', 'lineage_id', 'record_json', 'record_hash', 'committed_at'],
       p1_chip_history: ['chip_id', 'history_sequence', 'organism_id', 'core_id', 'record_json', 'record_hash', 'observation_hash', 'semantic_hash', 'previous_history_hash', 'history_hash', 'observed_at'],
-      p1_chip_current: ['chip_id', 'organism_id', 'core_id', 'history_sequence', 'history_head_hash', 'record_json', 'record_hash', 'observation_hash', 'semantic_hash']
+      p1_chip_current: ['chip_id', 'organism_id', 'core_id', 'history_sequence', 'history_head_hash', 'record_json', 'record_hash', 'observation_hash', 'semantic_hash'],
+      ...extensions.requiredColumns
     };
+    const tableNames = Object.keys(requiredColumns);
+    const preexistingTables = stateStore.db.prepare(`
+      SELECT COUNT(*) AS count FROM sqlite_master
+      WHERE type='table' AND name IN (${tableNames.map(() => '?').join(',')})
+    `).get(...tableNames).count;
+    if (!existing && preexistingTables !== 0) {
+      fail('unversioned P1-R0 storage tables are forbidden', 'P1_LAB_STORAGE_SCHEMA');
+    }
+    if (existing && preexistingTables !== tableNames.length) {
+      fail('versioned P1-R0 storage tables are incomplete', 'P1_LAB_STORAGE_SCHEMA');
+    }
     stateStore.withTransaction(() => {
       stateStore.db.exec(`
         CREATE TABLE IF NOT EXISTS p1_founders (
@@ -130,6 +153,7 @@ class P1LaboratoryPersistence {
             REFERENCES p1_chip_history(chip_id, history_sequence)
             ON DELETE RESTRICT
         );
+        ${extensions.ddl}
       `);
       for (const [table, expected] of Object.entries(requiredColumns)) {
         const actual = stateStore.db.prepare(`PRAGMA table_info(${table})`).all().map(column => column.name);
@@ -141,7 +165,7 @@ class P1LaboratoryPersistence {
         INSERT INTO schema_versions(name, version, updated_at)
         VALUES(?, ?, ?)
         ON CONFLICT(name) DO NOTHING
-      `).run(LAB_SCHEMA_NAME, LAB_SCHEMA_VERSION, new Date().toISOString());
+      `).run(this.schemaName, LAB_SCHEMA_VERSION, new Date().toISOString());
     });
     this.initialized = true;
     return this;
