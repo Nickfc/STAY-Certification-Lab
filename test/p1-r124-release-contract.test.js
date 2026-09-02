@@ -232,6 +232,8 @@ test('R127-PRESERVE-REL-01 exact stopped R127 cohort recovers and freezes withou
   assert.match(source, /STAY_ALLOW_R127_POST_RESTART_CONTINUITY_RECOVERY=/);
   assert.match(source, /--test-name-pattern='\^R127-METAB-RECOVERY-05'/);
   assert.match(source, /--test-name-pattern='\^R127-POST-RESTART-ENTRY-05'/);
+  assert.match(source,
+    /STAY_R127_POST_RESTART_REHEARSAL_DATA_DIR="\$REHEARSAL_DATA"[\s\S]*STAY_DATA_DIR="\$REHEARSAL_DATA"/);
   assert.match(source, /startCommands: 1, restartCommands: 0/);
   assert.match(source, /R127_POST_RESTART_CONTINUITY_FORWARD_RECOVERY/);
   assert.match(source, /kernelRevisionPreserved: true/);
