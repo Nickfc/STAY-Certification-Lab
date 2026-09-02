@@ -13,10 +13,26 @@ class UpgradeManager {
     await this.stateStore.appendJournal({ type, detail, at: new Date().toISOString() });
   }
 
+  unresolvedBiologicalConsumerDemotion(coreId) {
+    const demotion = this.stateStore.db.prepare(`SELECT id, detail_json, created_at FROM recovery_records
+      WHERE type='biological.consumer-demoted' AND core_id=? ORDER BY id DESC LIMIT 1`).get(coreId);
+    if (!demotion) return null;
+    const resolution = this.stateStore.db.prepare(`SELECT id, detail_json, created_at FROM recovery_records
+      WHERE type='biological.consumer-resynchronized' AND core_id=? ORDER BY id DESC LIMIT 1`).get(coreId);
+    if (resolution) {
+      let detail = null;
+      try { detail = JSON.parse(resolution.detail_json || '{}'); } catch {}
+      if (
+        Number(resolution.id) > Number(demotion.id) &&
+        Number(detail?.demotionId) === Number(demotion.id)
+      ) return null;
+    }
+    return demotion;
+  }
+
   async authorize(definition, action) {
     if (action !== 'stage') {
-      const demotion = this.stateStore.db.prepare(`SELECT id, detail_json, created_at FROM recovery_records
-        WHERE type='biological.consumer-demoted' AND core_id=? ORDER BY id DESC LIMIT 1`).get(definition.manifest.coreId);
+      const demotion = this.unresolvedBiologicalConsumerDemotion(definition.manifest.coreId);
       if (demotion) {
         throw Object.assign(new Error(`core ${definition.manifest.coreId} requires explicit biological resynchronization after retention-debt quarantine`), {
           code: 'BIOLOGICAL_RESYNC_REQUIRED', detail: JSON.parse(demotion.detail_json || '{}')
