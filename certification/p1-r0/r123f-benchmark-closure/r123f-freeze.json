@@ -1,0 +1,106 @@
+{
+  "format": "stay-runtime-revision-freeze-v1",
+  "result": "PASS",
+  "acceptance": "ACCEPTED",
+  "freezeType": "R123F_EXPLICITLY_AUTHORIZED_CHRONOBIOLOGY_RECOVERY_EXCEPTION",
+  "runtime": {
+    "revision": 123,
+    "revisionLabel": "R123F",
+    "progression": [118, 119, 120, 121, 122, 123],
+    "serviceMainPid": 395571,
+    "serviceNRestarts": 0,
+    "restartCommandsForFreeze": 0
+  },
+  "authorization": {
+    "source": "USER_EXPLICIT",
+    "scope": "FREEZE_CURRENT_R123_WITH_ONE_DISCLOSED_HISTORICAL_ABANDONMENT",
+    "historicalAbandonmentAccepted": true,
+    "benchmarkStartAuthorized": false
+  },
+  "exception": {
+    "recoveryResyncId": "513c8386-8ca7-40a4-81a6-cfa44437ccbf",
+    "historicalAbandonedDeliveries": 1,
+    "abandonedSequences": [2466906],
+    "replayableLedgerRowPresent": false,
+    "replayableDeliveryRowPresent": false,
+    "unresolvedPendingDeliveries": 0,
+    "inventedBiologicalTime": false,
+    "evidenceRecoveryRecordIds": [102, 104, 106]
+  },
+  "release": {
+    "path": "/opt/stay/releases/0.8.11.3-p1m-r119f-chrono-repair-2961f9a48173",
+    "tag": "r119f-v4",
+    "commit": "833cf2564ed2be040c681a627de24042f9ac1538",
+    "tree": "97a1f8dbcf596cb98f0bda9af8faacfd709cb9ef",
+    "archiveSha256": "sha256:b0da4fa781181f44299ae724dbc364a71a477dcceec860af7faf8d4f909a066b",
+    "manifestSha256": "sha256:021c837c3b1d2a1e855e39e6154790e48a0ecc6f5bbb07dddc9776d63ad733eb"
+  },
+  "recovery": {
+    "outputStreamRecordId": 103,
+    "outputStreamFromVersion": "1.0.0-c3rc.1",
+    "outputStreamToVersion": "1.0.0-c3rc.5",
+    "outputStreamAuthorityChanged": false,
+    "outputStreamBiologicalStateChanged": false,
+    "r120Source": {
+      "tag": "r120f-recovery-v2",
+      "commit": "92edf850231743f4c7a149f56cf5288d4cf81f5c"
+    },
+    "r122Source": {
+      "tag": "r122-operational-recovery-v1",
+      "commit": "4d87973d15640189dd9346a4a0d2b7b835c21960"
+    },
+    "currentControllerSha256": "sha256:491cb2217af45589113e3b135c4ed677e04dbc49e3f20f64aeca77095a2e0b6b"
+  },
+  "freezeSource": {
+    "tag": "r123f-authorized-freeze-v4",
+    "commit": "3e9a3eac6c6464d8b1fd1da8dae449fd311e9892",
+    "tree": "9b5768efc16d9894ffba8c89523766e72c49ca4c",
+    "helperSha256": "sha256:23e37fc92ce0552fdce6beaa757b1e91fba0501ed804574020d737c21bffcd56",
+    "shellSha256": "sha256:fae6aaa97dde88c778820b088b77aa4738829cf054440f8ad2771d518a90c1f4"
+  },
+  "continuity": {
+    "quickCheck": "ok",
+    "runtimeRevisionMetadataSha256": "sha256:430c4567155354da54cd859e0d68441b69c9fee2b3b588cbd751288171e99f56",
+    "sntssCheckpointGeneration": 1281538,
+    "sntssCheckpointInputCursor": 2479182,
+    "sntssConsumerCursor": 2479182,
+    "chronobiologyCheckpointGeneration": 5160,
+    "chronobiologyCheckpointInputCursor": 2479114,
+    "chronobiologyConsumerCursor": 2479182,
+    "chronobiologyOutboxStreamSequence": 350,
+    "chronobiologyObservedOutputs": 1,
+    "unresolvedPendingDeliveries": 0,
+    "pendingOutboxIntents": 0,
+    "sntssOutputs": 0,
+    "authorityRows": 0,
+    "historicalAbandonedDeliveries": 1,
+    "abandonedSequences": [2466906],
+    "replayableLedgerRowPresent": false,
+    "replayableDeliveryRowPresent": false,
+    "inventedBiologicalTime": false
+  },
+  "residents": {
+    "bsf": { "mode": "LIVE", "status": "RUNNING" },
+    "sntss": {
+      "instanceId": "8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f",
+      "version": "0.5.0-i4g1",
+      "mode": "SHADOW",
+      "status": "RUNNING",
+      "outputs": 0,
+      "authority": "NONE"
+    },
+    "chronobiology": {
+      "instanceId": "f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a",
+      "version": "1.0.0-c3rc.5",
+      "mode": "SHADOW",
+      "status": "RUNNING",
+      "observedOutputs": 1,
+      "authority": "NONE"
+    },
+    "fetus": { "status": "healthy", "warnAtMiB": 192, "recycleAtMiB": 256 }
+  },
+  "chips": { "bsf": "LIVE", "sntss": "SHADOW", "chronobiology": "SHADOW" },
+  "benchmark": { "started": false, "activeState": "inactive", "authorizationRequired": true },
+  "capturedAt": "2026-08-30T09:30:26.184Z",
+  "recordSha256": "sha256:161b5fe340ef01836447e21c0e77167cac86033973f8a06b3c1af1d7b44fa3cc"
+}
