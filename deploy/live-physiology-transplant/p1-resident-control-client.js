@@ -5,19 +5,30 @@ const net = require('node:net');
 
 const SOCKET = '/run/stay/resident-control.sock';
 const FORMAT = 'stay-resident-control-v1';
-const OPERATIONS = new Set(['status', 'attach', 'detach', 'promote', 'resynchronize']);
-const RESIDENCIES = new Set(['resident:sntss', 'resident:chronobiology']);
+const OPERATIONS = new Set(['status', 'attach', 'birth', 'detach', 'promote', 'resynchronize']);
+const RESIDENCIES = new Set(['resident:sntss', 'resident:chronobiology', 'resident:metab']);
 
 function timeoutMs() {
   const value = Number(process.env.STAY_RESIDENT_CONTROL_TIMEOUT_MS || 5000);
   return Number.isSafeInteger(value) && value >= 1000 && value <= 60000 ? value : 5000;
 }
 
-function main(argv = process.argv.slice(2)) {
+function validateArguments(argv) {
   const [operation, residencyId] = argv;
-  if (!OPERATIONS.has(operation) || !RESIDENCIES.has(residencyId) || argv.length !== 2) {
+  if (
+    !OPERATIONS.has(operation) ||
+    !RESIDENCIES.has(residencyId) ||
+    argv.length !== 2 ||
+    (operation === 'birth' && residencyId !== 'resident:metab') ||
+    (residencyId === 'resident:metab' && !['status', 'birth'].includes(operation))
+  ) {
     throw Object.assign(new Error('fixed operation and residency required'), { code: 'RESIDENT_CONTROL_CLIENT_USAGE' });
   }
+  return Object.freeze({ operation, residencyId });
+}
+
+function main(argv = process.argv.slice(2)) {
+  const { operation, residencyId } = validateArguments(argv);
   return new Promise((resolve, reject) => {
     const socket = net.createConnection(SOCKET);
     socket.setEncoding('utf8');
@@ -45,4 +56,4 @@ if (require.main === module) main().catch(error => {
   process.exitCode = 1;
 });
 
-module.exports = { main, timeoutMs };
+module.exports = { main, timeoutMs, validateArguments };

@@ -57,7 +57,7 @@ test('server exposes bounded public metadata, drains active connections, then st
   );
   assert.deepEqual(
     meta.chipProjection.roadmap.map(entry => `${entry.label} · ${entry.stage}`),
-    ['METAB · PLANNED', 'HOMEOS · PLANNED', 'INTERO · PLANNED']
+    ['METAB · LAB QUALIFIED', 'HOMEOS · LAB QUALIFIED', 'INTERO · LAB QUALIFIED']
   );
   assert.match((await request(port, '/__stay/compute-governor.js')).body, /stay-viewer-responsiveness-v1/);
   assert.match((await request(port, '/__stay/gpu-engine.js')).body, /stay-webgpu-search-v3/);
