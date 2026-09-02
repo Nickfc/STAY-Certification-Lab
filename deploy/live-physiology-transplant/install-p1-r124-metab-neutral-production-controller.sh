@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_WRAPPER_SHA256='711c9bb8f1964c033625ff035236165e2713eca05868c9861cca3cff9d919546'
+EXPECTED_WRAPPER_SHA256='ade1a537234778f83ea8ff64cbbf44293cc17a21dbf7354d79b975e4cc5624f0'
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-r124-metab-neutral-production-controller"
 TARGET_WRAPPER='/usr/local/sbin/stay-p1-production-controller'
@@ -41,7 +41,7 @@ id staydeploy >/dev/null 2>&1 || {
   exit 65
 }
 
-staging="$(mktemp -d /run/stay-r127-metab-final-recovery-v8-bootstrap.XXXXXX)"
+staging="$(mktemp -d /run/stay-r127-metab-final-recovery-v9-bootstrap.XXXXXX)"
 trap 'rm -rf -- "$staging"' EXIT
 sudoers_staged="$staging/stay-p1-production-controller.sudoers"
 cat > "$sudoers_staged" <<'SUDOERS'
@@ -70,4 +70,4 @@ echo "OBSERVED_PRIVATE_IPV4=$observed_private_ipv4"
 echo "ROOT_WRAPPER=$TARGET_WRAPPER"
 echo "ROOT_WRAPPER_SHA256=sha256:$EXPECTED_WRAPPER_SHA256"
 echo 'SUDOERS_SCOPE=STAYDEPLOY_TO_PINNED_P1_CONTROLLER_ONLY'
-echo 'R127_FINAL_RECOVERY_V8_AUTHORIZED=NO'
+echo 'R127_FINAL_RECOVERY_V9_AUTHORIZED=NO'

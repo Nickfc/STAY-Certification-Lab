@@ -7,20 +7,20 @@ export LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
 INCOMING_ROOT='/opt/stay/incoming'
-EXPECTED_RELEASE_TAG='r127-metab-final-recovery-v5'
-EXPECTED_RELEASE_TAG_OBJECT='cc3dd612a7184968ce80c1ccec4d7150c4135ee2'
-EXPECTED_RELEASE_COMMIT='d3b4a3e8005d3b50a8b82e491adf805838f31438'
-EXPECTED_RELEASE_TREE='edeeac674a102048d245e24fb9689d4a985b9d99'
-EXPECTED_ARCHIVE='STAY_P1_R127_METAB_FINAL_RECOVERY_V5_BUNDLE_20260902.tar.gz'
-EXPECTED_ARCHIVE_SHA256='45971339022aedc9efadebb6b5a7d814a08bd9020f9527b69d637b03b73d21f3'
-EXPECTED_SIDECAR_SHA256='97e082b84a21ba68398c3fbe81f7f40ea7893a37bdf5a66e6e60a93e073ded93'
-EXPECTED_MANIFEST_SHA256='e29bf6b9ef3f95d5de6ae98f48830834511b29986da170682925d112dcaffd55'
-EXPECTED_FORWARD_SHA256='4e1e6839dc755169875bff1048d0899382f522fca62f86dc1eedffb4d125f052'
-EXPECTED_RECOVERY_SHA256='4e1e6839dc755169875bff1048d0899382f522fca62f86dc1eedffb4d125f052'
+EXPECTED_RELEASE_TAG='r127-metab-final-recovery-v6'
+EXPECTED_RELEASE_TAG_OBJECT='4bf9cd91a5a71e06a669f421ac91250ef78264f6'
+EXPECTED_RELEASE_COMMIT='196d603f423a3faac96c9d35f7c9bc38eb43e2f1'
+EXPECTED_RELEASE_TREE='fb0456cc791fe0a184926f25b51dec55387d58dc'
+EXPECTED_ARCHIVE='STAY_P1_R127_METAB_FINAL_RECOVERY_V6_BUNDLE_20260902.tar.gz'
+EXPECTED_ARCHIVE_SHA256='4c33575ca505ef27ba744d5f0ae9c9dd351b4ae2f74ab0d91ec9ad9a974a7fa2'
+EXPECTED_SIDECAR_SHA256='1dcfda724be8a80c1e76890503511a7d516627cd16e5c6060e677d2f8e054eb9'
+EXPECTED_MANIFEST_SHA256='fb27ce309f77d30f3d0e19b3cd8e15153f6f4d1da994d299b71e61904d2c7658'
+EXPECTED_FORWARD_SHA256='36849d2438a21b05f598a727c7a54ae941b6e13ae4a4f3ee04b74fc3604043c3'
+EXPECTED_RECOVERY_SHA256='36849d2438a21b05f598a727c7a54ae941b6e13ae4a4f3ee04b74fc3604043c3'
 EXPECTED_BIRTH_CERTIFICATE_SHA256='5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'
 EXPECTED_BIRTH_DOSSIER_SHA256='3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'
 EXPECTED_BIRTH_PUBLIC_KEY_SHA256='754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e'
-EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-e29bf6b9ef3f'
+EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-fb27ce309f77'
 EXPECTED_ACTIVE_RELEASE_TAG='r127-metab-final-recovery-v3'
 EXPECTED_ACTIVE_RELEASE_COMMIT='38ae95f43c32c7234a31fa13eb78e6706a49054e'
 EXPECTED_ACTIVE_RELEASE_TREE='f43d4bb0bb770f340c9b8d4a5351f4be3a8199a0'
@@ -84,7 +84,7 @@ validate_run_root() {
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
   parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
   [[ "$parent_real" == "$incoming_real" ]] || return 1
-  [[ "$(basename -- "$candidate")" =~ ^r127-metab-final-recovery-v5-[0-9]+$ ]] || return 1
+  [[ "$(basename -- "$candidate")" =~ ^r127-metab-final-recovery-v6-[0-9]+$ ]] || return 1
   [[ "$(stat -Lc '%U:%G' "$candidate")" == 'staydeploy:staydeploy' ]] || return 1
   mode="$(stat -Lc '%a' "$candidate")" || return 1
   [[ "$mode" == 700 || "$mode" == 2700 ]] || return 1
@@ -103,7 +103,7 @@ safe_cleanup_run_root() {
 
 safe_cleanup_work_root() {
   local candidate="$1"
-  [[ "$candidate" =~ ^/run/stay-r127-metab-final-recovery-v5-controller\.[A-Za-z0-9]+$ ]] || return 96
+  [[ "$candidate" =~ ^/run/stay-r127-metab-final-recovery-v6-controller\.[A-Za-z0-9]+$ ]] || return 96
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 97
   [[ "$(stat -Lc '%U:%G' "$candidate")" == 'root:root' ]] || return 98
   [[ -z "$(findmnt -rn -R -o TARGET "$candidate" 2>/dev/null || true)" ]] || return 99
@@ -355,7 +355,7 @@ verify_release_tree() {
 
 prepare_private_release() {
   local private_archive
-  WORK_ROOT="$(mktemp -d /run/stay-r127-metab-final-recovery-v5-controller.XXXXXX)" || return 1
+  WORK_ROOT="$(mktemp -d /run/stay-r127-metab-final-recovery-v6-controller.XXXXXX)" || return 1
   [[ "$(stat -Lc '%U:%G:%a' "$WORK_ROOT")" == 'root:root:700' ]] || return 1
   private_archive="$WORK_ROOT/$EXPECTED_ARCHIVE"
   install -o root -g root -m 0400 "$RUN_ROOT/$EXPECTED_ARCHIVE" "$private_archive" || return 1
@@ -506,6 +506,16 @@ if (!(database.quickCheck === 'ok' && database.queryOnly === true &&
   freeze.continuity?.pendingOutboxIntents === 0 &&
   freeze.continuity?.acknowledgedPendingDeliveries === 2 &&
   freeze.continuity?.supersededRestartPulses === 1289 &&
+  freeze.continuity?.trustedTimeAnchor?.eventSequence === 3654058 &&
+  freeze.continuity?.trustedTimeAnchor?.fromPulseSequence === 23828 &&
+  freeze.continuity?.trustedTimeAnchor?.toPulseSequence === 23829 &&
+  freeze.continuity?.trustedTimeAnchor?.clockStatus === 'uncertain' &&
+  [1, 2].includes(Number(
+    freeze.continuity?.trustedTimeAnchor?.idempotentCheckpointCommits
+  )) &&
+  freeze.continuity?.trustedTimeAnchor?.physiologyStateHash ===
+    'sha256:0341db664304d0afda402303f1f1389fab81e1520272929770de95a4199421d9' &&
+  freeze.continuity?.trustedTimeAnchor?.physiologyApplied === 0 &&
   freeze.continuity?.sntssCheckpointGenerationBefore === 2449921 &&
   freeze.continuity?.sntssCheckpointHashBefore ===
     'dd5921a4b98c054b463daf6216dddb39789773f890db464d0434809c55677acc' &&
@@ -554,12 +564,12 @@ main() {
     abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
   case "$operation" in
     recover-r127-final)
-      [[ "$authorization" == 'AUTHORIZE_R127_METAB_FINAL_RECOVERY_V5_FORWARD_ONLY' ]] ||
+      [[ "$authorization" == 'AUTHORIZE_R127_METAB_FINAL_RECOVERY_V6_FORWARD_ONLY' ]] ||
         abort_controller 75 AUTHORIZATION_FAILED recovery-authorization-missing
       ;;
     *) abort_controller 76 OPERATION_REJECTED unsupported-operation ;;
   esac
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r127-metab-final-recovery-v5-[0-9]+$ ]] ||
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r127-metab-final-recovery-v6-[0-9]+$ ]] ||
     abort_controller 77 PATH_VALIDATION_FAILED invalid-run-root-pattern
   validate_run_root "$requested_root" ||
     abort_controller 78 PATH_VALIDATION_FAILED invalid-run-root
@@ -568,7 +578,7 @@ main() {
   verify_staged_identity || abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
   CLEANUP_ARMED=1
   prepare_private_release || abort_controller 81 STAGED_IDENTITY_FAILED private-release-invalid
-  OUTPUT_FILE="$(mktemp /run/stay-r127-final-v5-output.XXXXXX)"
+  OUTPUT_FILE="$(mktemp /run/stay-r127-final-v6-output.XXXXXX)"
   stage_r124_evidence_access ||
     abort_controller 85 EVIDENCE_ACCESS_FAILED evidence-access-stage-failed
   probe_r124_evidence_access ||
