@@ -77,14 +77,14 @@ test('R127-BRIDGE-04 one-shot birth material remains scoped and revocable', () =
 
 test('R127-BRIDGE-05 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    '835eba33068284ca0aeb5204e63312bbf0225722be1c3c3eb87fd114b86fa6a6');
+    '90346bd11165174d3bf0dbd42a89b07ebf1863fbb6feabc2072deab0b6380694');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(installer, /NOPASSWD:\s+(?:ALL|\/bin\/(?:bash|sh)|\/usr\/bin\/env)/);
   assert.match(installer, /visudo -cf "\$sudoers_staged"/);
   assert.match(installer, /root:root:555/);
-  assert.match(installer, /R127_FINAL_RECOVERY_AUTHORIZED=NO/);
+  assert.match(installer, /R127_FINAL_RECOVERY_V2_AUTHORIZED=NO/);
 });
 
 test('R127-BRIDGE-06 completion contract independently proves repair and containment', () => {
@@ -102,7 +102,7 @@ test('R127-BRIDGE-06 completion contract independently proves repair and contain
   assert.match(wrapper, /database\.pendingDeliveries === 0/);
   assert.match(wrapper, /database\.pendingOutboxIntents === 0/);
   assert.match(wrapper, /database\.failedDeliveries === 0/);
-  assert.match(wrapper, /database\.abandonedDeliveries === 1/);
+  assert.match(wrapper, /database\.abandonedDeliveries === 0/);
   assert.match(wrapper, /database\.p1Authority === 0/);
   assert.match(wrapper, /sntss\?\.observedOutputs === 0/);
   assert.match(wrapper, /metab\?\.signalling === 'FORBIDDEN'/);

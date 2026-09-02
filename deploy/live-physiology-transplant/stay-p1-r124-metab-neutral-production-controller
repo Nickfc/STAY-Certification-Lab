@@ -319,7 +319,7 @@ const { validateRevisionFreeze } = require(path.join(releaseRoot, 'runtime/revis
 if (!(database.quickCheck === 'ok' && database.queryOnly === true &&
   database.runtimeRevision === revision && database.pendingDeliveries === 0 &&
   database.pendingOutboxIntents === 0 && database.failedDeliveries === 0 &&
-  database.abandonedDeliveries === 1 && database.p1Authority === 0 &&
+  database.abandonedDeliveries === 0 && database.p1Authority === 0 &&
   database.sntssAuthority === 0 && database.chronobiologyAuthority === 0 &&
   database.founders.length === 1 && database.dossiers.length === 1 &&
   database.chips.length === 1 && database.metabCheckpoints === 1 &&
