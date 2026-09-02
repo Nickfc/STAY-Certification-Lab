@@ -412,10 +412,15 @@ test('R127-POST-RESTART-04 exact resident recovery enables only the fenced fetus
     observedOutputs: 0,
     authorityOwned: false,
     activationBackfilled: 0,
+    lastError: null,
     health: row.coreId === 'METAB' ? { mode: 'NEUTRAL' } : { ok: true }
   }]));
+  const drainCalls = [];
   kernel.ensureResidentManager = () => ({
-    status: async residencyId => runtimeStatus.get(residencyId)
+    status: async residencyId => runtimeStatus.get(residencyId),
+    drain: async (residencyId, throughSequence) => {
+      drainCalls.push({ residencyId, throughSequence });
+    }
   });
   const ordinaryRecovery = residentRows.map(row => ({
     residencyId: row.residencyId,
@@ -427,6 +432,127 @@ test('R127-POST-RESTART-04 exact resident recovery enables only the fenced fetus
     coldRecovery: []
   });
   assert.equal(kernel.metabNeutralRecoveryCompletedAtPreservedRevision, true);
+
+  const anchorHash = 'a'.repeat(64);
+  const beforeAnchorState = {
+    chemistry: { modelClock: 555219750 },
+    trustedTime: {
+      lastWallClockMs: 1788375134831,
+      lastPulseSequence: 23828,
+      lastRuntimeRevision: 127,
+      lastClockStatus: 'trusted',
+      acceptedPulses: 2449877,
+      integratedIntervals: 2214506
+    }
+  };
+  const afterAnchorState = {
+    chemistry: { modelClock: 555219750 },
+    trustedTime: {
+      ...beforeAnchorState.trustedTime,
+      lastWallClockMs: 1788381000000,
+      lastPulseSequence: 23829,
+      lastClockStatus: 'uncertain',
+      acceptedPulses: 2449878
+    }
+  };
+  let anchorCommitted = false;
+  kernel.trustedTimePulseSequence = 23828;
+  db.prepare(`
+    INSERT INTO resident_checkpoints(
+      checkpoint_id, residency_id, instance_id, version, state_schema,
+      generation, blob_hash, byte_length, input_cursor, created_at
+    ) VALUES('checkpoint:sntss:2449922', 'resident:sntss', ?, '0.5.0-i4g1',
+      5, 2449922, ?, 4974, ?, ?)
+  `).run(
+    '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
+    SNTSS_HASH,
+    3652768,
+    AT
+  );
+  kernel.stateStore.readResidentCheckpoint = async residencyId => {
+    if (residencyId !== 'resident:sntss') return checkpointProofs[residencyId] || null;
+    return anchorCommitted ? {
+      generation: 2449923,
+      blobHash: anchorHash,
+      inputCursor: HIGH_WATER + 1,
+      state: afterAnchorState
+    } : {
+      generation: 2449922,
+      blobHash: SNTSS_HASH,
+      inputCursor: 3652768,
+      state: beforeAnchorState
+    };
+  };
+  kernel.publishTimePulse = async clockStatus => {
+    assert.equal(clockStatus, 'uncertain');
+    const sequence = HIGH_WATER + 1;
+    const eventId = `runtime.time.pulse:127:23829`;
+    const envelope = {
+      id: eventId,
+      sequence,
+      topic: 'runtime.time.pulse',
+      class: 'durable',
+      payload: {
+        runtimeRevision: 127,
+        pulseSequence: 23829,
+        clockStatus
+      },
+      meta: { sourceCore: 'living-kernel' }
+    };
+    db.prepare(`
+      INSERT INTO biological_events(
+        sequence, event_id, topic, event_class, at_ms, deadline_at_ms,
+        envelope_json, envelope_sha256, payload_sha256, provenance_sha256,
+        deduplication_key, deduplication_sha256, created_at
+      ) VALUES(?, ?, 'runtime.time.pulse', 'durable', ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      sequence, eventId, 1788381000000, JSON.stringify(envelope),
+      'anchor-envelope', 'anchor-payload', 'anchor-provenance', eventId,
+      'anchor-deduplication', AT
+    );
+    db.prepare(`
+      UPDATE resident_instances SET checkpoint_generation=2449923, checkpoint_hash=?
+      WHERE residency_id='resident:sntss'
+    `).run(anchorHash);
+    db.prepare(`
+      UPDATE biological_consumers SET cursor=?, checkpoint_hash=?
+      WHERE consumer_id='resident:sntss'
+    `).run(sequence, anchorHash);
+    db.prepare(`
+      INSERT INTO resident_checkpoints(
+        checkpoint_id, residency_id, instance_id, version, state_schema,
+        generation, blob_hash, byte_length, input_cursor, created_at
+      ) VALUES('checkpoint:sntss:2449923', 'resident:sntss', ?, '0.5.0-i4g1',
+        5, 2449923, ?, 4974, ?, ?)
+    `).run(
+      '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
+      anchorHash,
+      sequence,
+      AT
+    );
+    runtimeStatus.set('resident:sntss', {
+      ...runtimeStatus.get('resident:sntss'),
+      checkpointGeneration: 2449923,
+      checkpointHash: anchorHash,
+      lastError: null
+    });
+    kernel.trustedTimePulseSequence = 23829;
+    anchorCommitted = true;
+  };
+  const anchor = await kernel.anchorExactR127PostRestartTrustedTime();
+  assert.deepEqual(drainCalls, [
+    { residencyId: 'resident:sntss', throughSequence: HIGH_WATER },
+    { residencyId: 'resident:sntss', throughSequence: HIGH_WATER + 1 }
+  ]);
+  assert.equal(anchor.clockStatus, 'uncertain');
+  assert.equal(anchor.physiologyApplied, 0);
+  assert.equal(anchor.inventedBiologicalTime, false);
+  assert.equal(anchor.physiologyStateHashAfter, anchor.physiologyStateHashBefore);
+  const anchorRecord = db.prepare(`
+    SELECT detail_json FROM recovery_records
+    WHERE type='resident.r127-restart-clock-anchored'
+  `).get();
+  assert.equal(JSON.parse(anchorRecord.detail_json).toPulseSequence, 23829);
 
   let installs = 0;
   kernel.upgrades.installInitial = async () => {
@@ -489,10 +615,14 @@ test('R127-POST-RESTART-ENTRY-05 real stopped-state clone starts every preserved
     assert.equal(kernel.trustedTimePulseSequence >= 23829, true);
     assert.equal(kernel.trustedOrganismTimePulseSequence >= 101, true);
     for (const status of statuses) {
-      assert.equal(status.status, 'RUNNING');
+      assert.equal(status.status, 'RUNNING', `${status.residencyId} must remain running`);
       assert.equal(status.running, true);
       assert.equal(status.pendingDeliveries, 0);
-      assert.equal(status.observedOutputs, 0);
+      assert.equal(
+        status.observedOutputs,
+        status.residencyId === 'resident:chronobiology' ? 1 : 0,
+        `${status.residencyId} must preserve its exact shadow-output contract`
+      );
       assert.equal(status.authorityOwned, false);
       assert.equal(status.lastError, null);
       assert.equal(status.host.osContainment.required, true);
@@ -500,6 +630,28 @@ test('R127-POST-RESTART-ENTRY-05 real stopped-state clone starts every preserved
       assert.equal(status.host.osContainment.payloadSandboxed, true);
       assert.equal(status.host.osContainment.payloadAttachedBeforeInit, true);
     }
+    const anchor = kernel.stateStore.db.prepare(`
+      SELECT detail_json FROM recovery_records
+      WHERE type='resident.r127-restart-clock-anchored'
+      ORDER BY id DESC LIMIT 1
+    `).get();
+    const anchorDetail = JSON.parse(anchor?.detail_json || 'null');
+    const firstTimePulse = kernel.stateStore.db.prepare(`
+      SELECT envelope_json FROM biological_events
+      WHERE sequence>? AND topic='runtime.time.pulse'
+      ORDER BY sequence LIMIT 1
+    `).get(HIGH_WATER);
+    const firstTimeEnvelope = JSON.parse(firstTimePulse?.envelope_json || 'null');
+    assert.equal(anchorDetail.clockStatus, 'uncertain');
+    assert.equal(anchorDetail.physiologyApplied, 0);
+    assert.equal(anchorDetail.inventedBiologicalTime, false);
+    assert.equal(
+      anchorDetail.physiologyStateHashAfter,
+      anchorDetail.physiologyStateHashBefore
+    );
+    assert.equal(firstTimeEnvelope.payload.runtimeRevision, 127);
+    assert.equal(firstTimeEnvelope.payload.pulseSequence, 23829);
+    assert.equal(firstTimeEnvelope.payload.clockStatus, 'uncertain');
     const fetusAuthority = kernel.stateStore.getAuthority('fetus-legacy');
     assert.equal(fetusAuthority.instanceId, '82202211-8dd6-44d4-a4ec-8f2553d8dc6f');
     assert.equal(fetusAuthority.version, '0.6.0');

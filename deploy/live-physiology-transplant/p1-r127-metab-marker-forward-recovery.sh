@@ -678,6 +678,8 @@ const recoveryRow = type => db.prepare(
 ).get(type);
 const continuity = recoveryRow('runtime.r127-post-restart-continuity-recovered');
 const continuityDetail = JSON.parse(continuity?.detail_json || 'null');
+const timeAnchor = recoveryRow('resident.r127-restart-clock-anchored');
+const timeAnchorDetail = JSON.parse(timeAnchor?.detail_json || 'null');
 const fetusResync = recoveryRow('biological.consumer-resynchronized');
 const fetusResyncDetail = JSON.parse(fetusResync?.detail_json || 'null');
 const superseded = db.prepare(`
@@ -783,8 +785,28 @@ assert(continuityDetail?.cohort === 'r127-post-restart-continuity-v1' &&
     row.detail?.abandonedCount === 0 && row.detail?.inventedBiologicalTime === false &&
     row.detail?.authorityChanged === false) && laterRewinds === 0,
   'recovery evidence is not exact');
+assert(timeAnchorDetail?.cohort === 'r127-post-restart-continuity-v1' &&
+  timeAnchorDetail?.residencyId === 'resident:sntss' &&
+  timeAnchorDetail?.runtimeRevision === 127 &&
+  timeAnchorDetail?.eventSequence === 3654058 &&
+  timeAnchorDetail?.fromPulseSequence === 23828 &&
+  timeAnchorDetail?.toPulseSequence === 23829 &&
+  timeAnchorDetail?.clockStatus === 'uncertain' &&
+  Number(timeAnchorDetail?.checkpointGenerationAfter) ===
+    Number(timeAnchorDetail?.checkpointGenerationBefore) +
+      Number(timeAnchorDetail?.idempotentCheckpointCommits) &&
+  [1, 2].includes(Number(timeAnchorDetail?.idempotentCheckpointCommits)) &&
+  /^sha256:[0-9a-f]{64}$/.test(timeAnchorDetail?.physiologyStateHashBefore || '') &&
+  timeAnchorDetail?.physiologyStateHashAfter ===
+    timeAnchorDetail?.physiologyStateHashBefore &&
+  timeAnchorDetail?.physiologyApplied === 0 &&
+  timeAnchorDetail?.abandonedCount === 0 &&
+  timeAnchorDetail?.inventedBiologicalTime === false &&
+  timeAnchorDetail?.authorityChanged === false,
+  'trusted-time recovery anchor evidence is not exact');
 assert(firstTimeEnvelope?.payload?.runtimeRevision === 127 &&
   firstTimeEnvelope?.payload?.pulseSequence === 23829 &&
+  firstTimeEnvelope?.payload?.clockStatus === 'uncertain' &&
   firstTimePulse?.deduplication_key === 'runtime.time.pulse:127:23829' &&
   firstTrustedEnvelope?.payload?.runtimeRevision === 127 &&
   firstTrustedEnvelope?.payload?.pulseSequence === 101 &&
@@ -826,7 +848,16 @@ const proof = Object.freeze({
   sntssCheckpointGeneration: Number(sntss.checkpoint_generation),
   chronobiologyCheckpointGeneration: Number(chrono.checkpoint_generation),
   fetusCheckpointGeneration: Number(fetusCheckpoint.generation),
-  ledgerHighWater: highWater
+  ledgerHighWater: highWater,
+  trustedTimeAnchor: {
+    eventSequence: timeAnchorDetail.eventSequence,
+    fromPulseSequence: timeAnchorDetail.fromPulseSequence,
+    toPulseSequence: timeAnchorDetail.toPulseSequence,
+    clockStatus: timeAnchorDetail.clockStatus,
+    idempotentCheckpointCommits: timeAnchorDetail.idempotentCheckpointCommits,
+    physiologyStateHash: timeAnchorDetail.physiologyStateHashAfter,
+    physiologyApplied: timeAnchorDetail.physiologyApplied
+  }
 });
 process.stdout.write(`${JSON.stringify(proof)}\n`);
 NODE
@@ -900,6 +931,7 @@ const record = sealRevisionFreeze({
     pendingDeliveriesBefore: before.pendingDeliveries, pendingDeliveries: 0,
     pendingOutboxIntents: 0, abandonedDeliveries: after.abandonedDeliveries,
     acknowledgedPendingDeliveries: 2, supersededRestartPulses: 1289,
+    trustedTimeAnchor: after.trustedTimeAnchor,
     inventedBiologicalTime: false, authorityChanged: false },
   recovery: { sourceRevision: 127, birthRevision: 127, acceptedRevision: 127,
     failureMarkerSha256: release.RECOVERY_MARKER_SHA256,

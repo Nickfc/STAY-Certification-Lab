@@ -693,6 +693,7 @@ class LivingKernel {
           ordinaryRecovery,
           coldRecovery
         });
+        await this.anchorExactR127PostRestartTrustedTime();
       }
 
       this.lastResidentRecovery =
@@ -1284,6 +1285,191 @@ class LivingKernel {
       inventedBiologicalTime: false,
       authorityChanged: false
     });
+  }
+
+  async anchorExactR127PostRestartTrustedTime() {
+    if (!this.r127PostRestartContinuityRecovery) return null;
+    if (
+      !this.metabNeutralRecoveryRevisionPreserved ||
+      !this.metabNeutralRecoveryCompletedAtPreservedRevision ||
+      this.runtimeRevision !== 127 ||
+      this.trustedTimePulseSequence !==
+        R127_POST_RESTART_CONTINUITY.sntss.lastPulseSequence
+    ) {
+      throw Object.assign(
+        new Error('R127 trusted-time restart anchor is outside its exact recovery fence'),
+        { code: 'P1_R127_POST_RESTART_TIME_ANCHOR' }
+      );
+    }
+
+    const expected = R127_POST_RESTART_CONTINUITY.sntss;
+    const manager = this.ensureResidentManager();
+    await manager.drain(
+      expected.residencyId,
+      R127_POST_RESTART_CONTINUITY.ledger.highWater
+    );
+    const beforeResident = this.stateStore.getResident(expected.residencyId);
+    const beforeConsumer = this.stateStore.getBiologicalConsumer(expected.residencyId);
+    const beforeCheckpoint = await this.stateStore.readResidentCheckpoint(expected.residencyId);
+    const beforeStatus = await manager.status(expected.residencyId);
+    const beforeTime = beforeCheckpoint?.state?.trustedTime;
+    const recoveryCheckpoints = this.stateStore.db.prepare(`
+      SELECT generation, blob_hash, input_cursor
+      FROM resident_checkpoints
+      WHERE residency_id=? AND generation>?
+      ORDER BY generation
+    `).all(expected.residencyId, expected.checkpointGeneration);
+    const recoveryCheckpointSetIsExact =
+      recoveryCheckpoints.length >= 1 && recoveryCheckpoints.length <= 2 &&
+      recoveryCheckpoints.every((row, index) =>
+        Number(row.generation) === expected.checkpointGeneration + index + 1 &&
+        row.blob_hash === expected.checkpointHash &&
+        Number(row.input_cursor) === expected.inputCursor
+      );
+    const beforeHighWater = Number(this.stateStore.db.prepare(`
+      SELECT COALESCE(MAX(sequence), 0) AS value FROM biological_events
+    `).get()?.value || 0);
+    if (!(beforeResident?.status === 'RUNNING' &&
+      recoveryCheckpointSetIsExact &&
+      beforeResident?.checkpointGeneration === beforeCheckpoint?.generation &&
+      beforeResident?.checkpointHash === expected.checkpointHash &&
+      beforeConsumer?.active === true && beforeConsumer?.required === false &&
+      beforeConsumer?.authorityEpoch === 0 &&
+      beforeConsumer?.cursor === R127_POST_RESTART_CONTINUITY.ledger.highWater &&
+      beforeConsumer?.checkpointHash === expected.checkpointHash &&
+      beforeCheckpoint?.generation ===
+        Number(recoveryCheckpoints[recoveryCheckpoints.length - 1]?.generation) &&
+      beforeCheckpoint?.blobHash === expected.checkpointHash &&
+      beforeCheckpoint?.inputCursor === expected.inputCursor &&
+      beforeStatus?.status === 'RUNNING' && beforeStatus?.running === true &&
+      beforeStatus?.checkpointGeneration === beforeCheckpoint?.generation &&
+      beforeStatus?.checkpointHash === expected.checkpointHash &&
+      beforeStatus?.pendingDeliveries === 0 && beforeStatus?.observedOutputs === 0 &&
+      beforeStatus?.authorityOwned === false && beforeStatus?.lastError === null &&
+      beforeTime?.lastRuntimeRevision === 127 &&
+      beforeTime?.lastPulseSequence === expected.lastPulseSequence &&
+      beforeTime?.lastClockStatus === 'trusted' &&
+      Number.isSafeInteger(beforeTime?.lastWallClockMs) &&
+      Number.isSafeInteger(beforeTime?.acceptedPulses) &&
+      Number.isSafeInteger(beforeTime?.integratedIntervals) &&
+      beforeHighWater === R127_POST_RESTART_CONTINUITY.ledger.highWater)) {
+      throw Object.assign(new Error('R127 trusted-time restart anchor precondition mismatch'), {
+        code: 'P1_R127_POST_RESTART_TIME_ANCHOR'
+      });
+    }
+
+    const physiologyProjectionHash = state => {
+      const {
+        lastWallClockMs,
+        lastPulseSequence,
+        lastRuntimeRevision,
+        lastClockStatus,
+        acceptedPulses,
+        ...preservedTrustedTime
+      } = state.trustedTime;
+      void lastWallClockMs;
+      void lastPulseSequence;
+      void lastRuntimeRevision;
+      void lastClockStatus;
+      void acceptedPulses;
+      return sha256Bytes(stableStringify({
+        ...state,
+        trustedTime: preservedTrustedTime
+      }));
+    };
+    const beforePhysiologyHash = physiologyProjectionHash(beforeCheckpoint.state);
+
+    await this.publishTimePulse('uncertain');
+    await manager.drain(expected.residencyId, beforeHighWater + 1);
+
+    const afterResident = this.stateStore.getResident(expected.residencyId);
+    const afterConsumer = this.stateStore.getBiologicalConsumer(expected.residencyId);
+    const afterCheckpoint = await this.stateStore.readResidentCheckpoint(expected.residencyId);
+    const afterStatus = await manager.status(expected.residencyId);
+    const afterTime = afterCheckpoint?.state?.trustedTime;
+    const expectedSequence = beforeHighWater + 1;
+    const anchorCheckpoints = this.stateStore.db.prepare(`
+      SELECT generation, blob_hash, input_cursor
+      FROM resident_checkpoints
+      WHERE residency_id=? AND generation>?
+      ORDER BY generation
+    `).all(expected.residencyId, beforeCheckpoint.generation);
+    const anchorCheckpointSetIsExact =
+      anchorCheckpoints.length >= 1 && anchorCheckpoints.length <= 2 &&
+      anchorCheckpoints.every((row, index) =>
+        Number(row.generation) === beforeCheckpoint.generation + index + 1 &&
+        row.blob_hash === afterCheckpoint?.blobHash &&
+        Number(row.input_cursor) === expectedSequence
+      );
+    const event = this.stateStore.db.prepare(`
+      SELECT topic, event_class, deduplication_key, envelope_json
+      FROM biological_events WHERE sequence=?
+    `).get(expectedSequence);
+    let envelope = null;
+    try { envelope = JSON.parse(event?.envelope_json || 'null'); } catch {}
+    const afterPhysiologyHash = afterCheckpoint?.state
+      ? physiologyProjectionHash(afterCheckpoint.state)
+      : null;
+    if (!(afterResident?.status === 'RUNNING' &&
+      anchorCheckpointSetIsExact &&
+      afterResident?.checkpointGeneration === afterCheckpoint?.generation &&
+      afterResident?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterResident?.checkpointHash !== expected.checkpointHash &&
+      afterConsumer?.active === true && afterConsumer?.required === false &&
+      afterConsumer?.authorityEpoch === 0 && afterConsumer?.cursor === expectedSequence &&
+      afterConsumer?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterCheckpoint?.generation ===
+        Number(anchorCheckpoints[anchorCheckpoints.length - 1]?.generation) &&
+      afterCheckpoint?.inputCursor === expectedSequence &&
+      afterStatus?.status === 'RUNNING' && afterStatus?.running === true &&
+      afterStatus?.checkpointGeneration === afterCheckpoint?.generation &&
+      afterStatus?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterStatus?.pendingDeliveries === 0 && afterStatus?.observedOutputs === 0 &&
+      afterStatus?.authorityOwned === false && afterStatus?.lastError === null &&
+      this.trustedTimePulseSequence === expected.lastPulseSequence + 1 &&
+      afterTime?.lastRuntimeRevision === 127 &&
+      afterTime?.lastPulseSequence === expected.lastPulseSequence + 1 &&
+      afterTime?.lastClockStatus === 'uncertain' &&
+      afterTime?.lastWallClockMs >= beforeTime.lastWallClockMs &&
+      afterTime?.acceptedPulses === beforeTime.acceptedPulses + 1 &&
+      afterTime?.integratedIntervals === beforeTime.integratedIntervals &&
+      afterPhysiologyHash === beforePhysiologyHash &&
+      event?.topic === 'runtime.time.pulse' && event?.event_class === 'durable' &&
+      event?.deduplication_key ===
+        `runtime.time.pulse:127:${expected.lastPulseSequence + 1}` &&
+      envelope?.payload?.runtimeRevision === 127 &&
+      envelope?.payload?.pulseSequence === expected.lastPulseSequence + 1 &&
+      envelope?.payload?.clockStatus === 'uncertain')) {
+      throw Object.assign(new Error('R127 trusted-time restart anchor changed containment'), {
+        code: 'P1_R127_POST_RESTART_TIME_ANCHOR'
+      });
+    }
+
+    const detail = {
+      cohort: 'r127-post-restart-continuity-v1',
+      residencyId: expected.residencyId,
+      runtimeRevision: 127,
+      eventSequence: expectedSequence,
+      fromPulseSequence: expected.lastPulseSequence,
+      toPulseSequence: expected.lastPulseSequence + 1,
+      clockStatus: 'uncertain',
+      checkpointGenerationBefore: beforeCheckpoint.generation,
+      checkpointGenerationAfter: afterCheckpoint.generation,
+      idempotentCheckpointCommits: anchorCheckpoints.length,
+      physiologyStateHashBefore: beforePhysiologyHash,
+      physiologyStateHashAfter: afterPhysiologyHash,
+      physiologyApplied: 0,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    };
+    this.stateStore.recordRecovery(
+      'resident.r127-restart-clock-anchored',
+      expected.coreId,
+      detail
+    );
+    this.statusCache = null;
+    return Object.freeze(detail);
   }
 
   startMaintenance() {

@@ -254,6 +254,16 @@ test('R127-PRESERVE-REL-01 exact stopped R127 cohort recovers and freezes withou
   assert.match(source, /runtime\.r127-post-restart-continuity-recovered/);
   assert.match(source, /biological\.consumer-resynchronized/);
   assert.match(source, /resident\.restart-pulse-superseded/);
+  assert.match(source, /resident\.r127-restart-clock-anchored/);
+  assert.match(source, /timeAnchorDetail\?\.residencyId === 'resident:sntss'/);
+  assert.match(source, /timeAnchorDetail\?\.eventSequence === 3654058/);
+  assert.match(source, /timeAnchorDetail\?\.fromPulseSequence === 23828/);
+  assert.match(source, /timeAnchorDetail\?\.toPulseSequence === 23829/);
+  assert.match(source, /\[1, 2\]\.includes\(Number\(timeAnchorDetail\?\.idempotentCheckpointCommits\)\)/);
+  assert.match(source, /timeAnchorDetail\?\.physiologyApplied === 0/);
+  assert.match(source, /timeAnchorDetail\?\.inventedBiologicalTime === false/);
+  assert.match(source, /firstTimeEnvelope\?\.payload\?\.clockStatus === 'uncertain'/);
+  assert.match(source, /trustedTimeAnchor: after\.trustedTimeAnchor/);
   const committed = source.slice(source.indexOf('RESTART_COMMITTED=1'));
   assert.doesNotMatch(committed, /point_current "\$ACTIVE_RELEASE"/);
   assert.doesNotMatch(source,
