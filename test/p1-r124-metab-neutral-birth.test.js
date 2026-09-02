@@ -45,6 +45,9 @@ const {
   verifyManifestAgainstPackagePolicy
 } = require('../runtime/kernel/package-policy');
 const { validateRequest } = require('../runtime/kernel/resident-control-socket');
+const { validateArguments: validateControlClientArguments } = require(
+  '../deploy/live-physiology-transplant/p1-resident-control-client'
+);
 const { projectObservationChips } = require('../runtime/ui/chip-projection');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -542,6 +545,20 @@ test('R124-METAB-RED-07 control surface exposes exact birth but forbids generic 
     operation: 'promote',
     residencyId: 'resident:metab'
   }), { code: 'RESIDENT_CONTROL_OPERATION' });
+  assert.deepEqual(validateControlClientArguments(['birth', 'resident:metab']), {
+    operation: 'birth', residencyId: 'resident:metab'
+  });
+  assert.deepEqual(validateControlClientArguments(['status', 'resident:metab']), {
+    operation: 'status', residencyId: 'resident:metab'
+  });
+  assert.throws(
+    () => validateControlClientArguments(['attach', 'resident:metab']),
+    { code: 'RESIDENT_CONTROL_CLIENT_USAGE' }
+  );
+  assert.throws(
+    () => validateControlClientArguments(['birth', 'resident:sntss']),
+    { code: 'RESIDENT_CONTROL_CLIENT_USAGE' }
+  );
 });
 
 test('R124-METAB-ENTRY-01 real LivingKernel path births one neutral resident without advancing R124', async t => {
