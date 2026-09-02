@@ -2,8 +2,8 @@
 d7924169b8399e94512cb2373bbfe07f6ae5c64d3ea6e4c48f6e44ed7bfbb7f3  ./cores/p1-r0/metab-neutral/package-policy.json
 8b3e8f5c9ecb96192245831808c82be973692b304968ab0dd5023ee117442464  ./cores/p1-r0/metab-shadow/index.js
 bd2eb0b4430a02117c6e81fc27308a1ec23f5e6dafc16008111b7d7cb9521bd4  ./cores/p1-r0/metab-shadow/package-policy.json
-cdb8c5da0bd7befc1427151fd5b0f017deea88c607b0b8a4c5d7ecef37d454be  ./deploy/live-physiology-transplant/p1-r128-metab-shadow-forward-recovery.sh
-16e5c4d6ae4a2d89c89325bb9ba547c55f4b128584130435a2e034f43f42f6be  ./deploy/live-physiology-transplant/p1-r128-metab-shadow-forward.sh
+0f63e520019640402b0b71cba02302144e489852cbf59819b88826f39c874c6f  ./deploy/live-physiology-transplant/p1-r128-metab-shadow-forward-recovery.sh
+e4816b25c3a52b5ae3ec0f2f64f6a009013296d8b951b7a596a062ba5a6b8386  ./deploy/live-physiology-transplant/p1-r128-metab-shadow-forward.sh
 05a063336b9b81209cb725cd478e88b891996b4a0df11d360f1bb16d9b0123e8  ./deploy/live-physiology-transplant/p1-r128-metab-shadow-live-proof.js
 4a1882b0f0d359d6d12ca8d6975f26a22613c0c6192540a3c36acd7e6a12cbe3  ./deploy/live-physiology-transplant/p1-resident-control-client.js
 a4def5d8243fe18e8c7e1d12c84309c04bc7d067cc33f26b203164e9199b6c08  ./runtime/kernel/biological-fabric.js
@@ -45,7 +45,7 @@ c4900863319612063f252210763e3fbf4edb22ed940cc6f5ae486a9e5e8a005d  ./test/p1-r118
 d04e195bd10ba2516d58924b6569f834d949789894d429760876d710fc605d48  ./test/p1-r124-release-contract.test.js
 5dd697a7b7f3f33dab37041e441318ecbdc4b5eddc67c9b79980de0cc50bac36  ./test/p1-r127-post-restart-continuity.test.js
 0c3050eaa409e2dddccb1a4ab2688e589190b7f0833483d3e24ef1ebbb728209  ./test/p1-r128-metab-shadow.test.js
-11fe7dfa67995d64ff13a3d32eca5d5cd811a2b460c55279a88687990352d3c1  ./test/p1-r128-release-contract.test.js
+462ac13a197543091ab9e82d43136f0deb7c9e1958389c6e5d94660e8e4c94a2  ./test/p1-r128-release-contract.test.js
 80dcbb091c54094ff2eb4fe710470d699a1e9b131c48d99cd9d46f469cb73ed2  ./test/p1-resident-control-socket.test.js
 cc17a842939f131843e8363d8cb337cccc927751d7fa600e56d15a2c5291b686  ./test/p1-surgery-a-transplant.test.js
 9661cac9c77ea30f5250adc8c668fe0f1d31e6ab14c818c8bd9037ff4ca7e391  ./test/production-hardening-entry-path.test.js
