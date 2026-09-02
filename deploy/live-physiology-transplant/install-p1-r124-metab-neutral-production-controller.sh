@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_WRAPPER_SHA256='d5c9ff9e1f6e1b1899f5f70ce6158127670afe2f2ac228fec87c7092df1d91c4'
+EXPECTED_WRAPPER_SHA256='5ff6659d1499b354a54c527e9224abd09181b17a517a6b55027b3f23bae12ac4'
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-r124-metab-neutral-production-controller"
 TARGET_WRAPPER='/usr/local/sbin/stay-p1-production-controller'
@@ -41,7 +41,7 @@ id staydeploy >/dev/null 2>&1 || {
   exit 65
 }
 
-staging="$(mktemp -d /run/stay-r124-metab-neutral-v1-bootstrap.XXXXXX)"
+staging="$(mktemp -d /run/stay-r124-metab-neutral-v2-bootstrap.XXXXXX)"
 trap 'rm -rf -- "$staging"' EXIT
 sudoers_staged="$staging/stay-p1-production-controller.sudoers"
 cat > "$sudoers_staged" <<'SUDOERS'
