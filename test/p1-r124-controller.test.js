@@ -92,6 +92,14 @@ test('R127-BRIDGE-05 evidence access is exact, read-only, probed, and always res
   assert.match(wrapper, /process\.setgroups\(\[\]\)/);
   assert.match(wrapper, /process\.setgid\(Number\(gidText\)\)/);
   assert.match(wrapper, /process\.setuid\(Number\(uidText\)\)/);
+  const probeBlock = wrapper.slice(
+    wrapper.indexOf('probe_r124_evidence_access()'), wrapper.indexOf('finish_controller()'));
+  assert.match(probeBlock, /require\('node:crypto'\)/);
+  assert.match(probeBlock, /require\('node:fs'\)/);
+  assert.match(probeBlock, /require\('node:path'\)/);
+  assert.doesNotMatch(probeBlock, /require\(modulePath\)|living-kernel\.js|event-fabric/);
+  assert.match(probeBlock, /trustedRootFile\(markerFile, markerSha256\)/);
+  assert.match(probeBlock, /Object\.entries\(expectedEvidence\)/);
   assert.match(wrapper, /R127_CONTROLLER_EVIDENCE_ACCESS_PROBE=PASS/);
   assert.match(wrapper, /if \[\[ "\$EVIDENCE_ACCESS_STAGED" -eq 1 \]\]/);
   assert.match(wrapper, /chmod 0400 "\$file"/);
@@ -103,14 +111,14 @@ test('R127-BRIDGE-05 evidence access is exact, read-only, probed, and always res
 
 test('R127-BRIDGE-06 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    'a6f5167f18e0e6c917d2f4eca23093162424e50c53082658852b08d5667cdc91');
+    'd4397f196e3a9e6c6906502ffacd274443a9615db4d833271fbf12ef536ea4de');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(installer, /NOPASSWD:\s+(?:ALL|\/bin\/(?:bash|sh)|\/usr\/bin\/env)/);
   assert.match(installer, /visudo -cf "\$sudoers_staged"/);
   assert.match(installer, /root:root:555/);
-  assert.match(installer, /R127_FINAL_RECOVERY_V3_AUTHORIZED=NO/);
+  assert.match(installer, /R127_FINAL_RECOVERY_V4_AUTHORIZED=NO/);
 });
 
 test('R127-BRIDGE-07 completion contract independently proves repair and containment', () => {

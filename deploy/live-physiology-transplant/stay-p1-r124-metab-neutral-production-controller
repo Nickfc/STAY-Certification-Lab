@@ -193,26 +193,43 @@ restore_r124_evidence_access() {
 }
 
 probe_r124_evidence_access() {
-  local module="$WORK_ROOT/release/runtime/kernel/living-kernel.js"
   local staydeploy_uid staydeploy_gid
   staydeploy_uid="$(id -u staydeploy)" || return 1
   staydeploy_gid="$(id -g staydeploy)" || return 1
-  /usr/local/bin/node - "$module" "$R124_RECOVERY_MARKER" \
-    "sha256:$EXPECTED_R124_RECOVERY_MARKER_SHA256" "$staydeploy_uid" "$staydeploy_gid" <<'NODE'
+  /usr/local/bin/node - "$R124_RECOVERY_MARKER" \
+    "$EXPECTED_R124_RECOVERY_MARKER_SHA256" "$staydeploy_uid" "$staydeploy_gid" \
+    "$R124_FAILURE_ROOT" <<'NODE'
 'use strict';
-const [modulePath, markerFile, markerSha256, uidText, gidText] = process.argv.slice(2);
-const { readR124MetabRecoveryFence } = require(modulePath);
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const [markerFile, markerSha256, uidText, gidText, evidenceRoot] = process.argv.slice(2);
+const expectedEvidence = Object.freeze({
+  'before.proof.json':
+    '40e54a2d6ed649132c5f1395d8cdf0ed7075cbe0ff5c4d89a2c57707c84ca4da',
+  'service.before.json':
+    '95d99d8b56d6299680928d10bacc5cc41bd5cc3fedf584ee519ce69729c5cb74',
+  'R123.freeze.json':
+    '34baedccaa9227ebd20c0b11a9e32fa6b98deb3c25ca2db03fa846bf49251a92',
+  'benchmark.proof.json':
+    '9dc732e26d7974f4a5998a936051bd1f52909399179b8313a2311f5299f1fcac'
+});
+const sha256 = body => crypto.createHash('sha256').update(body).digest('hex');
+const trustedRootFile = (file, expectedHash) => {
+  const stat = fs.lstatSync(file);
+  const body = fs.readFileSync(file);
+  return stat.isFile() && !stat.isSymbolicLink() && stat.uid === 0 &&
+    (stat.mode & 0o022) === 0 && sha256(body) === expectedHash;
+};
 process.setgroups([]);
 process.setgid(Number(gidText));
 process.setuid(Number(uidText));
-const result = readR124MetabRecoveryFence({
-  markerFile,
-  expectedMarkerSha256: markerSha256,
-  trustedUid: 0
-});
-if (result?.markerSha256 !== markerSha256 ||
-  result?.failureEvidence !==
-    '/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2') {
+const evidenceStat = fs.lstatSync(evidenceRoot);
+if (!trustedRootFile(markerFile, markerSha256) || !evidenceStat.isDirectory() ||
+  evidenceStat.isSymbolicLink() || evidenceStat.uid !== 0 ||
+  (evidenceStat.mode & 0o022) !== 0 ||
+  Object.entries(expectedEvidence).some(([name, expectedHash]) =>
+    !trustedRootFile(path.join(evidenceRoot, name), expectedHash))) {
   process.exit(1);
 }
 console.log('R127_CONTROLLER_EVIDENCE_ACCESS_PROBE=PASS');
