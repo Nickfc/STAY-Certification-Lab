@@ -1,8 +1,10 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -25,6 +27,7 @@ const EXPECTED_OVERLAY = Object.freeze([
   'deploy/live-physiology-transplant/p1-r124-metab-neutral-forward.sh',
   'deploy/live-physiology-transplant/p1-r124-metab-neutral-live-proof.js',
   'deploy/live-physiology-transplant/p1-resident-control-client.js',
+  'runtime/kernel/canonical-json.js',
   'runtime/kernel/living-kernel.js',
   'runtime/kernel/resident-control-socket.js',
   'runtime/kernel/resident-manager.js',
@@ -43,6 +46,7 @@ const EXPECTED_OVERLAY = Object.freeze([
   'runtime/p1-r0/resident-support.js',
   'runtime/p1-r0/residents/metab-neutral.js',
   'runtime/release/surgery-a-control.js',
+  'runtime/revision-freeze.js',
   'runtime/ui/chip-projection.js',
   'test/p1-r118f-release-contract.test.js',
   'test/p1-r119f-release-contract.test.js',
@@ -154,6 +158,25 @@ test('R124-REL-05 release preserves exact resource and authority contracts', () 
   assert.deepEqual(policy.ambientCapabilities, {
     filesystemWrite: false, network: false, processSpawn: false
   });
+});
+
+test('R124-REL-06 clean overlay loads the real preflight proof in isolation', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'stay-r124-overlay-'));
+  try {
+    for (const relative of manifestEntries().keys()) {
+      const target = path.join(directory, relative);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(path.join(ROOT, relative), target);
+    }
+    const proof = path.join(directory, 'deploy', 'live-physiology-transplant',
+      'p1-r124-metab-neutral-live-proof.js');
+    const result = spawnSync(process.execPath, ['-e', 'require(process.argv[1])', proof], {
+      encoding: 'utf8'
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 module.exports = Object.freeze({ EXPECTED_OVERLAY });
