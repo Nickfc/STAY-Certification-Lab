@@ -18,29 +18,29 @@ const wrapperSha256 = sha256(Buffer.from(wrapper));
 
 test('R127-BRIDGE-01 controller binds the exact certified immutable repair cohort', () => {
   for (const identity of [
-    "EXPECTED_RELEASE_TAG='r127-metab-final-recovery-v3'",
-    "EXPECTED_RELEASE_TAG_OBJECT='36913b25db4198a988caea17b5acbdd0a1272adc'",
-    "EXPECTED_RELEASE_COMMIT='38ae95f43c32c7234a31fa13eb78e6706a49054e'",
-    "EXPECTED_RELEASE_TREE='f43d4bb0bb770f340c9b8d4a5351f4be3a8199a0'",
-    "EXPECTED_ARCHIVE='STAY_P1_R127_METAB_FINAL_RECOVERY_V3_BUNDLE_20260902.tar.gz'",
-    "EXPECTED_ARCHIVE_SHA256='b1e86eb09014d762f0149f0d509543f60f36f9a052f9dbfcedeee3fcb2256eaa'",
-    "EXPECTED_SIDECAR_SHA256='bd1152cd89767860f05a8a34126c4a3539076108e276ce03cb691cd7bab998a4'",
-    "EXPECTED_MANIFEST_SHA256='7b649384afdf5152b49d608cb36902fad042168274d4200a2d72a481d44a0979'",
-    "EXPECTED_FORWARD_SHA256='eaf0ab6d385c5a32ea03bc9f83ab868b58879c9307a1d39840f562da858a3f8b'",
-    "EXPECTED_RECOVERY_SHA256='eaf0ab6d385c5a32ea03bc9f83ab868b58879c9307a1d39840f562da858a3f8b'",
+    "EXPECTED_RELEASE_TAG='r127-metab-final-recovery-v4'",
+    "EXPECTED_RELEASE_TAG_OBJECT='66bcc76dbf92f472075b561ff4151e1d721be966'",
+    "EXPECTED_RELEASE_COMMIT='2c9082a336115537c518b387d5953cdc0e44a447'",
+    "EXPECTED_RELEASE_TREE='5e213e827a9c8cb314551cbc63ff04b28073279a'",
+    "EXPECTED_ARCHIVE='STAY_P1_R127_METAB_FINAL_RECOVERY_V4_BUNDLE_20260902.tar.gz'",
+    "EXPECTED_ARCHIVE_SHA256='835dbebf1277350f0f6d36b6570041b7ea7f1d64c2a9f4801f976b9e804d43b2'",
+    "EXPECTED_SIDECAR_SHA256='94be37982b696f2871e2338c028d26dfe0dbba20a8c903c53a78e037bb25ba2a'",
+    "EXPECTED_MANIFEST_SHA256='c0aae98bfd0b34b4e0b8c4cbb1dee2a4c14955e51f3bd25cf8338e937f022f45'",
+    "EXPECTED_FORWARD_SHA256='ebcd35db3968f5bc7589ef5439472aab03080933f8ba771a8442c2514ef7d75a'",
+    "EXPECTED_RECOVERY_SHA256='ebcd35db3968f5bc7589ef5439472aab03080933f8ba771a8442c2514ef7d75a'",
     "EXPECTED_BIRTH_CERTIFICATE_SHA256='5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6'",
     "EXPECTED_BIRTH_DOSSIER_SHA256='3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f'",
     "EXPECTED_BIRTH_PUBLIC_KEY_SHA256='754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e'",
-    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-7b649384afdf'",
+    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r127-metab-final-c0aae98bfd0b'",
     "EXPECTED_ACTIVE_RELEASE_TAG='r127-metab-final-recovery-v3'",
     "EXPECTED_ACTIVE_RELEASE_COMMIT='38ae95f43c32c7234a31fa13eb78e6706a49054e'",
     "EXPECTED_ACTIVE_RELEASE_TREE='f43d4bb0bb770f340c9b8d4a5351f4be3a8199a0'",
   ]) assert.equal(wrapper.includes(identity), true, identity);
-  assert.match(wrapper, /"\$\{#entries\[@\]\}" -eq 64/);
-  assert.match(wrapper, /-type f \| wc -l\)" -eq 46/);
-  assert.match(wrapper, /find "\$EXPECTED_TARGET_RELEASE" -type f \| wc -l\)" -eq 645/);
-  assert.match(wrapper, /wc -l < "\$root\/\$MANIFEST"\)" -eq 45/);
-  assert.match(wrapper, /if \(NR != 45\) exit 1/);
+  assert.match(wrapper, /"\$\{#entries\[@\]\}" -eq 66/);
+  assert.match(wrapper, /-type f \| wc -l\)" -eq 48/);
+  assert.match(wrapper, /find "\$EXPECTED_TARGET_RELEASE" -type f \| wc -l\)" -eq 646/);
+  assert.match(wrapper, /wc -l < "\$root\/\$MANIFEST"\)" -eq 47/);
+  assert.match(wrapper, /if \(NR != 47\) exit 1/);
 });
 
 test('R127-BRIDGE-02 wrapper exposes only the exact forward-repair operation', () => {
@@ -49,9 +49,10 @@ test('R127-BRIDGE-02 wrapper exposes only the exact forward-repair operation', (
     wrapper.indexOf('esac', wrapper.indexOf('case "$operation" in')));
   assert.match(operationBlock, /recover-r127-final\)/);
   assert.doesNotMatch(operationBlock, /harden-r124|diagnostic|shell|command|script-path/);
-  assert.match(wrapper, /AUTHORIZE_R127_METAB_FINAL_RECOVERY_V3_FORWARD_ONLY/);
-  assert.match(wrapper, /AUTHORIZE_R127_METAB_REVISION_PRESERVING_FORWARD_RECOVERY_ONLY/);
-  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r127-metab-final-recovery-v3-\[0-9\]\+\$/);
+  assert.match(wrapper, /AUTHORIZE_R127_METAB_FINAL_RECOVERY_V4_FORWARD_ONLY/);
+  assert.match(wrapper,
+    /AUTHORIZE_R127_POST_RESTART_FETUS_SNTSS_CHRONOBIOLOGY_CONTINUITY_ONLY/);
+  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r127-metab-final-recovery-v4-\[0-9\]\+\$/);
   assert.equal((wrapper.match(/if run_bounded_script/g) || []).length, 1);
 });
 
@@ -112,14 +113,14 @@ test('R127-BRIDGE-05 evidence access is exact, read-only, probed, and always res
 
 test('R127-BRIDGE-06 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    '7ad3e1522f8408fa2c1a577bb28a364866e78f360f7f2e91b048d2f9bd1feef0');
+    '469342acf073b6dd37b595283bb17b0b761b484cba1c6edffaf1666056c32752');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.doesNotMatch(installer, /NOPASSWD:\s+(?:ALL|\/bin\/(?:bash|sh)|\/usr\/bin\/env)/);
   assert.match(installer, /visudo -cf "\$sudoers_staged"/);
   assert.match(installer, /root:root:555/);
-  assert.match(installer, /R127_FINAL_RECOVERY_V6_AUTHORIZED=NO/);
+  assert.match(installer, /R127_FINAL_RECOVERY_V7_AUTHORIZED=NO/);
 });
 
 test('R127-BRIDGE-07 completion contract independently proves repair and containment', () => {
@@ -128,7 +129,7 @@ test('R127-BRIDGE-07 completion contract independently proves repair and contain
     'SNTSS_OUTPUTS=0', 'CHRONOBIOLOGY_MODE=SHADOW', 'CHRONOBIOLOGY_STATUS=RUNNING',
     'CHRONOBIOLOGY_AUTHORITY=NONE', 'METAB_MODE=NEUTRAL',
     'METAB_STATUS=RUNNING', 'METAB_AUTHORITY=NONE', 'METAB_OUTPUTS=0',
-    'METAB_SIGNALLING=FORBIDDEN', 'RESTART_COMMANDS=4',
+    'METAB_SIGNALLING=FORBIDDEN', 'START_COMMANDS=1', 'RESTART_COMMANDS=0',
     'FETUS_CONTINUITY=PASS', 'BIRTH_AUTHORITY_ACTIVE=NO',
     'WEB_CHIP_BSF=LIVE', 'WEB_CHIP_SNTSS=SHADOW',
     'WEB_CHIP_CHRONOBIOLOGY=SHADOW', 'WEB_CHIP_METAB=NEUTRAL',
@@ -138,19 +139,23 @@ test('R127-BRIDGE-07 completion contract independently proves repair and contain
   assert.match(wrapper, /database\.pendingOutboxIntents === 0/);
   assert.match(wrapper, /database\.failedDeliveries === 0/);
   assert.match(wrapper, /database\.abandonedDeliveries === 0/);
-  assert.match(wrapper, /freeze\.continuity\?\.pendingDeliveriesBefore === 0/);
-  assert.doesNotMatch(wrapper, /freeze\.continuity\?\.pendingDeliveriesBefore > 0/);
+  assert.match(wrapper, /freeze\.continuity\?\.pendingDeliveriesBefore === 2/);
+  assert.match(wrapper, /freeze\.continuity\?\.acknowledgedPendingDeliveries === 2/);
+  assert.match(wrapper, /freeze\.continuity\?\.supersededRestartPulses === 1289/);
   assert.match(wrapper, /database\.p1Authority === 0/);
   assert.match(wrapper, /sntss\?\.observedOutputs === 0/);
   assert.match(wrapper, /metab\?\.signalling === 'FORBIDDEN'/);
   assert.match(wrapper, /metab\?\.productionEligible === false/);
   assert.match(wrapper, /chip\('metab'\)\?\.born === true/);
   assert.match(wrapper, /validateRevisionFreeze\(freeze, revision\)/);
-  assert.match(wrapper, /R127_METAB_NEUTRAL_REVISION_PRESERVING_FORWARD_RECOVERY/);
+  assert.match(wrapper, /R127_POST_RESTART_CONTINUITY_FORWARD_RECOVERY/);
   assert.match(wrapper, /freeze\.recovery\?\.markerAccessRepaired === true/);
   assert.match(wrapper, /freeze\.recovery\?\.kernelRevisionPreserved === true/);
   assert.match(wrapper, /freeze\.recovery\?\.fetusInstallRevisionPreserved === true/);
   assert.match(wrapper, /freeze\.recovery\?\.pointerRewound === false/);
+  assert.match(wrapper, /freeze\.continuity\?\.inventedBiologicalTime === false/);
+  assert.match(wrapper, /freeze\.continuity\?\.authorityChanged === false/);
+  assert.match(wrapper, /FAILED-R127-PRESERVE-20260902T185222Z\.rHU3XL/);
   assert.match(wrapper, /RECOVERY_RUNTIME_SECONDS=900/);
 });
 
