@@ -10,10 +10,13 @@ const PATCH_MARKER = Symbol.for('stay.resident-control-socket.v1');
 
 const RESIDENT_MODULES = Object.freeze({
   'resident:sntss': 'cores/sntss/i3d/index.js',
-  'resident:chronobiology': 'cores/chronobiology/c3/index.js'
+  'resident:chronobiology': 'cores/chronobiology/c3/index.js',
+  'resident:metab': 'cores/p1-r0/metab-neutral/index.js'
 });
 
-const OPERATIONS = new Set(['status', 'attach', 'detach', 'promote', 'resynchronize']);
+const OPERATIONS = new Set([
+  'status', 'attach', 'birth', 'detach', 'promote', 'resynchronize'
+]);
 
 function fail(message, code) {
   throw Object.assign(new Error(message), { code });
@@ -32,6 +35,15 @@ function validateRequest(value) {
   }
   if (!Object.prototype.hasOwnProperty.call(RESIDENT_MODULES, value.residencyId)) {
     fail('resident-control residency is not allowlisted', 'RESIDENT_CONTROL_RESIDENCY');
+  }
+  if (value.operation === 'birth' && value.residencyId !== 'resident:metab') {
+    fail('resident-control birth residency is not allowlisted', 'RESIDENT_CONTROL_RESIDENCY');
+  }
+  if (
+    value.residencyId === 'resident:metab' &&
+    ['attach', 'promote'].includes(value.operation)
+  ) {
+    fail('METAB requires the exact neutral-birth operation', 'RESIDENT_CONTROL_OPERATION');
   }
   return Object.freeze({ operation: value.operation, residencyId: value.residencyId });
 }
@@ -99,7 +111,12 @@ function createResidentControlDispatcher(kernel) {
 
     operationInFlight = true;
     try {
-      if (request.operation === 'attach') {
+      if (request.operation === 'birth') {
+        if (typeof kernel.birthMetabNeutral !== 'function') {
+          fail('METAB neutral birth is unavailable', 'RESIDENT_CONTROL_BIRTH');
+        }
+        await kernel.birthMetabNeutral();
+      } else if (request.operation === 'attach') {
         if (kernel.stateStore.getResident(request.residencyId)) {
           fail('resident already exists', 'RESIDENT_ALREADY_EXISTS');
         }
