@@ -7,7 +7,7 @@ d7924169b8399e94512cb2373bbfe07f6ae5c64d3ea6e4c48f6e44ed7bfbb7f3  ./cores/p1-r0/
 960fbb96772b8b9f6668f6d98da4075c44f7aafd8036fc08e923734a14fd8ccc  ./deploy/live-physiology-transplant/p1-r124-metab-neutral-forward-recovery.sh
 17533f0a1f6c3de39945edc78440246e343ca61629df98d7bf3f30d788ac243d  ./deploy/live-physiology-transplant/p1-r124-metab-neutral-forward.sh
 6dd9d14b95ae1e993f704c188236bffc618df175c5b90d2fba5c9788f69e0f51  ./deploy/live-physiology-transplant/p1-r124-metab-neutral-live-proof.js
-232fec04293cb5b64258fe0c782345f8cff98d3a5887fc5f3219566c4e2b377b  ./deploy/live-physiology-transplant/p1-r127-metab-marker-forward-recovery.sh
+c78dfe8b884be70ed35582b60458c4eaccde7a198bee6522d6b5ede0b0b3df6e  ./deploy/live-physiology-transplant/p1-r127-metab-marker-forward-recovery.sh
 4a1882b0f0d359d6d12ca8d6975f26a22613c0c6192540a3c36acd7e6a12cbe3  ./deploy/live-physiology-transplant/p1-resident-control-client.js
 aafdc03899a23b00ff6a0ec2930399a0d88ffc767e0cf903d9a69f5cbf93fe9e  ./runtime/kernel/canonical-json.js
 8402205ecfdbfd5fede492915a9926c0b0596a0b90d9b1e18cd51c175c08ac26  ./runtime/kernel/living-kernel.js
@@ -37,7 +37,7 @@ c5f8e67de9179a52018bc36c0c253858354393a7df46665cb40854a9f8d50b7f  ./test/p1-r123
 1200a5ad04ec7c8213dbac1d79d7380c5de9d27fabea8070ba5e5b63116962b1  ./test/p1-r124-metab-founder-dossier.test.js
 0f628607f16f40a27dff8ac25d757704d7032661eb0522859b1c693f70d3a582  ./test/p1-r124-metab-neutral-birth.test.js
 fabf8ed73257a6855d9f8f0244d8e6b99c85a6ac74cdbf8770cadc330a71351c  ./test/p1-r124-metab-neutral-production-proof.test.js
-624e50462f34c69866a0f3c0100e80de531cd7373dc710080f09aa5a5e5c26cc  ./test/p1-r124-release-contract.test.js
+bdea33dd412a06a20bf5666acf36763358eb109258c3615f234dfbf31db7f96f  ./test/p1-r124-release-contract.test.js
 80dcbb091c54094ff2eb4fe710470d699a1e9b131c48d99cd9d46f469cb73ed2  ./test/p1-resident-control-socket.test.js
 a8d7d0c343f1012e5b623ac8f7561fa23cd2b3eca4bef91aa05255d83f487b67  ./test/p1-surgery-a-transplant.test.js
 18a48c496303dcbff8856f943226d9db0a66c7f81dfecddaf3aa0595907bbdc9  ./test/production-hardening.test.js

@@ -214,6 +214,7 @@ test('R127-PRESERVE-REL-01 exact stranded R127 state recovers and freezes withou
     "FAILED_R127_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R127-MARKER-20260902T171244Z.x3NznR'",
     "FAILED_R127_TREE_SHA256='d8116e02ac70747929950a36186795134f272905da5663d18d61c68c8e826466'",
     'EXPECTED_STRANDED_PID=436477',
+    'EXPECTED_STRANDED_PENDING_DELIVERIES=0',
     'AUTHORIZE_R127_METAB_REVISION_PRESERVING_FORWARD_RECOVERY_ONLY'
   ]) assert.equal(source.includes(identity), true, identity);
   assert.equal((source.match(/systemctl restart stay\.service/g) || []).length, 1);
@@ -225,6 +226,12 @@ test('R127-PRESERVE-REL-01 exact stranded R127 state recovers and freezes withou
   assert.match(source, /R127_METAB_NEUTRAL_REVISION_PRESERVING_FORWARD_RECOVERY/);
   assert.match(source, /kernelRevisionPreserved: true/);
   assert.match(source, /fetusInstallRevisionPreserved: true/);
+  assert.match(source, /value\.pendingDeliveries === expectedPendingDeliveries/);
+  assert.match(source, /expectedPendingDeliveries === 0/);
+  assert.match(source, /value\.abandonedDeliveries === 0/);
+  assert.match(source, /before\.pendingDeliveries === 0/);
+  assert.match(source, /before\.abandonedDeliveries === 0/);
+  assert.doesNotMatch(source, /pendingDeliveries > 0/);
   assert.match(source, /markerAccessRepaired: true,[\s\S]*?revisionFenced: true, pointerRewound: false/);
   assert.match(source, /R127_PRESERVATION_POST_RESTART=LEFT_REVISION_FENCED_FOR_FORWARD_RECOVERY/);
   assert.match(proof, /function validateR127RevisionPreservingAfter\(input\)/);

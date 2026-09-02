@@ -34,6 +34,7 @@ FAILED_R127_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R127-MA
 FAILED_R127_FILE_COUNT=7
 FAILED_R127_TREE_SHA256='d8116e02ac70747929950a36186795134f272905da5663d18d61c68c8e826466'
 EXPECTED_STRANDED_PID=436477
+EXPECTED_STRANDED_PENDING_DELIVERIES=0
 EVIDENCE_ROOT='/var/lib/stay/evidence/production-hardening'
 SCRIPT_DIRECTORY="$(dirname -- "$(readlink -f -- "$0")")"
 STAGE_ROOT="$(readlink -f -- "$SCRIPT_DIRECTORY/../..")"
@@ -253,15 +254,19 @@ fi
 WORK="$(mktemp -d "$EVIDENCE_ROOT/.R127-preserving-forward.XXXXXX")"
 chmod 0700 "$WORK"
 /usr/local/bin/node "$LIVE_PROOF" capture "$DATABASE" > "$WORK/database.stranded.json"
-/usr/local/bin/node - "$WORK/database.stranded.json" > "$WORK/before.proof.json" <<'NODE'
+/usr/local/bin/node - "$WORK/database.stranded.json" "$EXPECTED_STRANDED_PENDING_DELIVERIES" \
+  > "$WORK/before.proof.json" <<'NODE'
 'use strict';
 const fs = require('node:fs');
 const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const expectedPendingDeliveries = Number(process.argv[3]);
 const row = id => value.residents.find(entry => entry.residency_id === id);
 const sntss = row('resident:sntss');
 const chrono = row('resident:chronobiology');
 if (!(value.quickCheck === 'ok' && value.queryOnly === true && value.runtimeRevision === 127 &&
-  value.pendingDeliveries > 0 && value.pendingOutboxIntents === 0 && value.failedDeliveries === 0 &&
+  value.pendingDeliveries === expectedPendingDeliveries && expectedPendingDeliveries === 0 &&
+  value.pendingOutboxIntents === 0 && value.failedDeliveries === 0 &&
+  value.abandonedDeliveries === 0 &&
   value.p1Authority === 0 && value.sntssAuthority === 0 &&
   value.chronobiologyAuthority === 0 && value.founders.length === 0 && value.dossiers.length === 0 &&
   value.chips.length === 0 && value.metabCheckpoints === 0 && value.metabChipHistory === 0 &&
@@ -508,7 +513,8 @@ const after = read('after.proof.json');
 const service = read('service.after.json');
 const release = Object.fromEntries(fs.readFileSync(path.join(evidenceRoot, 'P1_R124_RELEASE.env'), 'utf8')
   .trim().split('\n').map(line => { const index = line.indexOf('='); return [line.slice(0, index), line.slice(index + 1)]; }));
-if (!(before.result === 'PASS' && before.runtimeRevision === 127 && after.result === 'PASS' &&
+if (!(before.result === 'PASS' && before.runtimeRevision === 127 &&
+  before.pendingDeliveries === 0 && before.abandonedDeliveries === 0 && after.result === 'PASS' &&
   after.runtimeRevision === 127 && after.restartCommands === 4 && after.authorityOwned === false &&
   after.observedOutputs === 0 && after.chipState === 'NEUTRAL')) process.exit(2);
 const evidenceNames = [
