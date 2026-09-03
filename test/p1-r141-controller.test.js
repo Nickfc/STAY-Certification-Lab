@@ -22,15 +22,15 @@ test('R141-BRIDGE-01 pins the immutable release and exact R139 recovery source',
     "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r139-metab-shadow-recovery-6a343c91a536'",
     "SOURCE_MANIFEST_SHA256='6a343c91a536d9fab8147f9a214d05654e15f0221622b063477f53ea3212c981'",
     'SOURCE_FILE_COUNT=675',
-    "EXPECTED_RELEASE_TAG='r141-metab-shadow-recovery-v1'",
-    "EXPECTED_RELEASE_TAG_OBJECT='c6f61a734e2a4eb7c7fc0a02ff140fad9338169c'",
-    "EXPECTED_RELEASE_COMMIT='eb01c9fe3fdc5b729fdb250bff08a265b0ee97aa'",
-    "EXPECTED_RELEASE_TREE='8d7b643d30ff8932db493ad3dc965c16a11a067e'",
-    "EXPECTED_ARCHIVE_SHA256='96dcc5d88090a66d212a787c3c4054fbf2ae4164372e4b7363a3d5d2fada6c20'",
-    "EXPECTED_SIDECAR_SHA256='60111a954eb8c92046531e783d1056b5ab7a84fc931b795334d84640946a4205'",
-    "EXPECTED_MANIFEST_SHA256='b378bea7d2cdadff8da2b22c34693b05a1ad007e551569683b2cb8d477e2b173'",
-    "EXPECTED_FORWARD_SHA256='d4028b1bca0542c432e48d920a9c65bb768e777bd0b6c5e1c998fbf11ed22c8d'",
-    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-b378bea7d2cd'",
+    "EXPECTED_RELEASE_TAG='r141-metab-shadow-recovery-v2'",
+    "EXPECTED_RELEASE_TAG_OBJECT='70919f78c582fd1a796780281f14a21d9d4aa74a'",
+    "EXPECTED_RELEASE_COMMIT='563efb7d47ea6451ecae3373f191385f91c2a0ba'",
+    "EXPECTED_RELEASE_TREE='45978e42ec2a9ac8e69ab10d6cc4af0f0b197658'",
+    "EXPECTED_ARCHIVE_SHA256='2e2c8f11e5c1980b3f069898ab2ab2dc74abf32b637897e7ddd66a555476442a'",
+    "EXPECTED_SIDECAR_SHA256='1087bdd5d39dd84fca0919be8fbe1cda030e96b1ea3463415fac4b53d599fb28'",
+    "EXPECTED_MANIFEST_SHA256='097d977e8484eb9534439ed30a91ce0eb023b0123b98f95ab4ed061abe5a4cc9'",
+    "EXPECTED_FORWARD_SHA256='bd69eb5a62f6cdb7ac6de40f9f7fed0b6d459d7304a2a99f479875ad339a665e'",
+    "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-097d977e8484'",
     'TARGET_FILE_COUNT=679'
   ]) assert.equal(wrapper.includes(identity), true, identity);
   assert.match(wrapper, /durable_runtime_revision\)" == 139/);
@@ -40,9 +40,9 @@ test('R141-BRIDGE-01 pins the immutable release and exact R139 recovery source',
 
 test('R141-BRIDGE-02 exposes only the exact recovery operation and authorization', () => {
   assert.match(wrapper, /"\$operation" == harden-r141-recovery/);
-  assert.match(wrapper, /AUTHORIZE_R141_METAB_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1/);
+  assert.match(wrapper, /AUTHORIZE_R141_METAB_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V2/);
   assert.match(wrapper, /AUTHORIZE_R141_METAB_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY/);
-  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r141-metab-shadow-recovery-v1-\[0-9\]\+\$/);
+  assert.match(wrapper, /\^\/opt\/stay\/incoming\/r141-metab-shadow-recovery-v2-\[0-9\]\+\$/);
   assert.doesNotMatch(wrapper, /diagnostic|shell-operation|script-path|START_BENCHMARK/);
 });
 
@@ -104,7 +104,7 @@ test('R141-BRIDGE-06 controller cannot mutate biology directly or widen limits',
 });
 
 test('R141-BRIDGE-07 installer pins the controller and grants no general sudo', () => {
-  assert.equal(wrapperSha256, '0ea4e31f6b05536a8a96aa354774c0b83569f4cb933b0bc65a8c800208f8e1f4');
+  assert.equal(wrapperSha256, '1ddf3dd3374f1e40df4a28bcedf58064ee0d4c41a83cdf254ed8b790bdb9583e');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
