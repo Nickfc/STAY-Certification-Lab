@@ -11,7 +11,7 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R150_HOMEOS_INTERO_V3_PINNED_CONTROLLER_BOOTSTRAP
+          - AUTHORIZE_R150_HOMEOS_INTERO_V4_PINNED_CONTROLLER_BOOTSTRAP
 
 permissions:
   contents: read
@@ -21,8 +21,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WRAPPER_SHA256: 951b234547cb5be522a73f105c219336ed0ee6cff51ddd92e56b821d55eee011
-  INSTALLER_SHA256: 0f6493b7738c24733eccc94799e6b59e2790e2e1343a4c6f4381dd12e358ff03
+  WRAPPER_SHA256: f70cb15c890d396ba6013e3747e464d8a297bd3add5eb958b9c3d693a1a6d404
+  INSTALLER_SHA256: aa53e4be31ddf277e1336aa225d928e58317822915de5d67cda11427710a1f8e
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -53,7 +53,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]]
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
-          [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R150_HOMEOS_INTERO_V3_PINNED_CONTROLLER_BOOTSTRAP ]]
+          [[ "$REQUESTED_AUTHORIZATION" == AUTHORIZE_R150_HOMEOS_INTERO_V4_PINNED_CONTROLLER_BOOTSTRAP ]]
           wrapper='deploy/live-physiology-transplant/stay-p1-r150-homeos-intero-production-controller'
           installer='deploy/live-physiology-transplant/install-p1-r150-homeos-intero-production-controller.sh'
           public_key='deploy/live-physiology-transplant/p1-r150-expansion-birth-authority.pub'
@@ -132,7 +132,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v3-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v4-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -148,7 +148,7 @@ jobs:
             "$run_root" "$WRAPPER_SHA256" "$INSTALLER_SHA256" "$PUBLIC_KEY_SHA256" <<'REMOTE'
           set -Eeuo pipefail
           root="$1"; wrapper_sha="$2"; installer_sha="$3"; public_sha="$4"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v4-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
@@ -162,7 +162,7 @@ jobs:
           echo 'R150_HOMEOS_INTERO_V3_CONTROLLER_STAGE=PASS'
           REMOTE
           bridge_script="$(cat <<'BRIDGE'
-          set -Eeuo pipefail; root="$1"; wrapper_sha="$2"; installer_sha="$3"; public_sha="$4"; [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ && -d "$root" && ! -L "$root" ]]; [[ "$(sha256sum "$root/stay-p1-r150-homeos-intero-production-controller" | awk '{print $1}')" == "$wrapper_sha" ]]; [[ "$(sha256sum "$root/install-p1-r150-homeos-intero-production-controller.sh" | awk '{print $1}')" == "$installer_sha" ]]; [[ "$(sha256sum "$root/p1-r150-expansion-birth-authority.pub" | awk '{print $1}')" == "$public_sha" ]]; private=$(mktemp -d /run/stay-r150-controller-v3-bootstrap.XXXXXX); trap 'rm -rf -- "$private"' EXIT; install -o root -g root -m 0555 "$root/stay-p1-r150-homeos-intero-production-controller" "$private/stay-p1-r150-homeos-intero-production-controller"; install -o root -g root -m 0555 "$root/install-p1-r150-homeos-intero-production-controller.sh" "$private/install-p1-r150-homeos-intero-production-controller.sh"; install -o root -g root -m 0444 "$root/p1-r150-expansion-birth-authority.pub" "$private/p1-r150-expansion-birth-authority.pub"; [[ "$(sha256sum "$private/stay-p1-r150-homeos-intero-production-controller" | awk '{print $1}')" == "$wrapper_sha" ]]; [[ "$(sha256sum "$private/install-p1-r150-homeos-intero-production-controller.sh" | awk '{print $1}')" == "$installer_sha" ]]; [[ "$(sha256sum "$private/p1-r150-expansion-birth-authority.pub" | awk '{print $1}')" == "$public_sha" ]]; /bin/bash "$private/install-p1-r150-homeos-intero-production-controller.sh"
+          set -Eeuo pipefail; root="$1"; wrapper_sha="$2"; installer_sha="$3"; public_sha="$4"; [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v4-[0-9]+$ && -d "$root" && ! -L "$root" ]]; [[ "$(sha256sum "$root/stay-p1-r150-homeos-intero-production-controller" | awk '{print $1}')" == "$wrapper_sha" ]]; [[ "$(sha256sum "$root/install-p1-r150-homeos-intero-production-controller.sh" | awk '{print $1}')" == "$installer_sha" ]]; [[ "$(sha256sum "$root/p1-r150-expansion-birth-authority.pub" | awk '{print $1}')" == "$public_sha" ]]; private=$(mktemp -d /run/stay-r150-controller-v4-bootstrap.XXXXXX); trap 'rm -rf -- "$private"' EXIT; install -o root -g root -m 0555 "$root/stay-p1-r150-homeos-intero-production-controller" "$private/stay-p1-r150-homeos-intero-production-controller"; install -o root -g root -m 0555 "$root/install-p1-r150-homeos-intero-production-controller.sh" "$private/install-p1-r150-homeos-intero-production-controller.sh"; install -o root -g root -m 0444 "$root/p1-r150-expansion-birth-authority.pub" "$private/p1-r150-expansion-birth-authority.pub"; [[ "$(sha256sum "$private/stay-p1-r150-homeos-intero-production-controller" | awk '{print $1}')" == "$wrapper_sha" ]]; [[ "$(sha256sum "$private/install-p1-r150-homeos-intero-production-controller.sh" | awk '{print $1}')" == "$installer_sha" ]]; [[ "$(sha256sum "$private/p1-r150-expansion-birth-authority.pub" | awk '{print $1}')" == "$public_sha" ]]; /bin/bash "$private/install-p1-r150-homeos-intero-production-controller.sh"
           BRIDGE
           )"
           printf -v bridge '%q ' sudo /bin/bash -c "$bridge_script" _ \

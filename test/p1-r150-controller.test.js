@@ -119,7 +119,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V3_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V4_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
@@ -172,6 +172,12 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     assert.doesNotMatch(source, /systemctl start stay-physiology-benchmark|benchmark-start/);
     assert.doesNotMatch(source, /TimeoutStartSec|TimeoutStopSec|CPUQuota=|MemoryMax=|PIDsMax=/);
   }
+});
+
+test('R150-CTRL-08 production cgroup entry runs in-process under its delegated unit', () => {
+  const source = read(CONTROLLER);
+  assert.match(source,
+    /systemd-run[\s\S]*?STAY_REQUIRE_CGROUPS=1 \/usr\/local\/bin\/node --test --test-isolation=none --test-concurrency=1[\s\S]*?\^R150-PRODUCTION-05/);
 });
 
 test('R150-CTRL-07 staging explicitly clears an inherited setgid directory bit', {
