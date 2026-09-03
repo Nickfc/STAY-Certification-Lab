@@ -148,6 +148,9 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'secrets.STAY_R150_INTERO_CERTIFICATE_B64',
     'secrets.STAY_R150_INTERO_DOSSIER_B64',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
+    'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
+    'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
+    'working-directory: /tmp/stay-r150-validation-source',
     'sudo -n /usr/local/sbin/stay-p1-production-controller',
     "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",
     "! grep -Fqi '502 Bad Gateway' public.html"
