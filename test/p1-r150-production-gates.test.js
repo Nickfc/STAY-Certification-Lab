@@ -224,7 +224,7 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     entries.set(match[2], match[1]);
   }
   assert.deepEqual([...entries.keys()], [...entries.keys()].toSorted());
-  assert.equal(entries.size, 72);
+  assert.equal(entries.size, 77);
   for (const required of [
     'runtime/kernel/living-kernel.js', 'runtime/kernel/resident-manager.js',
     'runtime/kernel/state-store.js', 'runtime/p1-r0/production-persistence.js',

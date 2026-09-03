@@ -12,8 +12,12 @@ eba96dd21bc225b9bed97261dc9d3648c9a63ed2b2ddbd2d76fb6d306e2a0622  ./cores/p1-r0/
 1cfef8b820b39dd79902e662cac0f26e30c29499db1cbfa0b417aa44cde3ab2a  ./cores/p1-r0/metab-homeos/package-policy.json
 c95aecceea8ae36d8b40ac17c165936945fd6f9e9299cb83fa260ad583abcf7c  ./cores/p1-r0/metab-intero/index.js
 1a96474829bbe5607839ac294a481f33122531bc9c423c09c064ea14bee788fe  ./cores/p1-r0/metab-intero/package-policy.json
+3dece65c57ec3490f82f32bc54d49c9adf3df64e19a0ce67a2781bd0796e4622  ./cores/p1-r0/metab-neutral/index.js
+c69ec1ed484b8cc79fef09ecb668677835d3656a7b5e77a3e3c204de2c22149b  ./cores/p1-r0/metab-neutral/package-policy.json
 316ccafbada62b8eb9261d2574833ec0f36eb8232041e9c35320d8cbb419f88d  ./cores/p1-r0/metab-shadow/index.js
 5e2f151fb840bbefdaec6a482c4511d8ebd75bf53a1a714b1cbfd6b9120219b4  ./cores/p1-r0/metab-shadow/package-policy.json
+130f79eb4fbd146deb47b418c1d09800eb704e36cbbd6d9c2c88f7edf664052d  ./cores/p1-r0/metab/index.js
+fb6fe87cffea7b6d13065d7107a37a203b218bf8c0f683b2ed49764d347539ae  ./cores/p1-r0/metab/package-policy.json
 334b1b028a24b8fa38b2012f24462e668a7d4ded4ada8eb159c62f559b877882  ./deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js
 d8727e38eee583654c9b0e0c2c43395cb08db66c6fe32b2ca50890f7250a7ece  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh
 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh
@@ -67,6 +71,7 @@ ae96c03ab38750395a2f67e9eee1b80da23410f5bffc62e209421a3b924fe424  ./test/p1-r143
 2f2eaaf35815de189d430dea042a72c58ee27cb2b432a9d92392e498d4641ce3  ./test/p1-r145-homeos-shadow.test.js
 e968da083fbb508dab2e9b65f49614087238bcf7bb3c1a83baefb254ccf42806  ./test/p1-r146-metab-q48-implementation-repair.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
-c5cd35ce79b96b8364a62052b868d5ff2eca1a3a22782fa8dd63776d802749e8  ./test/p1-r150-production-gates.test.js
+eaf1ef5b419529518838b3a5c6411a72e2199f750b121134776e9a4f6a0b52c0  ./test/p1-r150-production-gates.test.js
 36d3746d72d0d3b7d0b4e0c385cbf6f0e7f6151feb117c59c726b51bbe31bdc0  ./test/p1-surgery-a-transplant.test.js
+f7505cbe3eaa7722014badce8d282c44933c09a6a66148df32baa9f65ed4bfd7  ./test/production-hardening.test.js
 32d6f4ab1a9b6f162d757c673938f4c6b1464187667811cb5b440ee894053212  ./tools/sign-p1-r0-expansion-birth.js
