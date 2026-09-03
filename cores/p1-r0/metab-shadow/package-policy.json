@@ -20,7 +20,7 @@
     "TZ"
   ],
   "files": {
-    "index.js": "sha256:8b3e8f5c9ecb96192245831808c82be973692b304968ab0dd5023ee117442464"
+    "index.js": "sha256:046ba5a49245f1fffd8b82e654ee6cd6fb7fb85b58d6fca2bbf604124694d116"
   },
   "resourceContract": {
     "cgroupV2": {
@@ -66,5 +66,5 @@
     "pendingRequests": 128,
     "productionOutputs": 0
   },
-  "policyHash": "sha256:f698eb41b540aaf0d56695f4c09559787c9cda8d49b75793017dcb970df0ec0e"
+  "policyHash": "sha256:9c6e067b19272489bbd30016456f3f04391ba503ed3a0e52986aa355061cdf52"
 }

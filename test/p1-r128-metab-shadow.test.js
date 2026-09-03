@@ -133,12 +133,13 @@ function eventFromSignal(signal, sequence, {
 function activationSignal(sourceCheckpoint, {
   instanceId = INSTANCE_ID,
   organismIdentityHash = IDENTITY_HASH,
-  outputPolicy = 'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'
+  outputPolicy = 'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT',
+  runtimeRevision = 128
 } = {}) {
   const sourceHash = `sha256:${sourceCheckpoint.blobHash}`;
   return createSignal({
     signalId:
-      `runtime.metab.shadow-activation:r128:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`,
+      `runtime.metab.shadow-activation:r${runtimeRevision}:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`,
     topic: shadow.ACTIVATION_TOPIC,
     payload: {
       protocol: 'stay-p1-r0-metab-shadow-activation-v1',
@@ -151,7 +152,7 @@ function activationSignal(sourceCheckpoint, {
       sourceCheckpointHash: sourceHash,
       toVersion: shadow.VERSION,
       toStateSchema: 2,
-      runtimeRevision: 128,
+      runtimeRevision,
       parentRevision: 127,
       parentFreezeRecordSha256: PARENT_FREEZE,
       mode: 'SHADOW',
@@ -162,12 +163,12 @@ function activationSignal(sourceCheckpoint, {
       source: 'kernel',
       observedAtMs: 20_000,
       pulseId:
-        `metab-shadow-activation-r128-g${sourceCheckpoint.generation}`
+        `metab-shadow-activation-r${runtimeRevision}-g${sourceCheckpoint.generation}`
     },
     provenance: {
       producerType: 'kernel',
       producerId: 'living-kernel',
-      authorityEpoch: 128
+      authorityEpoch: runtimeRevision
     },
     durability: DURABILITY.DURABLE
   });
@@ -464,6 +465,39 @@ test('R128-METAB-CORE-02 mismatched source frames and forged provenance fail clo
       evidenceHash: IDENTITY_HASH
     })),
     { code: 'P1_METAB_SHADOW_PROVENANCE' }
+  );
+});
+
+test('R137-METAB-CORE-02A accepts only the exact fenced recovery activation boundaries', async () => {
+  const sourceCheckpoint = {
+    generation: 10,
+    blobHash: 'b'.repeat(64)
+  };
+  for (const runtimeRevision of [135, 137]) {
+    const migrated = await shadow.migrateState({
+      state: neutralState(),
+      fromSchema: 1,
+      toSchema: 2
+    });
+    const core = await shadow.createCore({ initialState: migrated });
+    const activation = activationSignal(sourceCheckpoint, { runtimeRevision });
+    await core.handle(eventFromSignal(activation, runtimeRevision, {
+      sourceVersion: '0.8.11.3',
+      evidenceHash: IDENTITY_HASH
+    }));
+    assert.equal((await core.snapshot()).activation.runtimeRevision, runtimeRevision);
+  }
+
+  const migrated = await shadow.migrateState({
+    state: neutralState(), fromSchema: 1, toSchema: 2
+  });
+  const core = await shadow.createCore({ initialState: migrated });
+  const unfenced = activationSignal(sourceCheckpoint, { runtimeRevision: 136 });
+  await assert.rejects(
+    () => core.handle(eventFromSignal(unfenced, 136, {
+      sourceVersion: '0.8.11.3', evidenceHash: IDENTITY_HASH
+    })),
+    { code: 'P1_METAB_SHADOW_ACTIVATION' }
   );
 });
 

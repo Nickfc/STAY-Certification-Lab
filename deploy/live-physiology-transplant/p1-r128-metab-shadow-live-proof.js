@@ -44,11 +44,11 @@ const EXPECTED = Object.freeze({
     version: '0.2.0-p1r0-shadow.1', stateSchema: 2,
     moduleRelativePath: 'cores/p1-r0/metab-shadow/index.js',
     moduleHash:
-      'sha256:8b3e8f5c9ecb96192245831808c82be973692b304968ab0dd5023ee117442464',
+      'sha256:046ba5a49245f1fffd8b82e654ee6cd6fb7fb85b58d6fca2bbf604124694d116',
     manifestHash:
       'sha256:06767143b3eae0760931d93029d4c905c7e811180e818f7236111629e0c1eb69',
     packagePolicyHash:
-      'sha256:f698eb41b540aaf0d56695f4c09559787c9cda8d49b75793017dcb970df0ec0e'
+      'sha256:9c6e067b19272489bbd30016456f3f04391ba503ed3a0e52986aa355061cdf52'
   })
 });
 

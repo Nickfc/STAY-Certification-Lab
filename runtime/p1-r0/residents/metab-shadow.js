@@ -114,6 +114,12 @@ function containedEngineIdentity(founder) {
   });
 }
 
+const ACTIVATION_BOUNDARIES = Object.freeze({
+  128: Object.freeze({ label: 'r128', parentRevision: 127 }),
+  135: Object.freeze({ label: 'r135', parentRevision: 127 }),
+  137: Object.freeze({ label: 'r137', parentRevision: 127 })
+});
+
 function normalizeActivationPayload(payload) {
   exact(
     payload,
@@ -121,6 +127,7 @@ function normalizeActivationPayload(payload) {
     'METAB shadow activation payload',
     'P1_METAB_SHADOW_ACTIVATION'
   );
+  const boundary = ACTIVATION_BOUNDARIES[payload?.runtimeRevision];
   if (
     payload.protocol !== 'stay-p1-r0-metab-shadow-activation-v1' ||
     payload.residencyId !== RESIDENCY_ID ||
@@ -128,8 +135,8 @@ function normalizeActivationPayload(payload) {
     payload.fromStateSchema !== 1 ||
     payload.toVersion !== VERSION ||
     payload.toStateSchema !== 2 ||
-    payload.runtimeRevision !== 128 ||
-    payload.parentRevision !== 127 ||
+    !boundary ||
+    payload.parentRevision !== boundary.parentRevision ||
     payload.mode !== 'SHADOW' ||
     payload.authorityEpoch !== '0' ||
     payload.outputPolicy !== 'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT' ||
@@ -193,14 +200,15 @@ function normalizeBiologicalEvent(event, {
 
 function normalizeActivation(payload, event) {
   const normalized = normalizeActivationPayload(payload);
+  const boundary = ACTIVATION_BOUNDARIES[normalized.runtimeRevision];
   const biological = normalizeBiologicalEvent(event, {
     producerId: 'living-kernel',
     sourceVersion: '0.8.11.3',
-    authorityEpoch: 128
+    authorityEpoch: normalized.runtimeRevision
   });
   if (
     biological.signalId !==
-      `runtime.metab.shadow-activation:r128:g${normalized.sourceCheckpointGeneration}:${normalized.sourceCheckpointHash.slice(7)}` ||
+      `runtime.metab.shadow-activation:${boundary.label}:g${normalized.sourceCheckpointGeneration}:${normalized.sourceCheckpointHash.slice(7)}` ||
     normalized.organismIdentityHash !==
       event.meta?.evidenceHash
   ) {
