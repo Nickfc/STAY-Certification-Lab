@@ -88,6 +88,23 @@ class HardenedLivingKernel extends BaseLivingKernel {
     try {
       await this.publishTimePulse(clockStatus);
       this.clearMaintenanceError('trusted-time-pulse');
+
+      try {
+        const sampled =
+          await this.publishMetabCapacitySample();
+
+        if (sampled !== false) {
+          this.clearMaintenanceError(
+            'metab-capacity-source'
+          );
+        }
+      } catch (error) {
+        this.recordMaintenanceError(
+          'metab-capacity-source',
+          error
+        );
+      }
+
       return true;
     } catch (error) {
       this.recordMaintenanceError('trusted-time-pulse', error);

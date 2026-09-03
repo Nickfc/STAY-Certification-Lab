@@ -2,10 +2,13 @@
 
 const path = require('node:path');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
 const { EventFabric } = require('./event-fabric');
 const {
   DURABILITY,
-  createSignal
+  createSignal,
+  deriveSignal
 } = require('./biological-fabric');
 const { StateStore } = require('./state-store');
 const { RuntimeRegistry } = require('./registry');
@@ -14,6 +17,287 @@ const { ComputeFabric } = require('../compute/compute-fabric');
 const { stableStringify } = require('./canonical-json');
 
 const KERNEL_VERSION = '0.8.11.3';
+
+const R128_METAB_SHADOW = Object.freeze({
+  authorization:
+    'AUTHORIZE_R128_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_ONLY',
+  runtimeRevision: 128,
+  parentRevision: 127,
+  instanceId:
+    'd424c722-ef31-44b0-8201-ba68c418d14a',
+  neutralVersion:
+    '0.1.0-p1r0-neutral.1',
+  neutralCheckpointHash:
+    '4a16fc393b9846d1dd6f2f9849920053e3d2b5235c066dde3c5cd72699595107',
+  shadowVersion:
+    '0.2.0-p1r0-shadow.1',
+  outputPolicy:
+    'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'
+});
+
+function defaultMetabCapacitySampler() {
+  const cpuCount = os.cpus()?.length;
+  const loadAverage = os.loadavg()?.[0];
+  const freeMemoryBytes = os.freemem();
+  const totalMemoryBytes = os.totalmem();
+
+  if (
+    !Number.isSafeInteger(cpuCount) ||
+    cpuCount < 1 ||
+    !Number.isFinite(loadAverage) ||
+    loadAverage < 0 ||
+    !Number.isSafeInteger(freeMemoryBytes) ||
+    freeMemoryBytes < 0 ||
+    !Number.isSafeInteger(totalMemoryBytes) ||
+    totalMemoryBytes < 1 ||
+    freeMemoryBytes > totalMemoryBytes
+  ) {
+    throw Object.assign(
+      new Error('Kernel resource sample is unavailable'),
+      { code: 'P1_METAB_CAPACITY_SAMPLE' }
+    );
+  }
+
+  return Object.freeze({
+    cpuCount,
+    loadAverageMilli:
+      Math.max(0, Math.round(loadAverage * 1000)),
+    freeMemoryBytes,
+    totalMemoryBytes
+  });
+}
+
+const R124_METAB_RECOVERY = Object.freeze({
+  markerSha256: 'sha256:933b128f24d4898550add86f4b34174f18b42e942391ec479f8956689624bb5e',
+  failureEvidence:
+    '/var/lib/stay/evidence/production-hardening/FAILED-R124-20260902T144307Z.eMKkA2',
+  release: '/opt/stay/releases/0.8.11.3-p1m-r124-metab-neutral-a1999132f935',
+  releaseTag: 'r124-metab-neutral-v4',
+  releaseCommit: '16e8e2d9ca04c8829425f99b91a49b3e495777cc',
+  releaseTree: '316f94dc20c29a431cbe009f3564e6f0b6687a24',
+  archiveSha256:
+    'sha256:ebbfca81636d5952a7db3b8c771d5c7660c841ecb023ae6cb212f71fa2775458',
+  manifestSha256:
+    'sha256:a1999132f935054dc7c482313b88b0679f73475a225b9706c27ed2686d822b26',
+  controllerSha256:
+    'sha256:11ccd13023daeb29b20076e2dab2c4af1b3ce516480449eeb8ffc917575c0b7d',
+  certificateSha256:
+    'sha256:5fde5160f4a6dac8f97b546ef9b3458b64185465944c07e6c89a915912d2b4a6',
+  dossierSha256:
+    'sha256:3eba9eb287f2f25a8ed06b12d104a538ac1c0511b948041c38f1ca24ebf27a1f',
+  publicKeySha256:
+    'sha256:754f949e67c31bc25b3bdf66e74a9b69ad44f781d43606b7a46ac69531e0551e',
+  evidence: Object.freeze({
+    'before.proof.json':
+      '40e54a2d6ed649132c5f1395d8cdf0ed7075cbe0ff5c4d89a2c57707c84ca4da',
+    'service.before.json':
+      '95d99d8b56d6299680928d10bacc5cc41bd5cc3fedf584ee519ce69729c5cb74',
+    'R123.freeze.json':
+      '34baedccaa9227ebd20c0b11a9e32fa6b98deb3c25ca2db03fa846bf49251a92',
+    'benchmark.proof.json':
+      '9dc732e26d7974f4a5998a936051bd1f52909399179b8313a2311f5299f1fcac'
+  })
+});
+
+const R127_POST_RESTART_CONTINUITY = Object.freeze({
+  authorization:
+    'AUTHORIZE_R127_POST_RESTART_FETUS_SNTSS_CHRONOBIOLOGY_CONTINUITY_ONLY',
+  metab: Object.freeze({
+    residencyId: 'resident:metab',
+    instanceId: 'd424c722-ef31-44b0-8201-ba68c418d14a',
+    version: '0.1.0-p1r0-neutral.1',
+    checkpointHash: '4a16fc393b9846d1dd6f2f9849920053e3d2b5235c066dde3c5cd72699595107'
+  }),
+  sntss: Object.freeze({
+    residencyId: 'resident:sntss',
+    coreId: 'sntss',
+    instanceId: '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
+    version: '0.5.0-i4g1',
+    checkpointGeneration: 2449921,
+    checkpointHash: 'dd5921a4b98c054b463daf6216dddb39789773f890db464d0434809c55677acc',
+    inputCursor: 3652768,
+    consumerCursor: 3652769,
+    pendingSequence: 3652770,
+    topic: 'runtime.time.pulse',
+    pulseSequence: 1,
+    lastPulseSequence: 23828,
+    recoveryRecordId: 120,
+    recoveryCode: 'SNTSS_TIME_REWIND',
+    topics: Object.freeze([
+      'runtime.organism.binding',
+      'runtime.sntss.continuity-genesis',
+      'runtime.time.pulse'
+    ]),
+    topicsHash: 'b752d8eebb09ac925c4c193810d31f5527315e42e36fbedafa1f30ef25a97501'
+  }),
+  chronobiology: Object.freeze({
+    residencyId: 'resident:chronobiology',
+    coreId: 'chronobiology',
+    instanceId: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
+    version: '1.0.0-c3rc.5',
+    checkpointGeneration: 10049,
+    checkpointHash: '49f3a88b1b811757879e4cdddd25496f2bd4f3f3e4927d9b30d71c4b91c5efc9',
+    inputCursor: 3652631,
+    consumerCursor: 3652768,
+    pendingSequence: 3652769,
+    topic: 'runtime.trusted-organism-time.pulse',
+    pulseSequence: 1,
+    lastPulseSequence: 100,
+    recoveryRecordId: 119,
+    recoveryCode: 'CHRONOBIOLOGY_TIME_REWIND',
+    topics: Object.freeze([
+      'environment.photic.exposure',
+      'runtime.organism.binding',
+      'runtime.trusted-organism-time.pulse'
+    ]),
+    topicsHash: 'a0897ae1c2f0bdf9f94e5491cf681820cda4a0126afcb47511cc4a538d5a281e'
+  }),
+  fetus: Object.freeze({
+    consumerId: 'core:fetus-legacy',
+    coreId: 'fetus-legacy',
+    instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f',
+    version: '0.6.0',
+    authorityEpoch: 1,
+    checkpointGeneration: 185,
+    checkpointHash: 'dc65f0fff624e08df092620697f230ea28521e8db34614c455f7473e6ed91b7b',
+    consumerCursor: 3620902,
+    demotionId: 116,
+    pendingAtDemotion: 16464,
+    maximumDebt: 16384,
+    topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
+  }),
+  ledger: Object.freeze({
+    cohortFirstSequence: 3652769,
+    highWater: 3654057,
+    timePulseCount: 1283,
+    trustedOrganismTimePulseCount: 6
+  })
+});
+
+function sha256Bytes(value) {
+  return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
+}
+
+function readR124MetabRecoveryFence({
+  markerFile,
+  expectedMarkerSha256,
+  trustedUid
+}) {
+  if (
+    expectedMarkerSha256 !== R124_METAB_RECOVERY.markerSha256 ||
+    typeof markerFile !== 'string'
+  ) {
+    throw Object.assign(
+      new Error('R124 METAB recovery marker identity is not authorized'),
+      { code: 'P1_METAB_RECOVERY_MARKER' }
+    );
+  }
+  let markerStat;
+  let raw;
+  try {
+    markerStat = fs.lstatSync(markerFile);
+    raw = fs.readFileSync(markerFile);
+  } catch (error) {
+    throw Object.assign(
+      new Error(`R124 METAB recovery marker is unavailable: ${error.message}`),
+      { code: 'P1_METAB_RECOVERY_MARKER' }
+    );
+  }
+  if (
+    !markerStat.isFile() ||
+    markerStat.isSymbolicLink() ||
+    markerStat.uid !== trustedUid ||
+    (markerStat.mode & 0o022) !== 0 ||
+    raw.length < 1 ||
+    raw.length > 8192 ||
+    sha256Bytes(raw) !== expectedMarkerSha256
+  ) {
+    throw Object.assign(
+      new Error('R124 METAB recovery marker trust fence failed'),
+      { code: 'P1_METAB_RECOVERY_MARKER' }
+    );
+  }
+  const lines = raw.toString('utf8').trimEnd().split('\n');
+  const values = new Map();
+  for (const line of lines) {
+    const index = line.indexOf('=');
+    if (index < 1) {
+      throw Object.assign(new Error('R124 METAB recovery marker is malformed'), {
+        code: 'P1_METAB_RECOVERY_MARKER'
+      });
+    }
+    const key = line.slice(0, index);
+    if (values.has(key)) {
+      throw Object.assign(new Error('R124 METAB recovery marker repeats a field'), {
+        code: 'P1_METAB_RECOVERY_MARKER'
+      });
+    }
+    values.set(key, line.slice(index + 1));
+  }
+  const expected = new Map([
+    ['R124_FAILURE_EVIDENCE', R124_METAB_RECOVERY.failureEvidence],
+    ['R124_RELEASE', R124_METAB_RECOVERY.release],
+    ['R124_RELEASE_TAG', R124_METAB_RECOVERY.releaseTag],
+    ['R124_RELEASE_COMMIT', R124_METAB_RECOVERY.releaseCommit],
+    ['R124_RELEASE_TREE', R124_METAB_RECOVERY.releaseTree],
+    ['R124_ARCHIVE_SHA256', R124_METAB_RECOVERY.archiveSha256],
+    ['R124_MANIFEST_SHA256', R124_METAB_RECOVERY.manifestSha256],
+    ['R124_CONTROLLER_SHA256', R124_METAB_RECOVERY.controllerSha256],
+    ['R124_BIRTH_CERTIFICATE_SHA256', R124_METAB_RECOVERY.certificateSha256],
+    ['R124_BIRTH_DOSSIER_SHA256', R124_METAB_RECOVERY.dossierSha256],
+    ['R124_BIRTH_PUBLIC_KEY_SHA256', R124_METAB_RECOVERY.publicKeySha256]
+  ]);
+  if (
+    values.size !== expected.size ||
+    [...expected].some(([key, value]) => values.get(key) !== value)
+  ) {
+    throw Object.assign(
+      new Error('R124 METAB recovery marker cohort is not exact'),
+      { code: 'P1_METAB_RECOVERY_MARKER' }
+    );
+  }
+  let evidenceStat;
+  try {
+    evidenceStat = fs.lstatSync(R124_METAB_RECOVERY.failureEvidence);
+  } catch (error) {
+    throw Object.assign(
+      new Error(`R124 METAB failure evidence is unavailable: ${error.message}`),
+      { code: 'P1_METAB_RECOVERY_EVIDENCE' }
+    );
+  }
+  if (
+    !evidenceStat.isDirectory() ||
+    evidenceStat.isSymbolicLink() ||
+    evidenceStat.uid !== trustedUid ||
+    (evidenceStat.mode & 0o022) !== 0
+  ) {
+    throw Object.assign(
+      new Error('R124 METAB failure evidence trust fence failed'),
+      { code: 'P1_METAB_RECOVERY_EVIDENCE' }
+    );
+  }
+  for (const [name, expectedHash] of Object.entries(R124_METAB_RECOVERY.evidence)) {
+    const file = path.join(R124_METAB_RECOVERY.failureEvidence, name);
+    const stat = fs.lstatSync(file);
+    const body = fs.readFileSync(file);
+    if (
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.uid !== trustedUid ||
+      (stat.mode & 0o022) !== 0 ||
+      sha256Bytes(body) !== `sha256:${expectedHash}`
+    ) {
+      throw Object.assign(
+        new Error(`R124 METAB failure evidence is invalid: ${name}`),
+        { code: 'P1_METAB_RECOVERY_EVIDENCE' }
+      );
+    }
+  }
+  return Object.freeze({
+    markerSha256: expectedMarkerSha256,
+    failureEvidence: R124_METAB_RECOVERY.failureEvidence
+  });
+}
 
 class LivingKernel {
   constructor({
@@ -38,6 +322,50 @@ class LivingKernel {
 
     allowBoundedSntssContinuityGenesisPromotion =
       process.env.STAY_ALLOW_SNTSS_I4G_PROMOTION === '1',
+
+    allowMetabNeutralBirth =
+      process.env.STAY_ALLOW_METAB_NEUTRAL_BIRTH === '1',
+
+    allowMetabNeutralRecovery =
+      process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY === '1',
+
+    allowMetabNeutralRecoveryRevisionPreservation =
+      process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY_REVISION_PRESERVATION === '1',
+
+    allowMetabShadowPromotion =
+      process.env.STAY_ALLOW_METAB_SHADOW_PROMOTION === '1',
+
+    metabShadowPromotionAuthorization =
+      process.env.STAY_METAB_SHADOW_PROMOTION_AUTHORIZATION || '',
+
+    metabCapacitySampler =
+      defaultMetabCapacitySampler,
+
+    r127PostRestartContinuityAuthorization =
+      process.env.STAY_ALLOW_R127_POST_RESTART_CONTINUITY_RECOVERY || '',
+
+    metabNeutralRecoveryMarkerFile =
+      process.env.STAY_METAB_NEUTRAL_RECOVERY_MARKER ||
+      '/run/stay-r124-metab-neutral-recovery.env',
+
+    metabNeutralRecoveryMarkerSha256 =
+      process.env.STAY_METAB_NEUTRAL_RECOVERY_MARKER_SHA256 || '',
+
+    metabNeutralRecoveryTrustedUid = 0,
+
+    metabNeutralRecoveryFenceReader =
+      readR124MetabRecoveryFence,
+
+    metabNeutralBirthCertificateFile =
+      process.env.STAY_METAB_NEUTRAL_BIRTH_CERTIFICATE ||
+      '/etc/stay/resident-promotions/resident-metab-neutral-birth.json',
+
+    metabNeutralBirthPublicKeyPath =
+      process.env.STAY_METAB_NEUTRAL_BIRTH_PUBLIC_KEY ||
+      '/etc/stay/metab-neutral-birth-authority.pub',
+
+    runtimeFreezeDirectory =
+      process.env.STAY_RUNTIME_FREEZE_DIR || undefined,
 
     residentPromotionPublicKeyPath =
       process.env.STAY_CORE_PROMOTION_PUBLIC_KEY ||
@@ -120,6 +448,84 @@ class LivingKernel {
     this.allowBoundedSntssContinuityGenesisPromotion =
       Boolean(allowBoundedSntssContinuityGenesisPromotion);
 
+    this.allowMetabNeutralBirth =
+      Boolean(allowMetabNeutralBirth);
+
+    this.allowMetabNeutralRecovery =
+      Boolean(allowMetabNeutralRecovery);
+
+    this.allowMetabNeutralRecoveryRevisionPreservation =
+      Boolean(allowMetabNeutralRecoveryRevisionPreservation);
+
+    this.allowMetabShadowPromotion =
+      Boolean(allowMetabShadowPromotion);
+
+    this.metabShadowPromotionAuthorization =
+      String(metabShadowPromotionAuthorization);
+
+    if (typeof metabCapacitySampler !== 'function') {
+      throw Object.assign(
+        new Error('METAB capacity sampler is invalid'),
+        { code: 'P1_METAB_CAPACITY_SAMPLE' }
+      );
+    }
+
+    this.metabCapacitySampler =
+      metabCapacitySampler;
+
+    this.lastMetabCapacitySource =
+      null;
+
+    this.metabCapacitySourcePromise =
+      null;
+
+    this.r127PostRestartContinuityAuthorization =
+      String(r127PostRestartContinuityAuthorization);
+
+    this.r127PostRestartContinuityRecovery =
+      false;
+
+    this.metabNeutralRecoveryRevisionPreserved =
+      false;
+
+    this.metabNeutralRecoveryCompletedAtPreservedRevision =
+      false;
+
+    this.metabNeutralRecoveryFetusInstallPreserved =
+      false;
+
+    this.metabNeutralRecoveryFence =
+      null;
+
+    this.metabNeutralRecoveryMarkerFile =
+      String(metabNeutralRecoveryMarkerFile);
+
+    this.metabNeutralRecoveryMarkerSha256 =
+      String(metabNeutralRecoveryMarkerSha256);
+
+    this.metabNeutralRecoveryTrustedUid =
+      Number(metabNeutralRecoveryTrustedUid);
+
+    if (typeof metabNeutralRecoveryFenceReader !== 'function') {
+      throw Object.assign(
+        new Error('METAB neutral recovery fence reader is invalid'),
+        { code: 'P1_METAB_RECOVERY_FENCE_READER' }
+      );
+    }
+    this.metabNeutralRecoveryFenceReader =
+      metabNeutralRecoveryFenceReader;
+
+    this.metabNeutralBirthCertificateFile =
+      String(metabNeutralBirthCertificateFile);
+
+    this.metabNeutralBirthPublicKeyPath =
+      String(metabNeutralBirthPublicKeyPath);
+
+    this.runtimeFreezeDirectory =
+      runtimeFreezeDirectory == null
+        ? undefined
+        : path.resolve(String(runtimeFreezeDirectory));
+
     this.residentPromotionPublicKeyPath =
       String(
         residentPromotionPublicKeyPath
@@ -184,6 +590,14 @@ class LivingKernel {
       CHRONOBIOLOGY_R5_RESIDENT_CONTRACT
     } = require('./chronobiology-resident-contracts');
 
+    const {
+      METAB_NEUTRAL_RESIDENT_CONTRACT
+    } = require('../p1-r0/metab-neutral-contract');
+
+    const {
+      METAB_SHADOW_RESIDENT_CONTRACT
+    } = require('../p1-r0/metab-shadow-contract');
+
     const durableSntss =
       this.stateStore
         .getResident(
@@ -217,6 +631,19 @@ class LivingKernel {
       durableChronobiology?.moduleRelativePath === moduleRelativePath
     )?.[0] || CHRONOBIOLOGY_RESIDENT_CONTRACT;
 
+    const durableMetab =
+      this.stateStore.getResident('resident:metab');
+
+    const metabContract =
+      durableMetab?.version ===
+        METAB_SHADOW_RESIDENT_CONTRACT.version &&
+      durableMetab?.stateSchema ===
+        METAB_SHADOW_RESIDENT_CONTRACT.stateSchema &&
+      durableMetab?.moduleRelativePath ===
+        'cores/p1-r0/metab-shadow/index.js'
+        ? METAB_SHADOW_RESIDENT_CONTRACT
+        : METAB_NEUTRAL_RESIDENT_CONTRACT;
+
     this.residentManager =
       new ResidentManager({
         releaseRoot:
@@ -240,7 +667,8 @@ class LivingKernel {
         contracts:
           [
             sntssContract,
-            chronobiologyContract
+            chronobiologyContract,
+            metabContract
           ]
       });
 
@@ -311,7 +739,16 @@ class LivingKernel {
     this.runtimeRevision = Number(revisionState && revisionState.revision) || 0;
 
     this.startedAt = new Date().toISOString();
-    await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
+    const preservedRecoveryRevision =
+      await this.preserveExactR127MetabRecoveryRevision();
+    if (!preservedRecoveryRevision) {
+      await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
+    }
+
+    await this.restoreTrustedPulseSequencesFromDurableState();
+    if (this.r127PostRestartContinuityRecovery) {
+      await this.repairExactR127PostRestartContinuity();
+    }
 
     /*
      * Durable residents are reconstructed only after:
@@ -350,6 +787,14 @@ class LivingKernel {
       const coldRecovery =
         await this.recoverColdFailedResidents();
 
+      if (this.r127PostRestartContinuityRecovery) {
+        await this.completeExactR127PostRestartResidentRecovery({
+          ordinaryRecovery,
+          coldRecovery
+        });
+        await this.anchorExactR127PostRestartTrustedTime();
+      }
+
       this.lastResidentRecovery =
         Object.freeze([
           ...ordinaryRecovery,
@@ -384,6 +829,746 @@ class LivingKernel {
     await this.stateStore.writeLife('runtime-revision', record);
     await this.stateStore.appendJournal({ type: 'runtime.revision', ...record });
     return this.runtimeRevision;
+  }
+
+  async preserveExactR127MetabRecoveryRevision() {
+    if (!this.allowMetabNeutralRecoveryRevisionPreservation) {
+      return false;
+    }
+    if (
+      !this.allowMetabNeutralRecovery ||
+      this.runtimeRevision !== 127
+    ) {
+      throw Object.assign(
+        new Error('METAB revision preservation is fenced to the exact stranded R127 recovery'),
+        { code: 'P1_METAB_RECOVERY_REVISION_PRESERVATION' }
+      );
+    }
+
+    const recoveryFence =
+      this.metabNeutralRecoveryFenceReader({
+        markerFile: this.metabNeutralRecoveryMarkerFile,
+        expectedMarkerSha256: this.metabNeutralRecoveryMarkerSha256,
+        trustedUid: this.metabNeutralRecoveryTrustedUid
+      });
+    if (
+      !recoveryFence ||
+      recoveryFence.markerSha256 !== R124_METAB_RECOVERY.markerSha256 ||
+      recoveryFence.failureEvidence !== R124_METAB_RECOVERY.failureEvidence
+    ) {
+      throw Object.assign(
+        new Error('METAB revision preservation recovery fence is invalid'),
+        { code: 'P1_METAB_RECOVERY_MARKER' }
+      );
+    }
+
+    const countRows = table => {
+      const exists = this.stateStore.db.prepare(`
+        SELECT 1 AS present FROM sqlite_master
+        WHERE type='table' AND name=?
+      `).get(table);
+      return exists
+        ? Number(this.stateStore.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count)
+        : 0;
+    };
+    const metabResident =
+      this.stateStore.getResident('resident:metab');
+    const metabConsumer =
+      this.stateStore.getBiologicalConsumer('resident:metab');
+    const checkpoint =
+      await this.stateStore.readResidentCheckpoint('resident:metab');
+    const p1Authority =
+      this.stateStore.listAuthority().filter(entry =>
+        ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+      );
+    const emptyBirthCohort =
+      !metabResident &&
+      !metabConsumer &&
+      checkpoint === null &&
+      p1Authority.length === 0 &&
+      countRows('p1_founders') === 0 &&
+      countRows('p1_birth_dossiers') === 0 &&
+      countRows('p1_chip_current') === 0 &&
+      countRows('p1_chip_history') === 0;
+    const exactPostRestartCohort =
+      this.r127PostRestartContinuityAuthorization ===
+        R127_POST_RESTART_CONTINUITY.authorization &&
+      metabResident?.residencyId === R127_POST_RESTART_CONTINUITY.metab.residencyId &&
+      metabResident?.instanceId === R127_POST_RESTART_CONTINUITY.metab.instanceId &&
+      metabResident?.version === R127_POST_RESTART_CONTINUITY.metab.version &&
+      metabResident?.status === 'RUNNING' &&
+      metabResident?.checkpointGeneration === 1 &&
+      metabResident?.checkpointHash === R127_POST_RESTART_CONTINUITY.metab.checkpointHash &&
+      checkpoint?.generation === 1 &&
+      checkpoint?.blobHash === R127_POST_RESTART_CONTINUITY.metab.checkpointHash &&
+      metabConsumer?.coreId === 'METAB' &&
+      metabConsumer?.required === false &&
+      metabConsumer?.authorityEpoch === 0 &&
+      stableStringify(metabConsumer?.topics) === stableStringify(['runtime.organism.binding']) &&
+      p1Authority.length === 0 &&
+      countRows('p1_founders') === 1 &&
+      countRows('p1_birth_dossiers') === 1 &&
+      countRows('p1_chip_current') === 1 &&
+      countRows('p1_chip_history') === 1;
+    if (!emptyBirthCohort && !exactPostRestartCohort) {
+      throw Object.assign(
+        new Error('METAB revision preservation requires an exact authorized R127 cohort'),
+        { code: 'P1_METAB_RECOVERY_NOT_EMPTY' }
+      );
+    }
+
+    this.metabNeutralRecoveryFence = recoveryFence;
+    this.metabNeutralRecoveryRevisionPreserved = true;
+    this.r127PostRestartContinuityRecovery = exactPostRestartCohort;
+    await this.stateStore.appendJournal({
+      type: 'runtime.revision-preserved',
+      at: this.startedAt,
+      reason: exactPostRestartCohort
+        ? 'runtime.exact-r127-post-restart-continuity-recovery'
+        : 'resident.metab-neutral-exact-r127-forward-recovery',
+      runtimeRevision: this.runtimeRevision,
+      version: KERNEL_VERSION,
+      pid: process.pid,
+      recoveryMarkerSha256: recoveryFence.markerSha256,
+      authorityOwned: false
+    });
+    return true;
+  }
+
+  async restoreTrustedPulseSequencesFromDurableState() {
+    const ledgerMaximum = (topic) => {
+      const prefix = `${topic}:${this.runtimeRevision}:`;
+      let maximum = 0;
+      for (const row of this.stateStore.db.prepare(`
+        SELECT deduplication_key FROM biological_events
+        WHERE topic=? AND deduplication_key LIKE ?
+      `).all(topic, `${prefix}%`)) {
+        const suffix = String(row.deduplication_key || '').slice(prefix.length);
+        if (/^[1-9][0-9]*$/.test(suffix)) maximum = Math.max(maximum, Number(suffix));
+      }
+      return Number.isSafeInteger(maximum) ? maximum : 0;
+    };
+
+    let sntssSequence = ledgerMaximum('runtime.time.pulse');
+    let chronobiologySequence = ledgerMaximum('runtime.trusted-organism-time.pulse');
+    const sntss = await this.stateStore.readResidentCheckpoint('resident:sntss');
+    const chronobiology = await this.stateStore.readResidentCheckpoint('resident:chronobiology');
+    if (sntss?.state?.trustedTime?.lastRuntimeRevision === this.runtimeRevision) {
+      sntssSequence = Math.max(sntssSequence, Number(sntss.state.trustedTime.lastPulseSequence) || 0);
+    }
+    if (chronobiology?.state?.continuity?.last_runtime_revision === this.runtimeRevision) {
+      chronobiologySequence = Math.max(
+        chronobiologySequence,
+        Number(chronobiology.state.continuity.last_trusted_pulse_sequence) || 0
+      );
+    }
+    if (!Number.isSafeInteger(sntssSequence) || sntssSequence < 0 ||
+        !Number.isSafeInteger(chronobiologySequence) || chronobiologySequence < 0) {
+      throw Object.assign(new Error('durable trusted pulse sequence is invalid'), {
+        code: 'TRUSTED_PULSE_SEQUENCE_INVALID'
+      });
+    }
+    this.trustedTimePulseSequence = Math.max(this.trustedTimePulseSequence, sntssSequence);
+    this.trustedOrganismTimePulseSequence = Math.max(
+      this.trustedOrganismTimePulseSequence,
+      chronobiologySequence
+    );
+    return Object.freeze({
+      trustedTimePulseSequence: this.trustedTimePulseSequence,
+      trustedOrganismTimePulseSequence: this.trustedOrganismTimePulseSequence
+    });
+  }
+
+  async repairExactR127PostRestartContinuity() {
+    if (
+      !this.metabNeutralRecoveryRevisionPreserved ||
+      this.runtimeRevision !== 127 ||
+      this.r127PostRestartContinuityAuthorization !==
+        R127_POST_RESTART_CONTINUITY.authorization
+    ) {
+      throw Object.assign(new Error('R127 post-restart continuity recovery is not authorized'), {
+        code: 'P1_R127_POST_RESTART_AUTHORIZATION'
+      });
+    }
+
+    const existing = this.stateStore.db.prepare(`
+      SELECT detail_json FROM recovery_records
+      WHERE type='runtime.r127-post-restart-continuity-recovered'
+      ORDER BY id DESC LIMIT 1
+    `).get();
+    if (existing) {
+      const detail = JSON.parse(existing.detail_json || '{}');
+      if (detail.cohort !== 'r127-post-restart-continuity-v1' || detail.abandonedCount !== 0 ||
+          detail.inventedBiologicalTime !== false || detail.authorityChanged !== false) {
+        throw Object.assign(new Error('R127 post-restart continuity evidence is invalid'), {
+          code: 'P1_R127_POST_RESTART_EVIDENCE'
+        });
+      }
+      return Object.freeze({ ...detail, idempotent: true });
+    }
+
+    const residentProof = async (expected) => {
+      const resident = this.stateStore.getResident(expected.residencyId);
+      const consumer = this.stateStore.getBiologicalConsumer(expected.residencyId);
+      const checkpoint = await this.stateStore.readResidentCheckpoint(expected.residencyId);
+      const delivery = this.stateStore.db.prepare(`
+        SELECT d.status, e.topic, e.deduplication_key, e.envelope_json
+        FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+        WHERE d.consumer_id=? AND d.sequence=?
+      `).get(expected.residencyId, expected.pendingSequence);
+      const recovery = this.stateStore.db.prepare(`
+        SELECT id, detail_json FROM recovery_records WHERE id=? AND type='resident.resync-required'
+          AND core_id=?
+      `).get(expected.recoveryRecordId, expected.coreId);
+      let recoveryDetail = null;
+      let envelope = null;
+      try {
+        recoveryDetail = JSON.parse(recovery?.detail_json || 'null');
+        envelope = JSON.parse(delivery?.envelope_json || 'null');
+      } catch {}
+      const pendingCount = this.stateStore.countPendingBiologicalEvents(expected.residencyId);
+      if (!(resident?.coreId === expected.coreId && resident?.instanceId === expected.instanceId &&
+        resident?.version === expected.version && resident?.status === 'RESYNC_REQUIRED' &&
+        resident?.checkpointGeneration === expected.checkpointGeneration &&
+        resident?.checkpointHash === expected.checkpointHash &&
+        checkpoint?.generation === expected.checkpointGeneration &&
+        checkpoint?.blobHash === expected.checkpointHash &&
+        checkpoint?.inputCursor === expected.inputCursor &&
+        consumer?.active === false && consumer?.required === false &&
+        consumer?.authorityEpoch === 0 && consumer?.cursor === expected.consumerCursor &&
+        consumer?.checkpointHash === expected.checkpointHash &&
+        stableStringify(consumer?.topics) === stableStringify(expected.topics) &&
+        consumer?.topicsHash === expected.topicsHash && pendingCount === 1 &&
+        delivery?.status === 'PENDING' && delivery?.topic === expected.topic &&
+        delivery?.deduplication_key === `${expected.topic}:127:${expected.pulseSequence}` &&
+        envelope?.payload?.runtimeRevision === 127 &&
+        envelope?.payload?.pulseSequence === expected.pulseSequence &&
+        recovery?.id === expected.recoveryRecordId &&
+        recoveryDetail?.residencyId === expected.residencyId &&
+        recoveryDetail?.sequence === expected.pendingSequence &&
+        recoveryDetail?.code === expected.recoveryCode)) {
+        throw Object.assign(new Error(`R127 restart pulse cohort mismatch: ${expected.residencyId}`), {
+          code: 'P1_R127_POST_RESTART_RESIDENT'
+        });
+      }
+      const durableLastPulse = expected.coreId === 'sntss'
+        ? checkpoint.state?.trustedTime?.lastPulseSequence
+        : checkpoint.state?.continuity?.last_trusted_pulse_sequence;
+      const durableRevision = expected.coreId === 'sntss'
+        ? checkpoint.state?.trustedTime?.lastRuntimeRevision
+        : checkpoint.state?.continuity?.last_runtime_revision;
+      if (durableRevision !== 127 || durableLastPulse !== expected.lastPulseSequence ||
+          expected.pulseSequence >= durableLastPulse) {
+        throw Object.assign(new Error(`R127 durable pulse fence mismatch: ${expected.residencyId}`), {
+          code: 'P1_R127_POST_RESTART_PULSE'
+        });
+      }
+      return { resident, consumer, checkpoint, delivery, recoveryDetail };
+    };
+
+    const sntss = await residentProof(R127_POST_RESTART_CONTINUITY.sntss);
+    const chronobiology = await residentProof(R127_POST_RESTART_CONTINUITY.chronobiology);
+    const fetusExpected = R127_POST_RESTART_CONTINUITY.fetus;
+    const fetusConsumer = this.stateStore.getBiologicalConsumer(fetusExpected.consumerId);
+    const fetusAuthority = this.stateStore.db.prepare(
+      'SELECT * FROM authority WHERE core_id=?'
+    ).get(fetusExpected.coreId);
+    const fetusCheckpoint = this.stateStore.db.prepare(`
+      SELECT * FROM checkpoints WHERE core_id=? ORDER BY generation DESC LIMIT 1
+    `).get(fetusExpected.coreId);
+    const fetusDemotion = this.stateStore.db.prepare(`
+      SELECT id, detail_json FROM recovery_records
+      WHERE id=? AND type='biological.consumer-demoted' AND core_id=?
+    `).get(fetusExpected.demotionId, fetusExpected.coreId);
+    let fetusDemotionDetail = null;
+    try { fetusDemotionDetail = JSON.parse(fetusDemotion?.detail_json || 'null'); } catch {}
+    const fetusPending = this.stateStore.countPendingBiologicalEvents(fetusExpected.consumerId);
+    if (!(fetusConsumer?.coreId === fetusExpected.coreId && fetusConsumer?.active === false &&
+      fetusConsumer?.required === false && fetusConsumer?.cursor === fetusExpected.consumerCursor &&
+      fetusConsumer?.authorityEpoch === fetusExpected.authorityEpoch &&
+      fetusConsumer?.checkpointHash === null &&
+      stableStringify(fetusConsumer?.topics) === '[]' &&
+      fetusConsumer?.topicsHash === fetusExpected.topicsHash && fetusPending === 0 &&
+      fetusAuthority?.instance_id === fetusExpected.instanceId &&
+      fetusAuthority?.version === fetusExpected.version &&
+      Number(fetusAuthority?.epoch) === fetusExpected.authorityEpoch &&
+      fetusAuthority?.checkpoint_hash === fetusExpected.checkpointHash &&
+      Number(fetusCheckpoint?.generation) === fetusExpected.checkpointGeneration &&
+      fetusCheckpoint?.blob_hash === fetusExpected.checkpointHash &&
+      fetusDemotion?.id === fetusExpected.demotionId &&
+      fetusDemotionDetail?.consumerId === fetusExpected.consumerId &&
+      fetusDemotionDetail?.cursor === fetusExpected.consumerCursor &&
+      fetusDemotionDetail?.pending === fetusExpected.pendingAtDemotion &&
+      fetusDemotionDetail?.maximumDebt === fetusExpected.maximumDebt &&
+      fetusDemotionDetail?.resynchronizationRequired === true)) {
+      throw Object.assign(new Error('R127 fetus continuity cohort mismatch'), {
+        code: 'P1_R127_POST_RESTART_FETUS'
+      });
+    }
+
+    const totalPending = Number(this.stateStore.db.prepare(`
+      SELECT COUNT(*) AS count FROM biological_deliveries WHERE status='PENDING'
+    `).get()?.count || 0);
+    const highWater = Number(this.stateStore.db.prepare(`
+      SELECT COALESCE(MAX(sequence), 0) AS value FROM biological_events
+    `).get()?.value || 0);
+    if (
+      totalPending !== 2 ||
+      highWater !== R127_POST_RESTART_CONTINUITY.ledger.highWater
+    ) {
+      throw Object.assign(new Error('R127 post-restart ledger cohort mismatch'), {
+        code: 'P1_R127_POST_RESTART_LEDGER'
+      });
+    }
+
+    const cohortEvents = this.stateStore.db.prepare(`
+      SELECT sequence, event_id, topic, event_class, envelope_json, deduplication_key
+      FROM biological_events WHERE sequence>=? AND sequence<=? ORDER BY sequence
+    `).all(
+      R127_POST_RESTART_CONTINUITY.ledger.cohortFirstSequence,
+      highWater
+    );
+    const expectedCohortLength =
+      highWater - R127_POST_RESTART_CONTINUITY.ledger.cohortFirstSequence + 1;
+    const pulseCounts = new Map([
+      ['runtime.time.pulse', 0],
+      ['runtime.trusted-organism-time.pulse', 0]
+    ]);
+    if (cohortEvents.length !== expectedCohortLength) {
+      throw Object.assign(new Error('R127 restart pulse cohort is not contiguous'), {
+        code: 'P1_R127_POST_RESTART_LEDGER'
+      });
+    }
+    for (const row of cohortEvents) {
+      if (!pulseCounts.has(row.topic) || row.event_class !== 'durable') {
+        throw Object.assign(new Error('R127 restart cohort contains an unexpected event'), {
+          code: 'P1_R127_POST_RESTART_LEDGER'
+        });
+      }
+      let envelope = null;
+      try { envelope = JSON.parse(row.envelope_json); } catch {}
+      const pulseSequence = pulseCounts.get(row.topic) + 1;
+      if (
+        envelope?.id !== row.event_id ||
+        envelope?.sequence !== Number(row.sequence) ||
+        envelope?.topic !== row.topic ||
+        envelope?.payload?.runtimeRevision !== 127 ||
+        envelope?.payload?.pulseSequence !== pulseSequence ||
+        envelope?.meta?.sourceCore !== 'living-kernel' ||
+        row.deduplication_key !== `${row.topic}:127:${pulseSequence}`
+      ) {
+        throw Object.assign(new Error('R127 restart pulse envelope fence mismatch'), {
+          code: 'P1_R127_POST_RESTART_LEDGER'
+        });
+      }
+      pulseCounts.set(row.topic, pulseSequence);
+    }
+    if (
+      pulseCounts.get('runtime.time.pulse') !==
+        R127_POST_RESTART_CONTINUITY.ledger.timePulseCount ||
+      pulseCounts.get('runtime.trusted-organism-time.pulse') !==
+        R127_POST_RESTART_CONTINUITY.ledger.trustedOrganismTimePulseCount
+    ) {
+      throw Object.assign(new Error('R127 restart pulse counts do not match the sealed cohort'), {
+        code: 'P1_R127_POST_RESTART_LEDGER'
+      });
+    }
+
+    const at = new Date().toISOString();
+    const repaired = this.stateStore.withTransaction(() => {
+      for (const [expected, proof] of [
+        [R127_POST_RESTART_CONTINUITY.chronobiology, chronobiology],
+        [R127_POST_RESTART_CONTINUITY.sntss, sntss]
+      ]) {
+        const transitionId = `r127-restart-pulse-superseded:${expected.pendingSequence}`;
+        const changed = this.stateStore.db.prepare(`
+          UPDATE biological_deliveries SET status='ACKED', transition_id=?, checkpoint_hash=?,
+            acknowledged_at=? WHERE consumer_id=? AND sequence=? AND status='PENDING'
+        `).run(transitionId, expected.checkpointHash, at, expected.residencyId,
+          expected.pendingSequence).changes;
+        if (changed !== 1) throw new Error('R127 restart pulse acknowledgement was not atomic');
+        const cursorChanged = this.stateStore.db.prepare(`
+          UPDATE biological_consumers SET cursor=?, updated_at=?
+          WHERE consumer_id=? AND cursor=?
+        `).run(highWater, at, expected.residencyId, expected.consumerCursor).changes;
+        if (cursorChanged !== 1) throw new Error('R127 restart cursor fence was not atomic');
+        const statusChanged = this.stateStore.db.prepare(`
+          UPDATE resident_instances SET status='RECOVERING', updated_at=?
+          WHERE residency_id=? AND status='RESYNC_REQUIRED'
+        `).run(at, expected.residencyId).changes;
+        if (statusChanged !== 1) throw new Error('R127 resident recovery fence was not atomic');
+        this.stateStore.db.prepare(`
+          INSERT INTO recovery_records(type, core_id, detail_json, created_at)
+          VALUES('resident.restart-pulse-superseded', ?, ?, ?)
+        `).run(expected.coreId, JSON.stringify({
+          cohort: 'r127-post-restart-continuity-v1',
+          residencyId: expected.residencyId,
+          sourceRecoveryRecordId: expected.recoveryRecordId,
+          sequence: expected.pendingSequence,
+          fromCursor: expected.consumerCursor,
+          toCursor: highWater,
+          topic: expected.topic,
+          rejectedPulseSequence: expected.pulseSequence,
+          durableLastPulseSequence: expected.lastPulseSequence,
+          supersededInputCount: expected.coreId === 'sntss'
+            ? R127_POST_RESTART_CONTINUITY.ledger.timePulseCount
+            : R127_POST_RESTART_CONTINUITY.ledger.trustedOrganismTimePulseCount,
+          nonInputEventCount: expected.coreId === 'sntss'
+            ? R127_POST_RESTART_CONTINUITY.ledger.trustedOrganismTimePulseCount - 1
+            : R127_POST_RESTART_CONTINUITY.ledger.timePulseCount,
+          checkpointHash: expected.checkpointHash,
+          checkpointGeneration: expected.checkpointGeneration,
+          checkpointBytesChanged: false,
+          biologicalStateChanged: false,
+          abandonedCount: 0,
+          inventedBiologicalTime: false,
+          authorityChanged: false
+        }), at);
+        void proof;
+      }
+
+      const fetusChanged = this.stateStore.db.prepare(`
+        UPDATE biological_consumers SET cursor=?, checkpoint_hash=?, updated_at=?
+        WHERE consumer_id=? AND active=0 AND required=0 AND cursor=?
+      `).run(highWater, fetusExpected.checkpointHash, at, fetusExpected.consumerId,
+        fetusExpected.consumerCursor).changes;
+      if (fetusChanged !== 1) throw new Error('R127 fetus continuity anchor was not atomic');
+      const fetusDetail = {
+        cohort: 'r127-post-restart-continuity-v1',
+        demotionId: fetusExpected.demotionId,
+        consumerId: fetusExpected.consumerId,
+        fromCursor: fetusExpected.consumerCursor,
+        toCursor: highWater,
+        quarantinedPendingAtDemotion: fetusExpected.pendingAtDemotion,
+        retainedPendingAtRecovery: 0,
+        inputs: [],
+        checkpointHash: fetusExpected.checkpointHash,
+        checkpointGeneration: fetusExpected.checkpointGeneration,
+        checkpointBytesChanged: false,
+        biologicalStateChanged: false,
+        physiologyApplied: 0,
+        abandonedCount: 0,
+        inventedBiologicalTime: false,
+        authorityChanged: false,
+        runtimeRevision: 127
+      };
+      this.stateStore.db.prepare(`
+        INSERT INTO recovery_records(type, core_id, detail_json, created_at)
+        VALUES('biological.consumer-resynchronized', ?, ?, ?)
+      `).run(fetusExpected.coreId, JSON.stringify(fetusDetail), at);
+      const detail = {
+        cohort: 'r127-post-restart-continuity-v1',
+        runtimeRevision: 127,
+        fetusDemotionId: fetusExpected.demotionId,
+        fetusFromCursor: fetusExpected.consumerCursor,
+        fetusToCursor: highWater,
+        sntssCheckpointHash: R127_POST_RESTART_CONTINUITY.sntss.checkpointHash,
+        chronobiologyCheckpointHash: R127_POST_RESTART_CONTINUITY.chronobiology.checkpointHash,
+        acknowledgedPendingDeliveryCount: 2,
+        supersededInputPulseCount:
+          R127_POST_RESTART_CONTINUITY.ledger.timePulseCount +
+          R127_POST_RESTART_CONTINUITY.ledger.trustedOrganismTimePulseCount,
+        nonInputEventCount:
+          R127_POST_RESTART_CONTINUITY.ledger.timePulseCount +
+          R127_POST_RESTART_CONTINUITY.ledger.trustedOrganismTimePulseCount - 1,
+        abandonedCount: 0,
+        inventedBiologicalTime: false,
+        authorityChanged: false
+      };
+      this.stateStore.db.prepare(`
+        INSERT INTO recovery_records(type, core_id, detail_json, created_at)
+        VALUES('runtime.r127-post-restart-continuity-recovered', NULL, ?, ?)
+      `).run(JSON.stringify(detail), at);
+      return detail;
+    });
+    this.statusCache = null;
+    return Object.freeze(repaired);
+  }
+
+  async completeExactR127PostRestartResidentRecovery({
+    ordinaryRecovery,
+    coldRecovery
+  }) {
+    if (
+      !this.r127PostRestartContinuityRecovery ||
+      !this.metabNeutralRecoveryRevisionPreserved ||
+      this.runtimeRevision !== 127 ||
+      !Array.isArray(ordinaryRecovery) ||
+      !Array.isArray(coldRecovery)
+    ) {
+      throw Object.assign(new Error('R127 resident recovery completion is not authorized'), {
+        code: 'P1_R127_POST_RESTART_RESIDENT_COMPLETION'
+      });
+    }
+
+    const durableResidents = this.stateStore.listResidents();
+    const recovered = new Map(ordinaryRecovery.map(row => [row.residencyId, row]));
+    const expectedResidents = [
+      {
+        ...R127_POST_RESTART_CONTINUITY.sntss,
+        checkpointGeneration: R127_POST_RESTART_CONTINUITY.sntss.checkpointGeneration + 1
+      },
+      {
+        ...R127_POST_RESTART_CONTINUITY.chronobiology,
+        checkpointGeneration:
+          R127_POST_RESTART_CONTINUITY.chronobiology.checkpointGeneration + 1
+      },
+      {
+        ...R127_POST_RESTART_CONTINUITY.metab,
+        coreId: 'METAB',
+        checkpointGeneration: 2,
+        consumerCursor: R127_POST_RESTART_CONTINUITY.ledger.highWater,
+        topics: ['runtime.organism.binding'],
+        mode: 'NEUTRAL'
+      }
+    ];
+    if (durableResidents.length !== expectedResidents.length || coldRecovery.length !== 0) {
+      throw Object.assign(new Error('R127 recovered resident set is not exact'), {
+        code: 'P1_R127_POST_RESTART_RESIDENT_COMPLETION'
+      });
+    }
+
+    for (const expected of expectedResidents) {
+      const result = recovered.get(expected.residencyId);
+      const durable = this.stateStore.getResident(expected.residencyId);
+      const consumer = this.stateStore.getBiologicalConsumer(expected.residencyId);
+      const runtime = await this.ensureResidentManager().status(expected.residencyId);
+      if (!(result?.recovered === true && result?.status === 'RUNNING' &&
+        durable?.coreId === expected.coreId && durable?.instanceId === expected.instanceId &&
+        durable?.version === expected.version && durable?.status === 'RUNNING' &&
+        durable?.checkpointGeneration === expected.checkpointGeneration &&
+        durable?.checkpointHash === expected.checkpointHash &&
+        runtime?.status === 'RUNNING' && runtime?.running === true &&
+        runtime?.checkpointGeneration === expected.checkpointGeneration &&
+        runtime?.checkpointHash === expected.checkpointHash &&
+        runtime?.pendingDeliveries === 0 && runtime?.observedOutputs === 0 &&
+        runtime?.authorityOwned === false && runtime?.activationBackfilled === 0 &&
+        consumer?.active === true && consumer?.required === false &&
+        consumer?.authorityEpoch === 0 &&
+        consumer?.cursor === R127_POST_RESTART_CONTINUITY.ledger.highWater &&
+        stableStringify(consumer?.topics) === stableStringify(expected.topics))) {
+        throw Object.assign(
+          new Error(`R127 resident recovery completion mismatch: ${expected.residencyId}`),
+          { code: 'P1_R127_POST_RESTART_RESIDENT_COMPLETION' }
+        );
+      }
+      if (expected.mode && runtime?.health?.mode !== expected.mode) {
+        throw Object.assign(new Error('R127 METAB recovery lost neutral containment'), {
+          code: 'P1_R127_POST_RESTART_RESIDENT_COMPLETION'
+        });
+      }
+    }
+
+    const pending = Number(this.stateStore.db.prepare(`
+      SELECT COUNT(*) AS count FROM biological_deliveries WHERE status='PENDING'
+    `).get()?.count || 0);
+    const p1Authority = this.stateStore.listAuthority().filter(row =>
+      ['METAB', 'HOMEOS', 'INTERO'].includes(row.coreId)
+    );
+    if (pending !== 0 || p1Authority.length !== 0) {
+      throw Object.assign(new Error('R127 resident recovery containment failed'), {
+        code: 'P1_R127_POST_RESTART_RESIDENT_COMPLETION'
+      });
+    }
+
+    this.metabNeutralRecoveryCompletedAtPreservedRevision = true;
+    await this.stateStore.appendJournal({
+      type: 'runtime.r127-post-restart-residents-recovered',
+      at: new Date().toISOString(),
+      runtimeRevision: 127,
+      cohort: 'r127-post-restart-continuity-v1',
+      residents: expectedResidents.map(row => row.residencyId),
+      pendingDeliveries: 0,
+      p1AuthorityCount: 0,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    });
+  }
+
+  async anchorExactR127PostRestartTrustedTime() {
+    if (!this.r127PostRestartContinuityRecovery) return null;
+    if (
+      !this.metabNeutralRecoveryRevisionPreserved ||
+      !this.metabNeutralRecoveryCompletedAtPreservedRevision ||
+      this.runtimeRevision !== 127 ||
+      this.trustedTimePulseSequence !==
+        R127_POST_RESTART_CONTINUITY.sntss.lastPulseSequence
+    ) {
+      throw Object.assign(
+        new Error('R127 trusted-time restart anchor is outside its exact recovery fence'),
+        { code: 'P1_R127_POST_RESTART_TIME_ANCHOR' }
+      );
+    }
+
+    const expected = R127_POST_RESTART_CONTINUITY.sntss;
+    const manager = this.ensureResidentManager();
+    await manager.drain(
+      expected.residencyId,
+      R127_POST_RESTART_CONTINUITY.ledger.highWater
+    );
+    const beforeResident = this.stateStore.getResident(expected.residencyId);
+    const beforeConsumer = this.stateStore.getBiologicalConsumer(expected.residencyId);
+    const beforeCheckpoint = await this.stateStore.readResidentCheckpoint(expected.residencyId);
+    const beforeStatus = await manager.status(expected.residencyId);
+    const beforeTime = beforeCheckpoint?.state?.trustedTime;
+    const recoveryCheckpoints = this.stateStore.db.prepare(`
+      SELECT generation, blob_hash, input_cursor
+      FROM resident_checkpoints
+      WHERE residency_id=? AND generation>?
+      ORDER BY generation
+    `).all(expected.residencyId, expected.checkpointGeneration);
+    const recoveryCheckpointSetIsExact =
+      recoveryCheckpoints.length >= 1 && recoveryCheckpoints.length <= 2 &&
+      recoveryCheckpoints.every((row, index) =>
+        Number(row.generation) === expected.checkpointGeneration + index + 1 &&
+        row.blob_hash === expected.checkpointHash &&
+        Number(row.input_cursor) === expected.inputCursor
+      );
+    const beforeHighWater = Number(this.stateStore.db.prepare(`
+      SELECT COALESCE(MAX(sequence), 0) AS value FROM biological_events
+    `).get()?.value || 0);
+    if (!(beforeResident?.status === 'RUNNING' &&
+      recoveryCheckpointSetIsExact &&
+      beforeResident?.checkpointGeneration === beforeCheckpoint?.generation &&
+      beforeResident?.checkpointHash === expected.checkpointHash &&
+      beforeConsumer?.active === true && beforeConsumer?.required === false &&
+      beforeConsumer?.authorityEpoch === 0 &&
+      beforeConsumer?.cursor === R127_POST_RESTART_CONTINUITY.ledger.highWater &&
+      beforeConsumer?.checkpointHash === expected.checkpointHash &&
+      beforeCheckpoint?.generation ===
+        Number(recoveryCheckpoints[recoveryCheckpoints.length - 1]?.generation) &&
+      beforeCheckpoint?.blobHash === expected.checkpointHash &&
+      beforeCheckpoint?.inputCursor === expected.inputCursor &&
+      beforeStatus?.status === 'RUNNING' && beforeStatus?.running === true &&
+      beforeStatus?.checkpointGeneration === beforeCheckpoint?.generation &&
+      beforeStatus?.checkpointHash === expected.checkpointHash &&
+      beforeStatus?.pendingDeliveries === 0 && beforeStatus?.observedOutputs === 0 &&
+      beforeStatus?.authorityOwned === false && beforeStatus?.lastError === null &&
+      beforeTime?.lastRuntimeRevision === 127 &&
+      beforeTime?.lastPulseSequence === expected.lastPulseSequence &&
+      beforeTime?.lastClockStatus === 'trusted' &&
+      Number.isSafeInteger(beforeTime?.lastWallClockMs) &&
+      Number.isSafeInteger(beforeTime?.acceptedPulses) &&
+      Number.isSafeInteger(beforeTime?.integratedIntervals) &&
+      beforeHighWater === R127_POST_RESTART_CONTINUITY.ledger.highWater)) {
+      throw Object.assign(new Error('R127 trusted-time restart anchor precondition mismatch'), {
+        code: 'P1_R127_POST_RESTART_TIME_ANCHOR'
+      });
+    }
+
+    const physiologyProjectionHash = state => {
+      const {
+        lastWallClockMs,
+        lastPulseSequence,
+        lastRuntimeRevision,
+        lastClockStatus,
+        acceptedPulses,
+        ...preservedTrustedTime
+      } = state.trustedTime;
+      void lastWallClockMs;
+      void lastPulseSequence;
+      void lastRuntimeRevision;
+      void lastClockStatus;
+      void acceptedPulses;
+      return sha256Bytes(stableStringify({
+        ...state,
+        trustedTime: preservedTrustedTime
+      }));
+    };
+    const beforePhysiologyHash = physiologyProjectionHash(beforeCheckpoint.state);
+
+    await this.publishTimePulse('uncertain');
+    await manager.drain(expected.residencyId, beforeHighWater + 1);
+
+    const afterResident = this.stateStore.getResident(expected.residencyId);
+    const afterConsumer = this.stateStore.getBiologicalConsumer(expected.residencyId);
+    const afterCheckpoint = await this.stateStore.readResidentCheckpoint(expected.residencyId);
+    const afterStatus = await manager.status(expected.residencyId);
+    const afterTime = afterCheckpoint?.state?.trustedTime;
+    const expectedSequence = beforeHighWater + 1;
+    const anchorCheckpoints = this.stateStore.db.prepare(`
+      SELECT generation, blob_hash, input_cursor
+      FROM resident_checkpoints
+      WHERE residency_id=? AND generation>?
+      ORDER BY generation
+    `).all(expected.residencyId, beforeCheckpoint.generation);
+    const anchorCheckpointSetIsExact =
+      anchorCheckpoints.length >= 1 && anchorCheckpoints.length <= 2 &&
+      anchorCheckpoints.every((row, index) =>
+        Number(row.generation) === beforeCheckpoint.generation + index + 1 &&
+        row.blob_hash === afterCheckpoint?.blobHash &&
+        Number(row.input_cursor) === expectedSequence
+      );
+    const event = this.stateStore.db.prepare(`
+      SELECT topic, event_class, deduplication_key, envelope_json
+      FROM biological_events WHERE sequence=?
+    `).get(expectedSequence);
+    let envelope = null;
+    try { envelope = JSON.parse(event?.envelope_json || 'null'); } catch {}
+    const afterPhysiologyHash = afterCheckpoint?.state
+      ? physiologyProjectionHash(afterCheckpoint.state)
+      : null;
+    if (!(afterResident?.status === 'RUNNING' &&
+      anchorCheckpointSetIsExact &&
+      afterResident?.checkpointGeneration === afterCheckpoint?.generation &&
+      afterResident?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterResident?.checkpointHash !== expected.checkpointHash &&
+      afterConsumer?.active === true && afterConsumer?.required === false &&
+      afterConsumer?.authorityEpoch === 0 && afterConsumer?.cursor === expectedSequence &&
+      afterConsumer?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterCheckpoint?.generation ===
+        Number(anchorCheckpoints[anchorCheckpoints.length - 1]?.generation) &&
+      afterCheckpoint?.inputCursor === expectedSequence &&
+      afterStatus?.status === 'RUNNING' && afterStatus?.running === true &&
+      afterStatus?.checkpointGeneration === afterCheckpoint?.generation &&
+      afterStatus?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterStatus?.pendingDeliveries === 0 && afterStatus?.observedOutputs === 0 &&
+      afterStatus?.authorityOwned === false && afterStatus?.lastError === null &&
+      this.trustedTimePulseSequence === expected.lastPulseSequence + 1 &&
+      afterTime?.lastRuntimeRevision === 127 &&
+      afterTime?.lastPulseSequence === expected.lastPulseSequence + 1 &&
+      afterTime?.lastClockStatus === 'uncertain' &&
+      afterTime?.lastWallClockMs >= beforeTime.lastWallClockMs &&
+      afterTime?.acceptedPulses === beforeTime.acceptedPulses + 1 &&
+      afterTime?.integratedIntervals === beforeTime.integratedIntervals &&
+      afterPhysiologyHash === beforePhysiologyHash &&
+      event?.topic === 'runtime.time.pulse' && event?.event_class === 'durable' &&
+      event?.deduplication_key ===
+        `runtime.time.pulse:127:${expected.lastPulseSequence + 1}` &&
+      envelope?.payload?.runtimeRevision === 127 &&
+      envelope?.payload?.pulseSequence === expected.lastPulseSequence + 1 &&
+      envelope?.payload?.clockStatus === 'uncertain')) {
+      throw Object.assign(new Error('R127 trusted-time restart anchor changed containment'), {
+        code: 'P1_R127_POST_RESTART_TIME_ANCHOR'
+      });
+    }
+
+    const detail = {
+      cohort: 'r127-post-restart-continuity-v1',
+      residencyId: expected.residencyId,
+      runtimeRevision: 127,
+      eventSequence: expectedSequence,
+      fromPulseSequence: expected.lastPulseSequence,
+      toPulseSequence: expected.lastPulseSequence + 1,
+      clockStatus: 'uncertain',
+      checkpointGenerationBefore: beforeCheckpoint.generation,
+      checkpointGenerationAfter: afterCheckpoint.generation,
+      idempotentCheckpointCommits: anchorCheckpoints.length,
+      physiologyStateHashBefore: beforePhysiologyHash,
+      physiologyStateHashAfter: afterPhysiologyHash,
+      physiologyApplied: 0,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    };
+    this.stateStore.recordRecovery(
+      'resident.r127-restart-clock-anchored',
+      expected.coreId,
+      detail
+    );
+    this.statusCache = null;
+    return Object.freeze(detail);
   }
 
   startMaintenance() {
@@ -475,11 +1660,61 @@ class LivingKernel {
   }
 
   async installCore(modulePath) {
-    const unit = await this.upgrades.installInitial(path.resolve(modulePath));
-    await this.bumpRuntimeRevision('core.install', {
-      coreId: unit.manifest ? unit.manifest.coreId : null,
-      coreVersion: unit.manifest ? unit.manifest.version : null
-    });
+    const preserveExactFetusInstall =
+      this.metabNeutralRecoveryRevisionPreserved &&
+      this.metabNeutralRecoveryCompletedAtPreservedRevision &&
+      !this.metabNeutralRecoveryFetusInstallPreserved;
+    const resolvedModulePath = path.resolve(modulePath);
+    if (preserveExactFetusInstall) {
+      let trustedModulePath;
+      let requestedModulePath;
+      try {
+        trustedModulePath = fs.realpathSync(path.join(
+          this.releaseRoot,
+          'cores/fetus-legacy-0.6/index.js'
+        ));
+        requestedModulePath = fs.realpathSync(resolvedModulePath);
+      } catch (error) {
+        throw Object.assign(
+          new Error(`R127 fetus continuity module is unavailable: ${error.message}`),
+          { code: 'P1_METAB_RECOVERY_FETUS_FENCE' }
+        );
+      }
+      if (requestedModulePath !== trustedModulePath) {
+        throw Object.assign(
+          new Error('R127 recovery revision preservation permits only the release-sealed fetus module'),
+          { code: 'P1_METAB_RECOVERY_FETUS_FENCE' }
+        );
+      }
+    }
+    const unit = await this.upgrades.installInitial(resolvedModulePath);
+    if (preserveExactFetusInstall) {
+      if (
+        this.runtimeRevision !== 127 ||
+        unit.manifest?.coreId !== 'fetus-legacy' ||
+        unit.manifest?.version !== '0.6.0'
+      ) {
+        throw Object.assign(
+          new Error('R127 recovery revision preservation permits only the exact fetus continuity install'),
+          { code: 'P1_METAB_RECOVERY_FETUS_FENCE' }
+        );
+      }
+      this.metabNeutralRecoveryFetusInstallPreserved = true;
+      await this.stateStore.appendJournal({
+        type: 'runtime.revision-preserved',
+        at: new Date().toISOString(),
+        reason: 'fetus.install.exact-r127-metab-forward-recovery',
+        runtimeRevision: this.runtimeRevision,
+        coreId: unit.manifest.coreId,
+        coreVersion: unit.manifest.version,
+        authorityOwned: false
+      });
+    } else {
+      await this.bumpRuntimeRevision('core.install', {
+        coreId: unit.manifest ? unit.manifest.coreId : null,
+        coreVersion: unit.manifest ? unit.manifest.version : null
+      });
+    }
     if (unit.manifest?.coreId === 'sntss') await this.publishOrganismBinding();
     return unit;
   }
@@ -811,6 +2046,771 @@ class LivingKernel {
         runtimeRevision:
           this.runtimeRevision
       });
+
+    return unit;
+  }
+
+
+  metabNeutralAcceptanceCommit(storage, healthReasonCode) {
+    return ({ checkpoint, resident, manifest }) =>
+      storage.appendNeutralChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:metab',
+        organismId: this.identity.organismId,
+        coreId: 'METAB',
+        publicName: 'METAB',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:metab',
+        currentState: 'NEUTRAL',
+        mode: 'NEUTRAL',
+        lifecycle: 'RUNNING',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion: String(manifest.stateSchema),
+        checkpointGeneration: String(resident.checkpointGeneration),
+        lastTrustedFrame: null,
+        coverageBand: 'UNKNOWN',
+        evidenceRefs: [`sha256:${checkpoint.blobHash}`],
+        observedUtc: new Date(Number(this.clock())).toISOString()
+      });
+  }
+
+
+  metabShadowAcceptanceCommit(
+    storage,
+    healthReasonCode,
+    parentFreezeRecordSha256
+  ) {
+    return ({ checkpoint, resident, manifest }) => {
+      const lastTrustedFrame =
+        Number(checkpoint?.state?.lastAcceptedFrame) || 0;
+
+      return storage.appendShadowChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:metab',
+        organismId: this.identity.organismId,
+        coreId: 'METAB',
+        publicName: 'METAB',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:metab',
+        currentState: 'SHADOW',
+        mode: 'SHADOW',
+        lifecycle:
+          checkpoint?.state?.engineState?.lifecycle ||
+          'UNRESOLVED',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion:
+          String(manifest.stateSchema),
+        checkpointGeneration:
+          String(resident.checkpointGeneration),
+        lastTrustedFrame:
+          lastTrustedFrame > 0
+            ? lastTrustedFrame
+            : null,
+        coverageBand:
+          lastTrustedFrame > 0
+            ? 'FULL'
+            : 'UNKNOWN',
+        evidenceRefs: [
+          `sha256:${checkpoint.blobHash}`,
+          parentFreezeRecordSha256
+        ],
+        observedUtc:
+          new Date(Number(this.clock())).toISOString()
+      });
+    };
+  }
+
+
+  async promoteMetabShadow() {
+    if (
+      !this.allowMetabShadowPromotion ||
+      this.metabShadowPromotionAuthorization !==
+        R128_METAB_SHADOW.authorization
+    ) {
+      throw Object.assign(
+        new Error('R128 METAB shadow promotion is not authorized'),
+        { code: 'P1_METAB_SHADOW_NOT_AUTHORIZED' }
+      );
+    }
+
+    if (this.runtimeRevision !== R128_METAB_SHADOW.runtimeRevision) {
+      throw Object.assign(
+        new Error('METAB shadow promotion is fenced to runtime R128'),
+        { code: 'P1_METAB_SHADOW_REVISION' }
+      );
+    }
+
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(
+      R128_METAB_SHADOW.parentRevision,
+      { directory: this.runtimeFreezeDirectory }
+    );
+
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(
+        new Error('R127F parent freeze is absent or invalid'),
+        { code: 'P1_METAB_SHADOW_PARENT_FREEZE' }
+      );
+    }
+
+    const residents = this.stateStore.listResidents();
+    const residentIds = residents
+      .map(resident => resident.residencyId)
+      .sort();
+
+    if (
+      stableStringify(residentIds) !==
+        stableStringify([
+          'resident:chronobiology',
+          'resident:metab',
+          'resident:sntss'
+        ]) ||
+      this.stateStore.getResident('resident:homeos') !== null ||
+      this.stateStore.getResident('resident:intero') !== null
+    ) {
+      throw Object.assign(
+        new Error('R128 METAB promotion resident cohort is not exact'),
+        { code: 'P1_METAB_SHADOW_COHORT' }
+      );
+    }
+
+    const manager = this.ensureResidentManager();
+    const metabResident =
+      this.stateStore.getResident('resident:metab');
+    const metabCheckpoint =
+      await this.stateStore.readResidentCheckpoint(
+        'resident:metab'
+      );
+    const metabStatus =
+      await manager.status('resident:metab');
+    const sntss =
+      await manager.status('resident:sntss');
+    const chronobiology =
+      await manager.status('resident:chronobiology');
+    const p1Authority =
+      this.stateStore.listAuthority().filter(entry =>
+        ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+      );
+    const fetusAuthority =
+      this.stateStore.getAuthority('fetus-legacy');
+    const fetusSlot =
+      (await this.registry.status())
+        .find(slot => slot.coreId === 'fetus-legacy');
+    const pendingMetabOutbox = Number(
+      this.stateStore.db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM biological_outbox_intents
+        WHERE producer_core_id='METAB'
+      `).get()?.count || 0
+    );
+
+    if (
+      metabResident?.instanceId !==
+        R128_METAB_SHADOW.instanceId ||
+      metabResident?.version !==
+        R128_METAB_SHADOW.neutralVersion ||
+      metabResident?.stateSchema !== 1 ||
+      metabResident?.moduleRelativePath !==
+        'cores/p1-r0/metab-neutral/index.js' ||
+      metabResident?.checkpointHash !==
+        R128_METAB_SHADOW.neutralCheckpointHash ||
+      metabResident?.status !== 'RUNNING' ||
+      metabCheckpoint?.blobHash !==
+        R128_METAB_SHADOW.neutralCheckpointHash ||
+      metabCheckpoint?.state?.engineState?.frameIndex !== 0 ||
+      metabCheckpoint?.state?.engineState?.outputSequence !== '0' ||
+      metabStatus?.running !== true ||
+      metabStatus?.health?.mode !== 'NEUTRAL' ||
+      metabStatus?.authorityOwned !== false ||
+      metabStatus?.observedOutputs !== 0 ||
+      metabStatus?.pendingDeliveries !== 0 ||
+      sntss?.instanceId !==
+        R127_POST_RESTART_CONTINUITY.sntss.instanceId ||
+      sntss?.version !==
+        R127_POST_RESTART_CONTINUITY.sntss.version ||
+      sntss?.running !== true ||
+      sntss?.health?.mode !== 'SHADOW' ||
+      sntss?.authorityOwned !== false ||
+      sntss?.observedOutputs !== 0 ||
+      sntss?.pendingDeliveries !== 0 ||
+      chronobiology?.instanceId !==
+        R127_POST_RESTART_CONTINUITY.chronobiology.instanceId ||
+      chronobiology?.version !==
+        R127_POST_RESTART_CONTINUITY.chronobiology.version ||
+      chronobiology?.running !== true ||
+      chronobiology?.health?.mode !== 'SHADOW' ||
+      chronobiology?.authorityOwned !== false ||
+      chronobiology?.pendingDeliveries !== 0 ||
+      p1Authority.length !== 0 ||
+      pendingMetabOutbox !== 0 ||
+      fetusAuthority?.instanceId !==
+        R127_POST_RESTART_CONTINUITY.fetus.instanceId ||
+      fetusAuthority?.version !==
+        R127_POST_RESTART_CONTINUITY.fetus.version ||
+      fetusSlot?.active?.instanceId !==
+        R127_POST_RESTART_CONTINUITY.fetus.instanceId ||
+      fetusSlot?.active?.manifest?.version !==
+        R127_POST_RESTART_CONTINUITY.fetus.version ||
+      fetusSlot?.active?.mode !== 'active' ||
+      fetusSlot?.active?.health?.ok === false
+    ) {
+      throw Object.assign(
+        new Error('R128 METAB shadow continuity cohort failed closed'),
+        { code: 'P1_METAB_SHADOW_COHORT' }
+      );
+    }
+
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const founder = storage.readFounder({
+      organismId: this.identity.organismId,
+      coreId: 'METAB'
+    });
+    const dossier = storage.readBirthDossier('resident:metab');
+    const chip = storage.readChip('resident:metab');
+
+    if (
+      !founder ||
+      !dossier ||
+      chip?.currentState !== 'NEUTRAL' ||
+      chip?.mode !== 'NEUTRAL' ||
+      chip?.firstResidencyId !== 'resident:metab' ||
+      dossier.founderRecord?.founderId !== founder.founderId ||
+      dossier.founderRecord?.lineageId !== founder.lineageId ||
+      dossier.founderRecord?.profileHash !== founder.profileHash ||
+      metabCheckpoint.state?.founder?.founderId !== founder.founderId ||
+      metabCheckpoint.state?.founder?.lineageId !== founder.lineageId ||
+      metabCheckpoint.state?.founder?.profileHash !== founder.profileHash
+    ) {
+      throw Object.assign(
+        new Error('METAB founder or chip continuity is incomplete'),
+        { code: 'P1_METAB_SHADOW_LINEAGE' }
+      );
+    }
+
+    const binding = await this.ensureOrganismBinding({
+      allowCreate: false
+    });
+    const {
+      METAB_SHADOW_RESIDENT_CONTRACT
+    } = require('../p1-r0/metab-shadow-contract');
+
+    const unit = await manager.promoteMetabShadow({
+      moduleRelativePath:
+        'cores/p1-r0/metab-shadow/index.js',
+      binding,
+      shadowContract:
+        METAB_SHADOW_RESIDENT_CONTRACT,
+      acceptanceCommit:
+        this.metabShadowAcceptanceCommit(
+          storage,
+          'R128_SHADOW_ACCEPTED_OUTPUT_FIREWALLED',
+          parentFreeze.recordSha256
+        ),
+      publishActivation:
+        async ({ sourceCheckpoint, resident }) => {
+          const payload = {
+            protocol:
+              'stay-p1-r0-metab-shadow-activation-v1',
+            organismIdentityHash:
+              manager.organismIdentityHash,
+            residencyId: 'resident:metab',
+            instanceId: resident.instanceId,
+            fromVersion: resident.version,
+            fromStateSchema: resident.stateSchema,
+            sourceCheckpointGeneration:
+              sourceCheckpoint.generation,
+            sourceCheckpointHash:
+              `sha256:${sourceCheckpoint.blobHash}`,
+            toVersion:
+              METAB_SHADOW_RESIDENT_CONTRACT.version,
+            toStateSchema:
+              METAB_SHADOW_RESIDENT_CONTRACT.stateSchema,
+            runtimeRevision: this.runtimeRevision,
+            parentRevision:
+              R128_METAB_SHADOW.parentRevision,
+            parentFreezeRecordSha256:
+              parentFreeze.recordSha256,
+            mode: 'SHADOW',
+            authorityEpoch: '0',
+            outputPolicy:
+              R128_METAB_SHADOW.outputPolicy
+          };
+          const signalId =
+            `runtime.metab.shadow-activation:r128:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`;
+          const signal = createSignal({
+            signalId,
+            topic:
+              'runtime.metab.shadow-activation',
+            payload,
+            trustedTime: {
+              source: 'kernel',
+              observedAtMs:
+                Number(this.clock()),
+              pulseId:
+                `metab-shadow-activation-r128-g${sourceCheckpoint.generation}`
+            },
+            provenance: {
+              producerType: 'kernel',
+              producerId: 'living-kernel',
+              authorityEpoch:
+                this.runtimeRevision
+            },
+            durability: DURABILITY.DURABLE
+          });
+          return this.fabric.publishBiologicalSignal(
+            signal,
+            {
+              eventClass: 'critical',
+              sourceVersion: KERNEL_VERSION,
+              evidenceHash:
+                manager.organismIdentityHash
+            }
+          );
+        }
+    });
+
+    let initialCapacitySample =
+      await this.publishMetabCapacitySample();
+
+    /*
+     * The 250 ms trusted-time scheduler can have one pre-promotion no-op in
+     * flight while the durable generation swap completes. Retry that exact
+     * collision once without sleeping or widening a deadline. Any real
+     * source/time failure still reaches the acceptance fence below.
+     */
+    if (initialCapacitySample === false) {
+      initialCapacitySample =
+        await this.publishMetabCapacitySample();
+    }
+
+    const promoted = this.stateStore.getResident('resident:metab');
+    const checkpoint =
+      await this.stateStore.readResidentCheckpoint(
+        'resident:metab'
+      );
+    const status = await manager.status('resident:metab');
+    const consumer =
+      this.stateStore.getBiologicalConsumer(
+        'resident:metab'
+      );
+
+    if (
+      unit?.residencyId !== 'resident:metab' ||
+      promoted?.instanceId !== metabResident.instanceId ||
+      promoted?.version !== R128_METAB_SHADOW.shadowVersion ||
+      promoted?.stateSchema !== 2 ||
+      promoted?.status !== 'RUNNING' ||
+      checkpoint?.state?.activation?.sourceCheckpointHash !==
+        `sha256:${R128_METAB_SHADOW.neutralCheckpointHash}` ||
+      checkpoint?.state?.lastAcceptedFrame < 1 ||
+      checkpoint?.state?.engineState?.outputSequence !== '0' ||
+      status?.running !== true ||
+      status?.health?.mode !== 'SHADOW' ||
+      status?.health?.outputPolicy !==
+        R128_METAB_SHADOW.outputPolicy ||
+      status?.authorityOwned !== false ||
+      status?.observedOutputs !== 0 ||
+      status?.declaredOutputs !== 0 ||
+      status?.pendingDeliveries !== 0 ||
+      consumer?.active !== true ||
+      consumer?.required !== false ||
+      consumer?.authorityEpoch !== 0 ||
+      stableStringify(consumer?.topics) !==
+        stableStringify(METAB_SHADOW_RESIDENT_CONTRACT.inputs) ||
+      this.stateStore.getAuthority('METAB') !== null
+    ) {
+      throw Object.assign(
+        new Error('METAB shadow acceptance proof failed'),
+        { code: 'P1_METAB_SHADOW_ACCEPTANCE' }
+      );
+    }
+
+    this.metabShadowAcceptanceCommit(
+      storage,
+      'R128_SHADOW_RUNNING_OUTPUT_FIREWALLED',
+      parentFreeze.recordSha256
+    )({
+      checkpoint,
+      resident: promoted,
+      manifest: unit.manifest
+    });
+
+    this.statusCache = null;
+    await this.stateStore.appendJournal({
+      type: 'resident.metab-shadow-promotion',
+      at: new Date(Number(this.clock())).toISOString(),
+      residencyId: 'resident:metab',
+      instanceId: promoted.instanceId,
+      fromVersion:
+        R128_METAB_SHADOW.neutralVersion,
+      toVersion: promoted.version,
+      runtimeRevision: this.runtimeRevision,
+      parentFreezeRecordSha256:
+        parentFreeze.recordSha256,
+      sourceCheckpointHash:
+        R128_METAB_SHADOW.neutralCheckpointHash,
+      acceptedFrame:
+        checkpoint.state.lastAcceptedFrame,
+      authorityOwned: false,
+      observedOutputs: 0,
+      abandonedCount: 0,
+      inventedBiologicalTime: false
+    });
+
+    return unit;
+  }
+
+
+  async recoverMetabNeutralBirth() {
+    return this.birthMetabNeutral({ recovery: true });
+  }
+
+
+  async birthMetabNeutral({ recovery = false } = {}) {
+    if (!this.allowMetabNeutralBirth) {
+      throw Object.assign(
+        new Error('R124 METAB neutral birth is not enabled'),
+        { code: 'P1_METAB_BIRTH_NOT_AUTHORIZED' }
+      );
+    }
+
+    let recoveryFence = null;
+    if (recovery) {
+      if (!this.allowMetabNeutralRecovery) {
+        throw Object.assign(
+          new Error('R124 METAB forward recovery is not enabled'),
+          { code: 'P1_METAB_RECOVERY_NOT_AUTHORIZED' }
+        );
+      }
+      const exactR127RevisionPreservation =
+        this.runtimeRevision === 127 &&
+        this.metabNeutralRecoveryRevisionPreserved;
+      if (
+        this.runtimeRevision !== 126 &&
+        !exactR127RevisionPreservation
+      ) {
+        throw Object.assign(
+          new Error('METAB forward recovery is fenced to runtime R126 or the exact preserved R127 cohort'),
+          { code: 'P1_METAB_RECOVERY_REVISION' }
+        );
+      }
+      recoveryFence = this.metabNeutralRecoveryFenceReader({
+        markerFile: this.metabNeutralRecoveryMarkerFile,
+        expectedMarkerSha256: this.metabNeutralRecoveryMarkerSha256,
+        trustedUid: this.metabNeutralRecoveryTrustedUid
+      });
+      if (
+        !recoveryFence ||
+        recoveryFence.markerSha256 !== R124_METAB_RECOVERY.markerSha256 ||
+        recoveryFence.failureEvidence !== R124_METAB_RECOVERY.failureEvidence
+      ) {
+        throw Object.assign(
+          new Error('METAB forward recovery fence result is invalid'),
+          { code: 'P1_METAB_RECOVERY_MARKER' }
+        );
+      }
+    } else if (this.runtimeRevision !== 124) {
+      throw Object.assign(
+        new Error('METAB neutral birth is fenced to runtime R124'),
+        { code: 'P1_METAB_BIRTH_REVISION' }
+      );
+    }
+
+    const { readRevisionFreeze } =
+      require('../revision-freeze');
+    const parentFreeze =
+      readRevisionFreeze(123, {
+        directory: this.runtimeFreezeDirectory
+      });
+
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(
+        new Error('R123F parent freeze is absent or invalid'),
+        { code: 'P1_METAB_BIRTH_PARENT_FREEZE' }
+      );
+    }
+
+    const forbiddenResidents =
+      this.stateStore.listResidents().filter(resident =>
+        ['resident:homeos', 'resident:intero'].includes(
+          resident.residencyId
+        )
+      );
+
+    if (forbiddenResidents.length) {
+      throw Object.assign(
+        new Error('dependent P1 residents already exist'),
+        { code: 'P1_METAB_BIRTH_DEPENDENCY_FENCE' }
+      );
+    }
+
+    const forbiddenAuthority =
+      this.stateStore.listAuthority().filter(entry =>
+        ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+      );
+
+    if (forbiddenAuthority.length) {
+      throw Object.assign(
+        new Error('P1 authority already exists'),
+        { code: 'P1_METAB_BIRTH_AUTHORITY_FENCE' }
+      );
+    }
+
+    const manager =
+      this.ensureResidentManager();
+    const moduleRelativePath =
+      'cores/p1-r0/metab-neutral/index.js';
+    const inspected =
+      await manager.inspect(
+        moduleRelativePath,
+        'resident:metab'
+      );
+    const {
+      loadAndVerifyMetabNeutralBirth
+    } = require('../p1-r0/metab-neutral-birth-authority');
+    const authorization =
+      loadAndVerifyMetabNeutralBirth({
+        inspected,
+        identity: this.identity,
+        runtimeRevision: recovery ? 124 : this.runtimeRevision,
+        parentFreezeRecordSha256:
+          parentFreeze.recordSha256,
+        publicKeyPath:
+          this.metabNeutralBirthPublicKeyPath,
+        certificateFile:
+          this.metabNeutralBirthCertificateFile,
+        nowMs: Number(this.clock())
+      });
+    const binding =
+      await this.ensureOrganismBinding({
+        allowCreate: false
+      });
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage =
+      new P1ProductionPersistence({
+        stateStore: this.stateStore,
+        authorization:
+          PRODUCTION_STORAGE_AUTHORIZATION
+      }).initialize();
+    const {
+      createNeutralMetabInitialState
+    } = require('../p1-r0/residents/metab-neutral');
+    const initialState =
+      createNeutralMetabInitialState({
+        binding,
+        founder: authorization.founderBinding
+      });
+    const existing =
+      this.stateStore.getResident(
+        'resident:metab'
+      );
+    const committedFounder =
+      storage.readFounder({
+        organismId: this.identity.organismId,
+        coreId: 'METAB'
+      });
+    const committedDossier =
+      storage.readBirthDossier('resident:metab');
+
+    if (
+      recovery &&
+      (existing || committedFounder || committedDossier)
+    ) {
+      throw Object.assign(
+        new Error('R126 METAB forward recovery requires an empty birth cohort'),
+        { code: 'P1_METAB_RECOVERY_NOT_EMPTY' }
+      );
+    }
+
+    if (
+      committedFounder &&
+      stableStringify(committedFounder) !==
+        stableStringify(authorization.founderRecord)
+    ) {
+      throw Object.assign(
+        new Error('committed METAB founder disagrees with the signed dossier'),
+        { code: 'P1_METAB_BIRTH_FOUNDER_CONFLICT' }
+      );
+    }
+
+    if (
+      committedDossier &&
+      (
+        committedDossier.certificateId !==
+          authorization.certificateId ||
+        committedDossier.parentFreezeRecordSha256 !==
+          authorization.parentFreezeRecordSha256 ||
+        committedDossier.founderDossierSha256 !==
+          authorization.founderDossierSha256 ||
+        stableStringify(committedDossier.founderRecord) !==
+          stableStringify(authorization.founderRecord) ||
+        stableStringify(committedDossier.founderBinding) !==
+          stableStringify(authorization.founderBinding)
+      )
+    ) {
+      throw Object.assign(
+        new Error('committed METAB birth dossier disagrees with signed authority'),
+        { code: 'P1_METAB_BIRTH_DOSSIER_CONFLICT' }
+      );
+    }
+
+    const acceptanceCommit =
+      this.metabNeutralAcceptanceCommit(
+        storage,
+        recovery
+          ? this.metabNeutralRecoveryRevisionPreserved
+            ? 'R127_NEUTRAL_FORWARD_RECOVERED'
+            : 'R126_NEUTRAL_FORWARD_RECOVERED'
+          : existing
+          ? 'R124_NEUTRAL_RECOVERED'
+          : 'R124_NEUTRAL_ACCEPTED'
+      );
+    let unit;
+
+    if (existing) {
+      manager.verifyExistingIdentity(
+        existing,
+        inspected
+      );
+
+      if (!committedFounder || !committedDossier) {
+        throw Object.assign(
+          new Error('durable METAB residency has no committed founder dossier'),
+          { code: 'P1_METAB_BIRTH_DOSSIER_MISSING' }
+        );
+      }
+
+      if (manager.units.has('resident:metab')) {
+        const chip = storage.readChip('resident:metab');
+        if (
+          existing.status !== 'RUNNING' ||
+          !chip ||
+          chip.currentState !== 'NEUTRAL'
+        ) {
+          throw Object.assign(
+            new Error('running METAB acceptance evidence is incomplete'),
+            { code: 'P1_METAB_BIRTH_ACCEPTANCE_MISSING' }
+          );
+        }
+        unit = manager.units.get('resident:metab');
+      } else {
+        const checkpoint =
+          await this.stateStore.readResidentCheckpoint(
+            'resident:metab'
+          );
+        unit = checkpoint
+          ? await manager.recover(
+              'resident:metab',
+              binding,
+              { acceptanceCommit }
+            )
+          : await manager.resumeInitialAttachment({
+              residencyId: 'resident:metab',
+              binding,
+              initialState,
+              acceptanceCommit
+            });
+      }
+    } else {
+      const instanceDigest =
+        crypto.createHash('sha256')
+          .update(authorization.certificateId)
+          .digest();
+      instanceDigest[6] =
+        (instanceDigest[6] & 0x0f) | 0x40;
+      instanceDigest[8] =
+        (instanceDigest[8] & 0x3f) | 0x80;
+      const instanceHex =
+        instanceDigest.subarray(0, 16).toString('hex');
+      const instanceId = [
+        instanceHex.slice(0, 8),
+        instanceHex.slice(8, 12),
+        instanceHex.slice(12, 16),
+        instanceHex.slice(16, 20),
+        instanceHex.slice(20)
+      ].join('-');
+
+      unit = await manager.attach({
+        moduleRelativePath,
+        binding,
+        initialState,
+        instanceId,
+        registerResident: registration =>
+          storage.commitNeutralBirth({
+            founder:
+              authorization.founderRecord,
+            resident:
+              registration,
+            authorization
+          }).resident,
+        acceptanceCommit
+      });
+    }
+
+    const status =
+      await manager.status('resident:metab');
+    const consumer =
+      this.stateStore.getBiologicalConsumer(
+        'resident:metab'
+      );
+    const authority =
+      this.stateStore.getAuthority('METAB');
+
+    if (
+      status.status !== 'RUNNING' ||
+      status.authorityOwned !== false ||
+      status.observedOutputs !== 0 ||
+      status.health?.mode !== 'NEUTRAL' ||
+      authority !== null ||
+      !consumer ||
+      stableStringify(consumer.topics) !==
+        stableStringify(['runtime.organism.binding']) ||
+      consumer.authorityEpoch !== 0
+    ) {
+      throw Object.assign(
+        new Error('METAB neutral post-birth containment proof failed'),
+        { code: 'P1_METAB_BIRTH_CONTAINMENT' }
+      );
+    }
+
+    this.statusCache = null;
+    await this.stateStore.appendJournal({
+      type: 'resident.metab-neutral-birth',
+      at: new Date(Number(this.clock())).toISOString(),
+      residencyId: 'resident:metab',
+      version: status.version,
+      runtimeRevision: this.runtimeRevision,
+      parentFreezeRecordSha256:
+        parentFreeze.recordSha256,
+      certificateId:
+        authorization.certificateId,
+      founderDossierSha256:
+        authorization.founderDossierSha256,
+      recoveryMarkerSha256:
+        recoveryFence?.markerSha256 || null,
+      certificateTargetRevision:
+        authorization.targetRevision,
+      authorityOwned: false,
+      observedOutputs: 0
+    });
+
+    if (this.metabNeutralRecoveryRevisionPreserved) {
+      this.metabNeutralRecoveryCompletedAtPreservedRevision = true;
+    }
 
     return unit;
   }
@@ -1482,10 +3482,177 @@ class LivingKernel {
       }
 
       try {
-        await manager.recover(
-          resident.residencyId,
-          binding
-        );
+        let recoveryOptions;
+        let resumeInitialState = null;
+
+        if (
+          resident.residencyId === 'resident:metab' &&
+          resident.coreId === 'METAB' &&
+          resident.version === '0.1.0-p1r0-neutral.1' &&
+          resident.stateSchema === 1 &&
+          resident.moduleRelativePath ===
+            'cores/p1-r0/metab-neutral/index.js'
+        ) {
+          const {
+            PRODUCTION_STORAGE_AUTHORIZATION,
+            P1ProductionPersistence
+          } = require('../p1-r0/production-persistence');
+          const storage =
+            new P1ProductionPersistence({
+              stateStore: this.stateStore,
+              authorization:
+                PRODUCTION_STORAGE_AUTHORIZATION
+            }).initialize();
+          const founder =
+            storage.readFounder({
+              organismId:
+                this.identity.organismId,
+              coreId: 'METAB'
+            });
+          const dossier =
+            storage.readBirthDossier(
+              'resident:metab'
+            );
+
+          if (!founder || !dossier) {
+            throw Object.assign(
+              new Error('durable neutral METAB resident has no founder dossier'),
+              { code: 'P1_METAB_RECOVERY_DOSSIER_MISSING' }
+            );
+          }
+
+          const { readRevisionFreeze } =
+            require('../revision-freeze');
+          const parentFreeze =
+            readRevisionFreeze(123, {
+              directory:
+                this.runtimeFreezeDirectory
+            });
+
+          if (
+            !parentFreeze.frozen ||
+            parentFreeze.recordSha256 !==
+              dossier.parentFreezeRecordSha256
+          ) {
+            throw Object.assign(
+              new Error('neutral METAB recovery parent freeze disagrees with birth dossier'),
+              { code: 'P1_METAB_RECOVERY_PARENT_FREEZE' }
+            );
+          }
+
+          recoveryOptions = {
+            acceptanceCommit:
+              this.metabNeutralAcceptanceCommit(
+                storage,
+                'R124_NEUTRAL_FORWARD_RECOVERED'
+              )
+          };
+
+          if (
+            resident.status === 'ATTACHED' &&
+            !await this.stateStore
+              .readResidentCheckpoint(
+                resident.residencyId
+              )
+          ) {
+            const {
+              createNeutralMetabInitialState
+            } = require('../p1-r0/residents/metab-neutral');
+            resumeInitialState =
+              createNeutralMetabInitialState({
+                binding,
+                founder:
+                  dossier.founderBinding
+              });
+          }
+        } else if (
+          resident.residencyId === 'resident:metab' &&
+          resident.coreId === 'METAB' &&
+          resident.version ===
+            R128_METAB_SHADOW.shadowVersion &&
+          resident.stateSchema === 2 &&
+          resident.moduleRelativePath ===
+            'cores/p1-r0/metab-shadow/index.js'
+        ) {
+          const {
+            PRODUCTION_STORAGE_AUTHORIZATION,
+            P1ProductionPersistence
+          } = require('../p1-r0/production-persistence');
+          const storage =
+            new P1ProductionPersistence({
+              stateStore: this.stateStore,
+              authorization:
+                PRODUCTION_STORAGE_AUTHORIZATION
+            }).initialize();
+          const founder = storage.readFounder({
+            organismId: this.identity.organismId,
+            coreId: 'METAB'
+          });
+          const dossier =
+            storage.readBirthDossier('resident:metab');
+          const chip =
+            storage.readChip('resident:metab');
+          const { readRevisionFreeze } =
+            require('../revision-freeze');
+          const birthFreeze =
+            readRevisionFreeze(123, {
+              directory:
+                this.runtimeFreezeDirectory
+            });
+          const shadowFreeze =
+            readRevisionFreeze(127, {
+              directory:
+                this.runtimeFreezeDirectory
+            });
+
+          if (
+            !founder ||
+            !dossier ||
+            !birthFreeze.frozen ||
+            birthFreeze.recordSha256 !==
+              dossier.parentFreezeRecordSha256 ||
+            !shadowFreeze.frozen ||
+            !shadowFreeze.recordSha256 ||
+            !chip ||
+            !['NEUTRAL', 'SHADOW'].includes(
+              chip.currentState
+            ) ||
+            chip.firstResidencyId !==
+              'resident:metab'
+          ) {
+            throw Object.assign(
+              new Error('durable shadow METAB continuity evidence is incomplete'),
+              { code: 'P1_METAB_SHADOW_RECOVERY_EVIDENCE' }
+            );
+          }
+
+          recoveryOptions = {
+            acceptanceCommit:
+              this.metabShadowAcceptanceCommit(
+                storage,
+                `R${this.runtimeRevision}_SHADOW_RECOVERED_OUTPUT_FIREWALLED`,
+                shadowFreeze.recordSha256
+              )
+          };
+        }
+
+        if (resumeInitialState) {
+          await manager.resumeInitialAttachment({
+            residencyId:
+              resident.residencyId,
+            binding,
+            initialState:
+              resumeInitialState,
+            acceptanceCommit:
+              recoveryOptions.acceptanceCommit
+          });
+        } else {
+          await manager.recover(
+            resident.residencyId,
+            binding,
+            recoveryOptions
+          );
+        }
 
         results.push({
           residencyId:
@@ -1895,6 +4062,281 @@ class LivingKernel {
     });
   }
 
+  async publishMetabCapacitySample() {
+    if (this.metabCapacitySourcePromise) {
+      return this.metabCapacitySourcePromise;
+    }
+
+    const operation =
+      this.runMetabCapacitySample();
+
+    this.metabCapacitySourcePromise =
+      operation;
+
+    try {
+      return await operation;
+    } finally {
+      if (this.metabCapacitySourcePromise === operation) {
+        this.metabCapacitySourcePromise = null;
+      }
+    }
+  }
+
+  async runMetabCapacitySample() {
+    const resident =
+      this.stateStore.getResident('resident:metab');
+    const manager = this.residentManager;
+
+    if (
+      !manager ||
+      resident?.version !==
+        R128_METAB_SHADOW.shadowVersion ||
+      resident?.stateSchema !== 2 ||
+      resident?.moduleRelativePath !==
+        'cores/p1-r0/metab-shadow/index.js' ||
+      resident?.status !== 'RUNNING' ||
+      !manager.units.has('resident:metab')
+    ) {
+      return false;
+    }
+
+    const {
+      SOURCE_CORE_ID,
+      SOURCE_STATE_KEY,
+      SOURCE_VERSION,
+      commitCapacitySample,
+      createCapacitySourceState,
+      stageCapacitySample,
+      validateCapacitySourceState
+    } = require('../p1-r0/metab-capacity-source');
+
+    let sourceState =
+      await this.stateStore.readLife(
+        SOURCE_STATE_KEY,
+        null
+      );
+    let checkpoint =
+      await this.stateStore.readResidentCheckpoint(
+        'resident:metab'
+      );
+
+    if (!sourceState) {
+      if (
+        checkpoint?.state?.lastAcceptedFrame !== 0 ||
+        checkpoint?.state?.lastAcceptedTimeMs !== null ||
+        checkpoint?.state?.pendingEligible !== null ||
+        checkpoint?.state?.pendingQuality !== null
+      ) {
+        throw Object.assign(
+          new Error('METAB capacity source history is missing'),
+          { code: 'P1_METAB_CAPACITY_SOURCE_STATE' }
+        );
+      }
+      sourceState = createCapacitySourceState({
+        instanceId: resident.instanceId,
+        residentVersion: resident.version
+      });
+      await this.stateStore.writeLife(
+        SOURCE_STATE_KEY,
+        sourceState
+      );
+    } else {
+      sourceState = validateCapacitySourceState(
+        sourceState,
+        {
+          instanceId: resident.instanceId,
+          residentVersion: resident.version
+        }
+      );
+    }
+
+    const checkpointFrame =
+      Number(checkpoint?.state?.lastAcceptedFrame);
+    const allowedCheckpointFrames =
+      sourceState.pending
+        ? [
+            sourceState.lastCommittedFrame,
+            sourceState.pending.sampleFrame
+          ]
+        : [sourceState.lastCommittedFrame];
+
+    if (
+      !allowedCheckpointFrames.includes(checkpointFrame) ||
+      checkpoint?.state?.engineState?.outputSequence !== '0'
+    ) {
+      throw Object.assign(
+        new Error('METAB capacity source disagrees with committed physiology'),
+        { code: 'P1_METAB_CAPACITY_SOURCE_STATE' }
+      );
+    }
+
+    if (!sourceState.pending) {
+      const evidence =
+        await this.sampleTrustedTimeEvidence();
+
+      if (
+        evidence.status !== 'TRUSTED' ||
+        !Number.isSafeInteger(evidence.trustedTimeUs)
+      ) {
+        this.lastMetabCapacitySource = Object.freeze({
+          ok: false,
+          reasonCode:
+            evidence.reasonCode ||
+            'TRUSTED_TIME_UNCERTAIN',
+          lastCommittedFrame:
+            sourceState.lastCommittedFrame,
+          pendingFrame: null
+        });
+        return false;
+      }
+
+      const staged = stageCapacitySample(
+        sourceState,
+        {
+          trustedTimeUs:
+            evidence.trustedTimeUs,
+          continuityEpoch:
+            evidence.continuityEpoch,
+          metrics:
+            this.metabCapacitySampler()
+        }
+      );
+
+      if (!staged.pending) {
+        this.lastMetabCapacitySource = Object.freeze({
+          ok: true,
+          reasonCode:
+            'FRAME_INTERVAL_NOT_REACHED',
+          lastCommittedFrame:
+            sourceState.lastCommittedFrame,
+          pendingFrame: null
+        });
+        return false;
+      }
+
+      sourceState = staged;
+      await this.stateStore.writeLife(
+        SOURCE_STATE_KEY,
+        sourceState
+      );
+    }
+
+    const pending = sourceState.pending;
+    const trustedTime = {
+      source: 'kernel',
+      observedAtMs: pending.observedAtMs,
+      pulseId: pending.pulseId
+    };
+    const provenance = {
+      producerType: 'kernel',
+      producerId: SOURCE_CORE_ID,
+      authorityEpoch: 0
+    };
+    const eligibleSignal = createSignal({
+      signalId: pending.eligibleSignalId,
+      topic: 'resource.capacity.eligible.v1',
+      payload: pending.eligiblePayload,
+      trustedTime,
+      provenance,
+      durability: DURABILITY.DURABLE
+    });
+    const qualitySignal = deriveSignal(
+      eligibleSignal,
+      {
+        signalId: pending.qualitySignalId,
+        topic: 'resource.capacity.quality.v1',
+        payload: pending.qualityPayload,
+        trustedTime,
+        provenance,
+        durability: DURABILITY.DURABLE
+      }
+    );
+
+    const eligibleEvent =
+      await this.fabric.publishBiologicalSignal(
+        eligibleSignal,
+        {
+          eventClass: 'durable',
+          sourceVersion: SOURCE_VERSION
+        }
+      );
+    const qualityEvent =
+      await this.fabric.publishBiologicalSignal(
+        qualitySignal,
+        {
+          eventClass: 'durable',
+          sourceVersion: SOURCE_VERSION
+        }
+      );
+
+    await manager.drain(
+      'resident:metab',
+      qualityEvent.sequence
+    );
+
+    const eligibleDelivery =
+      this.stateStore.getBiologicalDelivery(
+        'resident:metab',
+        eligibleEvent.sequence
+      );
+    const qualityDelivery =
+      this.stateStore.getBiologicalDelivery(
+        'resident:metab',
+        qualityEvent.sequence
+      );
+    checkpoint =
+      await this.stateStore.readResidentCheckpoint(
+        'resident:metab'
+      );
+
+    if (
+      eligibleDelivery?.status !== 'ACKED' ||
+      qualityDelivery?.status !== 'ACKED' ||
+      checkpoint?.state?.lastAcceptedFrame !==
+        pending.sampleFrame ||
+      checkpoint?.state?.lastAcceptedTimeMs !==
+        pending.observedAtMs ||
+      checkpoint?.state?.engineState?.frameIndex !==
+        pending.sampleFrame ||
+      checkpoint?.state?.engineState?.outputSequence !== '0' ||
+      checkpoint?.state?.pendingEligible !== null ||
+      checkpoint?.state?.pendingQuality !== null ||
+      this.stateStore.getAuthority('METAB') !== null ||
+      Number(this.stateStore.db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM biological_outbox_intents
+        WHERE producer_core_id='METAB'
+      `).get()?.count || 0) !== 0
+    ) {
+      throw Object.assign(
+        new Error('METAB capacity pair did not commit atomically into contained physiology'),
+        { code: 'P1_METAB_CAPACITY_COMMIT' }
+      );
+    }
+
+    sourceState = commitCapacitySample(sourceState);
+    await this.stateStore.writeLife(
+      SOURCE_STATE_KEY,
+      sourceState
+    );
+    this.lastMetabCapacitySource = Object.freeze({
+      ok: true,
+      reasonCode: null,
+      lastCommittedFrame:
+        sourceState.lastCommittedFrame,
+      continuityEpoch:
+        sourceState.lastContinuityEpoch,
+      pendingFrame: null,
+      eligibleSequence:
+        eligibleEvent.sequence,
+      qualitySequence:
+        qualityEvent.sequence
+    });
+    this.statusCache = null;
+
+    return true;
+  }
+
   async stageCoreUpgrade(modulePath) {
     const unit = await this.upgrades.stage(path.resolve(modulePath));
     await this.bumpRuntimeRevision('core.stage', {
@@ -1991,6 +4433,8 @@ class LivingKernel {
       eventFabric: this.fabric.status(),
       biologicalLedger: this.stateStore.biologicalLedgerStatus(),
       biologicalRetention: this.lastBiologicalRetention,
+      metabCapacitySource:
+        this.lastMetabCapacitySource,
       authority: this.stateStore.listAuthority(),
       computeFabric: this.computeFabric.status()
     };
@@ -2103,4 +4547,11 @@ class LivingKernel {
   }
 }
 
-module.exports = { LivingKernel, KERNEL_VERSION };
+module.exports = {
+  LivingKernel,
+  KERNEL_VERSION,
+  R124_METAB_RECOVERY,
+  R128_METAB_SHADOW,
+  defaultMetabCapacitySampler,
+  readR124MetabRecoveryFence
+};
