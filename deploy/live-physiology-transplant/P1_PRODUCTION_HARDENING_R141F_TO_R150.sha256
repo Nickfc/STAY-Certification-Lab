@@ -12,7 +12,7 @@ f2c862448ff10cefde5826a67d5bddc69910cba2c7b5e146921b4fcfec66c2cc  ./cores/p1-r0/
 f37ec219a951bc87c4837a93e0f78e348f2c21f3f84ef5bea7de97870597a173  ./cores/p1-r0/metab-homeos/package-policy.json
 3438b7327c9cdd1ba43fe05b41cdd4380ecb1d18d81ae633f37c4548324f8f55  ./cores/p1-r0/metab-intero/index.js
 ce875cc67320754faa44306bc4c8a6af1c6d54bfb54bdbb0bb65a3e8d2581f46  ./cores/p1-r0/metab-intero/package-policy.json
-89894af0b2c9cdbce6f176c3e6dcac23462636cf72fce25249aa8cc4b1295279  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh
+740f426d4883e356200bded52dcf35cd270df213cb66e7e933daf05d4fd3373d  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh
 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh
 3a4ea28e83890e86b4a429e9efdc861f7b831e3a2141c81ef540b61d51a0a7f7  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js
 2fb762bfb2dcbf4eeb03b37df0ba0e8da8388a3dc1de05c84cb2a93605ac62cc  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js
@@ -61,6 +61,6 @@ f1615103adc03bfdb46aeffafb1afa302f398440eb62e1b0a834bf2a02e3f802  ./test/p1-r135
 ae96c03ab38750395a2f67e9eee1b80da23410f5bffc62e209421a3b924fe424  ./test/p1-r143-homeos-neutral-birth.test.js
 735846db68f734f723f6ec19fc31f009157e310b06cb724047258d52d493d762  ./test/p1-r145-homeos-shadow.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
-249c5a7b701a2481f5128ab70042c269a84d23379466e8d51cb8ef5ba05caa03  ./test/p1-r150-production-gates.test.js
+f71ea70519c7b2a07efa7e23dac3cab63a39308019c808e7fabd31b184e3066d  ./test/p1-r150-production-gates.test.js
 36d3746d72d0d3b7d0b4e0c385cbf6f0e7f6151feb117c59c726b51bbe31bdc0  ./test/p1-surgery-a-transplant.test.js
 32d6f4ab1a9b6f162d757c673938f4c6b1464187667811cb5b440ee894053212  ./tools/sign-p1-r0-expansion-birth.js

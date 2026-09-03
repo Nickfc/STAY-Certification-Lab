@@ -170,6 +170,8 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
   assert.match(forward, /point_current "\$SOURCE_RELEASE"/);
   assert.match(recovery, /durable-revision-outside-recovery-fence/);
   assert.doesNotMatch(recovery, /point_current/);
+  assert.match(recovery,
+    /-S "\$SOCKET" && ! -L "\$SOCKET" \]\] &&\s*curl --fail --silent --max-time 1 http:\/\/127\.0\.0\.1:8787\/healthz \|\s*grep -q "\\"revision\\":\$TARGET_REVISION"; then\s*need_restart=0/);
   for (const token of [
     'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY',
     'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY',

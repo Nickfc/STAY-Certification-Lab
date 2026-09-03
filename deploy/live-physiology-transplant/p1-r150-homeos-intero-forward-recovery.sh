@@ -201,7 +201,9 @@ fi
 need_restart=1
 if [[ "$CURRENT_REVISION" -eq "$TARGET_REVISION" && "$recovery_before_pid" =~ ^[1-9][0-9]*$ &&
   "$(systemctl show stay.service -p ActiveState --value)" == active &&
-  "$(systemctl show stay.service -p SubState --value)" == running && -S "$SOCKET" && ! -L "$SOCKET" ]]; then
+  "$(systemctl show stay.service -p SubState --value)" == running && -S "$SOCKET" && ! -L "$SOCKET" ]] &&
+  curl --fail --silent --max-time 1 http://127.0.0.1:8787/healthz |
+    grep -q "\"revision\":$TARGET_REVISION"; then
   need_restart=0
 fi
 if [[ "$need_restart" -eq 1 ]]; then
