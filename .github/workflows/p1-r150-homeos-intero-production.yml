@@ -30,23 +30,23 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-homeos-intero-v1-production
+  group: stay-r150-homeos-intero-v2-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v1
-  RELEASE_TAG_OBJECT: 7235c7522df72842132847fe67304f8aec0188a7
-  RELEASE_COMMIT: 31739a53ee607e9439363b4e57466794e909ba3f
-  RELEASE_TREE: 3628fde0d1055e128e74fc65f3dbba4d584a836a
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V1_BUNDLE_20260903.tar.gz
-  ARCHIVE_SHA256: 2659dd92c37015b2f7a89e02e59d38ea94cd6d498e3a4e10205f09c712adf403
-  SIDECAR_SHA256: ad557b7981660f4156ef56c36b12250407eca016e5849d2ae4a77b9d136da933
-  MANIFEST_SHA256: 130376cf30dda32159c8f719492fbbd226c6a029f74e19488a77a4adaad175d6
+  RELEASE_TAG: r150-homeos-intero-shadow-v2
+  RELEASE_TAG_OBJECT: b6e9e00ae74ca6652cf86ab353b85e4c07ef0b40
+  RELEASE_COMMIT: 110391ad336238008dd8d2a25dbe7a205a10a826
+  RELEASE_TREE: aa765cf91f0fed6cd8cb20315eba98db5c6cb7af
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V2_BUNDLE_20260903.tar.gz
+  ARCHIVE_SHA256: d786818cc7dd2c74b134424cab6133a3fe28c48119b96110cbcbe54a922e1d38
+  SIDECAR_SHA256: fa967d3464ac28057da1d4a5575a17bf677423bdd93e0d958c35c3eaca3cdaad
+  MANIFEST_SHA256: 6f4b674e40097a4be6844fa7b9600e28f8921b7921af58718aa9e431d942b537
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
   RECOVERY_SHA256: c4d2ae425c3a7ca9e627b329daca26b3cbb789457277e11ce45490a7c52502b7
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-130376cf30dd
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-6f4b674e4009
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
-  WRAPPER_SHA256: 65e6c81f8784759741000661e774963f8a214e28593beac5c8797b5965ddafd4
+  WRAPPER_SHA256: 562a5a60f193d182e95f983f587e085aaac1a08deb43f55668dc8f34af74244d
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -173,7 +173,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r150-homeos-intero-v1-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v2-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}.sha256
@@ -191,7 +191,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r150-homeos-intero-v1-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v2-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -296,7 +296,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v1-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v2-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -315,7 +315,7 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
           set -euo pipefail
           root="$1"; stage="$2"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v1-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           expected=3; [[ -n "$stage" ]] && expected=5
           [[ "$(find "$root" -maxdepth 1 -type f | wc -l)" -eq "$expected" ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy \) -print -quit)" ]]
