@@ -1,0 +1,384 @@
+name: R128 METAB output-firewalled shadow production
+run-name: R128 METAB shadow · ${{ inputs.operation }} · ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Fixed revision-fenced operation
+        required: true
+        type: choice
+        default: harden-r128
+        options:
+          - harden-r128
+          - recover-r128
+      authorization:
+        description: Exact operation-specific authorization
+        required: true
+        type: choice
+        default: NO
+        options:
+          - NO
+          - AUTHORIZE_R128_METAB_OUTPUT_FIREWALLED_SHADOW_V1
+          - AUTHORIZE_R128_METAB_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stay-r128-metab-shadow-v1-production
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: r128-metab-shadow-v1
+  RELEASE_TAG_OBJECT: 90eb1d9ac72ad62702099df3b4b62aabb1e0bb9e
+  RELEASE_COMMIT: 92d60d0a650b5d43b39957563e0eb0e1de9c22a9
+  RELEASE_TREE: 5dc3ca17509777cf8a8b2c6e6b77888ae85da617
+  ARCHIVE: STAY_P1_R128_METAB_SHADOW_V1_BUNDLE_20260903.tar.gz
+  ARCHIVE_SHA256: fb39dbe1769fcb4735af2df517a95e915565ca8aa8914030b00a39aadb0a855e
+  SIDECAR_SHA256: 52207912dcafd1e50e7c9e9ac8ad200227ffed2ec7be59a106cc175bc5698f6c
+  MANIFEST_SHA256: 70b7e3055a789adc91cfe46f6e25ff1fc7662d88d2c642da580e4d46e554a34d
+  FORWARD_SHA256: e4816b25c3a52b5ae3ec0f2f64f6a009013296d8b951b7a596a062ba5a6b8386
+  RECOVERY_SHA256: 0f63e520019640402b0b71cba02302144e489852cbf59819b88826f39c874c6f
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r128-metab-shadow-70b7e3055a78
+  SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r127-metab-final-fb27ce309f77
+  WRAPPER_SHA256: df7172ea545bb882450f81326765ea165dc90c6a3a15349bb88035b1a52925c6
+  PRODUCTION_PUBLIC_IPV4: 35.157.242.167
+  PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+  PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
+
+jobs:
+  validate-immutable-release:
+    name: Validate immutable release without production credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate fixed dispatch
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          case "$OPERATION" in
+            harden-r128)
+              [[ "$AUTHORIZATION" == AUTHORIZE_R128_METAB_OUTPUT_FIREWALLED_SHADOW_V1 ]]
+              ;;
+            recover-r128)
+              [[ "$AUTHORIZATION" == AUTHORIZE_R128_METAB_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1 ]]
+              ;;
+            *) exit 64 ;;
+          esac
+      - name: Checkout exact certified release
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.RELEASE_COMMIT }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: release-source
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Install real OS sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap
+          sudo tee /usr/local/bin/stay-ci-bwrap >/dev/null <<'EOF'
+          #!/bin/sh
+          exec sudo -n /usr/bin/bwrap "$@"
+          EOF
+          sudo chown root:root /usr/local/bin/stay-ci-bwrap
+          sudo chmod 0755 /usr/local/bin/stay-ci-bwrap
+          sudo -n true
+      - name: Download and validate hosted immutable archive
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/r128-metab-shadow-release"
+          extract="$root/extract"
+          install -d -m 0700 "$root" "$extract"
+          [[ "$(git -C release-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
+          [[ "$(git -C release-source rev-parse HEAD^{tree})" == "$RELEASE_TREE" ]]
+          read -r ref_type ref_sha < <(
+            gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+              --jq '.object.type + " " + .object.sha'
+          )
+          [[ "$ref_type" == tag && "$ref_sha" == "$RELEASE_TAG_OBJECT" ]]
+          read -r target_type target_sha < <(
+            gh api "repos/$GITHUB_REPOSITORY/git/tags/$RELEASE_TAG_OBJECT" \
+              --jq '.object.type + " " + .object.sha'
+          )
+          [[ "$target_type" == commit && "$target_sha" == "$RELEASE_COMMIT" ]]
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" --dir "$root"
+          [[ "$(sha256sum "$root/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
+          (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
+          mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
+          [[ "${#entries[@]}" -gt 54 ]]
+          [[ "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq "${#entries[@]}" ]]
+          for entry in "${entries[@]}"; do
+            [[ -n "$entry" && "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) &&
+              "$entry" != *\\* && ! "$entry" =~ ^[A-Za-z]: ]]
+          done
+          tar -tvzf "$root/$ARCHIVE" |
+            awk 'substr($1,1,1) !~ /[-d]/ {bad=1} END {exit bad}'
+          tar -xzf "$root/$ARCHIVE" -C "$extract"
+          manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R127F_TO_R128.sha256'
+          [[ "$(find "$extract" -type f | wc -l)" -eq 54 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 53 ]]
+          [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r128-metab-shadow-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r128-metab-shadow-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
+          (cd "$extract" && sha256sum -c "$manifest")
+          { awk '{sub(/^\.\//,"",$2); print $2}' "$extract/$manifest"; echo "$manifest"; } |
+            LC_ALL=C sort > "$root/expected"
+          (cd "$extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/actual"
+          cmp "$root/expected" "$root/actual"
+          while IFS= read -r file; do
+            case "$file" in
+              *.js) node --check "$extract/$file" >/dev/null ;;
+              *.sh) bash -n "$extract/$file" ;;
+            esac
+            cmp "$extract/$file" "release-source/$file"
+          done < "$root/actual"
+          node --test --test-concurrency=1 "$extract/test/p1-r128-release-contract.test.js"
+          cat > "$root/R128_RELEASE.identity" <<EOF
+          RELEASE_TAG=$RELEASE_TAG
+          RELEASE_TAG_OBJECT=$RELEASE_TAG_OBJECT
+          RELEASE_COMMIT=$RELEASE_COMMIT
+          RELEASE_TREE=$RELEASE_TREE
+          ARCHIVE_SHA256=$ARCHIVE_SHA256
+          SIDECAR_SHA256=$SIDECAR_SHA256
+          MANIFEST_SHA256=$MANIFEST_SHA256
+          FORWARD_SHA256=$FORWARD_SHA256
+          RECOVERY_SHA256=$RECOVERY_SHA256
+          TARGET_RELEASE=$TARGET_RELEASE
+          EOF
+      - name: Prepare sandbox-readable validation tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-hardlinks release-source /tmp/stay-r128-validation-source
+          [[ "$(git -C /tmp/stay-r128-validation-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
+          [[ -z "$(git -C /tmp/stay-r128-validation-source status --porcelain)" ]]
+          find /tmp/stay-r128-validation-source -type d -exec chmod a+rx {} +
+      - name: Run focused and real entry-path regressions
+        shell: bash
+        working-directory: /tmp/stay-r128-validation-source
+        run: |
+          set -euo pipefail
+          STAY_BWRAP=/usr/local/bin/stay-ci-bwrap node --disable-sigusr1 --test \
+            --test-isolation=none --test-concurrency=1 \
+            test/p1-r128-metab-shadow.test.js test/p1-r128-release-contract.test.js
+          STAY_BWRAP=/usr/local/bin/stay-ci-bwrap node --test --test-concurrency=1 \
+            --test-name-pattern='the real preflight CLI entry passes through Bubblewrap on Linux' \
+            test/production-hardening-entry-path.test.js
+          NODE_ENV=production STAY_BWRAP=/usr/local/bin/stay-ci-bwrap \
+            STAY_R128_REAL_ENTRY=1 STAY_REQUIRE_OS_CORE_SANDBOX=1 \
+            STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=0 \
+            node --disable-sigusr1 --test --test-isolation=none --test-concurrency=1 \
+            --test-name-pattern='^R128-METAB-ENTRY-09' test/p1-r128-metab-shadow.test.js
+      - name: Upload independently validated release inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r128-metab-shadow-v1-validated-release-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/r128-metab-shadow-release/${{ env.ARCHIVE }}
+            ${{ runner.temp }}/r128-metab-shadow-release/${{ env.ARCHIVE }}.sha256
+            ${{ runner.temp }}/r128-metab-shadow-release/R128_RELEASE.identity
+          if-no-files-found: error
+          retention-days: 7
+
+  production-transition:
+    name: Read-only preflight and pinned production transition
+    needs: validate-immutable-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Download validated release inputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: r128-metab-shadow-v1-validated-release-${{ github.run_id }}
+          path: release-assets
+      - name: Reverify isolated deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=$'R128_RELEASE.identity\n'"$ARCHIVE"$'\n'"$ARCHIVE.sha256"
+          [[ "$(find release-assets -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
+          (cd release-assets && sha256sum -c "$ARCHIVE.sha256")
+      - name: Prepare pinned production SSH identity
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
+      - name: Exact read-only production preflight
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          set -euo pipefail
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$PRODUCTION_PRIVATE_IPV4" "$WRAPPER_SHA256" "$OPERATION" \
+            "$SOURCE_RELEASE" "$TARGET_RELEASE" <<'REMOTE'
+          set -Eeuo pipefail
+          expected_ip="$1"; wrapper_sha="$2"; operation="$3"; source_release="$4"; target_release="$5"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == "$expected_ip" ]]
+          [[ -f /usr/local/sbin/stay-p1-production-controller &&
+            ! -L /usr/local/sbin/stay-p1-production-controller &&
+            "$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print $1}')" == "$wrapper_sha" ]]
+          case "$operation" in
+            harden-r128) expected_release="$source_release"; expected_revision=127 ;;
+            recover-r128) expected_release="$target_release"; expected_revision='' ;;
+            *) exit 64 ;;
+          esac
+          [[ "$(readlink -f /opt/stay/current)" == "$expected_release" ]]
+          active="$(systemctl show stay.service -p ActiveState --value)"
+          sub="$(systemctl show stay.service -p SubState --value)"
+          pid="$(systemctl show stay.service -p MainPID --value)"
+          restarts="$(systemctl show stay.service -p NRestarts --value)"
+          [[ "$active" == active && "$sub" == running && "$pid" =~ ^[1-9][0-9]*$ && "$restarts" =~ ^[0-9]+$ ]]
+          [[ "$(systemctl show stay.service -p User --value)" == staydeploy ]]
+          [[ "$(systemctl show stay.service -p Group --value)" == staydeploy ]]
+          snapshot="$(node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
+          'use strict';
+          const crypto=require('node:crypto'); const fs=require('node:fs'); const path=require('node:path');
+          const {DatabaseSync}=require('node:sqlite'); const file=process.argv[2];
+          const db=new DatabaseSync(file,{open:true,readOnly:true});
+          try {
+            db.exec('PRAGMA query_only=ON; BEGIN');
+            const quick=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase();
+            const revisionRow=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get();
+            if(!revisionRow||crypto.createHash('sha256').update(revisionRow.json).digest('hex')!==revisionRow.sha256)process.exit(2);
+            const revision=Number(JSON.parse(revisionRow.json).revision);
+            const residents=db.prepare(`SELECT residency_id,instance_id,version,state_schema,module_relative_path,
+              checkpoint_hash,checkpoint_generation,status FROM resident_instances
+              WHERE residency_id IN ('resident:sntss','resident:chronobiology','resident:metab')
+              ORDER BY residency_id`).all();
+            const metab=residents.find(v=>v.residency_id==='resident:metab');
+            const checkpoint=db.prepare(`SELECT generation,blob_hash,byte_length,input_cursor FROM resident_checkpoints
+              WHERE residency_id='resident:metab' AND generation=?`).get(Number(metab?.checkpoint_generation));
+            let blobOk=false;
+            if(checkpoint){const blob=path.join(path.dirname(file),'blobs','sha256',checkpoint.blob_hash.slice(0,2),checkpoint.blob_hash);
+              const stat=fs.lstatSync(blob),bytes=fs.readFileSync(blob);blobOk=stat.isFile()&&!stat.isSymbolicLink()&&
+                bytes.length===Number(checkpoint.byte_length)&&crypto.createHash('sha256').update(bytes).digest('hex')===checkpoint.blob_hash;}
+            const count=sql=>Number(db.prepare(sql).get()?.value||0);
+            process.stdout.write(JSON.stringify({quick,revision,residents,checkpoint,blobOk,
+              pending:count("SELECT COUNT(*) value FROM biological_deliveries WHERE status='PENDING'"),
+              failed:count("SELECT COUNT(*) value FROM biological_deliveries WHERE status='FAILED'"),
+              outbox:count("SELECT COUNT(*) value FROM biological_outbox_intents WHERE status='PENDING'"),
+              p1Authority:count("SELECT COUNT(*) value FROM authority WHERE core_id IN ('sntss','chronobiology','METAB')"),
+              metabOutputs:count("SELECT COUNT(*) value FROM biological_outbox_intents WHERE producer_core_id='METAB'")}));
+          } finally {db.close();}
+          NODE
+          )"
+          meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
+          sntss="$(node "$expected_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:sntss)"
+          chrono="$(node "$expected_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:chronobiology)"
+          metab="$(node "$expected_release/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:metab)"
+          node - "$operation" "$snapshot" "$meta" "$sntss" "$chrono" "$metab" <<'NODE'
+          'use strict';
+          const [operation,...encoded]=process.argv.slice(2); const [db,meta,sntss,chrono,metab]=encoded.map(JSON.parse);
+          const row=id=>db.residents.find(v=>v.residency_id===id),chip=id=>meta.chipProjection?.lifecycle?.find(v=>v.coreId===id);
+          const fetus=meta.cores?.find(v=>v.id==='fetus-legacy');
+          const contained=v=>v?.resident?.status==='RUNNING'&&v.resident.running===true&&v.resident.authorityOwned===false&&
+            v.resident.host?.quarantined===false&&v.resident.host?.osContainment?.required===true&&
+            v.resident.host?.osContainment?.available===true&&v.resident.host?.osContainment?.payloadSandboxed===true&&
+            v.resident.host?.osContainment?.payloadAttachedBeforeInit===true;
+          const common=db.quick==='ok'&&db.pending===0&&db.failed===0&&db.outbox===0&&db.p1Authority===0&&db.metabOutputs===0&&
+            row('resident:sntss')?.instance_id==='8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f'&&row('resident:sntss')?.version==='0.5.0-i4g1'&&
+            row('resident:chronobiology')?.instance_id==='f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'&&row('resident:chronobiology')?.version==='1.0.0-c3rc.5'&&
+            contained(sntss)&&contained(chrono)&&fetus?.ok===true&&fetus?.version==='0.6.0'&&
+            fetus?.memoryGuardian?.status==='healthy'&&chip('bsf')?.state==='LIVE'&&chip('sntss')?.state==='SHADOW'&&
+            chip('chronobiology')?.state==='SHADOW';
+          if(operation==='harden-r128'){
+            if(!(common&&db.revision===127&&meta.ok===true&&meta.revision===127&&meta.revisionFrozen===true&&meta.revisionLabel==='R127F'&&
+              row('resident:metab')?.instance_id==='d424c722-ef31-44b0-8201-ba68c418d14a'&&
+              row('resident:metab')?.version==='0.1.0-p1r0-neutral.1'&&Number(row('resident:metab')?.state_schema)===1&&
+              row('resident:metab')?.module_relative_path==='cores/p1-r0/metab-neutral/index.js'&&
+              row('resident:metab')?.checkpoint_hash==='4a16fc393b9846d1dd6f2f9849920053e3d2b5235c066dde3c5cd72699595107'&&
+              Number(row('resident:metab')?.checkpoint_generation)===2&&db.checkpoint?.blob_hash===row('resident:metab')?.checkpoint_hash&&
+              db.blobOk===true&&contained(metab)&&metab.resident?.health?.mode==='NEUTRAL'&&
+              metab.resident?.observedOutputs===0&&chip('metab')?.state==='NEUTRAL'))process.exit(1);
+          } else if(!([128,129].includes(db.revision)&&common&&contained(metab)&&metab.resident?.health?.mode==='SHADOW'&&
+            metab.resident?.observedOutputs===0&&chip('metab')?.state==='SHADOW'))process.exit(2);
+          NODE
+          [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" ]]
+          [[ "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
+          echo "R128_READ_ONLY_PREFLIGHT_${operation^^}=PASS"
+          echo "SERVICE_PID=$pid"
+          echo "SERVICE_NRESTARTS=$restarts"
+          REMOTE
+      - name: Stage and invoke only the pinned root controller
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          run_root="/opt/stay/incoming/r128-metab-shadow-v1-${GITHUB_RUN_ID}"
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          # shellcheck disable=SC2029
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            "set -euo pipefail; test ! -e '$run_root'; install -d -m 0700 '$run_root'"
+          scp "${ssh_options[@]}" release-assets/* \
+            staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" <<'REMOTE'
+          set -euo pipefail
+          root="$1"
+          [[ "$root" =~ ^/opt/stay/incoming/r128-metab-shadow-v1-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$(find "$root" -maxdepth 1 -type f | wc -l)" -eq 3 ]]
+          find -P "$root" -xdev -type f -exec chmod 0400 {} +
+          REMOTE
+          set +e
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            sudo -n /usr/local/sbin/stay-p1-production-controller \
+            "$OPERATION" "$run_root" "$AUTHORIZATION" 2>&1 | tee controller.output
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          [[ "${statuses[0]}" -eq 0 && "${statuses[1]}" -eq 0 ]]
+          grep -Fx 'R128_CONTROLLER_RESULT=PASS' controller.output
+          grep -E '^R128_CONTROLLER_REVISION=R12[89]F$' controller.output
+          grep -E '^RUNTIME_REVISION=12[89]$' controller.output
+          grep -E '^REVISION_LABEL=R12[89]F$' controller.output
+          grep -Fx "CURRENT_RELEASE=$TARGET_RELEASE" controller.output
+          grep -Fx 'BSF_MODE=LIVE' controller.output
+          grep -Fx 'SNTSS_MODE=SHADOW' controller.output
+          grep -Fx 'SNTSS_OUTPUTS=0' controller.output
+          grep -Fx 'CHRONOBIOLOGY_MODE=SHADOW' controller.output
+          grep -Fx 'METAB_MODE=SHADOW' controller.output
+          grep -Fx 'METAB_OUTPUTS=0' controller.output
+          grep -Fx 'METAB_AUTHORITY=NONE' controller.output
+          grep -Fx 'FETUS_CONTINUITY=PASS' controller.output
+      - name: Upload sanitized controller output
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r128-metab-shadow-v1-controller-output-${{ github.run_id }}
+          path: controller.output
+          if-no-files-found: warn
+          retention-days: 14
