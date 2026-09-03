@@ -311,7 +311,7 @@ jobs:
             stage="$(<release-assets/STAGE)"; certificate="$(<release-assets/CERTIFICATE.sha256)"; dossier="$(<release-assets/DOSSIER.sha256)"
           fi
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
-            "set -euo pipefail; test ! -e '$run_root'; install -d -m 0700 '$run_root'; chmod 0700 '$run_root'"
+            "set -euo pipefail; test ! -e '$run_root'; install -d -m 0700 '$run_root'; chmod u-s,g-s '$run_root'; chmod 0700 '$run_root'"
           scp "${ssh_options[@]}" release-assets/"$ARCHIVE" release-assets/"$ARCHIVE.sha256" \
             release-assets/P1_R150_RELEASE.identity staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
           if [[ -n "$stage" ]]; then
@@ -322,6 +322,7 @@ jobs:
           set -euo pipefail
           root="$1"; stage="$2"
           [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
           expected=3; [[ -n "$stage" ]] && expected=5

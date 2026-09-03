@@ -137,7 +137,7 @@ jobs:
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
-            "set -euo pipefail; observed=\$(ip -o -4 addr show scope global | awk '{a=\$4;sub(/\\/.*/,\"\",a);print a}' | sort -u); [[ \"\$observed\" == '$PRODUCTION_PRIVATE_IPV4' ]]; test ! -e '$run_root'; install -d -m 0700 '$run_root'; chmod 0700 '$run_root'"
+            "set -euo pipefail; observed=\$(ip -o -4 addr show scope global | awk '{a=\$4;sub(/\\/.*/,\"\",a);print a}' | sort -u); [[ \"\$observed\" == '$PRODUCTION_PRIVATE_IPV4' ]]; test ! -e '$run_root'; install -d -m 0700 '$run_root'; chmod u-s,g-s '$run_root'; chmod 0700 '$run_root'"
           scp "${ssh_options[@]}" \
             bootstrap-artifact/stay-p1-r150-homeos-intero-production-controller \
             bootstrap-artifact/install-p1-r150-homeos-intero-production-controller.sh \
@@ -149,6 +149,7 @@ jobs:
           set -Eeuo pipefail
           root="$1"; wrapper_sha="$2"; installer_sha="$3"; public_sha="$4"
           [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]

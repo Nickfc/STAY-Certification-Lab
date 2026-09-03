@@ -126,7 +126,9 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'secrets.STAY_DEPLOY_KEY',
     'MANUAL_ROOT_BRIDGE_COMMAND=',
     'p1-r150-expansion-birth-authority.pub',
+    "chmod u-s,g-s '$run_root'",
     "chmod 0700 '$run_root'",
+    'chmod u-s,g-s "$root"',
     'chmod 0700 "$root"',
     "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700"
   ]) assert.ok(bootstrap.includes(exact), exact);
@@ -155,7 +157,9 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
     'working-directory: /tmp/stay-r150-validation-source',
     'sudo -n /usr/local/sbin/stay-p1-production-controller',
+    "chmod u-s,g-s '$run_root'",
     "chmod 0700 '$run_root'",
+    'chmod u-s,g-s "$root"',
     'chmod 0700 "$root"',
     "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700",
     '-type f ! -perm 0400 -print -quit',
@@ -167,5 +171,26 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   for (const source of [bootstrap, capture, production]) {
     assert.doesNotMatch(source, /systemctl start stay-physiology-benchmark|benchmark-start/);
     assert.doesNotMatch(source, /TimeoutStartSec|TimeoutStopSec|CPUQuota=|MemoryMax=|PIDsMax=/);
+  }
+});
+
+test('R150-CTRL-07 staging explicitly clears an inherited setgid directory bit', {
+  skip: process.platform !== 'linux'
+}, () => {
+  const directory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'stay-r150-mode-'));
+  try {
+    fs.chmodSync(directory, 0o2700);
+    const normalized = spawnSync('bash', ['-c', [
+      'set -Eeuo pipefail',
+      'root="$1"',
+      'stat -Lc %a "$root"',
+      'chmod u-s,g-s "$root"',
+      'chmod 0700 "$root"',
+      'stat -Lc %a "$root"'
+    ].join(';'), '_', directory], { encoding: 'utf8' });
+    assert.equal(normalized.status, 0, `${normalized.stdout}\n${normalized.stderr}`);
+    assert.equal(normalized.stdout.trim(), '2700\n700');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
