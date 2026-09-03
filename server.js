@@ -47,23 +47,30 @@ function publicMetadata(status) {
   const residentStatus = Array.isArray(status.residencies)
     ? status.residencies
     : (Array.isArray(status.health?.residencies) ? status.health.residencies : []);
-  const residents = residentStatus.filter(Boolean).map((resident) => ({
-    residencyId: resident.residencyId,
-    coreId: resident.coreId,
-    version: resident.version,
-    status: resident.status,
-    lifecycle: resident.lifecycle || resident.status || null,
-    running: resident.running === true,
-    mode: resident.coreId === 'chronobiology' ||
-      (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
+  const residents = residentStatus.filter(Boolean).map((resident) => {
+    const observedMode = String(resident.health?.mode || '').toUpperCase();
+    const mode = resident.coreId === 'chronobiology'
       ? 'SHADOW'
-      : 'NEUTRAL',
-    authorityOwned: resident.authorityOwned === true,
-    checkpointGeneration: Number(resident.checkpointGeneration || 0),
-    handledEvents: Number(resident.handledEvents || 0),
-    observedOutputs: Number(resident.observedOutputs || 0),
-    healthOk: resident.running === true && resident.health?.ok === true
-  }));
+      : ['LIVE', 'SHADOW', 'NEUTRAL'].includes(observedMode)
+      ? observedMode
+      : resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1'
+        ? 'SHADOW'
+        : 'NEUTRAL';
+    return {
+      residencyId: resident.residencyId,
+      coreId: resident.coreId,
+      version: resident.version,
+      status: resident.status,
+      lifecycle: resident.lifecycle || resident.status || null,
+      running: resident.running === true,
+      mode,
+      authorityOwned: resident.authorityOwned === true,
+      checkpointGeneration: Number(resident.checkpointGeneration || 0),
+      handledEvents: Number(resident.handledEvents || 0),
+      observedOutputs: Number(resident.observedOutputs || 0),
+      healthOk: resident.running === true && resident.health?.ok === true
+    };
+  });
   const bsfLedger = status.biologicalLedger || status.health?.biologicalLedger || null;
   const bsfOk = status.health?.persistence?.ok !== false &&
     bsfLedger?.protocol === 'stay-biological-ledger-v1';
@@ -593,8 +600,84 @@ async function main() {
   });
   await kernel.start();
 
+  if (
+    process.env.STAY_ALLOW_METAB_NEUTRAL_RECOVERY === '1' &&
+    !kernel.stateStore.getResident('resident:metab')
+  ) {
+    await kernel.recoverMetabNeutralBirth();
+  }
+
   if (process.env.STAY_BOOT_CORE) {
     await kernel.installCore(process.env.STAY_BOOT_CORE);
+  }
+
+  if (
+    process.env.STAY_ALLOW_METAB_SHADOW_PROMOTION === '1' &&
+    kernel.stateStore.getResident('resident:metab')?.version ===
+      '0.1.0-p1r0-neutral.1'
+  ) {
+    await kernel.promoteMetabShadow();
+  }
+
+  if (
+    process.env.STAY_HOMEOS_NEUTRAL_BIRTH_AUTHORIZATION ===
+      'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY' &&
+    !kernel.stateStore.getResident('resident:homeos')
+  ) {
+    await kernel.birthHomeosNeutral();
+  }
+
+  if (
+    process.env.STAY_METAB_HOMEOS_ROUTE_AUTHORIZATION ===
+      'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY' &&
+    kernel.stateStore.getResident('resident:metab')?.version ===
+      '0.2.0-p1r0-shadow.1'
+  ) {
+    await kernel.promoteMetabHomeosRoute();
+  }
+
+  if (
+    process.env.STAY_HOMEOS_SHADOW_PROMOTION_AUTHORIZATION ===
+      'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY' &&
+    kernel.stateStore.getResident('resident:homeos')?.version ===
+      '0.1.0-p1r0-neutral.1'
+  ) {
+    await kernel.promoteHomeosShadow();
+  }
+
+  if (
+    process.env.STAY_INTERO_NEUTRAL_BIRTH_AUTHORIZATION ===
+      'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY' &&
+    !kernel.stateStore.getResident('resident:intero')
+  ) {
+    await kernel.birthInteroNeutral();
+  }
+
+  if (
+    process.env.STAY_METAB_INTERO_ROUTE_AUTHORIZATION ===
+      'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY' &&
+    kernel.stateStore.getResident('resident:metab')?.version ===
+      '0.3.0-p1r0-homeos-feed.1'
+  ) {
+    await kernel.promoteMetabInteroRoute();
+  }
+
+  if (
+    process.env.STAY_HOMEOS_INTERO_ROUTE_AUTHORIZATION ===
+      'AUTHORIZE_R149_HOMEOS_INTERO_ROUTE_ONLY' &&
+    kernel.stateStore.getResident('resident:homeos')?.version ===
+      '0.2.0-p1r0-shadow.1'
+  ) {
+    await kernel.promoteHomeosInteroRoute();
+  }
+
+  if (
+    process.env.STAY_INTERO_SHADOW_PROMOTION_AUTHORIZATION ===
+      'AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_ONLY' &&
+    kernel.stateStore.getResident('resident:intero')?.version ===
+      '0.1.0-p1r0-neutral.1'
+  ) {
+    await kernel.promoteInteroShadow();
   }
 
   const badgeSource = await fs.readFile(badgePath, 'utf8');
