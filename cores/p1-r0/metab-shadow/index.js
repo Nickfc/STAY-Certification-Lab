@@ -1,6 +1,6 @@
 'use strict';
 
-// Deterministic P1-R0 resident bundle. Source seal: sha256:0bf615e09be3353b3b975319a027d930df5f3dbd471b1764f3436d2857be2412
+// Deterministic P1-R0 resident bundle. Source seal: sha256:0b4c91895aa74849285c9b4d2fbb46eeafbcb208cf6af1c39f34e94f7ffb0a21
 const __bundleModules = {
 "runtime/kernel/biological-envelope.js": function(module, exports, __bundleRequire) {
 'use strict';
@@ -2405,7 +2405,7 @@ function createMetabEngine(options = {}) {
       const withdrawal = minimum(reserve, minimum(maximumWithdrawal, withdrawalForDeficit));
       const delivered = q48.mul(withdrawal, efficiency);
       reserve -= withdrawal;
-      cumulativeDischarge = q48.add(cumulativeDischarge, withdrawal);
+      cumulativeDischarge = q48.saturatingAdd(cumulativeDischarge, withdrawal);
       service = q48.add(service, delivered);
     }
 
@@ -2413,10 +2413,10 @@ function createMetabEngine(options = {}) {
     if (fresh && surplus > 0n && reserve < reserveCapacity) {
       const charge = minimum(reserveCapacity - reserve, q48.mul(surplus, unit(profile.reserve.chargeEfficiencyQ48, 'METAB charge efficiency')));
       reserve = q48.add(reserve, charge);
-      cumulativeCharge = q48.add(cumulativeCharge, charge);
-      saturationLoss = q48.add(saturationLoss, surplus - charge);
+      cumulativeCharge = q48.saturatingAdd(cumulativeCharge, charge);
+      saturationLoss = q48.saturatingAdd(saturationLoss, surplus - charge);
     } else if (surplus > 0n) {
-      saturationLoss = q48.add(saturationLoss, surplus);
+      saturationLoss = q48.saturatingAdd(saturationLoss, surplus);
     }
 
     const unmet = demand > service ? demand - service : 0n;

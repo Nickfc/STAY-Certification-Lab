@@ -8,9 +8,9 @@ const { sealRevisionFreeze, validateRevisionFreeze } = require('../../runtime/re
 
 const STAGES = Object.freeze({
   homeos: Object.freeze({
-    revision: 145, label: 'R145F', parentRevision: 141,
-    freezeType: 'R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW',
-    progression: [141, 142, 143, 144, 145]
+    revision: 146, label: 'R146F', parentRevision: 141,
+    freezeType: 'R146_METAB_Q48_REPAIRED_HOMEOS_OUTPUT_FIREWALLED_SHADOW',
+    progression: [141, 142, 143, 144, 145, 146]
   }),
   intero: Object.freeze({
     revision: 150, label: 'R150F', parentRevision: 145,

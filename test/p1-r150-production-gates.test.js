@@ -126,7 +126,7 @@ test('R150-PRODUCTION-03 freeze seals immutable release, birth, recovery, and be
   const files = {
     'parent.freeze.json': parentFreeze(141),
     'before.proof.json': { result: 'PASS', revision: 141 },
-    'after.proof.json': { result: 'PASS', revision: 145, abandonedDeliveries: 1 },
+    'after.proof.json': { result: 'PASS', revision: 146, abandonedDeliveries: 1 },
     'service.after.json': { afterPid: 22, afterRestarts: 0, restartCommands: 1 },
     'homeos.birth-certificate.json': value.certificate
   };
@@ -140,7 +140,7 @@ test('R150-PRODUCTION-03 freeze seals immutable release, birth, recovery, and be
     `MANIFEST_SHA256=sha256:${'d'.repeat(64)}`, `CONTROLLER_SHA256=sha256:${'e'.repeat(64)}`
   ].join('\n') + '\n');
   const freeze = buildFreeze('homeos', root);
-  assert.equal(validateRevisionFreeze(freeze, 145), true);
+  assert.equal(validateRevisionFreeze(freeze, 146), true);
   assert.equal(freeze.promotionAuthority.unitDropinRevoked, true);
   assert.equal(freeze.promotionAuthority.activeCertificateRemoved, true);
   assert.equal(freeze.promotionAuthority.privateSigningKeyOnHost, false);
@@ -154,7 +154,10 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh'), 'utf8');
   const server = await fs.readFile(path.join(ROOT, 'server.js'), 'utf8');
   assert.match(recovery,
-    /STAY_HOMEOS_STRANDED_R145_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R145_HOMEOS_FORWARD_RECOVERY_ONLY/);
+    /STAY_HOMEOS_STRANDED_R146_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R146_METAB_Q48_HOMEOS_FORWARD_RECOVERY_ONLY/);
+  assert.match(recovery,
+    /METAB_REPAIR='deploy\/live-physiology-transplant\/p1-r146-metab-q48-implementation-repair\.js'/);
+  assert.match(recovery, /ExecStartPre=.*\$METAB_REPAIR apply/);
   assert.ok(server.indexOf('await kernel.recoverStrandedR145Homeos();') <
     server.indexOf('await kernel.installCore(process.env.STAY_BOOT_CORE);'));
   for (const source of [forward, recovery]) {
@@ -221,7 +224,7 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     entries.set(match[2], match[1]);
   }
   assert.deepEqual([...entries.keys()], [...entries.keys()].toSorted());
-  assert.equal(entries.size, 66);
+  assert.equal(entries.size, 72);
   for (const required of [
     'runtime/kernel/living-kernel.js', 'runtime/kernel/resident-manager.js',
     'runtime/kernel/state-store.js', 'runtime/p1-r0/production-persistence.js',
@@ -232,7 +235,9 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     'runtime/p1-r0/intero-engine.js',
     'server.js', 'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh',
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh',
-    'deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
+    'deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js',
+    'deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js',
+    'test/p1-r146-metab-q48-implementation-repair.test.js'
   ]) assert.equal(entries.has(required), true, required);
   for (const [relative, expected] of entries) {
     assert.equal(sha256(fsSync.readFileSync(path.join(ROOT, relative))), expected, relative);
