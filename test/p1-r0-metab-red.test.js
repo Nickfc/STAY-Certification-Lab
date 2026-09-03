@@ -199,3 +199,36 @@ test('METAB-Q06 implementation has no wall clock, RNG, StateStore, UI or product
   assert.equal(ROUTES['p1r0.metab-availability.homeos'].stage, 'ABSENT');
   assert.equal(ROUTES['p1r0.metab-reserve.homeos'].stage, 'ABSENT');
 });
+
+test('METAB-Q07 lifetime counters saturate at signed Q16.48 capacity without failing physiology', () => {
+  const nearMaximum = (q48.MAX_RAW - 1n).toString();
+  const reserveCapacity = profile.reserve.capacityQ48;
+
+  const surplus = createEngine();
+  surplus.restore({
+    ...surplus.snapshot(),
+    frameIndex: 100,
+    reserveQ48: reserveCapacity,
+    cumulativeChargeQ48: nearMaximum,
+    cumulativeDischargeQ48: nearMaximum,
+    saturationLossQ48: nearMaximum,
+    inputCursors: { 'p1r0.capacity.metab': '100' }
+  });
+  const saturatedSurplus = surplus.advance(capacity(101, 101));
+  assert.equal(saturatedSurplus.state.saturationLossQ48, q48.MAX_RAW.toString());
+
+  const deficit = createEngine();
+  deficit.restore({
+    ...deficit.snapshot(),
+    frameIndex: 100,
+    reserveQ48: reserveCapacity,
+    cumulativeChargeQ48: nearMaximum,
+    cumulativeDischargeQ48: nearMaximum,
+    saturationLossQ48: nearMaximum,
+    inputCursors: { 'p1r0.capacity.metab': '100' }
+  });
+  const saturatedDischarge = deficit.advance(capacity(101, 101, {
+    eligibleCapacityQ48: '0'
+  }));
+  assert.equal(saturatedDischarge.state.cumulativeDischargeQ48, q48.MAX_RAW.toString());
+});
