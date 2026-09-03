@@ -435,6 +435,34 @@ function validateCapacitySourceState(input, {
   });
 }
 
+function migrateCapacitySourceResidentVersion(stateInput, {
+  instanceId,
+  fromVersion,
+  toVersion
+} = {}) {
+  const state = validateCapacitySourceState(stateInput, {
+    instanceId,
+    residentVersion: fromVersion
+  });
+  if (
+    state.pending !== null ||
+    !(
+      (
+        fromVersion === '0.2.0-p1r0-shadow.1' &&
+        toVersion === '0.3.0-p1r0-homeos-feed.1'
+      ) ||
+      (
+        fromVersion === '0.3.0-p1r0-homeos-feed.1' &&
+        toVersion === '0.4.0-p1r0-intero-feed.1'
+      )
+    )
+  ) fail('capacity source version migration is not at an exact boundary', 'P1_METAB_CAPACITY_SOURCE_MIGRATION');
+  return validateCapacitySourceState({ ...clone(state), residentVersion: toVersion }, {
+    instanceId,
+    residentVersion: toVersion
+  });
+}
+
 function stageCapacitySample(stateInput, {
   trustedTimeUs,
   continuityEpoch,
@@ -561,6 +589,7 @@ module.exports = Object.freeze({
   commitCapacitySample,
   createCapacityPayloads,
   createCapacitySourceState,
+  migrateCapacitySourceResidentVersion,
   stageCapacitySample,
   validateCapacitySourceState
 });

@@ -12,6 +12,8 @@ const FORWARD = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'p1-r141-metab-shadow-forward-recovery.sh');
 const MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R139_TO_R141.sha256');
+const SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256');
 
 test('R141-RECOVERY-01 is exact forward-only recovery of the existing shadow resident', () => {
   const source = fs.readFileSync(FORWARD, 'utf8');
@@ -93,6 +95,12 @@ test('R141-REL-04 immutable overlay hashes every changed dependency', () => {
     assert.ok(match, line);
     entries.set(match[2], match[1]);
   }
+  const successorEntries = fs.existsSync(SUCCESSOR_MANIFEST)
+    ? new Map(fs.readFileSync(SUCCESSOR_MANIFEST, 'utf8').trim().split(/\r?\n/).map(line => {
+      const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);
+      assert.ok(match, `invalid R150 successor manifest line: ${line}`);
+      return [match[2], match[1]];
+    })) : new Map();
   assert.deepEqual([...entries.keys()], [
     'deploy/live-physiology-transplant/p1-r141-metab-shadow-forward-recovery.sh',
     'runtime/kernel/living-kernel.js',
@@ -110,6 +118,9 @@ test('R141-REL-04 immutable overlay hashes every changed dependency', () => {
   for (const [relative, expected] of entries) {
     const actual = crypto.createHash('sha256')
       .update(fs.readFileSync(path.join(ROOT, relative))).digest('hex');
-    assert.equal(actual, expected, relative);
+    if (actual !== expected) {
+      assert.equal(successorEntries.get(relative), actual,
+        `${relative} drifted without exact R150 successor-manifest custody`);
+    }
   }
 });

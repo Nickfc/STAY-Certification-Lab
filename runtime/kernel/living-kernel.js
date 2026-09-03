@@ -77,6 +77,34 @@ const R139_METAB_SHADOW_RECOVERY = Object.freeze({
   acceptancePrefix: 'R139_RECOVERY'
 });
 
+const R145_HOMEOS_SHADOW = Object.freeze({
+  birthAuthorization: 'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY',
+  metabRouteAuthorization: 'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY',
+  shadowAuthorization: 'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY',
+  parentRevision: 141,
+  birthRevision: 143,
+  metabRouteRevision: 144,
+  shadowRevision: 145,
+  metabInstanceId: 'd424c722-ef31-44b0-8201-ba68c418d14a',
+  homeosOutputPolicy: 'FORBIDDEN_UNTIL_INTERO_ATTACHMENT',
+  metabOutputPolicy: 'HOMEOS_ONLY_SHADOW_SUMMARIES'
+});
+
+const R150_INTERO_SHADOW = Object.freeze({
+  birthAuthorization: 'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY',
+  metabRouteAuthorization: 'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY',
+  homeosRouteAuthorization: 'AUTHORIZE_R149_HOMEOS_INTERO_ROUTE_ONLY',
+  shadowAuthorization: 'AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_ONLY',
+  parentRevision: 145,
+  birthRevision: 147,
+  metabRouteRevision: 148,
+  homeosRouteRevision: 149,
+  shadowRevision: 150,
+  metabOutputPolicy: 'HOMEOS_AND_INTERO_SHADOW_SUMMARIES',
+  homeosOutputPolicy: 'INTERO_STABILITY_ONLY_SHADOW_SUMMARY',
+  interoOutputPolicy: 'PERCEPTION_ONLY_NO_OUTPUT'
+});
+
 function isBoundedMetabPromotionTail(pendingDeliveries) {
   return Number.isSafeInteger(pendingDeliveries) &&
     pendingDeliveries >= 0 && pendingDeliveries <= 2;
@@ -382,6 +410,27 @@ class LivingKernel {
     allowMetabShadowPromotion =
       process.env.STAY_ALLOW_METAB_SHADOW_PROMOTION === '1',
 
+    homeosNeutralBirthAuthorization =
+      process.env.STAY_HOMEOS_NEUTRAL_BIRTH_AUTHORIZATION || '',
+
+    metabHomeosRouteAuthorization =
+      process.env.STAY_METAB_HOMEOS_ROUTE_AUTHORIZATION || '',
+
+    homeosShadowPromotionAuthorization =
+      process.env.STAY_HOMEOS_SHADOW_PROMOTION_AUTHORIZATION || '',
+
+    interoNeutralBirthAuthorization =
+      process.env.STAY_INTERO_NEUTRAL_BIRTH_AUTHORIZATION || '',
+
+    metabInteroRouteAuthorization =
+      process.env.STAY_METAB_INTERO_ROUTE_AUTHORIZATION || '',
+
+    homeosInteroRouteAuthorization =
+      process.env.STAY_HOMEOS_INTERO_ROUTE_AUTHORIZATION || '',
+
+    interoShadowPromotionAuthorization =
+      process.env.STAY_INTERO_SHADOW_PROMOTION_AUTHORIZATION || '',
+
     metabShadowPromotionAuthorization =
       process.env.STAY_METAB_SHADOW_PROMOTION_AUTHORIZATION || '',
 
@@ -413,6 +462,22 @@ class LivingKernel {
     metabNeutralBirthPublicKeyPath =
       process.env.STAY_METAB_NEUTRAL_BIRTH_PUBLIC_KEY ||
       '/etc/stay/metab-neutral-birth-authority.pub',
+
+    homeosNeutralBirthCertificateFile =
+      process.env.STAY_HOMEOS_NEUTRAL_BIRTH_CERTIFICATE ||
+      '/etc/stay/resident-promotions/resident-homeos-neutral-birth.json',
+
+    homeosNeutralBirthPublicKeyPath =
+      process.env.STAY_HOMEOS_NEUTRAL_BIRTH_PUBLIC_KEY ||
+      '/etc/stay/p1-r0-expansion-birth-authority.pub',
+
+    interoNeutralBirthCertificateFile =
+      process.env.STAY_INTERO_NEUTRAL_BIRTH_CERTIFICATE ||
+      '/etc/stay/resident-promotions/resident-intero-neutral-birth.json',
+
+    interoNeutralBirthPublicKeyPath =
+      process.env.STAY_INTERO_NEUTRAL_BIRTH_PUBLIC_KEY ||
+      '/etc/stay/p1-r0-expansion-birth-authority.pub',
 
     runtimeFreezeDirectory =
       process.env.STAY_RUNTIME_FREEZE_DIR || undefined,
@@ -510,6 +575,27 @@ class LivingKernel {
     this.allowMetabShadowPromotion =
       Boolean(allowMetabShadowPromotion);
 
+    this.homeosNeutralBirthAuthorization =
+      String(homeosNeutralBirthAuthorization);
+
+    this.metabHomeosRouteAuthorization =
+      String(metabHomeosRouteAuthorization);
+
+    this.homeosShadowPromotionAuthorization =
+      String(homeosShadowPromotionAuthorization);
+
+    this.interoNeutralBirthAuthorization =
+      String(interoNeutralBirthAuthorization);
+
+    this.metabInteroRouteAuthorization =
+      String(metabInteroRouteAuthorization);
+
+    this.homeosInteroRouteAuthorization =
+      String(homeosInteroRouteAuthorization);
+
+    this.interoShadowPromotionAuthorization =
+      String(interoShadowPromotionAuthorization);
+
     this.metabShadowPromotionAuthorization =
       String(metabShadowPromotionAuthorization);
 
@@ -573,6 +659,18 @@ class LivingKernel {
 
     this.metabNeutralBirthPublicKeyPath =
       String(metabNeutralBirthPublicKeyPath);
+
+    this.homeosNeutralBirthCertificateFile =
+      String(homeosNeutralBirthCertificateFile);
+
+    this.homeosNeutralBirthPublicKeyPath =
+      String(homeosNeutralBirthPublicKeyPath);
+
+    this.interoNeutralBirthCertificateFile =
+      String(interoNeutralBirthCertificateFile);
+
+    this.interoNeutralBirthPublicKeyPath =
+      String(interoNeutralBirthPublicKeyPath);
 
     this.runtimeFreezeDirectory =
       runtimeFreezeDirectory == null
@@ -651,6 +749,34 @@ class LivingKernel {
       METAB_SHADOW_RESIDENT_CONTRACT
     } = require('../p1-r0/metab-shadow-contract');
 
+    const {
+      METAB_HOMEOS_RESIDENT_CONTRACT
+    } = require('../p1-r0/metab-homeos-contract');
+
+    const {
+      METAB_INTERO_RESIDENT_CONTRACT
+    } = require('../p1-r0/metab-intero-contract');
+
+    const {
+      HOMEOS_NEUTRAL_RESIDENT_CONTRACT
+    } = require('../p1-r0/homeos-neutral-contract');
+
+    const {
+      HOMEOS_SHADOW_RESIDENT_CONTRACT
+    } = require('../p1-r0/homeos-shadow-contract');
+
+    const {
+      HOMEOS_INTERO_RESIDENT_CONTRACT
+    } = require('../p1-r0/homeos-intero-contract');
+
+    const {
+      INTERO_NEUTRAL_RESIDENT_CONTRACT
+    } = require('../p1-r0/intero-neutral-contract');
+
+    const {
+      INTERO_SHADOW_RESIDENT_CONTRACT
+    } = require('../p1-r0/intero-shadow-contract');
+
     const durableSntss =
       this.stateStore
         .getResident(
@@ -688,7 +814,18 @@ class LivingKernel {
       this.stateStore.getResident('resident:metab');
 
     const metabContract =
-      durableMetab?.version ===
+      durableMetab?.version === METAB_INTERO_RESIDENT_CONTRACT.version &&
+      durableMetab?.stateSchema === METAB_INTERO_RESIDENT_CONTRACT.stateSchema &&
+      durableMetab?.moduleRelativePath === 'cores/p1-r0/metab-intero/index.js'
+        ? METAB_INTERO_RESIDENT_CONTRACT
+        : durableMetab?.version ===
+        METAB_HOMEOS_RESIDENT_CONTRACT.version &&
+      durableMetab?.stateSchema ===
+        METAB_HOMEOS_RESIDENT_CONTRACT.stateSchema &&
+      durableMetab?.moduleRelativePath ===
+        'cores/p1-r0/metab-homeos/index.js'
+        ? METAB_HOMEOS_RESIDENT_CONTRACT
+        : durableMetab?.version ===
         METAB_SHADOW_RESIDENT_CONTRACT.version &&
       durableMetab?.stateSchema ===
         METAB_SHADOW_RESIDENT_CONTRACT.stateSchema &&
@@ -696,6 +833,29 @@ class LivingKernel {
         'cores/p1-r0/metab-shadow/index.js'
         ? METAB_SHADOW_RESIDENT_CONTRACT
         : METAB_NEUTRAL_RESIDENT_CONTRACT;
+
+    const durableHomeos =
+      this.stateStore.getResident('resident:homeos');
+
+    const homeosContract =
+      durableHomeos?.version === HOMEOS_INTERO_RESIDENT_CONTRACT.version &&
+      durableHomeos?.stateSchema === HOMEOS_INTERO_RESIDENT_CONTRACT.stateSchema &&
+      durableHomeos?.moduleRelativePath === 'cores/p1-r0/homeos-intero/index.js'
+        ? HOMEOS_INTERO_RESIDENT_CONTRACT
+        : durableHomeos?.version === HOMEOS_SHADOW_RESIDENT_CONTRACT.version &&
+      durableHomeos?.stateSchema === HOMEOS_SHADOW_RESIDENT_CONTRACT.stateSchema &&
+      durableHomeos?.moduleRelativePath === 'cores/p1-r0/homeos-shadow/index.js'
+        ? HOMEOS_SHADOW_RESIDENT_CONTRACT
+        : HOMEOS_NEUTRAL_RESIDENT_CONTRACT;
+
+    const durableIntero = this.stateStore.getResident('resident:intero');
+
+    const interoContract =
+      durableIntero?.version === INTERO_SHADOW_RESIDENT_CONTRACT.version &&
+      durableIntero?.stateSchema === INTERO_SHADOW_RESIDENT_CONTRACT.stateSchema &&
+      durableIntero?.moduleRelativePath === 'cores/p1-r0/intero-shadow/index.js'
+        ? INTERO_SHADOW_RESIDENT_CONTRACT
+        : INTERO_NEUTRAL_RESIDENT_CONTRACT;
 
     this.residentManager =
       new ResidentManager({
@@ -721,7 +881,9 @@ class LivingKernel {
           [
             sntssContract,
             chronobiologyContract,
-            metabContract
+            metabContract,
+            homeosContract,
+            interoContract
           ]
       });
 
@@ -793,7 +955,9 @@ class LivingKernel {
 
     this.startedAt = new Date().toISOString();
     const preservedRecoveryRevision =
-      await this.preserveExactR127MetabRecoveryRevision();
+      await this.preserveExactR127MetabRecoveryRevision() ||
+      this.preserveExactR145HomeosProgressRevision() ||
+      this.preserveExactR150InteroProgressRevision();
     if (!preservedRecoveryRevision) {
       await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
     }
@@ -986,6 +1150,76 @@ class LivingKernel {
       authorityOwned: false
     });
     return true;
+  }
+
+
+  preserveExactR145HomeosProgressRevision() {
+    if (
+      this.homeosNeutralBirthAuthorization !== R145_HOMEOS_SHADOW.birthAuthorization ||
+      this.metabHomeosRouteAuthorization !== R145_HOMEOS_SHADOW.metabRouteAuthorization ||
+      this.homeosShadowPromotionAuthorization !== R145_HOMEOS_SHADOW.shadowAuthorization
+    ) return false;
+    const metab = this.stateStore.getResident('resident:metab');
+    const homeos = this.stateStore.getResident('resident:homeos');
+    const authorityPresent = this.stateStore.listAuthority().some(entry =>
+      ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+    );
+    if (authorityPresent || !homeos || homeos.status === 'QUARANTINED') return false;
+    const atR143 =
+      this.runtimeRevision === 143 &&
+      metab?.version === '0.2.0-p1r0-shadow.1' && metab?.stateSchema === 2 &&
+      metab?.moduleRelativePath === 'cores/p1-r0/metab-shadow/index.js' &&
+      homeos.version === '0.1.0-p1r0-neutral.1' && homeos.stateSchema === 1 &&
+      homeos.moduleRelativePath === 'cores/p1-r0/homeos-neutral/index.js';
+    const atR144 =
+      this.runtimeRevision === 144 &&
+      metab?.version === '0.3.0-p1r0-homeos-feed.1' && metab?.stateSchema === 3 &&
+      metab?.moduleRelativePath === 'cores/p1-r0/metab-homeos/index.js' &&
+      homeos.version === '0.1.0-p1r0-neutral.1' && homeos.stateSchema === 1 &&
+      homeos.moduleRelativePath === 'cores/p1-r0/homeos-neutral/index.js';
+    return atR143 || atR144;
+  }
+
+  preserveExactR150InteroProgressRevision() {
+    if (
+      this.interoNeutralBirthAuthorization !== R150_INTERO_SHADOW.birthAuthorization ||
+      this.metabInteroRouteAuthorization !== R150_INTERO_SHADOW.metabRouteAuthorization ||
+      this.homeosInteroRouteAuthorization !== R150_INTERO_SHADOW.homeosRouteAuthorization ||
+      this.interoShadowPromotionAuthorization !== R150_INTERO_SHADOW.shadowAuthorization
+    ) return false;
+    const metab = this.stateStore.getResident('resident:metab');
+    const homeos = this.stateStore.getResident('resident:homeos');
+    const intero = this.stateStore.getResident('resident:intero');
+    const authorityPresent = this.stateStore.listAuthority().some(entry =>
+      ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+    );
+    if (
+      authorityPresent || !metab || !homeos || !intero ||
+      [metab, homeos, intero].some(resident =>
+        resident.status === 'QUARANTINED' || resident.status === 'RESYNC_REQUIRED'
+      )
+    ) return false;
+    const interoNeutral =
+      intero.version === '0.1.0-p1r0-neutral.1' && intero.stateSchema === 1 &&
+      intero.moduleRelativePath === 'cores/p1-r0/intero-neutral/index.js';
+    const atR147 =
+      this.runtimeRevision === 147 && interoNeutral &&
+      metab.version === '0.3.0-p1r0-homeos-feed.1' && metab.stateSchema === 3 &&
+      metab.moduleRelativePath === 'cores/p1-r0/metab-homeos/index.js' &&
+      homeos.version === '0.2.0-p1r0-shadow.1' && homeos.stateSchema === 2 &&
+      homeos.moduleRelativePath === 'cores/p1-r0/homeos-shadow/index.js';
+    const metabIntero =
+      metab.version === '0.4.0-p1r0-intero-feed.1' && metab.stateSchema === 4 &&
+      metab.moduleRelativePath === 'cores/p1-r0/metab-intero/index.js';
+    const atR148 =
+      this.runtimeRevision === 148 && interoNeutral && metabIntero &&
+      homeos.version === '0.2.0-p1r0-shadow.1' && homeos.stateSchema === 2 &&
+      homeos.moduleRelativePath === 'cores/p1-r0/homeos-shadow/index.js';
+    const atR149 =
+      this.runtimeRevision === 149 && interoNeutral && metabIntero &&
+      homeos.version === '0.3.0-p1r0-intero-feed.1' && homeos.stateSchema === 3 &&
+      homeos.moduleRelativePath === 'cores/p1-r0/homeos-intero/index.js';
+    return atR147 || atR148 || atR149;
   }
 
   async restoreTrustedPulseSequencesFromDurableState() {
@@ -2178,6 +2412,147 @@ class LivingKernel {
   }
 
 
+  metabHomeosAcceptanceCommit(storage, healthReasonCode, parentFreezeRecordSha256) {
+    return ({ checkpoint, resident, manifest }) => {
+      const lastTrustedFrame = Number(checkpoint?.state?.sourceState?.lastAcceptedFrame) || 0;
+      return storage.appendMetabHomeosChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:metab',
+        organismId: this.identity.organismId,
+        coreId: 'METAB',
+        publicName: 'METAB',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:metab',
+        currentState: 'SHADOW',
+        mode: 'SHADOW',
+        lifecycle: checkpoint?.state?.sourceState?.engineState?.lifecycle || 'UNRESOLVED',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion: String(manifest.stateSchema),
+        checkpointGeneration: String(resident.checkpointGeneration),
+        lastTrustedFrame: lastTrustedFrame > 0 ? lastTrustedFrame : null,
+        coverageBand: lastTrustedFrame > 0 ? 'FULL' : 'UNKNOWN',
+        evidenceRefs: [`sha256:${checkpoint.blobHash}`, parentFreezeRecordSha256],
+        observedUtc: new Date(Number(this.clock())).toISOString()
+      });
+    };
+  }
+
+
+  homeosAcceptanceCommit(storage, healthReasonCode, parentFreezeRecordSha256, shadow = false) {
+    return ({ checkpoint, resident, manifest }) => {
+      const state = checkpoint?.state?.neutralState || checkpoint?.state;
+      const lastTrustedFrame = Number(state?.engineState?.frameIndex) || 0;
+      return storage.appendHomeosChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:homeos',
+        organismId: this.identity.organismId,
+        coreId: 'HOMEOS',
+        publicName: 'HOMEOS',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:homeos',
+        currentState: shadow ? 'SHADOW' : 'NEUTRAL',
+        mode: shadow ? 'SHADOW' : 'NEUTRAL',
+        lifecycle: state?.engineState?.lifecycle || 'INITIALIZING',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion: String(manifest.stateSchema),
+        checkpointGeneration: String(resident.checkpointGeneration),
+        lastTrustedFrame: lastTrustedFrame > 0 ? lastTrustedFrame : null,
+        coverageBand: lastTrustedFrame > 0 ? 'FULL' : 'UNKNOWN',
+        evidenceRefs: [`sha256:${checkpoint.blobHash}`, parentFreezeRecordSha256],
+        observedUtc: new Date(Number(this.clock())).toISOString()
+      }, { shadow });
+    };
+  }
+
+  metabInteroAcceptanceCommit(storage, healthReasonCode, parentFreezeRecordSha256) {
+    return ({ checkpoint, resident, manifest }) => {
+      const source = checkpoint?.state?.homeosFeedState?.sourceState;
+      const lastTrustedFrame = Number(source?.lastAcceptedFrame) || 0;
+      return storage.appendMetabInteroChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:metab',
+        organismId: this.identity.organismId,
+        coreId: 'METAB',
+        publicName: 'METAB',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:metab',
+        currentState: 'SHADOW',
+        mode: 'SHADOW',
+        lifecycle: source?.engineState?.lifecycle || 'UNRESOLVED',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion: String(manifest.stateSchema),
+        checkpointGeneration: String(resident.checkpointGeneration),
+        lastTrustedFrame: lastTrustedFrame > 0 ? lastTrustedFrame : null,
+        coverageBand: lastTrustedFrame > 0 ? 'FULL' : 'UNKNOWN',
+        evidenceRefs: [`sha256:${checkpoint.blobHash}`, parentFreezeRecordSha256],
+        observedUtc: new Date(Number(this.clock())).toISOString()
+      });
+    };
+  }
+
+  homeosInteroAcceptanceCommit(storage, healthReasonCode, parentFreezeRecordSha256) {
+    return ({ checkpoint, resident, manifest }) => {
+      const state = checkpoint?.state?.sourceState?.neutralState;
+      const lastTrustedFrame = Number(state?.engineState?.frameIndex) || 0;
+      return storage.appendHomeosInteroChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:homeos',
+        organismId: this.identity.organismId,
+        coreId: 'HOMEOS',
+        publicName: 'HOMEOS',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:homeos',
+        currentState: 'SHADOW',
+        mode: 'SHADOW',
+        lifecycle: state?.engineState?.lifecycle || 'UNRESOLVED',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion: String(manifest.stateSchema),
+        checkpointGeneration: String(resident.checkpointGeneration),
+        lastTrustedFrame: lastTrustedFrame > 0 ? lastTrustedFrame : null,
+        coverageBand: lastTrustedFrame > 0 ? 'FULL' : 'UNKNOWN',
+        evidenceRefs: [`sha256:${checkpoint.blobHash}`, parentFreezeRecordSha256],
+        observedUtc: new Date(Number(this.clock())).toISOString()
+      });
+    };
+  }
+
+  interoAcceptanceCommit(storage, healthReasonCode, parentFreezeRecordSha256, shadow = false) {
+    return ({ checkpoint, resident, manifest }) => {
+      const state = shadow ? checkpoint?.state : null;
+      const lastTrustedFrame = Number(state?.engineState?.frameIndex) || 0;
+      return storage.appendInteroChip({
+        recordVersion: 'CoreChipObservationV1',
+        chipId: 'resident:intero',
+        organismId: this.identity.organismId,
+        coreId: 'INTERO',
+        publicName: 'INTERO',
+        born: true,
+        firstActivationFrame: 0,
+        firstResidencyId: 'resident:intero',
+        currentState: shadow ? 'SHADOW' : 'NEUTRAL',
+        mode: shadow ? 'SHADOW' : 'NEUTRAL',
+        lifecycle: state?.engineState?.lifecycle || 'INITIALIZING',
+        healthReasonCode,
+        coreVersion: manifest.version,
+        stateSchemaVersion: String(manifest.stateSchema),
+        checkpointGeneration: String(resident.checkpointGeneration),
+        lastTrustedFrame: lastTrustedFrame > 0 ? lastTrustedFrame : null,
+        coverageBand: lastTrustedFrame > 0 ? 'FULL' : 'UNKNOWN',
+        evidenceRefs: [`sha256:${checkpoint.blobHash}`, parentFreezeRecordSha256],
+        observedUtc: new Date(Number(this.clock())).toISOString()
+      }, { shadow });
+    };
+  }
+
+
   async promoteMetabShadow() {
     const normalAuthorized =
       this.metabShadowPromotionAuthorization ===
@@ -2565,6 +2940,806 @@ class LivingKernel {
 
   async recoverMetabNeutralBirth() {
     return this.birthMetabNeutral({ recovery: true });
+  }
+
+
+  async birthHomeosNeutral() {
+    if (
+      this.homeosNeutralBirthAuthorization !== R145_HOMEOS_SHADOW.birthAuthorization ||
+      this.runtimeRevision !== 142
+    ) {
+      throw Object.assign(
+        new Error('HOMEOS neutral birth is not exactly authorized at R142'),
+        { code: 'P1_HOMEOS_BIRTH_NOT_AUTHORIZED' }
+      );
+    }
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(R145_HOMEOS_SHADOW.parentRevision, {
+      directory: this.runtimeFreezeDirectory
+    });
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(new Error('R141F parent freeze is absent or invalid'), {
+        code: 'P1_HOMEOS_BIRTH_PARENT_FREEZE'
+      });
+    }
+    const manager = this.ensureResidentManager();
+    const metab = this.stateStore.getResident('resident:metab');
+    const forbiddenIntero = this.stateStore.getResident('resident:intero');
+    const metabStatus = await manager.status('resident:metab');
+    if (
+      !metab || metab.instanceId !== R145_HOMEOS_SHADOW.metabInstanceId ||
+      metab.version !== '0.2.0-p1r0-shadow.1' || metab.stateSchema !== 2 ||
+      metab.moduleRelativePath !== 'cores/p1-r0/metab-shadow/index.js' ||
+      metab.status !== 'RUNNING' || metabStatus?.running !== true ||
+      metabStatus?.health?.mode !== 'SHADOW' || metabStatus?.authorityOwned !== false ||
+      metabStatus?.observedOutputs !== 0 || forbiddenIntero ||
+      this.stateStore.listAuthority().some(entry => ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId))
+    ) throw Object.assign(new Error('HOMEOS birth dependency fence failed'), {
+      code: 'P1_HOMEOS_BIRTH_DEPENDENCY_FENCE'
+    });
+    const { HOMEOS_NEUTRAL_RESIDENT_CONTRACT } = require('../p1-r0/homeos-neutral-contract');
+    const moduleRelativePath = 'cores/p1-r0/homeos-neutral/index.js';
+    const inspected = await manager.inspect(
+      moduleRelativePath,
+      'resident:homeos',
+      HOMEOS_NEUTRAL_RESIDENT_CONTRACT
+    );
+    const { loadAndVerifyHomeosNeutralBirth } = require('../p1-r0/homeos-neutral-birth-authority');
+    const authorization = loadAndVerifyHomeosNeutralBirth({
+      inspected,
+      identity: this.identity,
+      runtimeRevision: R145_HOMEOS_SHADOW.birthRevision,
+      parentFreezeRecordSha256: parentFreeze.recordSha256,
+      publicKeyPath: this.homeosNeutralBirthPublicKeyPath,
+      certificateFile: this.homeosNeutralBirthCertificateFile,
+      nowMs: Number(this.clock())
+    });
+    const binding = await this.ensureOrganismBinding({ allowCreate: false });
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionExpansionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionExpansionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    if (
+      this.stateStore.getResident('resident:homeos') ||
+      storage.readFounder({ organismId: this.identity.organismId, coreId: 'HOMEOS' }) ||
+      storage.readBirthDossier('resident:homeos')
+    ) throw Object.assign(new Error('HOMEOS birth requires an empty exact cohort'), {
+      code: 'P1_HOMEOS_BIRTH_NOT_EMPTY'
+    });
+    const { createNeutralHomeosInitialState } = require('../p1-r0/residents/homeos-neutral');
+    const initialState = createNeutralHomeosInitialState({
+      binding,
+      founder: authorization.founderBinding
+    });
+    const digest = crypto.createHash('sha256').update(authorization.certificateId).digest();
+    digest[6] = (digest[6] & 0x0f) | 0x40;
+    digest[8] = (digest[8] & 0x3f) | 0x80;
+    const hex = digest.subarray(0, 16).toString('hex');
+    const instanceId = [
+      hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16),
+      hex.slice(16, 20), hex.slice(20)
+    ].join('-');
+    const unit = await manager.attach({
+      moduleRelativePath,
+      binding,
+      initialState,
+      instanceId,
+      registerResident: registration => storage.commitHomeosNeutralBirth({
+        founder: authorization.founderRecord,
+        resident: registration,
+        authorization
+      }).resident,
+      acceptanceCommit: this.homeosAcceptanceCommit(
+        storage,
+        'R143_NEUTRAL_ACCEPTED_OUTPUT_FORBIDDEN',
+        parentFreeze.recordSha256,
+        false
+      )
+    });
+    const status = await manager.status('resident:homeos');
+    const consumer = this.stateStore.getBiologicalConsumer('resident:homeos');
+    if (
+      unit?.residencyId !== 'resident:homeos' || status?.status !== 'RUNNING' ||
+      status?.running !== true || status?.health?.mode !== 'NEUTRAL' ||
+      status?.authorityOwned !== false || status?.observedOutputs !== 0 ||
+      status?.declaredOutputs !== 0 || !consumer || consumer.active !== true ||
+      consumer.authorityEpoch !== 0 || consumer.required !== false ||
+      this.stateStore.getAuthority('HOMEOS') !== null
+    ) throw Object.assign(new Error('HOMEOS neutral containment proof failed'), {
+      code: 'P1_HOMEOS_BIRTH_ACCEPTANCE'
+    });
+    await this.bumpRuntimeRevision('resident.homeos-neutral-birth', {
+      residencyId: 'resident:homeos',
+      coreVersion: status.version,
+      parentFreezeRecordSha256: parentFreeze.recordSha256
+    });
+    this.statusCache = null;
+    return unit;
+  }
+
+
+  async promoteMetabHomeosRoute() {
+    if (
+      this.metabHomeosRouteAuthorization !== R145_HOMEOS_SHADOW.metabRouteAuthorization ||
+      this.runtimeRevision !== 143
+    ) throw Object.assign(new Error('METAB HOMEOS route is not exactly authorized at R143'), {
+      code: 'P1_METAB_HOMEOS_NOT_AUTHORIZED'
+    });
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(R145_HOMEOS_SHADOW.parentRevision, {
+      directory: this.runtimeFreezeDirectory
+    });
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(new Error('R141F parent freeze is absent or invalid'), {
+        code: 'P1_METAB_HOMEOS_PARENT_FREEZE'
+      });
+    }
+    const manager = this.ensureResidentManager();
+    const homeosStatus = await manager.status('resident:homeos');
+    if (
+      homeosStatus?.status !== 'RUNNING' || homeosStatus?.running !== true ||
+      homeosStatus?.health?.mode !== 'NEUTRAL' || homeosStatus?.authorityOwned !== false ||
+      homeosStatus?.observedOutputs !== 0
+    ) throw Object.assign(new Error('METAB HOMEOS route lacks a contained HOMEOS consumer'), {
+      code: 'P1_METAB_HOMEOS_DEPENDENCY'
+    });
+    const binding = await this.ensureOrganismBinding({ allowCreate: false });
+    const { METAB_HOMEOS_RESIDENT_CONTRACT } = require('../p1-r0/metab-homeos-contract');
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionExpansionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionExpansionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const unit = await manager.promoteP1ContainedGeneration({
+      kind: 'METAB_HOMEOS_ROUTE_R144',
+      moduleRelativePath: 'cores/p1-r0/metab-homeos/index.js',
+      binding,
+      nextContract: METAB_HOMEOS_RESIDENT_CONTRACT,
+      acceptanceCommit: this.metabHomeosAcceptanceCommit(
+        storage,
+        'R144_HOMEOS_ROUTES_ACCEPTED',
+        parentFreeze.recordSha256
+      ),
+      publishActivation: async ({ sourceCheckpoint, resident }) => {
+        const payload = {
+          protocol: 'stay-p1-r0-metab-homeos-route-activation-v1',
+          organismIdentityHash: manager.organismIdentityHash,
+          residencyId: 'resident:metab',
+          instanceId: resident.instanceId,
+          fromVersion: resident.version,
+          fromStateSchema: resident.stateSchema,
+          sourceCheckpointGeneration: sourceCheckpoint.generation,
+          sourceCheckpointHash: `sha256:${sourceCheckpoint.blobHash}`,
+          toVersion: METAB_HOMEOS_RESIDENT_CONTRACT.version,
+          toStateSchema: METAB_HOMEOS_RESIDENT_CONTRACT.stateSchema,
+          targetRevision: R145_HOMEOS_SHADOW.metabRouteRevision,
+          parentRevision: R145_HOMEOS_SHADOW.parentRevision,
+          parentFreezeRecordSha256: parentFreeze.recordSha256,
+          mode: 'SHADOW',
+          authorityEpoch: '0',
+          outputPolicy: R145_HOMEOS_SHADOW.metabOutputPolicy,
+          routes: ['p1r0.metab-availability.homeos', 'p1r0.metab-reserve.homeos']
+        };
+        const signal = createSignal({
+          signalId: `runtime.metab.homeos-route-activation:r144:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`,
+          topic: 'runtime.metab.homeos-route-activation',
+          payload,
+          trustedTime: {
+            source: 'kernel',
+            observedAtMs: Number(this.clock()),
+            pulseId: `metab-homeos-route-r144-g${sourceCheckpoint.generation}`
+          },
+          provenance: {
+            producerType: 'kernel', producerId: 'living-kernel',
+            authorityEpoch: R145_HOMEOS_SHADOW.metabRouteRevision
+          },
+          durability: DURABILITY.DURABLE
+        });
+        return this.fabric.publishBiologicalSignal(signal, {
+          eventClass: 'critical',
+          sourceVersion: KERNEL_VERSION,
+          evidenceHash: manager.organismIdentityHash
+        });
+      }
+    });
+    let sample = await this.publishMetabCapacitySample();
+    if (sample === false) sample = await this.publishMetabCapacitySample();
+    if (sample !== true) {
+      throw Object.assign(new Error('METAB HOMEOS route did not accept an exact capacity sample'), {
+        code: 'P1_METAB_HOMEOS_SAMPLE'
+      });
+    }
+    const metabStatus = await manager.status('resident:metab');
+    const nextHomeosStatus = await manager.status('resident:homeos');
+    if (
+      metabStatus?.running !== true || metabStatus?.health?.mode !== 'SHADOW' ||
+      metabStatus?.health?.outputPolicy !== R145_HOMEOS_SHADOW.metabOutputPolicy ||
+      metabStatus?.authorityOwned !== false || metabStatus?.declaredOutputs !== 2 ||
+      metabStatus?.observedOutputs < 2 ||
+      nextHomeosStatus?.running !== true || nextHomeosStatus?.health?.mode !== 'NEUTRAL' ||
+      nextHomeosStatus?.health?.physiologicalInputs < 2 ||
+      nextHomeosStatus?.observedOutputs !== 0 ||
+      this.stateStore.getAuthority('METAB') !== null || this.stateStore.getAuthority('HOMEOS') !== null
+    ) throw Object.assign(new Error('METAB HOMEOS route acceptance proof failed'), {
+      code: 'P1_METAB_HOMEOS_ACCEPTANCE'
+    });
+    await this.bumpRuntimeRevision('resident.metab-homeos-route', {
+      residencyId: 'resident:metab',
+      coreVersion: metabStatus.version,
+      parentFreezeRecordSha256: parentFreeze.recordSha256
+    });
+    this.statusCache = null;
+    return unit;
+  }
+
+
+  async promoteHomeosShadow() {
+    if (
+      this.homeosShadowPromotionAuthorization !== R145_HOMEOS_SHADOW.shadowAuthorization ||
+      this.runtimeRevision !== 144
+    ) throw Object.assign(new Error('HOMEOS shadow is not exactly authorized at R144'), {
+      code: 'P1_HOMEOS_SHADOW_NOT_AUTHORIZED'
+    });
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(R145_HOMEOS_SHADOW.parentRevision, {
+      directory: this.runtimeFreezeDirectory
+    });
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(new Error('R141F parent freeze is absent or invalid'), {
+        code: 'P1_HOMEOS_SHADOW_PARENT_FREEZE'
+      });
+    }
+    const manager = this.ensureResidentManager();
+    const metabStatus = await manager.status('resident:metab');
+    if (
+      metabStatus?.running !== true || metabStatus?.health?.mode !== 'SHADOW' ||
+      metabStatus?.health?.outputPolicy !== R145_HOMEOS_SHADOW.metabOutputPolicy ||
+      metabStatus?.authorityOwned !== false
+    ) throw Object.assign(new Error('HOMEOS shadow lacks its exact METAB source'), {
+      code: 'P1_HOMEOS_SHADOW_DEPENDENCY'
+    });
+    const binding = await this.ensureOrganismBinding({ allowCreate: false });
+    const { HOMEOS_SHADOW_RESIDENT_CONTRACT } = require('../p1-r0/homeos-shadow-contract');
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionExpansionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionExpansionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const unit = await manager.promoteP1ContainedGeneration({
+      kind: 'HOMEOS_NEUTRAL_TO_SHADOW_R145',
+      moduleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
+      binding,
+      nextContract: HOMEOS_SHADOW_RESIDENT_CONTRACT,
+      acceptanceCommit: this.homeosAcceptanceCommit(
+        storage,
+        'R145_SHADOW_ACCEPTED_OUTPUT_FIREWALLED',
+        parentFreeze.recordSha256,
+        true
+      ),
+      publishActivation: async ({ sourceCheckpoint, resident }) => {
+        const payload = {
+          protocol: 'stay-p1-r0-homeos-shadow-activation-v1',
+          organismIdentityHash: manager.organismIdentityHash,
+          residencyId: 'resident:homeos',
+          instanceId: resident.instanceId,
+          fromVersion: resident.version,
+          fromStateSchema: resident.stateSchema,
+          sourceCheckpointGeneration: sourceCheckpoint.generation,
+          sourceCheckpointHash: `sha256:${sourceCheckpoint.blobHash}`,
+          toVersion: HOMEOS_SHADOW_RESIDENT_CONTRACT.version,
+          toStateSchema: HOMEOS_SHADOW_RESIDENT_CONTRACT.stateSchema,
+          targetRevision: R145_HOMEOS_SHADOW.shadowRevision,
+          parentRevision: R145_HOMEOS_SHADOW.parentRevision,
+          parentFreezeRecordSha256: parentFreeze.recordSha256,
+          mode: 'SHADOW',
+          authorityEpoch: '0',
+          outputPolicy: R145_HOMEOS_SHADOW.homeosOutputPolicy
+        };
+        const signal = createSignal({
+          signalId: `runtime.homeos.shadow-activation:r145:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`,
+          topic: 'runtime.homeos.shadow-activation',
+          payload,
+          trustedTime: {
+            source: 'kernel', observedAtMs: Number(this.clock()),
+            pulseId: `homeos-shadow-r145-g${sourceCheckpoint.generation}`
+          },
+          provenance: {
+            producerType: 'kernel', producerId: 'living-kernel',
+            authorityEpoch: R145_HOMEOS_SHADOW.shadowRevision
+          },
+          durability: DURABILITY.DURABLE
+        });
+        return this.fabric.publishBiologicalSignal(signal, {
+          eventClass: 'critical', sourceVersion: KERNEL_VERSION,
+          evidenceHash: manager.organismIdentityHash
+        });
+      }
+    });
+    const status = await manager.status('resident:homeos');
+    if (
+      status?.running !== true || status?.health?.mode !== 'SHADOW' ||
+      status?.health?.outputPolicy !== R145_HOMEOS_SHADOW.homeosOutputPolicy ||
+      status?.authorityOwned !== false || status?.declaredOutputs !== 0 ||
+      status?.observedOutputs !== 0 || this.stateStore.getAuthority('HOMEOS') !== null
+    ) throw Object.assign(new Error('HOMEOS shadow acceptance proof failed'), {
+      code: 'P1_HOMEOS_SHADOW_ACCEPTANCE'
+    });
+    await this.bumpRuntimeRevision('resident.homeos-shadow', {
+      residencyId: 'resident:homeos',
+      coreVersion: status.version,
+      parentFreezeRecordSha256: parentFreeze.recordSha256
+    });
+    this.statusCache = null;
+    return unit;
+  }
+
+  async birthInteroNeutral() {
+    if (
+      this.interoNeutralBirthAuthorization !== R150_INTERO_SHADOW.birthAuthorization ||
+      this.runtimeRevision !== R150_INTERO_SHADOW.birthRevision - 1
+    ) throw Object.assign(new Error('INTERO neutral birth is not exactly authorized at R146'), {
+      code: 'P1_INTERO_BIRTH_NOT_AUTHORIZED'
+    });
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(R150_INTERO_SHADOW.parentRevision, {
+      directory: this.runtimeFreezeDirectory
+    });
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(new Error('R145F parent freeze is absent or invalid'), {
+        code: 'P1_INTERO_BIRTH_PARENT_FREEZE'
+      });
+    }
+    const manager = this.ensureResidentManager();
+    const metabStatus = await manager.status('resident:metab');
+    const homeosStatus = await manager.status('resident:homeos');
+    if (
+      metabStatus?.status !== 'RUNNING' || metabStatus?.running !== true ||
+      metabStatus?.version !== '0.3.0-p1r0-homeos-feed.1' ||
+      metabStatus?.health?.mode !== 'SHADOW' ||
+      metabStatus?.health?.outputPolicy !== R145_HOMEOS_SHADOW.metabOutputPolicy ||
+      metabStatus?.authorityOwned !== false ||
+      homeosStatus?.status !== 'RUNNING' || homeosStatus?.running !== true ||
+      homeosStatus?.version !== '0.2.0-p1r0-shadow.1' ||
+      homeosStatus?.health?.mode !== 'SHADOW' ||
+      homeosStatus?.health?.outputPolicy !== R145_HOMEOS_SHADOW.homeosOutputPolicy ||
+      homeosStatus?.authorityOwned !== false || homeosStatus?.observedOutputs !== 0 ||
+      this.stateStore.listAuthority().some(entry =>
+        ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
+      )
+    ) throw Object.assign(new Error('INTERO birth dependencies are not exact'), {
+      code: 'P1_INTERO_BIRTH_DEPENDENCY'
+    });
+    const { INTERO_NEUTRAL_RESIDENT_CONTRACT } = require('../p1-r0/intero-neutral-contract');
+    const moduleRelativePath = 'cores/p1-r0/intero-neutral/index.js';
+    const inspected = await manager.inspect(
+      moduleRelativePath,
+      'resident:intero',
+      INTERO_NEUTRAL_RESIDENT_CONTRACT
+    );
+    const { loadAndVerifyInteroNeutralBirth } = require('../p1-r0/intero-neutral-birth-authority');
+    const authorization = loadAndVerifyInteroNeutralBirth({
+      inspected,
+      identity: this.identity,
+      runtimeRevision: R150_INTERO_SHADOW.birthRevision,
+      parentFreezeRecordSha256: parentFreeze.recordSha256,
+      publicKeyPath: this.interoNeutralBirthPublicKeyPath,
+      certificateFile: this.interoNeutralBirthCertificateFile,
+      nowMs: Number(this.clock())
+    });
+    const binding = await this.ensureOrganismBinding({ allowCreate: false });
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionExpansionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionExpansionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    if (
+      this.stateStore.getResident('resident:intero') ||
+      storage.readFounder({ organismId: this.identity.organismId, coreId: 'INTERO' }) ||
+      storage.readBirthDossier('resident:intero')
+    ) throw Object.assign(new Error('INTERO birth requires an empty exact cohort'), {
+      code: 'P1_INTERO_BIRTH_NOT_EMPTY'
+    });
+    const { createNeutralInteroInitialState } = require('../p1-r0/residents/intero-neutral');
+    const initialState = createNeutralInteroInitialState({
+      binding,
+      founder: authorization.founderBinding
+    });
+    const digest = crypto.createHash('sha256').update(authorization.certificateId).digest();
+    digest[6] = (digest[6] & 0x0f) | 0x40;
+    digest[8] = (digest[8] & 0x3f) | 0x80;
+    const hex = digest.subarray(0, 16).toString('hex');
+    const instanceId = [
+      hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16),
+      hex.slice(16, 20), hex.slice(20)
+    ].join('-');
+    const unit = await manager.attach({
+      moduleRelativePath,
+      binding,
+      initialState,
+      instanceId,
+      registerResident: registration => storage.commitInteroNeutralBirth({
+        founder: authorization.founderRecord,
+        resident: registration,
+        authorization
+      }).resident,
+      acceptanceCommit: this.interoAcceptanceCommit(
+        storage,
+        'R147_NEUTRAL_ACCEPTED_RECEPTOR_ABSENT',
+        parentFreeze.recordSha256,
+        false
+      )
+    });
+    const status = await manager.status('resident:intero');
+    const consumer = this.stateStore.getBiologicalConsumer('resident:intero');
+    if (
+      unit?.residencyId !== 'resident:intero' || status?.status !== 'RUNNING' ||
+      status?.running !== true || status?.health?.mode !== 'NEUTRAL' ||
+      status?.health?.receptorRoute !== 'ABSENT' || status?.authorityOwned !== false ||
+      status?.observedOutputs !== 0 || status?.declaredOutputs !== 0 ||
+      !consumer || consumer.active !== true || consumer.authorityEpoch !== 0 ||
+      consumer.required !== false ||
+      stableStringify(consumer.topics) !== stableStringify(['runtime.organism.binding']) ||
+      this.stateStore.getAuthority('INTERO') !== null
+    ) throw Object.assign(new Error('INTERO neutral containment proof failed'), {
+      code: 'P1_INTERO_BIRTH_ACCEPTANCE'
+    });
+    await this.bumpRuntimeRevision('resident.intero-neutral-birth', {
+      residencyId: 'resident:intero',
+      coreVersion: status.version,
+      parentFreezeRecordSha256: parentFreeze.recordSha256
+    });
+    this.statusCache = null;
+    return unit;
+  }
+
+  async promoteMetabInteroRoute() {
+    if (
+      this.metabInteroRouteAuthorization !== R150_INTERO_SHADOW.metabRouteAuthorization ||
+      this.runtimeRevision !== R150_INTERO_SHADOW.birthRevision
+    ) throw Object.assign(new Error('METAB INTERO route is not exactly authorized at R147'), {
+      code: 'P1_METAB_INTERO_NOT_AUTHORIZED'
+    });
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(R150_INTERO_SHADOW.parentRevision, {
+      directory: this.runtimeFreezeDirectory
+    });
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(new Error('R145F parent freeze is absent or invalid'), {
+        code: 'P1_METAB_INTERO_PARENT_FREEZE'
+      });
+    }
+    const manager = this.ensureResidentManager();
+    const interoBefore = await manager.status('resident:intero');
+    const homeosBefore = await manager.status('resident:homeos');
+    if (
+      interoBefore?.running !== true || interoBefore?.health?.mode !== 'NEUTRAL' ||
+      interoBefore?.health?.receptorRoute !== 'ABSENT' || interoBefore?.authorityOwned !== false ||
+      interoBefore?.observedOutputs !== 0 ||
+      homeosBefore?.running !== true || homeosBefore?.health?.mode !== 'SHADOW' ||
+      homeosBefore?.version !== '0.2.0-p1r0-shadow.1' || homeosBefore?.authorityOwned !== false
+    ) throw Object.assign(new Error('METAB INTERO route lacks contained consumers'), {
+      code: 'P1_METAB_INTERO_DEPENDENCY'
+    });
+    const binding = await this.ensureOrganismBinding({ allowCreate: false });
+    const { METAB_INTERO_RESIDENT_CONTRACT } = require('../p1-r0/metab-intero-contract');
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionExpansionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionExpansionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const unit = await manager.promoteP1ContainedGeneration({
+      kind: 'METAB_INTERO_ROUTE_R148',
+      moduleRelativePath: 'cores/p1-r0/metab-intero/index.js',
+      binding,
+      nextContract: METAB_INTERO_RESIDENT_CONTRACT,
+      acceptanceCommit: this.metabInteroAcceptanceCommit(
+        storage,
+        'R148_INTERO_ROUTES_ACCEPTED',
+        parentFreeze.recordSha256
+      ),
+      publishActivation: async ({ sourceCheckpoint, resident }) => {
+        const payload = {
+          protocol: 'stay-p1-r0-metab-intero-route-activation-v1',
+          organismIdentityHash: manager.organismIdentityHash,
+          residencyId: 'resident:metab',
+          instanceId: resident.instanceId,
+          fromVersion: resident.version,
+          fromStateSchema: resident.stateSchema,
+          sourceCheckpointGeneration: sourceCheckpoint.generation,
+          sourceCheckpointHash: `sha256:${sourceCheckpoint.blobHash}`,
+          toVersion: METAB_INTERO_RESIDENT_CONTRACT.version,
+          toStateSchema: METAB_INTERO_RESIDENT_CONTRACT.stateSchema,
+          targetRevision: R150_INTERO_SHADOW.metabRouteRevision,
+          parentRevision: R150_INTERO_SHADOW.parentRevision,
+          parentFreezeRecordSha256: parentFreeze.recordSha256,
+          mode: 'SHADOW',
+          authorityEpoch: '0',
+          outputPolicy: R150_INTERO_SHADOW.metabOutputPolicy,
+          routes: ['p1r0.metab-availability.intero', 'p1r0.metab-reserve.intero']
+        };
+        const signal = createSignal({
+          signalId: `runtime.metab.intero-route-activation:r148:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`,
+          topic: 'runtime.metab.intero-route-activation',
+          payload,
+          trustedTime: {
+            source: 'kernel', observedAtMs: Number(this.clock()),
+            pulseId: `metab-intero-route-r148-g${sourceCheckpoint.generation}`
+          },
+          provenance: {
+            producerType: 'kernel', producerId: 'living-kernel',
+            authorityEpoch: R150_INTERO_SHADOW.metabRouteRevision
+          },
+          durability: DURABILITY.DURABLE
+        });
+        return this.fabric.publishBiologicalSignal(signal, {
+          eventClass: 'critical', sourceVersion: KERNEL_VERSION,
+          evidenceHash: manager.organismIdentityHash
+        });
+      }
+    });
+    let sample = await this.publishMetabCapacitySample();
+    if (sample === false) sample = await this.publishMetabCapacitySample();
+    if (sample !== true) throw Object.assign(new Error('METAB INTERO route did not accept a capacity sample'), {
+      code: 'P1_METAB_INTERO_SAMPLE'
+    });
+    await manager.drain('resident:homeos');
+    const metabStatus = await manager.status('resident:metab');
+    const homeosStatus = await manager.status('resident:homeos');
+    if (
+      metabStatus?.running !== true || metabStatus?.health?.mode !== 'SHADOW' ||
+      metabStatus?.health?.outputPolicy !== R150_INTERO_SHADOW.metabOutputPolicy ||
+      metabStatus?.authorityOwned !== false || metabStatus?.declaredOutputs !== 2 ||
+      metabStatus?.observedOutputs < 4 ||
+      homeosStatus?.running !== true || homeosStatus?.health?.mode !== 'SHADOW' ||
+      homeosStatus?.health?.physiologicalInputs < homeosBefore.health.physiologicalInputs + 2 ||
+      homeosStatus?.observedOutputs !== 0 ||
+      this.stateStore.listAuthority().some(entry => ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId))
+    ) throw Object.assign(new Error('METAB INTERO route acceptance proof failed'), {
+      code: 'P1_METAB_INTERO_ACCEPTANCE'
+    });
+    await this.bumpRuntimeRevision('resident.metab-intero-route', {
+      residencyId: 'resident:metab', coreVersion: metabStatus.version,
+      parentFreezeRecordSha256: parentFreeze.recordSha256
+    });
+    this.statusCache = null;
+    return unit;
+  }
+
+  async promoteHomeosInteroRoute() {
+    if (
+      this.homeosInteroRouteAuthorization !== R150_INTERO_SHADOW.homeosRouteAuthorization ||
+      this.runtimeRevision !== R150_INTERO_SHADOW.metabRouteRevision
+    ) throw Object.assign(new Error('HOMEOS INTERO route is not exactly authorized at R148'), {
+      code: 'P1_HOMEOS_INTERO_NOT_AUTHORIZED'
+    });
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(R150_INTERO_SHADOW.parentRevision, {
+      directory: this.runtimeFreezeDirectory
+    });
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(new Error('R145F parent freeze is absent or invalid'), {
+        code: 'P1_HOMEOS_INTERO_PARENT_FREEZE'
+      });
+    }
+    const manager = this.ensureResidentManager();
+    const metabBefore = await manager.status('resident:metab');
+    const interoBefore = await manager.status('resident:intero');
+    if (
+      metabBefore?.running !== true || metabBefore?.version !== '0.4.0-p1r0-intero-feed.1' ||
+      metabBefore?.health?.outputPolicy !== R150_INTERO_SHADOW.metabOutputPolicy ||
+      metabBefore?.authorityOwned !== false ||
+      interoBefore?.running !== true || interoBefore?.health?.mode !== 'NEUTRAL' ||
+      interoBefore?.health?.receptorRoute !== 'ABSENT' || interoBefore?.authorityOwned !== false
+    ) throw Object.assign(new Error('HOMEOS INTERO route lacks exact dependencies'), {
+      code: 'P1_HOMEOS_INTERO_DEPENDENCY'
+    });
+    const binding = await this.ensureOrganismBinding({ allowCreate: false });
+    const { HOMEOS_INTERO_RESIDENT_CONTRACT } = require('../p1-r0/homeos-intero-contract');
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionExpansionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionExpansionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const unit = await manager.promoteP1ContainedGeneration({
+      kind: 'HOMEOS_INTERO_ROUTE_R149',
+      moduleRelativePath: 'cores/p1-r0/homeos-intero/index.js',
+      binding,
+      nextContract: HOMEOS_INTERO_RESIDENT_CONTRACT,
+      acceptanceCommit: this.homeosInteroAcceptanceCommit(
+        storage,
+        'R149_INTERO_ROUTE_ACCEPTED',
+        parentFreeze.recordSha256
+      ),
+      publishActivation: async ({ sourceCheckpoint, resident }) => {
+        const payload = {
+          protocol: 'stay-p1-r0-homeos-intero-route-activation-v1',
+          organismIdentityHash: manager.organismIdentityHash,
+          residencyId: 'resident:homeos', instanceId: resident.instanceId,
+          fromVersion: resident.version, fromStateSchema: resident.stateSchema,
+          sourceCheckpointGeneration: sourceCheckpoint.generation,
+          sourceCheckpointHash: `sha256:${sourceCheckpoint.blobHash}`,
+          toVersion: HOMEOS_INTERO_RESIDENT_CONTRACT.version,
+          toStateSchema: HOMEOS_INTERO_RESIDENT_CONTRACT.stateSchema,
+          targetRevision: R150_INTERO_SHADOW.homeosRouteRevision,
+          parentRevision: R150_INTERO_SHADOW.parentRevision,
+          parentFreezeRecordSha256: parentFreeze.recordSha256,
+          mode: 'SHADOW', authorityEpoch: '0',
+          outputPolicy: R150_INTERO_SHADOW.homeosOutputPolicy,
+          routes: ['p1r0.homeos-stability.intero']
+        };
+        const signal = createSignal({
+          signalId: `runtime.homeos.intero-route-activation:r149:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`,
+          topic: 'runtime.homeos.intero-route-activation', payload,
+          trustedTime: {
+            source: 'kernel', observedAtMs: Number(this.clock()),
+            pulseId: `homeos-intero-route-r149-g${sourceCheckpoint.generation}`
+          },
+          provenance: {
+            producerType: 'kernel', producerId: 'living-kernel',
+            authorityEpoch: R150_INTERO_SHADOW.homeosRouteRevision
+          },
+          durability: DURABILITY.DURABLE
+        });
+        return this.fabric.publishBiologicalSignal(signal, {
+          eventClass: 'critical', sourceVersion: KERNEL_VERSION,
+          evidenceHash: manager.organismIdentityHash
+        });
+      }
+    });
+    let sample = await this.publishMetabCapacitySample();
+    if (sample === false) sample = await this.publishMetabCapacitySample();
+    if (sample !== true) throw Object.assign(new Error('HOMEOS INTERO route did not accept a capacity sample'), {
+      code: 'P1_HOMEOS_INTERO_SAMPLE'
+    });
+    await manager.drain('resident:homeos');
+    const status = await manager.status('resident:homeos');
+    if (
+      status?.running !== true || status?.health?.mode !== 'SHADOW' ||
+      status?.health?.outputPolicy !== R150_INTERO_SHADOW.homeosOutputPolicy ||
+      status?.authorityOwned !== false || status?.declaredOutputs !== 1 ||
+      status?.observedOutputs < 1 ||
+      this.stateStore.listAuthority().some(entry => ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId))
+    ) throw Object.assign(new Error('HOMEOS INTERO route acceptance proof failed'), {
+      code: 'P1_HOMEOS_INTERO_ACCEPTANCE'
+    });
+    await this.bumpRuntimeRevision('resident.homeos-intero-route', {
+      residencyId: 'resident:homeos', coreVersion: status.version,
+      parentFreezeRecordSha256: parentFreeze.recordSha256
+    });
+    this.statusCache = null;
+    return unit;
+  }
+
+  async promoteInteroShadow() {
+    if (
+      this.interoShadowPromotionAuthorization !== R150_INTERO_SHADOW.shadowAuthorization ||
+      this.runtimeRevision !== R150_INTERO_SHADOW.homeosRouteRevision
+    ) throw Object.assign(new Error('INTERO shadow is not exactly authorized at R149'), {
+      code: 'P1_INTERO_SHADOW_NOT_AUTHORIZED'
+    });
+    const { readRevisionFreeze } = require('../revision-freeze');
+    const parentFreeze = readRevisionFreeze(R150_INTERO_SHADOW.parentRevision, {
+      directory: this.runtimeFreezeDirectory
+    });
+    if (!parentFreeze.frozen || !parentFreeze.recordSha256) {
+      throw Object.assign(new Error('R145F parent freeze is absent or invalid'), {
+        code: 'P1_INTERO_SHADOW_PARENT_FREEZE'
+      });
+    }
+    const manager = this.ensureResidentManager();
+    const metab = await manager.status('resident:metab');
+    const homeos = await manager.status('resident:homeos');
+    if (
+      metab?.running !== true || metab?.version !== '0.4.0-p1r0-intero-feed.1' ||
+      metab?.health?.outputPolicy !== R150_INTERO_SHADOW.metabOutputPolicy ||
+      metab?.authorityOwned !== false ||
+      homeos?.running !== true || homeos?.version !== '0.3.0-p1r0-intero-feed.1' ||
+      homeos?.health?.outputPolicy !== R150_INTERO_SHADOW.homeosOutputPolicy ||
+      homeos?.authorityOwned !== false
+    ) throw Object.assign(new Error('INTERO shadow lacks exact committed sources'), {
+      code: 'P1_INTERO_SHADOW_DEPENDENCY'
+    });
+    const binding = await this.ensureOrganismBinding({ allowCreate: false });
+    const { INTERO_SHADOW_RESIDENT_CONTRACT } = require('../p1-r0/intero-shadow-contract');
+    const {
+      PRODUCTION_STORAGE_AUTHORIZATION,
+      P1ProductionExpansionPersistence
+    } = require('../p1-r0/production-persistence');
+    const storage = new P1ProductionExpansionPersistence({
+      stateStore: this.stateStore,
+      authorization: PRODUCTION_STORAGE_AUTHORIZATION
+    }).initialize();
+    const unit = await manager.promoteP1ContainedGeneration({
+      kind: 'INTERO_NEUTRAL_TO_SHADOW_R150',
+      moduleRelativePath: 'cores/p1-r0/intero-shadow/index.js',
+      binding,
+      nextContract: INTERO_SHADOW_RESIDENT_CONTRACT,
+      acceptanceCommit: this.interoAcceptanceCommit(
+        storage,
+        'R150_SHADOW_ACCEPTED_PERCEPTION_ONLY_RECEPTOR_ABSENT',
+        parentFreeze.recordSha256,
+        true
+      ),
+      publishActivation: async ({ sourceCheckpoint, resident }) => {
+        const payload = {
+          protocol: 'stay-p1-r0-intero-shadow-activation-v1',
+          organismIdentityHash: manager.organismIdentityHash,
+          residencyId: 'resident:intero', instanceId: resident.instanceId,
+          fromVersion: resident.version, fromStateSchema: resident.stateSchema,
+          sourceCheckpointGeneration: sourceCheckpoint.generation,
+          sourceCheckpointHash: `sha256:${sourceCheckpoint.blobHash}`,
+          toVersion: INTERO_SHADOW_RESIDENT_CONTRACT.version,
+          toStateSchema: INTERO_SHADOW_RESIDENT_CONTRACT.stateSchema,
+          targetRevision: R150_INTERO_SHADOW.shadowRevision,
+          parentRevision: R150_INTERO_SHADOW.parentRevision,
+          parentFreezeRecordSha256: parentFreeze.recordSha256,
+          mode: 'SHADOW', authorityEpoch: '0',
+          outputPolicy: R150_INTERO_SHADOW.interoOutputPolicy,
+          receptorRoute: 'ABSENT'
+        };
+        const signal = createSignal({
+          signalId: `runtime.intero.shadow-activation:r150:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`,
+          topic: 'runtime.intero.shadow-activation', payload,
+          trustedTime: {
+            source: 'kernel', observedAtMs: Number(this.clock()),
+            pulseId: `intero-shadow-r150-g${sourceCheckpoint.generation}`
+          },
+          provenance: {
+            producerType: 'kernel', producerId: 'living-kernel',
+            authorityEpoch: R150_INTERO_SHADOW.shadowRevision
+          },
+          durability: DURABILITY.DURABLE
+        });
+        return this.fabric.publishBiologicalSignal(signal, {
+          eventClass: 'critical', sourceVersion: KERNEL_VERSION,
+          evidenceHash: manager.organismIdentityHash
+        });
+      }
+    });
+    let sample = await this.publishMetabCapacitySample();
+    if (sample === false) sample = await this.publishMetabCapacitySample();
+    if (sample !== true) throw Object.assign(new Error('INTERO shadow did not receive a source sample'), {
+      code: 'P1_INTERO_SHADOW_SAMPLE'
+    });
+    await manager.drain('resident:homeos');
+    await manager.drain('resident:intero');
+    const status = await manager.status('resident:intero');
+    if (
+      status?.running !== true || status?.health?.mode !== 'SHADOW' ||
+      status?.health?.outputPolicy !== R150_INTERO_SHADOW.interoOutputPolicy ||
+      status?.health?.projectionAvailable !== true ||
+      status?.health?.receptorRoute !== 'ABSENT' || status?.authorityOwned !== false ||
+      status?.declaredOutputs !== 0 || status?.observedOutputs !== 0 ||
+      status?.health?.biologicalOutputs !== 0 || status?.health?.physiologicalInputs < 3 ||
+      this.stateStore.listAuthority().some(entry => ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId))
+    ) throw Object.assign(new Error('INTERO shadow acceptance proof failed'), {
+      code: 'P1_INTERO_SHADOW_ACCEPTANCE'
+    });
+    await this.bumpRuntimeRevision('resident.intero-shadow', {
+      residencyId: 'resident:intero', coreVersion: status.version,
+      parentFreezeRecordSha256: parentFreeze.recordSha256
+    });
+    this.statusCache = null;
+    return unit;
   }
 
 
@@ -3725,6 +4900,158 @@ class LivingKernel {
                 shadowFreeze.recordSha256
               )
           };
+        } else if (
+          resident.residencyId === 'resident:metab' && resident.coreId === 'METAB' &&
+          [
+            '0.3.0-p1r0-homeos-feed.1',
+            '0.4.0-p1r0-intero-feed.1'
+          ].includes(resident.version)
+        ) {
+          const {
+            PRODUCTION_STORAGE_AUTHORIZATION,
+            P1ProductionExpansionPersistence
+          } = require('../p1-r0/production-persistence');
+          const storage = new P1ProductionExpansionPersistence({
+            stateStore: this.stateStore,
+            authorization: PRODUCTION_STORAGE_AUTHORIZATION
+          }).initialize();
+          const founder = storage.readFounder({
+            organismId: this.identity.organismId,
+            coreId: 'METAB'
+          });
+          const dossier = storage.legacy.readBirthDossier('resident:metab');
+          const chip = storage.legacy.readChip('resident:metab');
+          const { readRevisionFreeze } = require('../revision-freeze');
+          const birthFreeze = readRevisionFreeze(123, { directory: this.runtimeFreezeDirectory });
+          const parentRevision = resident.version === '0.4.0-p1r0-intero-feed.1' ? 145 : 141;
+          const parentFreeze = readRevisionFreeze(parentRevision, { directory: this.runtimeFreezeDirectory });
+          if (
+            !founder || !dossier || !birthFreeze.frozen ||
+            birthFreeze.recordSha256 !== dossier.parentFreezeRecordSha256 ||
+            !parentFreeze.frozen || !parentFreeze.recordSha256 || !chip ||
+            chip.firstResidencyId !== 'resident:metab' || chip.currentState !== 'SHADOW'
+          ) throw Object.assign(new Error('routed METAB recovery evidence is incomplete'), {
+            code: 'P1_METAB_ROUTED_RECOVERY_EVIDENCE'
+          });
+          recoveryOptions = {
+            acceptanceCommit: resident.version === '0.4.0-p1r0-intero-feed.1'
+              ? this.metabInteroAcceptanceCommit(
+                  storage,
+                  `R${this.runtimeRevision}_INTERO_FEED_RECOVERED`,
+                  parentFreeze.recordSha256
+                )
+              : this.metabHomeosAcceptanceCommit(
+                  storage,
+                  `R${this.runtimeRevision}_HOMEOS_FEED_RECOVERED`,
+                  parentFreeze.recordSha256
+                )
+          };
+        } else if (
+          resident.residencyId === 'resident:homeos' && resident.coreId === 'HOMEOS' &&
+          [
+            '0.1.0-p1r0-neutral.1',
+            '0.2.0-p1r0-shadow.1',
+            '0.3.0-p1r0-intero-feed.1'
+          ].includes(resident.version)
+        ) {
+          const {
+            PRODUCTION_STORAGE_AUTHORIZATION,
+            P1ProductionExpansionPersistence
+          } = require('../p1-r0/production-persistence');
+          const storage = new P1ProductionExpansionPersistence({
+            stateStore: this.stateStore,
+            authorization: PRODUCTION_STORAGE_AUTHORIZATION
+          }).initialize();
+          const founder = storage.readFounder({
+            organismId: this.identity.organismId,
+            coreId: 'HOMEOS'
+          });
+          const dossier = storage.readBirthDossier('resident:homeos');
+          const chip = storage.legacy.readChip('resident:homeos');
+          const { readRevisionFreeze } = require('../revision-freeze');
+          const birthFreeze = readRevisionFreeze(141, { directory: this.runtimeFreezeDirectory });
+          const parentRevision = resident.version === '0.3.0-p1r0-intero-feed.1' ? 145 : 141;
+          const parentFreeze = readRevisionFreeze(parentRevision, { directory: this.runtimeFreezeDirectory });
+          if (
+            !founder || !dossier || !birthFreeze.frozen ||
+            birthFreeze.recordSha256 !== dossier.parentFreezeRecordSha256 ||
+            !parentFreeze.frozen || !parentFreeze.recordSha256 || !chip ||
+            chip.firstResidencyId !== 'resident:homeos'
+          ) throw Object.assign(new Error('HOMEOS recovery evidence is incomplete'), {
+            code: 'P1_HOMEOS_RECOVERY_EVIDENCE'
+          });
+          const routed = resident.version === '0.3.0-p1r0-intero-feed.1';
+          const shadow = resident.version !== '0.1.0-p1r0-neutral.1';
+          recoveryOptions = {
+            acceptanceCommit: routed
+              ? this.homeosInteroAcceptanceCommit(
+                  storage,
+                  `R${this.runtimeRevision}_INTERO_FEED_RECOVERED`,
+                  parentFreeze.recordSha256
+                )
+              : this.homeosAcceptanceCommit(
+                  storage,
+                  `R${this.runtimeRevision}_${shadow ? 'SHADOW' : 'NEUTRAL'}_RECOVERED`,
+                  parentFreeze.recordSha256,
+                  shadow
+                )
+          };
+          if (
+            !shadow && resident.status === 'ATTACHED' &&
+            !await this.stateStore.readResidentCheckpoint(resident.residencyId)
+          ) {
+            const { createNeutralHomeosInitialState } = require('../p1-r0/residents/homeos-neutral');
+            resumeInitialState = createNeutralHomeosInitialState({
+              binding,
+              founder: dossier.founderBinding
+            });
+          }
+        } else if (
+          resident.residencyId === 'resident:intero' && resident.coreId === 'INTERO' &&
+          ['0.1.0-p1r0-neutral.1', '0.2.0-p1r0-shadow.1'].includes(resident.version)
+        ) {
+          const {
+            PRODUCTION_STORAGE_AUTHORIZATION,
+            P1ProductionExpansionPersistence
+          } = require('../p1-r0/production-persistence');
+          const storage = new P1ProductionExpansionPersistence({
+            stateStore: this.stateStore,
+            authorization: PRODUCTION_STORAGE_AUTHORIZATION
+          }).initialize();
+          const founder = storage.readFounder({
+            organismId: this.identity.organismId,
+            coreId: 'INTERO'
+          });
+          const dossier = storage.readBirthDossier('resident:intero');
+          const chip = storage.legacy.readChip('resident:intero');
+          const { readRevisionFreeze } = require('../revision-freeze');
+          const parentFreeze = readRevisionFreeze(145, { directory: this.runtimeFreezeDirectory });
+          if (
+            !founder || !dossier || !parentFreeze.frozen ||
+            parentFreeze.recordSha256 !== dossier.parentFreezeRecordSha256 ||
+            !chip || chip.firstResidencyId !== 'resident:intero'
+          ) throw Object.assign(new Error('INTERO recovery evidence is incomplete'), {
+            code: 'P1_INTERO_RECOVERY_EVIDENCE'
+          });
+          const shadow = resident.version === '0.2.0-p1r0-shadow.1';
+          recoveryOptions = {
+            acceptanceCommit: this.interoAcceptanceCommit(
+              storage,
+              `R${this.runtimeRevision}_${shadow ? 'SHADOW' : 'NEUTRAL'}_RECOVERED`,
+              parentFreeze.recordSha256,
+              shadow
+            )
+          };
+          if (
+            !shadow && resident.status === 'ATTACHED' &&
+            !await this.stateStore.readResidentCheckpoint(resident.residencyId)
+          ) {
+            const { createNeutralInteroInitialState } = require('../p1-r0/residents/intero-neutral');
+            resumeInitialState = createNeutralInteroInitialState({
+              binding,
+              founder: dossier.founderBinding
+            });
+          }
         }
 
         if (resumeInitialState) {
@@ -4178,13 +5505,21 @@ class LivingKernel {
       this.stateStore.getResident('resident:metab');
     const manager = this.residentManager;
 
+    const outputFirewalled =
+      resident?.version === R128_METAB_SHADOW.shadowVersion &&
+      resident?.stateSchema === 2 &&
+      resident?.moduleRelativePath === 'cores/p1-r0/metab-shadow/index.js';
+    const homeosFeed =
+      resident?.version === '0.3.0-p1r0-homeos-feed.1' &&
+      resident?.stateSchema === 3 &&
+      resident?.moduleRelativePath === 'cores/p1-r0/metab-homeos/index.js';
+    const interoFeed =
+      resident?.version === '0.4.0-p1r0-intero-feed.1' &&
+      resident?.stateSchema === 4 &&
+      resident?.moduleRelativePath === 'cores/p1-r0/metab-intero/index.js';
     if (
       !manager ||
-      resident?.version !==
-        R128_METAB_SHADOW.shadowVersion ||
-      resident?.stateSchema !== 2 ||
-      resident?.moduleRelativePath !==
-        'cores/p1-r0/metab-shadow/index.js' ||
+      (!outputFirewalled && !homeosFeed && !interoFeed) ||
       resident?.status !== 'RUNNING' ||
       !manager.units.has('resident:metab')
     ) {
@@ -4197,6 +5532,7 @@ class LivingKernel {
       SOURCE_VERSION,
       commitCapacitySample,
       createCapacitySourceState,
+      migrateCapacitySourceResidentVersion,
       stageCapacitySample,
       validateCapacitySourceState
     } = require('../p1-r0/metab-capacity-source');
@@ -4210,13 +5546,19 @@ class LivingKernel {
       await this.stateStore.readResidentCheckpoint(
         'resident:metab'
       );
+    const residentState = value => interoFeed
+      ? value?.homeosFeedState?.sourceState
+      : homeosFeed
+        ? value?.sourceState
+        : value;
+    let checkpointResidentState = residentState(checkpoint?.state);
 
     if (!sourceState) {
       if (
-        checkpoint?.state?.lastAcceptedFrame !== 0 ||
-        checkpoint?.state?.lastAcceptedTimeMs !== null ||
-        checkpoint?.state?.pendingEligible !== null ||
-        checkpoint?.state?.pendingQuality !== null
+        checkpointResidentState?.lastAcceptedFrame !== 0 ||
+        checkpointResidentState?.lastAcceptedTimeMs !== null ||
+        checkpointResidentState?.pendingEligible !== null ||
+        checkpointResidentState?.pendingQuality !== null
       ) {
         throw Object.assign(
           new Error('METAB capacity source history is missing'),
@@ -4232,17 +5574,29 @@ class LivingKernel {
         sourceState
       );
     } else {
-      sourceState = validateCapacitySourceState(
-        sourceState,
-        {
+      if (
+        (homeosFeed || interoFeed) &&
+        sourceState.residentVersion !== resident.version
+      ) {
+        sourceState = migrateCapacitySourceResidentVersion(sourceState, {
           instanceId: resident.instanceId,
-          residentVersion: resident.version
-        }
-      );
+          fromVersion: sourceState.residentVersion,
+          toVersion: resident.version
+        });
+        await this.stateStore.writeLife(SOURCE_STATE_KEY, sourceState);
+      } else {
+        sourceState = validateCapacitySourceState(
+          sourceState,
+          {
+            instanceId: resident.instanceId,
+            residentVersion: resident.version
+          }
+        );
+      }
     }
 
     const checkpointFrame =
-      Number(checkpoint?.state?.lastAcceptedFrame);
+      Number(checkpointResidentState?.lastAcceptedFrame);
     const allowedCheckpointFrames =
       sourceState.pending
         ? [
@@ -4253,7 +5607,7 @@ class LivingKernel {
 
     if (
       !allowedCheckpointFrames.includes(checkpointFrame) ||
-      checkpoint?.state?.engineState?.outputSequence !== '0'
+      checkpointResidentState?.engineState?.outputSequence !== '0'
     ) {
       throw Object.assign(
         new Error('METAB capacity source disagrees with committed physiology'),
@@ -4379,24 +5733,58 @@ class LivingKernel {
       await this.stateStore.readResidentCheckpoint(
         'resident:metab'
       );
+    checkpointResidentState = residentState(checkpoint?.state);
+    const routedState = interoFeed
+      ? checkpoint?.state?.homeosFeedState?.routedEngineState
+      : homeosFeed
+        ? checkpoint?.state?.routedEngineState
+        : null;
+    const emittedOutputSequence = interoFeed
+      ? checkpoint?.state?.homeosFeedState?.emittedOutputSequence
+      : homeosFeed
+        ? checkpoint?.state?.emittedOutputSequence
+        : '0';
+    const interoRoutedState = interoFeed
+      ? checkpoint?.state?.interoEngineState
+      : null;
+    const interoOutputSequence = interoFeed
+      ? checkpoint?.state?.interoOutputSequence
+      : '0';
 
     if (
       eligibleDelivery?.status !== 'ACKED' ||
       qualityDelivery?.status !== 'ACKED' ||
-      checkpoint?.state?.lastAcceptedFrame !==
+      checkpointResidentState?.lastAcceptedFrame !==
         pending.sampleFrame ||
-      checkpoint?.state?.lastAcceptedTimeMs !==
+      checkpointResidentState?.lastAcceptedTimeMs !==
         pending.observedAtMs ||
-      checkpoint?.state?.engineState?.frameIndex !==
+      checkpointResidentState?.engineState?.frameIndex !==
         pending.sampleFrame ||
-      checkpoint?.state?.engineState?.outputSequence !== '0' ||
-      checkpoint?.state?.pendingEligible !== null ||
-      checkpoint?.state?.pendingQuality !== null ||
+      checkpointResidentState?.engineState?.outputSequence !== '0' ||
+      checkpointResidentState?.pendingEligible !== null ||
+      checkpointResidentState?.pendingQuality !== null ||
+      (
+        (homeosFeed || interoFeed) &&
+        (
+          routedState?.frameIndex !== pending.sampleFrame ||
+          !/^[1-9][0-9]*$/.test(String(emittedOutputSequence || '')) ||
+          BigInt(routedState?.outputSequence || '-1') !== BigInt(emittedOutputSequence) * 2n
+        )
+      ) ||
+      (
+        interoFeed &&
+        (
+          interoRoutedState?.frameIndex !== pending.sampleFrame ||
+          !/^[1-9][0-9]*$/.test(String(interoOutputSequence || '')) ||
+          BigInt(interoOutputSequence) % 2n !== 0n ||
+          BigInt(interoRoutedState?.outputSequence || '-1') % 4n !== 0n
+        )
+      ) ||
       this.stateStore.getAuthority('METAB') !== null ||
       Number(this.stateStore.db.prepare(`
         SELECT COUNT(*) AS count
         FROM biological_outbox_intents
-        WHERE producer_core_id='METAB'
+        WHERE producer_core_id='METAB' AND status='PENDING'
       `).get()?.count || 0) !== 0
     ) {
       throw Object.assign(
@@ -4646,6 +6034,8 @@ module.exports = {
   R135_METAB_SHADOW_RECOVERY,
   R137_METAB_SHADOW_RECOVERY,
   R139_METAB_SHADOW_RECOVERY,
+  R145_HOMEOS_SHADOW,
+  R150_INTERO_SHADOW,
   isBoundedMetabPromotionTail,
   defaultMetabCapacitySampler,
   readR124MetabRecoveryFence

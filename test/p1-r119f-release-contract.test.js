@@ -392,7 +392,9 @@ test('R119F-REL-04 release manifest is exact for every listed file and carries r
     path.join(root,
       'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R137_TO_R139.sha256'),
     path.join(root,
-      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256')
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256')
   ]) {
     if (!fs.existsSync(successorFile)) continue;
     for (const line of fs.readFileSync(successorFile, 'utf8').trim().split(/\r?\n/)) {

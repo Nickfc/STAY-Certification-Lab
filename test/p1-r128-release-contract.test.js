@@ -27,6 +27,8 @@ const LATEST_RECOVERY_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physi
   'P1_PRODUCTION_HARDENING_R137_TO_R139.sha256');
 const R141_RECOVERY_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R139_TO_R141.sha256');
+const R150_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256');
 
 const EXPECTED_OVERLAY = Object.freeze([
   'cores/p1-r0/metab-neutral/index.js',
@@ -108,7 +110,8 @@ test('R128-REL-01 manifest is exact, hash-complete and excludes future resident 
     RECOVERY_SUCCESSOR_MANIFEST,
     FINAL_RECOVERY_SUCCESSOR_MANIFEST,
     LATEST_RECOVERY_SUCCESSOR_MANIFEST,
-    R141_RECOVERY_SUCCESSOR_MANIFEST
+    R141_RECOVERY_SUCCESSOR_MANIFEST,
+    R150_SUCCESSOR_MANIFEST
   ]) {
     if (!fs.existsSync(successorManifest)) continue;
     for (const line of read(successorManifest).trim().split(/\r?\n/)) {

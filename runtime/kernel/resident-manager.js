@@ -2583,6 +2583,300 @@ class ResidentManager {
   }
 
 
+  async promoteP1ContainedGeneration({
+    kind,
+    moduleRelativePath,
+    binding,
+    nextContract: nextContractInput,
+    publishActivation,
+    acceptanceCommit = null
+  }) {
+    if (this.closed) {
+      fail('resident manager is closed', 'RESIDENT_MANAGER_CLOSED');
+    }
+    if (typeof publishActivation !== 'function' || !nextContractInput) {
+      fail('P1 contained promotion configuration is incomplete', 'P1_CONTAINED_PROMOTION_CONFIG');
+    }
+    const specs = {
+      METAB_HOMEOS_ROUTE_R144: {
+        residencyId: 'resident:metab',
+        coreId: 'METAB',
+        role: 'metabolism',
+        fromVersion: '0.2.0-p1r0-shadow.1',
+        fromSchema: 2,
+        fromModule: 'cores/p1-r0/metab-shadow/index.js',
+        toVersion: '0.3.0-p1r0-homeos-feed.1',
+        toSchema: 3,
+        toModule: 'cores/p1-r0/metab-homeos/index.js',
+        stage: 'p1-r0-production-homeos-feed-shadow-r144',
+        activationTopic: 'runtime.metab.homeos-route-activation',
+        stateSchema: 'stay-p1-r0-resident/metab-homeos-state-v3',
+        outputPolicy: 'HOMEOS_ONLY_SHADOW_SUMMARIES',
+        signalling: RESIDENT_SIGNALLING.LAB_SHADOW_ONLY,
+        outputs: ['metab.energy.availability.v1', 'metab.energy.reserve.v1']
+      },
+      HOMEOS_NEUTRAL_TO_SHADOW_R145: {
+        residencyId: 'resident:homeos',
+        coreId: 'HOMEOS',
+        role: 'homeostasis',
+        fromVersion: '0.1.0-p1r0-neutral.1',
+        fromSchema: 1,
+        fromModule: 'cores/p1-r0/homeos-neutral/index.js',
+        toVersion: '0.2.0-p1r0-shadow.1',
+        toSchema: 2,
+        toModule: 'cores/p1-r0/homeos-shadow/index.js',
+        stage: 'p1-r0-production-output-firewalled-shadow-r145',
+        activationTopic: 'runtime.homeos.shadow-activation',
+        stateSchema: 'stay-p1-r0-resident/homeos-shadow-state-v2',
+        outputPolicy: 'FORBIDDEN_UNTIL_INTERO_ATTACHMENT',
+        signalling: RESIDENT_SIGNALLING.FORBIDDEN,
+        outputs: []
+      },
+      METAB_INTERO_ROUTE_R148: {
+        residencyId: 'resident:metab',
+        coreId: 'METAB',
+        role: 'metabolism',
+        fromVersion: '0.3.0-p1r0-homeos-feed.1',
+        fromSchema: 3,
+        fromModule: 'cores/p1-r0/metab-homeos/index.js',
+        toVersion: '0.4.0-p1r0-intero-feed.1',
+        toSchema: 4,
+        toModule: 'cores/p1-r0/metab-intero/index.js',
+        stage: 'p1-r0-production-intero-feed-shadow-r148',
+        activationTopic: 'runtime.metab.intero-route-activation',
+        stateSchema: 'stay-p1-r0-resident/metab-intero-state-v4',
+        outputPolicy: 'HOMEOS_AND_INTERO_SHADOW_SUMMARIES',
+        signalling: RESIDENT_SIGNALLING.LAB_SHADOW_ONLY,
+        outputs: ['metab.energy.availability.v1', 'metab.energy.reserve.v1']
+      },
+      HOMEOS_INTERO_ROUTE_R149: {
+        residencyId: 'resident:homeos',
+        coreId: 'HOMEOS',
+        role: 'homeostasis',
+        fromVersion: '0.2.0-p1r0-shadow.1',
+        fromSchema: 2,
+        fromModule: 'cores/p1-r0/homeos-shadow/index.js',
+        toVersion: '0.3.0-p1r0-intero-feed.1',
+        toSchema: 3,
+        toModule: 'cores/p1-r0/homeos-intero/index.js',
+        stage: 'p1-r0-production-intero-feed-shadow-r149',
+        activationTopic: 'runtime.homeos.intero-route-activation',
+        stateSchema: 'stay-p1-r0-resident/homeos-intero-state-v3',
+        outputPolicy: 'INTERO_STABILITY_ONLY_SHADOW_SUMMARY',
+        signalling: RESIDENT_SIGNALLING.LAB_SHADOW_ONLY,
+        outputs: ['homeos.stability.summary.v1']
+      },
+      INTERO_NEUTRAL_TO_SHADOW_R150: {
+        residencyId: 'resident:intero',
+        coreId: 'INTERO',
+        role: 'interoception',
+        fromVersion: '0.1.0-p1r0-neutral.1',
+        fromSchema: 1,
+        fromModule: 'cores/p1-r0/intero-neutral/index.js',
+        toVersion: '0.2.0-p1r0-shadow.1',
+        toSchema: 2,
+        toModule: 'cores/p1-r0/intero-shadow/index.js',
+        stage: 'p1-r0-production-perception-only-shadow-r150',
+        activationTopic: 'runtime.intero.shadow-activation',
+        stateSchema: 'stay-p1-r0-resident/intero-shadow-state-v2',
+        outputPolicy: 'PERCEPTION_ONLY_NO_OUTPUT',
+        signalling: RESIDENT_SIGNALLING.FORBIDDEN,
+        outputs: []
+      }
+    };
+    const spec = specs[kind];
+    if (!spec || moduleRelativePath !== spec.toModule) {
+      fail('P1 contained promotion kind is not exact', 'P1_CONTAINED_PROMOTION_CONFIG');
+    }
+    const nextContract = normalizeResidentContract(nextContractInput);
+    if (
+      nextContract.residencyId !== spec.residencyId ||
+      nextContract.coreId !== spec.coreId || nextContract.role !== spec.role ||
+      nextContract.version !== spec.toVersion || nextContract.stateSchema !== spec.toSchema ||
+      nextContract.stage !== spec.stage || nextContract.productionEligible !== false ||
+      nextContract.signalling !== spec.signalling || nextContract.authorityMode !== 'shadow' ||
+      stableStringify(nextContract.outputs) !== stableStringify(spec.outputs)
+    ) fail('P1 contained promotion contract is not exact', 'P1_CONTAINED_PROMOTION_CONTRACT');
+
+    const residencyId = spec.residencyId;
+    const before = this.stateStore.getResident(residencyId);
+    const consumer = this.stateStore.getBiologicalConsumer(residencyId);
+    const beforeUnit = this.units.get(residencyId);
+    const pending = this.stateStore.listPendingBiologicalEvents(residencyId, 1024);
+    const pendingOutbox = this.stateStore.listPendingBiologicalOutboxIntents({
+      producerCoreId: spec.coreId,
+      limit: 1024
+    });
+    const expectedPreviousTopics = [...(this.contractRegistry.byResidencyId.get(residencyId)?.inputs || [])].sort();
+    if (
+      !before || before.coreId !== spec.coreId || before.role !== spec.role ||
+      before.version !== spec.fromVersion || before.stateSchema !== spec.fromSchema ||
+      before.moduleRelativePath !== spec.fromModule || before.status !== 'RUNNING' ||
+      !beforeUnit || beforeUnit.outputViolation ||
+      (spec.signalling === RESIDENT_SIGNALLING.FORBIDDEN && beforeUnit.observedOutputs !== 0) ||
+      this.stateStore.getAuthority(spec.coreId) !== null ||
+      this.stateStore.listAuthority().some(entry => ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)) ||
+      !consumer || consumer.coreId !== spec.coreId || consumer.active !== true ||
+      consumer.required !== false || consumer.authorityEpoch !== 0 ||
+      stableStringify(consumer.topics) !== stableStringify(expectedPreviousTopics) ||
+      pending.length !== 0 || pendingOutbox.length !== 0
+    ) fail('resident is not at the exact contained promotion boundary', 'P1_CONTAINED_PROMOTION_BASELINE');
+
+    this.validateBinding(binding);
+    const previousContract = this.contractRegistry.byResidencyId.get(residencyId);
+    const previousInspection = await this.inspect(before.moduleRelativePath, residencyId, previousContract);
+    const inspected = await this.inspect(moduleRelativePath, residencyId, nextContract);
+    let candidate = null;
+    let committed = false;
+    let sourceCheckpoint = null;
+    let outputViolation = false;
+    try {
+      await this.detach(residencyId);
+      sourceCheckpoint = await this.stateStore.readResidentCheckpoint(residencyId);
+      if (
+        !sourceCheckpoint || sourceCheckpoint.version !== before.version ||
+        sourceCheckpoint.stateSchema !== before.stateSchema ||
+        sourceCheckpoint.blobHash !== this.stateStore.getResident(residencyId)?.checkpointHash
+      ) fail('P1 promotion source checkpoint is unavailable', 'P1_CONTAINED_PROMOTION_CHECKPOINT');
+
+      candidate = new CoreHostClient({
+        modulePath: inspected.definition.modulePath,
+        expectedManifest: inspected.definition.manifest,
+        instanceId: before.instanceId,
+        mode: 'standby',
+        logger: this.logger,
+        policy: {
+          resources: inspected.definition.manifest.resources,
+          priority: inspected.definition.manifest.priority
+        }
+      });
+      candidate.on('output', () => { outputViolation = true; });
+      candidate.on('error', () => {});
+      await candidate.start(sourceCheckpoint.state, sourceCheckpoint.stateSchema);
+      const activationEvent = await publishActivation({ sourceCheckpoint, inspected, resident: before });
+      const dispatched = await candidate.dispatch(activationEvent, {
+        coreId: spec.coreId,
+        implementationInstanceId: before.instanceId,
+        authorityEpoch: 0,
+        eventSequence: activationEvent.sequence,
+        eventId: activationEvent.id
+      });
+      if (outputViolation) {
+        fail('resident emitted output during contained activation', 'RESIDENT_OUTPUT_VIOLATION');
+      }
+      const activatedState = dispatched.checkpoint || await candidate.snapshot();
+      const activation = activatedState?.activation;
+      const preserved = kind === 'METAB_HOMEOS_ROUTE_R144'
+        ? (
+            activatedState?.sourceState?.lastAcceptedFrame === sourceCheckpoint.state?.lastAcceptedFrame &&
+            activatedState?.sourceState?.engineState?.outputSequence === '0' &&
+            activatedState?.routedEngineState?.frameIndex === sourceCheckpoint.state?.lastAcceptedFrame &&
+            activatedState?.routedEngineState?.outputSequence === '0' &&
+            activatedState?.emittedOutputSequence === '0'
+          )
+        : kind === 'HOMEOS_NEUTRAL_TO_SHADOW_R145'
+          ? (
+            stableStringify(activatedState?.neutralState?.founder) === stableStringify(sourceCheckpoint.state?.founder) &&
+            stableStringify(activatedState?.neutralState?.engineState) === stableStringify(sourceCheckpoint.state?.engineState) &&
+            activatedState?.neutralState?.engineState?.outputSequence === '0'
+          )
+          : kind === 'METAB_INTERO_ROUTE_R148'
+            ? (
+                stableStringify(activatedState?.homeosFeedState) === stableStringify(sourceCheckpoint.state) &&
+                activatedState?.interoEngineState?.frameIndex === sourceCheckpoint.state?.routedEngineState?.frameIndex &&
+                activatedState?.interoOutputSequence === '0'
+              )
+            : kind === 'HOMEOS_INTERO_ROUTE_R149'
+              ? (
+                  stableStringify(activatedState?.sourceState) === stableStringify(sourceCheckpoint.state) &&
+                  activatedState?.routedEngineState?.frameIndex === sourceCheckpoint.state?.neutralState?.engineState?.frameIndex &&
+                  activatedState?.emittedOutputSequence === '0'
+                )
+              : (
+                  stableStringify(activatedState?.neutralState?.founder) === stableStringify(sourceCheckpoint.state?.founder) &&
+                  stableStringify(activatedState?.neutralState?.engineState) === stableStringify(sourceCheckpoint.state?.engineState) &&
+                  activatedState?.engineState?.outputSequence === '0' &&
+                  activatedState?.lastProjection === null
+                );
+      if (
+        activatedState?.schema !== spec.stateSchema || !preserved ||
+        activation?.eventId !== activationEvent.id ||
+        activation?.eventSequence !== activationEvent.sequence ||
+        activation?.instanceId !== before.instanceId ||
+        activation?.sourceCheckpointGeneration !== sourceCheckpoint.generation ||
+        activation?.sourceCheckpointHash !== `sha256:${sourceCheckpoint.blobHash}` ||
+        activation?.organismIdentityHash !== this.organismIdentityHash ||
+        activation?.authorityEpoch !== '0' || activation?.outputPolicy !== spec.outputPolicy
+      ) fail('contained activation did not preserve resident continuity', 'P1_CONTAINED_PROMOTION_ACTIVATION');
+      const health = await candidate.health();
+      const expectedActivationOutputs = kind === 'METAB_INTERO_ROUTE_R148'
+        ? Number(BigInt(activatedState.homeosFeedState.emittedOutputSequence))
+        : 0;
+      if (
+        health?.ok !== true || health?.mode !== 'SHADOW' ||
+        health?.authorityOwned !== false || health?.activated !== true ||
+        health?.biologicalOutputs !== expectedActivationOutputs || health?.outputPolicy !== spec.outputPolicy
+      ) fail('contained candidate health gate failed', 'P1_CONTAINED_PROMOTION_HEALTH');
+
+      const promoted = await this.stateStore.promoteResidentGeneration({
+        residencyId,
+        instanceId: before.instanceId,
+        organismIdentityHash: before.organismIdentityHash,
+        fromVersion: before.version,
+        fromStateSchema: before.stateSchema,
+        fromModuleRelativePath: before.moduleRelativePath,
+        fromCheckpointGeneration: sourceCheckpoint.generation,
+        fromCheckpointHash: sourceCheckpoint.blobHash,
+        toVersion: inspected.definition.manifest.version,
+        toStateSchema: inspected.definition.manifest.stateSchema,
+        toModuleRelativePath: inspected.moduleRelativePath,
+        toModuleHash: inspected.definition.moduleDigest,
+        toManifestHash: inspected.manifestHash,
+        toPackagePolicyHash: inspected.definition.packagePolicyHash,
+        topics: inspected.definition.manifest.inputs,
+        genesisEvent: activationEvent,
+        state: activatedState,
+        promotionKind: kind
+      });
+      committed = true;
+      candidate.stopping = true;
+      await candidate.stop();
+      candidate = null;
+      this.activateResidentContract(nextContract);
+      return await this.startUnit({
+        resident: promoted.resident,
+        inspected,
+        binding,
+        checkpoint: promoted.checkpoint,
+        acceptanceCommit
+      });
+    } catch (error) {
+      if (candidate) {
+        candidate.stopping = true;
+        await candidate.stop().catch(() => {});
+      }
+      if (!committed && sourceCheckpoint) {
+        this.activateResidentContract(previousContract);
+        try {
+          this.stateStore.setResidentStatus(residencyId, 'RECOVERING');
+          await this.startUnit({
+            resident: this.stateStore.getResident(residencyId),
+            inspected: previousInspection,
+            binding,
+            checkpoint: sourceCheckpoint
+          });
+        } catch (rollbackError) {
+          error.rollbackError = {
+            code: rollbackError?.code || null,
+            message: rollbackError?.message || String(rollbackError)
+          };
+        }
+      }
+      throw error;
+    }
+  }
+
+
   async recover(
     residencyId,
     binding,

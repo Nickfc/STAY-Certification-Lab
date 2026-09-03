@@ -619,6 +619,67 @@ async function main() {
     await kernel.promoteMetabShadow();
   }
 
+  if (
+    process.env.STAY_HOMEOS_NEUTRAL_BIRTH_AUTHORIZATION ===
+      'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY' &&
+    !kernel.stateStore.getResident('resident:homeos')
+  ) {
+    await kernel.birthHomeosNeutral();
+  }
+
+  if (
+    process.env.STAY_METAB_HOMEOS_ROUTE_AUTHORIZATION ===
+      'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY' &&
+    kernel.stateStore.getResident('resident:metab')?.version ===
+      '0.2.0-p1r0-shadow.1'
+  ) {
+    await kernel.promoteMetabHomeosRoute();
+  }
+
+  if (
+    process.env.STAY_HOMEOS_SHADOW_PROMOTION_AUTHORIZATION ===
+      'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY' &&
+    kernel.stateStore.getResident('resident:homeos')?.version ===
+      '0.1.0-p1r0-neutral.1'
+  ) {
+    await kernel.promoteHomeosShadow();
+  }
+
+  if (
+    process.env.STAY_INTERO_NEUTRAL_BIRTH_AUTHORIZATION ===
+      'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY' &&
+    !kernel.stateStore.getResident('resident:intero')
+  ) {
+    await kernel.birthInteroNeutral();
+  }
+
+  if (
+    process.env.STAY_METAB_INTERO_ROUTE_AUTHORIZATION ===
+      'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY' &&
+    kernel.stateStore.getResident('resident:metab')?.version ===
+      '0.3.0-p1r0-homeos-feed.1'
+  ) {
+    await kernel.promoteMetabInteroRoute();
+  }
+
+  if (
+    process.env.STAY_HOMEOS_INTERO_ROUTE_AUTHORIZATION ===
+      'AUTHORIZE_R149_HOMEOS_INTERO_ROUTE_ONLY' &&
+    kernel.stateStore.getResident('resident:homeos')?.version ===
+      '0.2.0-p1r0-shadow.1'
+  ) {
+    await kernel.promoteHomeosInteroRoute();
+  }
+
+  if (
+    process.env.STAY_INTERO_SHADOW_PROMOTION_AUTHORIZATION ===
+      'AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_ONLY' &&
+    kernel.stateStore.getResident('resident:intero')?.version ===
+      '0.1.0-p1r0-neutral.1'
+  ) {
+    await kernel.promoteInteroShadow();
+  }
+
   const badgeSource = await fs.readFile(badgePath, 'utf8');
   const gpuEngineSource = await fs.readFile(gpuEnginePath, 'utf8');
   const computeGovernorSource = await fs.readFile(computeGovernorPath, 'utf8');

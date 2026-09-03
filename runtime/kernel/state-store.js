@@ -8334,6 +8334,182 @@ class StateStore {
       genesisEvent?.payload?.outputPolicy ===
         'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT';
 
+    const metabHomeosPromotion =
+      promotionKind === 'METAB_HOMEOS_ROUTE_R144' &&
+      residencyId === 'resident:metab' &&
+      fromVersion === '0.2.0-p1r0-shadow.1' &&
+      fromStateSchema === 2 &&
+      fromModuleRelativePath === 'cores/p1-r0/metab-shadow/index.js' &&
+      toVersion === '0.3.0-p1r0-homeos-feed.1' &&
+      toStateSchema === 3 &&
+      toModuleRelativePath === 'cores/p1-r0/metab-homeos/index.js' &&
+      stableStringify(topics) === stableStringify([
+        'runtime.organism.binding',
+        'runtime.metab.shadow-activation',
+        'resource.capacity.eligible.v1',
+        'resource.capacity.quality.v1',
+        'runtime.metab.homeos-route-activation'
+      ]) &&
+      genesisEvent?.topic === 'runtime.metab.homeos-route-activation' &&
+      genesisEvent?.payload?.protocol === 'stay-p1-r0-metab-homeos-route-activation-v1' &&
+      genesisEvent?.payload?.residencyId === residencyId &&
+      genesisEvent?.payload?.instanceId === instanceId &&
+      genesisEvent?.payload?.fromVersion === fromVersion &&
+      genesisEvent?.payload?.fromStateSchema === fromStateSchema &&
+      genesisEvent?.payload?.sourceCheckpointGeneration === fromCheckpointGeneration &&
+      genesisEvent?.payload?.sourceCheckpointHash === `sha256:${fromCheckpointHash}` &&
+      genesisEvent?.payload?.toVersion === toVersion &&
+      genesisEvent?.payload?.toStateSchema === toStateSchema &&
+      genesisEvent?.payload?.targetRevision === 144 &&
+      genesisEvent?.payload?.parentRevision === 141 &&
+      genesisEvent?.payload?.mode === 'SHADOW' &&
+      genesisEvent?.payload?.authorityEpoch === '0' &&
+      genesisEvent?.payload?.outputPolicy === 'HOMEOS_ONLY_SHADOW_SUMMARIES' &&
+      stableStringify(genesisEvent?.payload?.routes) === stableStringify([
+        'p1r0.metab-availability.homeos',
+        'p1r0.metab-reserve.homeos'
+      ]);
+
+    const homeosShadowPromotion =
+      promotionKind === 'HOMEOS_NEUTRAL_TO_SHADOW_R145' &&
+      residencyId === 'resident:homeos' &&
+      fromVersion === '0.1.0-p1r0-neutral.1' &&
+      fromStateSchema === 1 &&
+      fromModuleRelativePath === 'cores/p1-r0/homeos-neutral/index.js' &&
+      toVersion === '0.2.0-p1r0-shadow.1' &&
+      toStateSchema === 2 &&
+      toModuleRelativePath === 'cores/p1-r0/homeos-shadow/index.js' &&
+      stableStringify(topics) === stableStringify([
+        'runtime.organism.binding',
+        'metab.energy.availability.v1',
+        'metab.energy.reserve.v1',
+        'runtime.homeos.shadow-activation'
+      ]) &&
+      genesisEvent?.topic === 'runtime.homeos.shadow-activation' &&
+      genesisEvent?.payload?.protocol === 'stay-p1-r0-homeos-shadow-activation-v1' &&
+      genesisEvent?.payload?.residencyId === residencyId &&
+      genesisEvent?.payload?.instanceId === instanceId &&
+      genesisEvent?.payload?.fromVersion === fromVersion &&
+      genesisEvent?.payload?.fromStateSchema === fromStateSchema &&
+      genesisEvent?.payload?.sourceCheckpointGeneration === fromCheckpointGeneration &&
+      genesisEvent?.payload?.sourceCheckpointHash === `sha256:${fromCheckpointHash}` &&
+      genesisEvent?.payload?.toVersion === toVersion &&
+      genesisEvent?.payload?.toStateSchema === toStateSchema &&
+      genesisEvent?.payload?.targetRevision === 145 &&
+      genesisEvent?.payload?.parentRevision === 141 &&
+      genesisEvent?.payload?.mode === 'SHADOW' &&
+      genesisEvent?.payload?.authorityEpoch === '0' &&
+      genesisEvent?.payload?.outputPolicy === 'FORBIDDEN_UNTIL_INTERO_ATTACHMENT';
+
+    const metabInteroPromotion =
+      promotionKind === 'METAB_INTERO_ROUTE_R148' &&
+      residencyId === 'resident:metab' &&
+      fromVersion === '0.3.0-p1r0-homeos-feed.1' &&
+      fromStateSchema === 3 &&
+      fromModuleRelativePath === 'cores/p1-r0/metab-homeos/index.js' &&
+      toVersion === '0.4.0-p1r0-intero-feed.1' &&
+      toStateSchema === 4 &&
+      toModuleRelativePath === 'cores/p1-r0/metab-intero/index.js' &&
+      stableStringify(topics) === stableStringify([
+        'runtime.organism.binding',
+        'runtime.metab.shadow-activation',
+        'resource.capacity.eligible.v1',
+        'resource.capacity.quality.v1',
+        'runtime.metab.homeos-route-activation',
+        'runtime.metab.intero-route-activation'
+      ]) &&
+      genesisEvent?.topic === 'runtime.metab.intero-route-activation' &&
+      genesisEvent?.payload?.protocol === 'stay-p1-r0-metab-intero-route-activation-v1' &&
+      genesisEvent?.payload?.residencyId === residencyId &&
+      genesisEvent?.payload?.instanceId === instanceId &&
+      genesisEvent?.payload?.fromVersion === fromVersion &&
+      genesisEvent?.payload?.fromStateSchema === fromStateSchema &&
+      genesisEvent?.payload?.sourceCheckpointGeneration === fromCheckpointGeneration &&
+      genesisEvent?.payload?.sourceCheckpointHash === `sha256:${fromCheckpointHash}` &&
+      genesisEvent?.payload?.toVersion === toVersion &&
+      genesisEvent?.payload?.toStateSchema === toStateSchema &&
+      genesisEvent?.payload?.targetRevision === 148 &&
+      genesisEvent?.payload?.parentRevision === 145 &&
+      genesisEvent?.payload?.mode === 'SHADOW' &&
+      genesisEvent?.payload?.authorityEpoch === '0' &&
+      genesisEvent?.payload?.outputPolicy === 'HOMEOS_AND_INTERO_SHADOW_SUMMARIES' &&
+      stableStringify(genesisEvent?.payload?.routes) === stableStringify([
+        'p1r0.metab-availability.intero',
+        'p1r0.metab-reserve.intero'
+      ]);
+
+    const homeosInteroPromotion =
+      promotionKind === 'HOMEOS_INTERO_ROUTE_R149' &&
+      residencyId === 'resident:homeos' &&
+      fromVersion === '0.2.0-p1r0-shadow.1' &&
+      fromStateSchema === 2 &&
+      fromModuleRelativePath === 'cores/p1-r0/homeos-shadow/index.js' &&
+      toVersion === '0.3.0-p1r0-intero-feed.1' &&
+      toStateSchema === 3 &&
+      toModuleRelativePath === 'cores/p1-r0/homeos-intero/index.js' &&
+      stableStringify(topics) === stableStringify([
+        'runtime.organism.binding',
+        'metab.energy.availability.v1',
+        'metab.energy.reserve.v1',
+        'runtime.homeos.shadow-activation',
+        'runtime.homeos.intero-route-activation'
+      ]) &&
+      genesisEvent?.topic === 'runtime.homeos.intero-route-activation' &&
+      genesisEvent?.payload?.protocol === 'stay-p1-r0-homeos-intero-route-activation-v1' &&
+      genesisEvent?.payload?.residencyId === residencyId &&
+      genesisEvent?.payload?.instanceId === instanceId &&
+      genesisEvent?.payload?.fromVersion === fromVersion &&
+      genesisEvent?.payload?.fromStateSchema === fromStateSchema &&
+      genesisEvent?.payload?.sourceCheckpointGeneration === fromCheckpointGeneration &&
+      genesisEvent?.payload?.sourceCheckpointHash === `sha256:${fromCheckpointHash}` &&
+      genesisEvent?.payload?.toVersion === toVersion &&
+      genesisEvent?.payload?.toStateSchema === toStateSchema &&
+      genesisEvent?.payload?.targetRevision === 149 &&
+      genesisEvent?.payload?.parentRevision === 145 &&
+      genesisEvent?.payload?.mode === 'SHADOW' &&
+      genesisEvent?.payload?.authorityEpoch === '0' &&
+      genesisEvent?.payload?.outputPolicy === 'INTERO_STABILITY_ONLY_SHADOW_SUMMARY' &&
+      stableStringify(genesisEvent?.payload?.routes) === stableStringify([
+        'p1r0.homeos-stability.intero'
+      ]);
+
+    const interoShadowPromotion =
+      promotionKind === 'INTERO_NEUTRAL_TO_SHADOW_R150' &&
+      residencyId === 'resident:intero' &&
+      fromVersion === '0.1.0-p1r0-neutral.1' &&
+      fromStateSchema === 1 &&
+      fromModuleRelativePath === 'cores/p1-r0/intero-neutral/index.js' &&
+      toVersion === '0.2.0-p1r0-shadow.1' &&
+      toStateSchema === 2 &&
+      toModuleRelativePath === 'cores/p1-r0/intero-shadow/index.js' &&
+      stableStringify(topics) === stableStringify([
+        'runtime.organism.binding',
+        'runtime.intero.shadow-activation',
+        'metab.energy.availability.v1',
+        'metab.energy.reserve.v1',
+        'homeos.stability.summary.v1'
+      ]) &&
+      genesisEvent?.topic === 'runtime.intero.shadow-activation' &&
+      genesisEvent?.payload?.protocol === 'stay-p1-r0-intero-shadow-activation-v1' &&
+      genesisEvent?.payload?.residencyId === residencyId &&
+      genesisEvent?.payload?.instanceId === instanceId &&
+      genesisEvent?.payload?.fromVersion === fromVersion &&
+      genesisEvent?.payload?.fromStateSchema === fromStateSchema &&
+      genesisEvent?.payload?.sourceCheckpointGeneration === fromCheckpointGeneration &&
+      genesisEvent?.payload?.sourceCheckpointHash === `sha256:${fromCheckpointHash}` &&
+      genesisEvent?.payload?.toVersion === toVersion &&
+      genesisEvent?.payload?.toStateSchema === toStateSchema &&
+      genesisEvent?.payload?.targetRevision === 150 &&
+      genesisEvent?.payload?.parentRevision === 145 &&
+      genesisEvent?.payload?.mode === 'SHADOW' &&
+      genesisEvent?.payload?.authorityEpoch === '0' &&
+      genesisEvent?.payload?.outputPolicy === 'PERCEPTION_ONLY_NO_OUTPUT' &&
+      genesisEvent?.payload?.receptorRoute === 'ABSENT';
+
+    const p1ContainedPromotion =
+      metabShadowPromotion || metabHomeosPromotion || homeosShadowPromotion ||
+      metabInteroPromotion || homeosInteroPromotion || interoShadowPromotion;
+
     if (
       !Number.isSafeInteger(fromStateSchema) ||
       fromStateSchema < 1 ||
@@ -8345,7 +8521,7 @@ class StateStore {
       !Array.isArray(topics) ||
       topics.some(topic => typeof topic !== 'string' || !topic) ||
       !genesisEvent ||
-      (!sntssPromotion && !metabShadowPromotion) ||
+      (!sntssPromotion && !p1ContainedPromotion) ||
       genesisEvent.ledger?.durable !== true ||
       !Number.isSafeInteger(genesisEvent.sequence) ||
       genesisEvent.sequence < 1 ||
@@ -8408,6 +8584,8 @@ class StateStore {
         protocol:
           metabShadowPromotion
             ? 'stay-metab-mode-transition-v1'
+            : p1ContainedPromotion
+              ? 'stay-p1-r0-contained-transition-v1'
             : 'stay-resident-transition-v1',
         residencyId,
         eventId:
@@ -8440,11 +8618,17 @@ class StateStore {
       }
 
       if (
-        metabShadowPromotion &&
-        current.coreId !== 'METAB'
+        p1ContainedPromotion &&
+        current.coreId !== (
+          residencyId === 'resident:homeos'
+            ? 'HOMEOS'
+            : residencyId === 'resident:intero'
+              ? 'INTERO'
+              : 'METAB'
+        )
       ) {
         throw Object.assign(
-          new Error('METAB promotion changed core identity'),
+          new Error('P1 contained promotion changed core identity'),
           { code: 'RESIDENT_PROMOTION_BASELINE' }
         );
       }
@@ -8529,7 +8713,7 @@ class StateStore {
         );
 
       const authorityCount =
-        metabShadowPromotion
+        p1ContainedPromotion
           ? Number(
               this.db.prepare(`
                 SELECT COUNT(*) AS count
@@ -8540,13 +8724,13 @@ class StateStore {
           : 0;
 
       const outputIntentCount =
-        metabShadowPromotion
+        p1ContainedPromotion
           ? Number(
               this.db.prepare(`
                 SELECT COUNT(*) AS count
                 FROM biological_outbox_intents
-                WHERE producer_core_id='METAB'
-              `).get()?.count || 0
+                WHERE producer_core_id=?
+              `).get(current.coreId)?.count || 0
             )
           : 0;
 
