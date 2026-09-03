@@ -16,6 +16,14 @@ PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
 VERIFY='deploy/live-physiology-transplant/p1-r150-verify-birth-certificate.js'
 FREEZER='deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js'
 CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
+METAB_REPAIR='deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js'
+PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c'
+PREVIOUS_HOMEOS_TAG='r150-homeos-intero-shadow-v5'
+PREVIOUS_HOMEOS_COMMIT='3f7c6c477683f57d77e43ea69ff3936c7ace5cff'
+PREVIOUS_HOMEOS_TREE='9de36f3d5d26b40f899d297957a43f8844990c40'
+PREVIOUS_HOMEOS_ARCHIVE_SHA256='sha256:760d6be2a54123699c8b3e8740d7825713861d6779dbef4ae93df567cf001d5f'
+PREVIOUS_HOMEOS_MANIFEST_SHA256='sha256:7a39b466f82cb6eca5ad74787016073f3358480d211e19aa2d2b3a809b2d61ec'
+PREVIOUS_HOMEOS_CONTROLLER_SHA256='sha256:2fdb213e49f37b1d695a3743a46a004766f50b30aae67af24d5db998aae65ea3'
 
 : "${STAY_R150_STAGE:?}"
 : "${STAY_R150_RECOVERY_AUTHORIZATION:?}"
@@ -100,12 +108,12 @@ trap cleanup EXIT
 
 case "$STAY_R150_STAGE" in
   homeos)
-    CORE='HOMEOS'; PARENT_REVISION=141; BIRTH_PREDECESSOR=142; TARGET_REVISION=145
-    PARENT_FREEZE="$FREEZE_DIR/R141.json"; TARGET_FREEZE="$FREEZE_DIR/R145.json"
-    DROPIN="$DROPIN_DIR/r145-homeos-shadow-once.conf"
+    CORE='HOMEOS'; PARENT_REVISION=141; BIRTH_PREDECESSOR=142; TARGET_REVISION=146
+    PARENT_FREEZE="$FREEZE_DIR/R141.json"; TARGET_FREEZE="$FREEZE_DIR/R146.json"
+    DROPIN="$DROPIN_DIR/r146-metab-q48-homeos-shadow-once.conf"
     ACTIVE_CERTIFICATE='/etc/stay/resident-promotions/resident-homeos-neutral-birth.json'
     RECOVERY_MARKER='/run/stay-r145-homeos-shadow-recovery.env'
-    AUTHORIZATION='AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY'
+    AUTHORIZATION='AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY'
     ;;
   intero)
     CORE='INTERO'; PARENT_REVISION=145; BIRTH_PREDECESSOR=146; TARGET_REVISION=150
@@ -133,21 +141,37 @@ done
 for file in "$DATABASE" "$PARENT_FREEZE" "$RECOVERY_MARKER" "$ACTIVE_PUBLIC_KEY" \
   "$STAY_R150_TARGET_RELEASE/$MANIFEST" "$STAY_R150_TARGET_RELEASE/$PROOF" \
   "$STAY_R150_TARGET_RELEASE/$VERIFY" "$STAY_R150_TARGET_RELEASE/$FREEZER" \
-  "$STAY_R150_TARGET_RELEASE/$CLIENT" "$STAY_R150_TARGET_RELEASE/P1_R150_RELEASE.env"; do
+  "$STAY_R150_TARGET_RELEASE/$CLIENT" "$STAY_R150_TARGET_RELEASE/$METAB_REPAIR" \
+  "$STAY_R150_TARGET_RELEASE/P1_R150_RELEASE.env"; do
   [[ -f "$file" && ! -L "$file" ]] || abort recovery-input-invalid 3607
 done
-[[ "$(stat -Lc '%U:%G:%a' "$RECOVERY_MARKER")" == root:root:400 &&
-  "$(marker_value R150_STAGE)" == "$STAY_R150_STAGE" &&
-  "$(marker_value R150_TARGET_RELEASE)" == "$STAY_R150_TARGET_RELEASE" &&
+marker_cohort='INVALID'
+if [[ "$(marker_value R150_TARGET_RELEASE)" == "$STAY_R150_TARGET_RELEASE" &&
   "$(marker_value R150_RELEASE_TAG)" == "$STAY_R150_RELEASE_TAG" &&
   "$(marker_value R150_RELEASE_COMMIT)" == "$STAY_R150_RELEASE_COMMIT" &&
   "$(marker_value R150_RELEASE_TREE)" == "$STAY_R150_RELEASE_TREE" &&
   "$(marker_value R150_ARCHIVE_SHA256)" == "$STAY_R150_ARCHIVE_SHA256" &&
   "$(marker_value R150_MANIFEST_SHA256)" == "$STAY_R150_MANIFEST_SHA256" &&
-  "$(marker_value R150_CONTROLLER_SHA256)" == "$STAY_R150_CONTROLLER_SHA256" ]] || abort recovery-marker-cohort-invalid 3608
+  "$(marker_value R150_CONTROLLER_SHA256)" == "$STAY_R150_CONTROLLER_SHA256" ]]; then
+  marker_cohort='CURRENT'
+elif [[ "$STAY_R150_STAGE" == homeos &&
+  "$(marker_value R150_TARGET_RELEASE)" == "$PREVIOUS_HOMEOS_TARGET" &&
+  "$(marker_value R150_RELEASE_TAG)" == "$PREVIOUS_HOMEOS_TAG" &&
+  "$(marker_value R150_RELEASE_COMMIT)" == "$PREVIOUS_HOMEOS_COMMIT" &&
+  "$(marker_value R150_RELEASE_TREE)" == "$PREVIOUS_HOMEOS_TREE" &&
+  "$(marker_value R150_ARCHIVE_SHA256)" == "$PREVIOUS_HOMEOS_ARCHIVE_SHA256" &&
+  "$(marker_value R150_MANIFEST_SHA256)" == "$PREVIOUS_HOMEOS_MANIFEST_SHA256" &&
+  "$(marker_value R150_CONTROLLER_SHA256)" == "$PREVIOUS_HOMEOS_CONTROLLER_SHA256" ]]; then
+  marker_cohort='EXACT_PREVIOUS_HOMEOS_FAILURE'
+fi
+[[ "$(stat -Lc '%U:%G:%a' "$RECOVERY_MARKER")" == root:root:400 &&
+  "$(marker_value R150_STAGE)" == "$STAY_R150_STAGE" && "$marker_cohort" != INVALID ]] ||
+  abort recovery-marker-cohort-invalid 3608
 FAILURE_EVIDENCE="$(marker_value R150_FAILURE_EVIDENCE)"
 CERTIFICATE_SHA256="$(marker_value R150_CERTIFICATE_SHA256)"
-[[ "$FAILURE_EVIDENCE" =~ ^/var/lib/stay/evidence/production-hardening/FAILED-R${TARGET_REVISION}-${STAY_R150_STAGE^^}-[A-Za-z0-9TZ.-]+$ &&
+failure_revision_pattern="$TARGET_REVISION"
+if [[ "$STAY_R150_STAGE" == homeos ]]; then failure_revision_pattern='(145|146)'; fi
+[[ "$FAILURE_EVIDENCE" =~ ^/var/lib/stay/evidence/production-hardening/FAILED-R${failure_revision_pattern}-${STAY_R150_STAGE^^}-[A-Za-z0-9TZ.-]+$ &&
   -d "$FAILURE_EVIDENCE" && ! -L "$FAILURE_EVIDENCE" && "$CERTIFICATE_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]] || abort failure-evidence-invalid 3609
 CERTIFICATE="$FAILURE_EVIDENCE/$STAY_R150_STAGE.birth-certificate.json"
 for file in "$CERTIFICATE" "$FAILURE_EVIDENCE/before.proof.json"; do
@@ -177,11 +201,17 @@ if [[ "$CURRENT_REVISION" -le "$BIRTH_PREDECESSOR" ]]; then
   /usr/local/bin/node "$STAY_R150_TARGET_RELEASE/$VERIFY" "$CORE" "$STAY_R150_TARGET_RELEASE" "$DATABASE" \
     "$PARENT_FREEZE" "$CERTIFICATE" "$ACTIVE_PUBLIC_KEY" > "$WORK/certificate.recovery-preflight.json"
 fi
+if [[ "$STAY_R150_STAGE" == homeos && "$CURRENT_REVISION" -eq 146 ]]; then
+  /usr/local/bin/node "$STAY_R150_TARGET_RELEASE/$METAB_REPAIR" preflight \
+    "$DATABASE" "$STAY_R150_TARGET_RELEASE" > "$WORK/metab-q48-repair.preflight.json"
+fi
 
 need_restart=1
 if [[ "$CURRENT_REVISION" -eq "$TARGET_REVISION" && "$recovery_before_pid" =~ ^[1-9][0-9]*$ &&
   "$(systemctl show stay.service -p ActiveState --value)" == active &&
-  "$(systemctl show stay.service -p SubState --value)" == running && -S "$SOCKET" && ! -L "$SOCKET" ]]; then
+  "$(systemctl show stay.service -p SubState --value)" == running && -S "$SOCKET" && ! -L "$SOCKET" ]] &&
+  curl --fail --silent --max-time 1 http://127.0.0.1:8787/healthz |
+    grep -q "\"revision\":$TARGET_REVISION"; then
   need_restart=0
 fi
 if [[ "$need_restart" -eq 1 ]]; then
@@ -194,8 +224,11 @@ if [[ "$need_restart" -eq 1 ]]; then
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_AUTHORIZATION=AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY
 Environment=STAY_METAB_HOMEOS_ROUTE_AUTHORIZATION=AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY
 Environment=STAY_HOMEOS_SHADOW_PROMOTION_AUTHORIZATION=AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY
+Environment=STAY_HOMEOS_STRANDED_R146_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R146_METAB_Q48_HOMEOS_FORWARD_RECOVERY_ONLY
+Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=146
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_CERTIFICATE=$ACTIVE_CERTIFICATE
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_PUBLIC_KEY=$ACTIVE_PUBLIC_KEY
+ExecStartPre=/usr/local/bin/node $STAY_R150_TARGET_RELEASE/$METAB_REPAIR apply $DATABASE $STAY_R150_TARGET_RELEASE
 DROPIN
   else
     cat > "$dropin_tmp" <<DROPIN
@@ -241,7 +274,7 @@ NODE
 'use strict';const fs=require('node:fs'),path=require('node:path');const[helper,root,stage,targetRelease]=process.argv.slice(2),read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8'));
 const statuses={sntss:read('sntss.after.json'),chronobiology:read('chronobiology.after.json'),metab:read('metab.after.json'),homeos:read('homeos.after.json')};if(stage==='intero')statuses.intero=read('intero.after.json');
 const api=require(helper),args={before:read('before.proof.json'),database:read('database.after.json'),statuses,meta:read('meta.after.json'),service:read('service.after.json'),targetRelease};
-process.stdout.write(JSON.stringify(stage==='homeos'?api.validateR145After(args):api.validateR150After(args))+'\n');
+process.stdout.write(JSON.stringify(stage==='homeos'?api.validateR146After(args):api.validateR150After(args))+'\n');
 NODE
 
 if [[ "$AUTHORIZATION_INSTALLED" -eq 1 ]]; then remove_authorization || abort authorization-revocation-failed 3616; fi

@@ -10,7 +10,10 @@ const test = require('node:test');
 const { DURABILITY, createSignal, deriveSignal } = require('../runtime/kernel/biological-fabric');
 const { stableStringify } = require('../runtime/kernel/canonical-json');
 const { EventFabric } = require('../runtime/kernel/event-fabric');
-const { LivingKernel } = require('../runtime/kernel/living-kernel');
+const {
+  LivingKernel,
+  R146_METAB_Q48_HOMEOS_RECOVERY
+} = require('../runtime/kernel/living-kernel');
 const { validateManifest } = require('../runtime/kernel/manifest');
 const { ResidentManager } = require('../runtime/kernel/resident-manager');
 const { StateStore } = require('../runtime/kernel/state-store');
@@ -709,7 +712,9 @@ test('R145-HOMEOS-ENTRY-06 real LivingKernel path reaches R145 output-firewalled
   assert.equal(kernel.runtimeRevision, 143);
   await kernel.promoteMetabHomeosRoute();
   assert.equal(kernel.runtimeRevision, 144);
-  await runtime.manager.drain('resident:homeos');
+  const routedHomeos = await runtime.manager.status('resident:homeos');
+  assert.equal(routedHomeos.health.physiologicalInputs >= 2, true);
+  assert.equal(routedHomeos.observedOutputs, 0);
   await kernel.promoteHomeosShadow();
   assert.equal(kernel.runtimeRevision, 145);
 
@@ -732,7 +737,127 @@ test('R145-HOMEOS-ENTRY-06 real LivingKernel path reaches R145 output-firewalled
   assert.equal(storage.legacy.readChip('resident:homeos').currentState, 'SHADOW');
 });
 
-test('R145-HOMEOS-REVISION-07 only exact durable R143/R144 cohorts preserve revision after a crash', () => {
+test('R145-HOMEOS-RECOVERY-07 exact stranded R145 cohort completes without revision rewind or authority', async t => {
+  const runtime = await managedPromotionRuntime(t, { includeHomeos: false });
+  const freezeDirectory = path.join(runtime.root, 'runtime-freezes');
+  const publicKeyPath = path.join(runtime.root, 'release-authority.pub');
+  const certificateFile = path.join(runtime.root, 'homeos-neutral-birth.json');
+  await fs.mkdir(freezeDirectory, { recursive: true });
+  const parentFreeze = sealRevisionFreeze({
+    format: REVISION_FREEZE_FORMAT,
+    result: 'PASS',
+    acceptance: 'ACCEPTED',
+    freezeType: 'R141F_METAB_SHADOW_ACCEPTANCE',
+    runtime: { revision: 141, revisionLabel: 'R141F' }
+  });
+  await fs.writeFile(
+    path.join(freezeDirectory, 'R141.json'),
+    `${stableStringify(parentFreeze)}\n`,
+    { encoding: 'utf8', mode: 0o444 }
+  );
+
+  let wallClock = 1_800_000_000_000;
+  let trustedTimeUs = 40_001_000;
+  const kernel = new LivingKernel({
+    dataDir: runtime.root,
+    releaseRoot: ROOT,
+    logger: { log() {}, info() {}, warn() {}, error() {} },
+    clock: () => wallClock++,
+    heartbeatIntervalMs: 0,
+    snapshotIntervalMs: 0,
+    homeosNeutralBirthAuthorization: 'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY',
+    metabHomeosRouteAuthorization: 'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY',
+    homeosShadowPromotionAuthorization: 'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY',
+    homeosStrandedR145RecoveryAuthorization:
+      'AUTHORIZE_STRANDED_R145_HOMEOS_FORWARD_RECOVERY_ONLY',
+    homeosNeutralBirthPublicKeyPath: publicKeyPath,
+    homeosNeutralBirthCertificateFile: certificateFile,
+    runtimeFreezeDirectory: freezeDirectory,
+    metabCapacitySampler: () => ({
+      cpuCount: 4,
+      loadAverageMilli: 1000,
+      freeMemoryBytes: 6_000,
+      totalMemoryBytes: 8_000
+    })
+  });
+  kernel.stateStore = runtime.stateStore;
+  kernel.fabric = runtime.fabric;
+  kernel.identity = IDENTITY;
+  kernel.runtimeRevision = 145;
+  kernel.residentManager = runtime.manager;
+  kernel.trustedOrganismTime = {
+    sample: async () => {
+      const value = trustedTimeUs;
+      trustedTimeUs += 300_000;
+      return { status: 'TRUSTED', trustedTimeUs: value, continuityEpoch: 1 };
+    }
+  };
+
+  const inspected = await runtime.manager.inspect(
+    'cores/p1-r0/homeos-neutral/index.js',
+    'resident:homeos',
+    HOMEOS_NEUTRAL_RESIDENT_CONTRACT
+  );
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
+  await fs.writeFile(
+    publicKeyPath,
+    publicKey.export({ type: 'spki', format: 'pem' }),
+    { encoding: 'utf8', mode: 0o444 }
+  );
+  const founderBinding = founder('HOMEOS');
+  const body = {
+    allowedAction: 'birth-homeos-neutral',
+    authorizationClass: HOMEOS_NEUTRAL_AUTHORIZATION_CLASS,
+    certificateId: 'r143-homeos-neutral-stranded-r145-recovery-test',
+    expiresAtMs: wallClock + 60_000,
+    founderBinding,
+    founderDossierSha256: recordHash({
+      status: 'PRODUCTION_FOUNDER_CANDIDATE',
+      reviewedProfile: founderBinding.profile,
+      noAuthority: true
+    }),
+    founderRecord: homeosFounderRecord(),
+    issuedAtMs: wallClock - 1_000,
+    manifestHash: inspected.manifestHash,
+    moduleHash: inspected.definition.moduleDigest,
+    organismId: IDENTITY.organismId,
+    organismIdentityHash: IDENTITY_HASH,
+    packagePolicyHash: inspected.definition.packagePolicyHash,
+    parentFreezeRecordSha256: parentFreeze.recordSha256,
+    parentRevision: 141,
+    residencyId: 'resident:homeos',
+    targetRevision: 143,
+    version: neutralHomeos.VERSION
+  };
+  await fs.writeFile(certificateFile, `${stableStringify({
+    format: HOMEOS_NEUTRAL_BIRTH_FORMAT,
+    body,
+    signature: crypto.sign(
+      null,
+      Buffer.from(stableStringify(body)),
+      privateKey
+    ).toString('base64')
+  })}\n`, { encoding: 'utf8', mode: 0o444 });
+
+  assert.equal(kernel.preserveExactR145HomeosProgressRevision(), true);
+  assert.equal(kernel.homeosStrandedR145RecoveryActive, true);
+  await kernel.recoverStrandedR145Homeos();
+
+  const metab = await runtime.manager.status('resident:metab');
+  const homeos = await runtime.manager.status('resident:homeos');
+  assert.equal(kernel.runtimeRevision, 145);
+  assert.equal(kernel.p1ExpansionFetusInstallRevisionPreservation, 145);
+  assert.equal(metab.version, metabHomeos.VERSION);
+  assert.equal(metab.health.mode, 'SHADOW');
+  assert.equal(homeos.version, shadowHomeos.VERSION);
+  assert.equal(homeos.health.mode, 'SHADOW');
+  assert.equal(homeos.observedOutputs, 0);
+  assert.equal(homeos.authorityOwned, false);
+  assert.deepEqual(runtime.stateStore.listAuthority(), []);
+  assert.equal(runtime.stateStore.listPendingBiologicalOutboxIntents().length, 0);
+});
+
+test('R145-HOMEOS-REVISION-08 only exact durable progress or recovery cohorts preserve revision', () => {
   const residents = new Map([
     ['resident:metab', {
       version: shadowMetab.VERSION,
@@ -768,4 +893,118 @@ test('R145-HOMEOS-REVISION-07 only exact durable R143/R144 cohorts preserve revi
   assert.equal(LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness), true);
   harness.stateStore.listAuthority = () => [{ coreId: 'HOMEOS' }];
   assert.equal(LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness), false);
+
+  harness.stateStore.listAuthority = () => [];
+  residents.delete('resident:homeos');
+  residents.set('resident:metab', {
+    instanceId: INSTANCE_METAB,
+    version: shadowMetab.VERSION,
+    stateSchema: 2,
+    moduleRelativePath: 'cores/p1-r0/metab-shadow/index.js',
+    status: 'RUNNING'
+  });
+  harness.runtimeRevision = 145;
+  harness.stateStore.getBiologicalConsumer = () => null;
+  harness.homeosStrandedR145RecoveryAuthorization = '';
+  assert.equal(LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness), false);
+  harness.homeosStrandedR145RecoveryAuthorization =
+    'AUTHORIZE_STRANDED_R145_HOMEOS_FORWARD_RECOVERY_ONLY';
+  assert.equal(LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness), true);
+  assert.equal(harness.homeosStrandedR145RecoveryActive, true);
+});
+
+test('R146-HOMEOS-RECOVERY-09 only the exact repaired zero-debt METAB cohort preserves R146', () => {
+  const checkpointHash = 'c'.repeat(64);
+  const metab = {
+    instanceId: R146_METAB_Q48_HOMEOS_RECOVERY.metabInstanceId,
+    version: R146_METAB_Q48_HOMEOS_RECOVERY.metabVersion,
+    stateSchema: R146_METAB_Q48_HOMEOS_RECOVERY.metabStateSchema,
+    moduleRelativePath: R146_METAB_Q48_HOMEOS_RECOVERY.metabModuleRelativePath,
+    moduleHash: R146_METAB_Q48_HOMEOS_RECOVERY.metabModuleHash,
+    manifestHash: R146_METAB_Q48_HOMEOS_RECOVERY.metabManifestHash,
+    packagePolicyHash: R146_METAB_Q48_HOMEOS_RECOVERY.metabPackagePolicyHash,
+    status: 'RESYNC_REQUIRED',
+    checkpointGeneration: R146_METAB_Q48_HOMEOS_RECOVERY.checkpointGeneration,
+    checkpointHash
+  };
+  const rows = {
+    checkpoint: {
+      checkpoint_id: R146_METAB_Q48_HOMEOS_RECOVERY.checkpointId,
+      instance_id: R146_METAB_Q48_HOMEOS_RECOVERY.metabInstanceId,
+      version: R146_METAB_Q48_HOMEOS_RECOVERY.metabVersion,
+      state_schema: R146_METAB_Q48_HOMEOS_RECOVERY.metabStateSchema,
+      generation: R146_METAB_Q48_HOMEOS_RECOVERY.checkpointGeneration,
+      blob_hash: checkpointHash,
+      byte_length: 3880,
+      input_cursor: R146_METAB_Q48_HOMEOS_RECOVERY.inputCursor
+    },
+    failure: {
+      id: R146_METAB_Q48_HOMEOS_RECOVERY.failureRecordId,
+      detail_json: JSON.stringify({
+        sequence: R146_METAB_Q48_HOMEOS_RECOVERY.failureSequence,
+        topic: 'resource.capacity.quality.v1',
+        code: 'P1_Q48_OVERFLOW'
+      })
+    },
+    repair: {
+      detail_json: JSON.stringify({
+        repairId: R146_METAB_Q48_HOMEOS_RECOVERY.repairId,
+        repairedCheckpointHash: checkpointHash,
+        abandonedCount: 0,
+        inventedBiologicalTime: false,
+        authorityChanged: false
+      })
+    },
+    capacity: (() => {
+      const json = JSON.stringify({ lastCommittedFrame: 98001, pending: null });
+      return { json, sha256: crypto.createHash('sha256').update(json).digest('hex') };
+    })()
+  };
+  const harness = {
+    runtimeRevision: 146,
+    homeosNeutralBirthAuthorization: 'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY',
+    metabHomeosRouteAuthorization: 'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY',
+    homeosShadowPromotionAuthorization: 'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY',
+    homeosStrandedR145RecoveryAuthorization: '',
+    homeosStrandedR146RecoveryAuthorization:
+      R146_METAB_Q48_HOMEOS_RECOVERY.authorization,
+    homeosStrandedR145RecoveryActive: false,
+    homeosStrandedRecoveryRevision: null,
+    metabQ48R146RecoveryActive: false,
+    stateStore: {
+      getResident: id => id === 'resident:metab' ? metab : null,
+      getBiologicalConsumer: id => id === 'resident:metab' ? {
+        coreId: 'METAB', required: false, active: false,
+        cursor: R146_METAB_Q48_HOMEOS_RECOVERY.inputCursor,
+        authorityEpoch: 0, checkpointHash
+      } : null,
+      listAuthority: () => [],
+      db: {
+        prepare: sql => ({
+          get: () => sql.includes('resident_checkpoints') ? rows.checkpoint
+            : sql.includes("type='resident.resync-required'") ? rows.failure
+              : sql.includes("type='resident.implementation-repaired'") ? rows.repair
+                : sql.includes("key='life:p1-r0-metab-capacity-source'") ? rows.capacity
+                : { count: 0 }
+        })
+      }
+    }
+  };
+  assert.equal(
+    LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness),
+    true
+  );
+  assert.equal(harness.homeosStrandedRecoveryRevision, 146);
+  assert.equal(harness.metabQ48R146RecoveryActive, true);
+  assert.equal(
+    LivingKernel.prototype.isExactStrandedHomeosRecovery.call(harness, true),
+    true
+  );
+  metab.moduleHash = `sha256:${'d'.repeat(64)}`;
+  harness.homeosStrandedR145RecoveryActive = false;
+  harness.metabQ48R146RecoveryActive = false;
+  assert.equal(
+    LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness),
+    false
+  );
 });

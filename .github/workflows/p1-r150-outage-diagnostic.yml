@@ -1,0 +1,65 @@
+name: R150 read-only outage diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization:
+        description: Exact read-only diagnostic authorization
+        required: true
+        type: choice
+        options:
+          - DENY
+          - AUTHORIZE_R150_READ_ONLY_OUTAGE_DIAGNOSTIC_V1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stay-p1-r150-production-transition
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Validate fixed dispatch
+        env:
+          REQUESTED_AUTHORIZATION: ${{ inputs.authorization }}
+        run: test "$REQUESTED_AUTHORIZATION" = AUTHORIZE_R150_READ_ONLY_OUTAGE_DIAGNOSTIC_V1
+      - name: Prepare pinned production SSH identity
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          printf '%s %s\n' '35.157.242.167' 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS' > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+          test "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" = 'SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q'
+      - name: Capture read-only service evidence
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/stay_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" staydeploy@35.157.242.167 'bash -s' <<'REMOTE'
+          set -u
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          test "$observed" = 172.26.9.207
+          printf '%s\n' 'R150_READ_ONLY_DIAGNOSTIC=BEGIN'
+          printf 'CURRENT_RELEASE=%s\n' "$(readlink -f /opt/stay/current || true)"
+          systemctl show stay.service -p ActiveState -p SubState -p MainPID -p NRestarts -p ExecMainCode -p ExecMainStatus -p Result
+          systemctl status stay.service --no-pager -l || true
+          journalctl --no-pager -u stay.service -n 200 || true
+          node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
+          'use strict';const fs=require('node:fs'),path=require('node:path'),{DatabaseSync}=require('node:sqlite'),databasePath=process.argv[2],db=new DatabaseSync(databasePath,{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON');const one=(sql,...args)=>{try{return db.prepare(sql).get(...args)||null;}catch(error){return{error:error.message};}},all=(sql,...args)=>{try{return db.prepare(sql).all(...args);}catch(error){return[{error:error.message}];}},checkpoint=one("SELECT checkpoint_id,residency_id,instance_id,version,state_schema,generation,blob_hash,byte_length,input_cursor FROM resident_checkpoints WHERE residency_id='resident:metab' ORDER BY generation DESC LIMIT 1"),bytes=checkpoint?.blob_hash?fs.readFileSync(path.join(path.dirname(databasePath),'blobs','sha256',checkpoint.blob_hash.slice(0,2),checkpoint.blob_hash)):null,state=bytes?JSON.parse(bytes):null;console.log('R150_COHORT='+JSON.stringify({quickCheck:one('PRAGMA quick_check'),revision:one("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'"),residents:all("SELECT residency_id,core_id,instance_id,version,state_schema,module_relative_path,module_hash,manifest_hash,package_policy_hash,status,checkpoint_generation,checkpoint_hash FROM resident_instances WHERE residency_id IN ('resident:metab','resident:homeos','resident:intero') ORDER BY residency_id"),consumers:all("SELECT consumer_id,core_id,required,active,cursor,authority_epoch,checkpoint_hash FROM biological_consumers WHERE consumer_id IN ('resident:metab','resident:homeos','resident:intero') ORDER BY consumer_id"),checkpoint,checkpointState:{lastAcceptedFrame:state?.lastAcceptedFrame,lastAcceptedTimeMs:state?.lastAcceptedTimeMs,pendingEligible:state?.pendingEligible,pendingQuality:state?.pendingQuality,engineState:state?.engineState},capacityMetadata:all("SELECT key,json,sha256 FROM metadata WHERE key LIKE '%metab-capacity-source%'"),authority:all("SELECT core_id,instance_id,version,epoch,barrier_sequence,checkpoint_hash FROM authority WHERE core_id IN ('METAB','HOMEOS','INTERO') ORDER BY core_id"),latestMetabFailure:one("SELECT id,type,detail_json,created_at FROM recovery_records WHERE core_id='METAB' AND type IN ('resident.resync-required','resident.kernel-recovery-failed','resident.cold-recovery-failed') ORDER BY id DESC LIMIT 1"),failedEvents:all("SELECT sequence,event_id,topic,event_class,deduplication_key FROM biological_events WHERE sequence IN (4179959,4179960) ORDER BY sequence"),failureDelivery:one("SELECT sequence,status,transition_id,checkpoint_hash,acknowledged_at FROM biological_deliveries WHERE consumer_id='resident:metab' AND sequence=4179960"),pendingMetab:one("SELECT COUNT(*) count,MIN(d.sequence) minimum,MAX(d.sequence) maximum FROM biological_deliveries d WHERE d.consumer_id='resident:metab' AND d.status='PENDING'"),eventHighWater:one("SELECT MAX(sequence) value FROM biological_events"),pendingDeliveries:one("SELECT COUNT(*) AS count FROM biological_deliveries WHERE status='PENDING'"),pendingOutboxIntents:one("SELECT COUNT(*) AS count FROM biological_outbox_intents WHERE status='PENDING'")}));}finally{db.close();}
+          NODE
+          node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
+          'use strict';const{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON');const residents=db.prepare("SELECT residency_id,core_id,status,checkpoint_generation,checkpoint_hash FROM resident_instances ORDER BY residency_id").all();const consumers=db.prepare("SELECT consumer_id,core_id,required,active,cursor,authority_epoch,checkpoint_hash FROM biological_consumers ORDER BY consumer_id").all();const pending=db.prepare("SELECT consumer_id,COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum FROM biological_deliveries WHERE status='PENDING' GROUP BY consumer_id ORDER BY consumer_id").all();const failed=db.prepare("SELECT consumer_id,COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum FROM biological_deliveries WHERE status='FAILED' GROUP BY consumer_id ORDER BY consumer_id").all();console.log('R150_DELIVERY_COHORT='+JSON.stringify({residents,consumers,pending,failed}));}finally{db.close();}
+          NODE
+          printf '%s\n' 'LISTENERS_BEGIN'
+          ss -ltn || true
+          printf '%s\n' 'LOCAL_HEALTH_BEGIN'
+          curl --silent --show-error --max-time 3 http://127.0.0.1:8787/healthz || true
+          printf '\n%s\n' 'R150_READ_ONLY_DIAGNOSTIC=END'
+          REMOTE

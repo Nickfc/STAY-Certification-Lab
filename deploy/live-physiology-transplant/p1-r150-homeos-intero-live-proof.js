@@ -131,7 +131,12 @@ function captureDatabase(databasePath) {
         metab: count(database, 'biological_outbox_intents', "producer_core_id='METAB'"),
         homeos: count(database, 'biological_outbox_intents', "producer_core_id='HOMEOS'"),
         intero: count(database, 'biological_outbox_intents', "producer_core_id='INTERO'")
-      })
+      }),
+      metabImplementationRepair: tableExists(database, 'recovery_records')
+        ? database.prepare(`SELECT id, detail_json, created_at FROM recovery_records
+            WHERE type='resident.implementation-repaired' AND core_id='METAB'
+            ORDER BY id DESC LIMIT 1`).get() || null
+        : null
     };
     database.exec('COMMIT');
     return Object.freeze(result);
@@ -271,7 +276,7 @@ function validateR141Before({ database, statuses, meta, freeze, service, current
   });
 }
 
-function validateR145After({ before, database, statuses, meta, service, targetRelease }) {
+function validateHomeosAfter({ before, database, statuses, meta, service, targetRelease }, expectedRevision) {
   assert(before?.result === 'PASS' && before.revision === 141,
     'R145 before evidence is invalid', 'R150_PHYSIOLOGY_R145');
   assertCommon({ database, statuses, meta });
@@ -287,7 +292,18 @@ function validateR145After({ before, database, statuses, meta, service, targetRe
   const source = validateCapacitySourceState(database.capacitySource, {
     instanceId: EXPECTED.instances.metab, residentVersion: EXPECTED.versions.metabR145
   });
-  assert(database.runtimeRevision === 145 && meta.revision === 145 && meta.revisionFrozen === false &&
+  let repair = null;
+  try { repair = JSON.parse(database.metabImplementationRepair?.detail_json || 'null'); } catch {}
+  const exactR146Repair = expectedRevision !== 146 || (
+    repair?.repairId === 'metab-q48-saturating-lifetime-r146-v1' &&
+    repair?.fromCheckpointGeneration === 196024 &&
+    repair?.toCheckpointGeneration === 196025 &&
+    repair?.acceptedFrame === 98001 && repair?.discardedPartialFrame === 98002 &&
+    repair?.biologicalAcceptedStateChanged === false && repair?.abandonedCount === 0 &&
+    repair?.inventedBiologicalTime === false && repair?.authorityChanged === false &&
+    repair?.resourceLimitsChanged === false
+  );
+  assert(database.runtimeRevision === expectedRevision && meta.revision === expectedRevision && meta.revisionFrozen === false &&
     metab?.instance_id === EXPECTED.instances.metab && Number(metab?.state_schema) === 3 &&
     metab?.module_relative_path === 'cores/p1-r0/metab-homeos/index.js' &&
     homeos?.instance_id === instanceIdForCertificate(origin.dossier.certificateId) &&
@@ -307,10 +323,11 @@ function validateR145After({ before, database, statuses, meta, service, targetRe
     Number(resident(database, 'chronobiology').checkpoint_generation) >= before.checkpoints.chronobiology &&
     Number(metab.checkpoint_generation) >= before.checkpoints.metab &&
     database.abandonedDeliveries === before.abandonedDeliveries &&
+    exactR146Repair &&
     transitionServiceIsValid(service, before, targetRelease),
   'R145 HOMEOS acceptance is incomplete', 'R150_PHYSIOLOGY_R145');
   return Object.freeze({
-    result: 'PASS', revision: 145, homeosInstanceId: homeos.instance_id,
+    result: 'PASS', revision: expectedRevision, homeosInstanceId: homeos.instance_id,
     homeosFounderId: origin.founderRecord.founderId,
     parentFreezeRecordSha256: before.parentFreezeRecordSha256,
     servicePid: Number(service.afterPid), serviceRestarts: Number(service.afterRestarts),
@@ -323,6 +340,9 @@ function validateR145After({ before, database, statuses, meta, service, targetRe
     chipHistory: database.chipHistory
   });
 }
+
+function validateR145After(args) { return validateHomeosAfter(args, 145); }
+function validateR146After(args) { return validateHomeosAfter(args, 146); }
 
 function validateR145Current({ database, statuses, meta, freeze, service, currentRelease }) {
   assertCommon({ database, statuses, meta });
@@ -451,6 +471,6 @@ if (require.main === module) {
 }
 
 module.exports = Object.freeze({
-  EXPECTED, captureDatabase, validateR141Before, validateR145After,
+  EXPECTED, captureDatabase, validateR141Before, validateR145After, validateR146After,
   validateR145Current, validateR150After
 });
