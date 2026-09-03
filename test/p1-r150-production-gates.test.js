@@ -214,16 +214,55 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     entries.set(match[2], match[1]);
   }
   assert.deepEqual([...entries.keys()], [...entries.keys()].toSorted());
-  assert.equal(entries.size, 59);
+  assert.equal(entries.size, 66);
   for (const required of [
     'runtime/kernel/living-kernel.js', 'runtime/kernel/resident-manager.js',
     'runtime/kernel/state-store.js', 'runtime/p1-r0/production-persistence.js',
+    'runtime/p1-r0/deterministic-noise.js',
+    'runtime/p1-r0/homeos-contract.js', 'runtime/p1-r0/homeos-contract.json',
+    'runtime/p1-r0/homeos-engine.js',
+    'runtime/p1-r0/intero-contract.js', 'runtime/p1-r0/intero-contract.json',
+    'runtime/p1-r0/intero-engine.js',
     'server.js', 'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh',
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh',
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
   ]) assert.equal(entries.has(required), true, required);
   for (const [relative, expected] of entries) {
     assert.equal(sha256(fsSync.readFileSync(path.join(ROOT, relative))), expected, relative);
+  }
+});
+
+test('R150-PRODUCTION-06A clean R141-shaped overlay resolves every promoted resident module', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r150-clean-overlay-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const overlay = fsSync.readFileSync(MANIFEST, 'utf8').trim().split(/\r?\n/)
+    .map(line => line.match(/^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/)[2]);
+  const r141Base = [
+    'runtime/kernel/biological-envelope.js',
+    'runtime/kernel/canonical-json.js',
+    'runtime/p1-r0/causal-frame.js',
+    'runtime/p1-r0/contract-registry.js',
+    'runtime/p1-r0/metab-engine.js',
+    'runtime/p1-r0/q16-48.js',
+    'runtime/p1-r0/resident-support.js',
+    'runtime/p1-r0/residents/metab-neutral.js',
+    'runtime/p1-r0/residents/metab-shadow.js'
+  ];
+  for (const relative of [...new Set([...r141Base, ...overlay])]) {
+    const target = path.join(root, relative);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.copyFile(path.join(ROOT, relative), target);
+  }
+  for (const relative of [
+    'runtime/p1-r0/residents/homeos-neutral.js',
+    'runtime/p1-r0/residents/homeos-shadow.js',
+    'runtime/p1-r0/residents/metab-homeos.js',
+    'runtime/p1-r0/residents/homeos-intero.js',
+    'runtime/p1-r0/residents/intero-neutral.js',
+    'runtime/p1-r0/residents/intero-shadow.js',
+    'runtime/p1-r0/residents/metab-intero.js'
+  ]) {
+    assert.doesNotThrow(() => require(path.join(root, relative)), relative);
   }
 });
 

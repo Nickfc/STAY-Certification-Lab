@@ -20,10 +20,17 @@ c4d2ae425c3a7ca9e627b329daca26b3cbb789457277e11ce45490a7c52502b7  ./deploy/live-
 148d8af3b634fc1d0cdd1804ca30fd957039ce3c6570f70b9963ca0214af8887  ./runtime/kernel/living-kernel.js
 e1b889eb8a4879c71b863f44415bfbd6e3f4b39e0325f3ca100e5c905c483d52  ./runtime/kernel/resident-manager.js
 a128b267375141b1a109217e50305aa7f8a15928fa41e9468efda8d843ba7ce7  ./runtime/kernel/state-store.js
+92f6d6c9e77202b3d66c325e6bf1151b5da6a8bb8228880b99fe2c6c05b13935  ./runtime/p1-r0/deterministic-noise.js
+32d64305cae7df37b8b762d6ae9ba906baafb6cb5663608c252aa0a4ede95f5f  ./runtime/p1-r0/homeos-contract.js
+a94f363afe81b7946fe4827fb527d2e6702d3149555024568a26729c07eaa74d  ./runtime/p1-r0/homeos-contract.json
+944cc899eb36aacc60c479a7c5d475b76320e06f46aba52ffd2a592f6c6b1e1a  ./runtime/p1-r0/homeos-engine.js
 2cba2bec8204f743e95c7f27ecd2d8a37dca06c097ec2ba5b2c5d08c0b009612  ./runtime/p1-r0/homeos-intero-contract.js
 7465cf2f994402805f17409533a2cb39de9ef8f4daca337691df81fb45ac5407  ./runtime/p1-r0/homeos-neutral-birth-authority.js
 66e0427f2c0d798df0e9b7465ab54b5cd3667801e67b8a998a16f9e95523fc9c  ./runtime/p1-r0/homeos-neutral-contract.js
 ef7a42a45caf4606430ba1cb723d95d9a220ba4fcb83aa01ea48813251fc7fce  ./runtime/p1-r0/homeos-shadow-contract.js
+ea4892159ba8ee82e66b82bc537b511f7c09fa709621ecb875eb4d90ebb67252  ./runtime/p1-r0/intero-contract.js
+695f2706f48b7643dc691eb78a86a4e8cc5f7a27a2ab6aae2b4c92b9566cec55  ./runtime/p1-r0/intero-contract.json
+5e7f7170151e4aa4a1d0bd6d4960df271d716c6c1e930de0ebd9948050056bb0  ./runtime/p1-r0/intero-engine.js
 675b230a7e4af6ca57093a06d52463de62aea4602f0e2be395e2237a6f062e73  ./runtime/p1-r0/intero-neutral-birth-authority.js
 6fda4074aeba86ef3e5577f9533b850fd8e4301f37e73f997f365fb5ab4691d2  ./runtime/p1-r0/intero-neutral-contract.js
 8df4b0e453e6f66287e50dc9e53d5164ae48203d2385b062a62a6bf78bb69ce0  ./runtime/p1-r0/intero-shadow-contract.js
@@ -54,6 +61,6 @@ f1615103adc03bfdb46aeffafb1afa302f398440eb62e1b0a834bf2a02e3f802  ./test/p1-r135
 ae96c03ab38750395a2f67e9eee1b80da23410f5bffc62e209421a3b924fe424  ./test/p1-r143-homeos-neutral-birth.test.js
 8b30578f5d49f8f887e2f1407ad979a5bc6163599e6f9d8398e08f0a249e3fb6  ./test/p1-r145-homeos-shadow.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
-ab59c5e30be76fe2a4572b8dfc0d8907886cad2ecc4dc7a90154b7946fdf0a77  ./test/p1-r150-production-gates.test.js
+f51cefcde4380f2027576295a125d530e53f8872f500cd4a712f064d2da49f0d  ./test/p1-r150-production-gates.test.js
 36d3746d72d0d3b7d0b4e0c385cbf6f0e7f6151feb117c59c726b51bbe31bdc0  ./test/p1-surgery-a-transplant.test.js
 32d6f4ab1a9b6f162d757c673938f4c6b1464187667811cb5b440ee894053212  ./tools/sign-p1-r0-expansion-birth.js
