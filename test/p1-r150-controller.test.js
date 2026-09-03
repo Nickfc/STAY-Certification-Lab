@@ -162,6 +162,8 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     '[[ "$attempt" -eq 20 ]] || sleep 0.25',
     "v.consumerId==='core:fetus-legacy'",
     'Number(v.count)<=16384',
+    "failed[0].consumerId==='resident:metab'",
+    'Number(failed[0].sequence)===4179960',
     'recover-*)',
     'restoring that failed service is the sole purpose of this path',
     'SERVICE_STATE=%s/%s',
