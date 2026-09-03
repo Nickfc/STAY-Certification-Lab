@@ -30,23 +30,23 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-homeos-intero-v2-production
+  group: stay-r150-homeos-intero-v3-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v2
-  RELEASE_TAG_OBJECT: b6e9e00ae74ca6652cf86ab353b85e4c07ef0b40
-  RELEASE_COMMIT: 110391ad336238008dd8d2a25dbe7a205a10a826
-  RELEASE_TREE: aa765cf91f0fed6cd8cb20315eba98db5c6cb7af
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V2_BUNDLE_20260903.tar.gz
-  ARCHIVE_SHA256: d786818cc7dd2c74b134424cab6133a3fe28c48119b96110cbcbe54a922e1d38
-  SIDECAR_SHA256: fa967d3464ac28057da1d4a5575a17bf677423bdd93e0d958c35c3eaca3cdaad
-  MANIFEST_SHA256: 6f4b674e40097a4be6844fa7b9600e28f8921b7921af58718aa9e431d942b537
+  RELEASE_TAG: r150-homeos-intero-shadow-v3
+  RELEASE_TAG_OBJECT: dc2f83e9e7b5a96139fcfa20b0fec573e0c343d2
+  RELEASE_COMMIT: b21e56776be8a0954ef1af34bd28c13d6e03dd5d
+  RELEASE_TREE: 3f4864991e8454cdc2fedae11fe448677c84d706
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V3_BUNDLE_20260903.tar.gz
+  ARCHIVE_SHA256: 183887ece2eec09358e13c8a8effa80d98551d76e0b208ae5f90272e34f07e5e
+  SIDECAR_SHA256: f7a22655fc19f4dd223e87e3999c858ee89b64d1960ce2372dc131152827abde
+  MANIFEST_SHA256: 418c80c33029f9e2e2920c999e262cf3fea259630a2b378e4258f13833d3735d
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
   RECOVERY_SHA256: c4d2ae425c3a7ca9e627b329daca26b3cbb789457277e11ce45490a7c52502b7
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-6f4b674e4009
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-418c80c33029
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
-  WRAPPER_SHA256: 562a5a60f193d182e95f983f587e085aaac1a08deb43f55668dc8f34af74244d
+  WRAPPER_SHA256: 951b234547cb5be522a73f105c219336ed0ee6cff51ddd92e56b821d55eee011
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -119,15 +119,15 @@ jobs:
           [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
           (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
           mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
-          [[ "${#entries[@]}" -gt 60 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq "${#entries[@]}" ]]
+          [[ "${#entries[@]}" -gt 66 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq "${#entries[@]}" ]]
           for entry in "${entries[@]}"; do
             [[ -n "$entry" && "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && "$entry" != *\\* && ! "$entry" =~ ^[A-Za-z]: ]]
           done
           tar -tvzf "$root/$ARCHIVE" | awk 'substr($1,1,1) !~ /[-d]/ {bad=1} END {exit bad}'
           tar -xzf "$root/$ARCHIVE" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" -eq 60 ]]
-          [[ "$(wc -l < "$extract/$manifest")" -eq 59 ]]
+          [[ "$(find "$extract" -type f | wc -l)" -eq 67 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 66 ]]
           [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
@@ -173,7 +173,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r150-homeos-intero-v2-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v3-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}.sha256
@@ -191,7 +191,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r150-homeos-intero-v2-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v3-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -302,7 +302,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v2-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v3-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -321,7 +321,7 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
           set -euo pipefail
           root="$1"; stage="$2"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]

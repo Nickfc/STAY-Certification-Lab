@@ -8,21 +8,21 @@ EXPECTED_PRIVATE_IPV4='172.26.9.207'
 SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'
 SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'
 SOURCE_MANIFEST_SHA256='6a1e6a9ffbfd484c3d0623bd5ec20e922b34bfe79fd74562c11cda59a0fa5107'
-RELEASE_TAG='r150-homeos-intero-shadow-v2'
-RELEASE_TAG_OBJECT='b6e9e00ae74ca6652cf86ab353b85e4c07ef0b40'
-RELEASE_COMMIT='110391ad336238008dd8d2a25dbe7a205a10a826'
-RELEASE_TREE='aa765cf91f0fed6cd8cb20315eba98db5c6cb7af'
-ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V2_BUNDLE_20260903.tar.gz'
-ARCHIVE_SHA256='d786818cc7dd2c74b134424cab6133a3fe28c48119b96110cbcbe54a922e1d38'
-SIDECAR_SHA256='fa967d3464ac28057da1d4a5575a17bf677423bdd93e0d958c35c3eaca3cdaad'
+RELEASE_TAG='r150-homeos-intero-shadow-v3'
+RELEASE_TAG_OBJECT='dc2f83e9e7b5a96139fcfa20b0fec573e0c343d2'
+RELEASE_COMMIT='b21e56776be8a0954ef1af34bd28c13d6e03dd5d'
+RELEASE_TREE='3f4864991e8454cdc2fedae11fe448677c84d706'
+ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V3_BUNDLE_20260903.tar.gz'
+ARCHIVE_SHA256='183887ece2eec09358e13c8a8effa80d98551d76e0b208ae5f90272e34f07e5e'
+SIDECAR_SHA256='f7a22655fc19f4dd223e87e3999c858ee89b64d1960ce2372dc131152827abde'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-MANIFEST_SHA256='6f4b674e40097a4be6844fa7b9600e28f8921b7921af58718aa9e431d942b537'
+MANIFEST_SHA256='418c80c33029f9e2e2920c999e262cf3fea259630a2b378e4258f13833d3735d'
 FORWARD='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh'
 FORWARD_SHA256='98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c'
 RECOVERY='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh'
 RECOVERY_SHA256='c4d2ae425c3a7ca9e627b329daca26b3cbb789457277e11ce45490a7c52502b7'
 PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
-TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-6f4b674e4009'
+TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-418c80c33029'
 PUBLIC_KEY='/etc/stay/p1-r0-expansion-birth-authority.pub'
 PUBLIC_KEY_SHA256='f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc'
 FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
@@ -43,7 +43,7 @@ finish_controller(){
   if [[ "$CLEANUP_ARMED" -eq 1 ]]; then
     if [[ -n "$CANDIDATE" && "$CANDIDATE" =~ ^/opt/stay/releases/\.p1r0-r150\.[A-Za-z0-9]+$ && -d "$CANDIDATE" && ! -L "$CANDIDATE" ]]; then rm -rf --one-file-system -- "$CANDIDATE"||cleanup=1; fi
     if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then rm -rf --one-file-system -- "$WORK_ROOT"||cleanup=1; fi
-    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then rm -rf --one-file-system -- "$RUN_ROOT"||cleanup=1; fi
+    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then rm -rf --one-file-system -- "$RUN_ROOT"||cleanup=1; fi
   fi
   printf 'R150_CONTROLLER_FAILURE_CLASS=%s\nR150_CONTROLLER_CLEANUP_STATUS=%s\n' "$FAILURE_CLASS" "$([[ "$cleanup" -eq 0 ]]&&echo PASS||echo FAIL)"
   [[ "$status" -ne 0 ]]&&exit "$status"; exit "$cleanup"
@@ -51,7 +51,7 @@ finish_controller(){
 
 validate_run_root(){
   local root="$1"
-  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ && -d "$root" && ! -L "$root" &&
+  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ && -d "$root" && ! -L "$root" &&
     "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 &&
     -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy -o -perm /077 \) -print -quit)" ]]
 }
@@ -83,7 +83,7 @@ verify_staged_release(){
     "$(sha256_file "$RUN_ROOT/$ARCHIVE.sha256")" == "$SIDECAR_SHA256" ]]||return 1
   (cd "$RUN_ROOT"&&sha256sum -c "$ARCHIVE.sha256" >/dev/null)||return 1
   mapfile -t entries < <(tar -tzf "$RUN_ROOT/$ARCHIVE")
-  [[ "${#entries[@]}" -gt 59 && "$(printf '%s\n' "${entries[@]}"|sort -u|wc -l)" -eq "${#entries[@]}" ]]||return 1
+  [[ "${#entries[@]}" -gt 66 && "$(printf '%s\n' "${entries[@]}"|sort -u|wc -l)" -eq "${#entries[@]}" ]]||return 1
   for entry in "${entries[@]}";do [[ -n "$entry" ]]&&safe_relative "${entry%/}"||return 1;done
   tar -tvzf "$RUN_ROOT/$ARCHIVE"|awk 'substr($1,1,1)!~/[-d]/{bad=1}END{exit bad}'||return 1
 }
@@ -92,7 +92,7 @@ prepare_overlay(){
   WORK_ROOT="$(mktemp -d /run/stay-r150-controller.XXXXXX)"||return 1
   install -d -o root -g root -m 0700 "$WORK_ROOT/overlay"
   tar -xzf "$RUN_ROOT/$ARCHIVE" -C "$WORK_ROOT/overlay"||return 1
-  [[ "$(find "$WORK_ROOT/overlay" -type f|wc -l)" -eq 60 &&
+  [[ "$(find "$WORK_ROOT/overlay" -type f|wc -l)" -eq 67 &&
     "$(sha256_file "$WORK_ROOT/overlay/$MANIFEST")" == "$MANIFEST_SHA256" &&
     "$(sha256_file "$WORK_ROOT/overlay/$FORWARD")" == "$FORWARD_SHA256" &&
     "$(sha256_file "$WORK_ROOT/overlay/$RECOVERY")" == "$RECOVERY_SHA256" ]]||return 1
@@ -219,7 +219,7 @@ main(){
     recover-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_RECOVERY_V1) STAGE=intero;FORWARD_OPERATION=0;target_revision=150;RECOVERY_SCRIPT_AUTH=AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_FORWARD_RECOVERY_ONLY;;
     *)abort_controller 74 AUTHORIZATION_FAILED authorization-missing;;esac
   if [[ "$FORWARD_OPERATION" -eq 1 ]];then CERTIFICATE_SHA256="$supplied_cert";DOSSIER_SHA256="$supplied_dossier";[[ "$CERTIFICATE_SHA256" =~ ^sha256:[0-9a-f]{64}$ && "$DOSSIER_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED birth-hash-invalid;else CERTIFICATE_SHA256='sha256:0000000000000000000000000000000000000000000000000000000000000000';DOSSIER_SHA256="$CERTIFICATE_SHA256";[[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED recovery-hash-must-be-none;fi
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ ]]||abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ ]]||abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
   validate_run_root "$requested_root"||abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
   RUN_ROOT="$requested_root";trap finish_controller EXIT;CLEANUP_ARMED=1
   verify_staged_release||abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid

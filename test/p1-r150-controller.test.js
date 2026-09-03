@@ -30,16 +30,16 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   const source = read(CONTROLLER);
   for (const exact of [
     "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v2'",
-    "RELEASE_TAG_OBJECT='b6e9e00ae74ca6652cf86ab353b85e4c07ef0b40'",
-    "RELEASE_COMMIT='110391ad336238008dd8d2a25dbe7a205a10a826'",
-    "RELEASE_TREE='aa765cf91f0fed6cd8cb20315eba98db5c6cb7af'",
-    "ARCHIVE_SHA256='d786818cc7dd2c74b134424cab6133a3fe28c48119b96110cbcbe54a922e1d38'",
-    "MANIFEST_SHA256='6f4b674e40097a4be6844fa7b9600e28f8921b7921af58718aa9e431d942b537'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-6f4b674e4009'"
+    "RELEASE_TAG='r150-homeos-intero-shadow-v3'",
+    "RELEASE_TAG_OBJECT='dc2f83e9e7b5a96139fcfa20b0fec573e0c343d2'",
+    "RELEASE_COMMIT='b21e56776be8a0954ef1af34bd28c13d6e03dd5d'",
+    "RELEASE_TREE='3f4864991e8454cdc2fedae11fe448677c84d706'",
+    "ARCHIVE_SHA256='183887ece2eec09358e13c8a8effa80d98551d76e0b208ae5f90272e34f07e5e'",
+    "MANIFEST_SHA256='418c80c33029f9e2e2920c999e262cf3fea259630a2b378e4258f13833d3735d'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-418c80c33029'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
-  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 60/);
+  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 67/);
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
 });
 
@@ -119,7 +119,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V2_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V3_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
