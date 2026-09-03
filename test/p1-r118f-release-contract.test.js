@@ -302,10 +302,28 @@ test('R118F-REL-03 scripts expose one restart, exact revision progression and no
 test('R118F-REL-04 release manifest is exact for every listed file and carries repair dependencies', () => {
   const manifestFile = path.join(root,
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R116_TO_R118F.sha256');
-  const successorFile = path.join(root,
-    'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256');
   const successorEntries = new Map();
-  if (fs.existsSync(successorFile)) {
+  for (const successorFile of [
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R123F_TO_R124.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R127F_TO_R128.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R131_TO_R133.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R133_TO_R135.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R135_TO_R137.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R137_TO_R139.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256')
+  ]) {
+    if (!fs.existsSync(successorFile)) continue;
     for (const line of fs.readFileSync(successorFile, 'utf8').trim().split(/\r?\n/)) {
       const match = /^([0-9a-f]{64})  \.\/(.+)$/.exec(line);
       assert.ok(match, `invalid successor manifest line: ${line}`);

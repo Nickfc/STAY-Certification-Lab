@@ -1,0 +1,362 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH LC_ALL=C
+
+EXPECTED_PRIVATE_IPV4='172.26.9.207'
+INCOMING_ROOT='/opt/stay/incoming'
+SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r139-metab-shadow-recovery-6a343c91a536'
+SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R137_TO_R139.sha256'
+SOURCE_MANIFEST_SHA256='6a343c91a536d9fab8147f9a214d05654e15f0221622b063477f53ea3212c981'
+SOURCE_FILE_COUNT=675
+EXPECTED_RELEASE_TAG='r141-metab-shadow-recovery-v4'
+EXPECTED_RELEASE_TAG_OBJECT='76b54ded9aa54f0c16903a134b3ca02c3d77b02f'
+EXPECTED_RELEASE_COMMIT='596789a14ddd0c06bca6a38cee1ca7ada434c4bd'
+EXPECTED_RELEASE_TREE='fbd0fa1086b5973aa1303db96f1ddad17fa6d8d9'
+EXPECTED_ARCHIVE='STAY_P1_R141_METAB_SHADOW_RECOVERY_V4_BUNDLE_20260903.tar.gz'
+EXPECTED_ARCHIVE_SHA256='d5e16494efe576469c5304ebfccac1298656e780a0c1d605d334e4984455c29a'
+EXPECTED_SIDECAR_SHA256='c3aacfa9ca31d59f08e33380ebc3ec0f0bf4204bfb5a68f0690fc3d3a0df0ee9'
+EXPECTED_MANIFEST_SHA256='6a1e6a9ffbfd484c3d0623bd5ec20e922b34bfe79fd74562c11cda59a0fa5107'
+EXPECTED_FORWARD_SHA256='ff17cf6c874be65884099f926425763576d417bdbba01fbfb322e4f569d1f464'
+EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'
+TARGET_FILE_COUNT=679
+MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'
+FORWARD='deploy/live-physiology-transplant/p1-r141-metab-shadow-forward-recovery.sh'
+PROOF='deploy/live-physiology-transplant/p1-r128-metab-shadow-live-proof.js'
+CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
+DATABASE='/var/lib/stay/data/continuity.sqlite3'
+FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
+SOURCE_MARKER='/run/stay-r139-metab-shadow-recovery.env'
+R141_MARKER='/run/stay-r141-metab-shadow-recovery.env'
+SOURCE_PROMOTION_DROPIN='/etc/systemd/system/stay.service.d/r139-metab-shadow-recovery-once.conf'
+RUNTIME_SECONDS=120
+
+RUN_ROOT=''
+WORK_ROOT=''
+CANDIDATE=''
+CLEANUP_ARMED=0
+CONTROLLER_FAILURE_CLASS='NONE'
+
+abort_controller() {
+  local code="$1" classification="$2" reason="$3"
+  CONTROLLER_FAILURE_CLASS="$classification"
+  printf 'R141_CONTROLLER_ABORT=%s\n' "$reason" >&2
+  exit "$code"
+}
+sha256_file() { sha256sum "$1" | awk '{print $1}'; }
+observed_private_ipv4() {
+  ip -o -4 addr show scope global |
+    awk '{address=$4;sub(/\/.*/,"",address);print address}' | sort -u
+}
+trusted_root_file() {
+  local candidate="$1" mode
+  [[ -f "$candidate" && ! -L "$candidate" && "$(stat -Lc '%U:%G' "$candidate")" == root:root ]] || return 1
+  mode="$(stat -Lc '%a' "$candidate")" || return 1
+  (( (8#$mode & 8#022) == 0 ))
+}
+validate_plain_tree() {
+  local root="$1"
+  [[ -d "$root" && ! -L "$root" &&
+    -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
+}
+validate_root_owned_tree() {
+  local root="$1"
+  validate_plain_tree "$root" &&
+    [[ -z "$(find -P "$root" -xdev \( ! -user root -o ! -group root -o -perm /022 \) -print -quit)" ]]
+}
+tree_digest() {
+  local root="$1" relative="$2"
+  (cd "$root" && find "$relative" -type f -print0 | sort -z | xargs -0 sha256sum |
+    sha256sum | awk '{print $1}')
+}
+
+validate_run_root() {
+  local candidate="$1" incoming_real parent_real mode
+  [[ -d "$INCOMING_ROOT" && ! -L "$INCOMING_ROOT" ]] || return 1
+  incoming_real="$(readlink -f -- "$INCOMING_ROOT")" || return 1
+  [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
+  parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
+  [[ "$parent_real" == "$incoming_real" &&
+    "$(basename -- "$candidate")" =~ ^r141-metab-shadow-recovery-v4-[0-9]+$ &&
+    "$(stat -Lc '%U:%G' "$candidate")" == staydeploy:staydeploy ]] || return 1
+  mode="$(stat -Lc '%a' "$candidate")" || return 1
+  [[ "$mode" == 700 || "$mode" == 2700 ]] && validate_plain_tree "$candidate"
+}
+safe_cleanup_run_root() {
+  local candidate="$1"
+  validate_run_root "$candidate" || return 91
+  [[ -z "$(findmnt -rn -R -o TARGET "$candidate" 2>/dev/null || true)" ]] || return 92
+  find -P "$candidate" -xdev -type d -exec chmod u+rwx {} + || return 93
+  find -P "$candidate" -xdev -type f -exec chmod u+rw {} + || return 94
+  rm -rf --one-file-system -- "$candidate" || return 95
+  [[ ! -e "$candidate" && ! -L "$candidate" ]]
+}
+safe_cleanup_work_root() {
+  local candidate="$1"
+  [[ "$candidate" =~ ^/run/stay-r141-metab-shadow-recovery-v4-controller\.[A-Za-z0-9]+$ &&
+    -d "$candidate" && ! -L "$candidate" && "$(stat -Lc '%U:%G:%a' "$candidate")" == root:root:700 ]] || return 96
+  validate_plain_tree "$candidate" || return 97
+  find -P "$candidate" -xdev -type d -exec chmod u+rwx {} + || return 98
+  find -P "$candidate" -xdev -type f -exec chmod u+rw {} + || return 99
+  rm -rf --one-file-system -- "$candidate"
+}
+safe_cleanup_candidate() {
+  local candidate="$1"
+  [[ "$candidate" =~ ^/opt/stay/releases/\.p1m-r141-metab-shadow-recovery\.[A-Za-z0-9]+$ &&
+    -d "$candidate" && ! -L "$candidate" && "$(stat -Lc '%U:%G' "$candidate")" == root:root ]] || return 100
+  validate_plain_tree "$candidate" || return 101
+  find -P "$candidate" -xdev -type d -exec chmod u+rwx {} + || return 102
+  find -P "$candidate" -xdev -type f -exec chmod u+rw {} + || return 103
+  rm -rf --one-file-system -- "$candidate"
+}
+finish_controller() {
+  local original=$? cleanup=0
+  trap - EXIT; set +e
+  if [[ -n "$CANDIDATE" ]]; then safe_cleanup_candidate "$CANDIDATE"; cleanup=$?; fi
+  if [[ "$cleanup" -eq 0 && -n "$WORK_ROOT" ]]; then safe_cleanup_work_root "$WORK_ROOT"; cleanup=$?; fi
+  if [[ "$cleanup" -eq 0 && "$CLEANUP_ARMED" -eq 1 ]]; then safe_cleanup_run_root "$RUN_ROOT"; cleanup=$?; fi
+  printf 'R141_CONTROLLER_FAILURE_CLASS=%s\n' "$CONTROLLER_FAILURE_CLASS"
+  printf 'R141_CONTROLLER_CLEANUP_STATUS=%s\n' "$([[ "$cleanup" -eq 0 ]] && echo PASS || echo FAIL_$cleanup)"
+  if [[ "$original" -eq 0 && "$cleanup" -ne 0 ]]; then exit "$cleanup"; fi
+  exit "$original"
+}
+
+expected_identity() {
+  cat <<EOF
+RELEASE_TAG=$EXPECTED_RELEASE_TAG
+RELEASE_TAG_OBJECT=$EXPECTED_RELEASE_TAG_OBJECT
+RELEASE_COMMIT=$EXPECTED_RELEASE_COMMIT
+RELEASE_TREE=$EXPECTED_RELEASE_TREE
+ARCHIVE_SHA256=$EXPECTED_ARCHIVE_SHA256
+SIDECAR_SHA256=$EXPECTED_SIDECAR_SHA256
+MANIFEST_SHA256=$EXPECTED_MANIFEST_SHA256
+FORWARD_SHA256=$EXPECTED_FORWARD_SHA256
+TARGET_RELEASE=$EXPECTED_TARGET_RELEASE
+EOF
+}
+verify_archive_shape() {
+  local archive="$1" entry; local -a entries
+  mapfile -t entries < <(tar -tzf "$archive") || return 1
+  [[ "${#entries[@]}" -eq 18 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq 18 ]] || return 1
+  for entry in "${entries[@]}"; do
+    [[ -n "$entry" && "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && "$entry" != *\\* && ! "$entry" =~ ^[A-Za-z]: ]] || return 1
+  done
+  tar -tvzf "$archive" | awk 'substr($1,1,1) !~ /[-d]/ {bad=1} END {exit bad}'
+}
+verify_staged_identity() {
+  local archive="$RUN_ROOT/$EXPECTED_ARCHIVE" sidecar="$RUN_ROOT/$EXPECTED_ARCHIVE.sha256"
+  local identity="$RUN_ROOT/R141_RELEASE.identity" expected
+  expected="$(printf '%s\n' R141_RELEASE.identity "$EXPECTED_ARCHIVE" "$EXPECTED_ARCHIVE.sha256" | sort)"
+  [[ "$(find "$RUN_ROOT" -maxdepth 1 -type f -printf '%f\n' | sort)" == "$expected" &&
+    -z "$(find "$RUN_ROOT" -mindepth 1 -type d -print -quit)" &&
+    -z "$(find -P "$RUN_ROOT" -xdev ! -user staydeploy -print -quit)" &&
+    -f "$archive" && ! -L "$archive" && -f "$sidecar" && ! -L "$sidecar" &&
+    "$(sha256_file "$archive")" == "$EXPECTED_ARCHIVE_SHA256" &&
+    "$(sha256_file "$sidecar")" == "$EXPECTED_SIDECAR_SHA256" &&
+    "$(<"$sidecar")" == "$EXPECTED_ARCHIVE_SHA256  $EXPECTED_ARCHIVE" &&
+    -f "$identity" && ! -L "$identity" && "$(<"$identity")" == "$(expected_identity)" ]] || return 1
+  verify_archive_shape "$archive"
+}
+verify_overlay_tree() {
+  local root="$1" expected actual relative
+  validate_root_owned_tree "$root" || return 1
+  [[ "$(find "$root" -type f | wc -l)" -eq 13 && "$(wc -l < "$root/$MANIFEST")" -eq 12 &&
+    "$(sha256_file "$root/$MANIFEST")" == "$EXPECTED_MANIFEST_SHA256" &&
+    "$(sha256_file "$root/$FORWARD")" == "$EXPECTED_FORWARD_SHA256" ]] || return 1
+  (cd "$root" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
+  expected="$(mktemp /run/stay-r141-overlay-expected.XXXXXX)" || return 1
+  actual="$(mktemp /run/stay-r141-overlay-actual.XXXXXX)" || { rm -f -- "$expected"; return 1; }
+  { awk '{sub(/^\.\//,"",$2);print $2}' "$root/$MANIFEST"; echo "$MANIFEST"; } | sort > "$expected"
+  (cd "$root" && find . -type f -printf '%P\n' | sort) > "$actual"
+  cmp "$expected" "$actual" >/dev/null || { rm -f -- "$expected" "$actual"; return 1; }
+  rm -f -- "$expected" "$actual"
+  while IFS= read -r relative; do
+    case "$relative" in *.js) /usr/local/bin/node --check "$root/$relative" >/dev/null || return 1;;
+      *.sh) /bin/bash -n "$root/$relative" || return 1;; esac
+  done < <(cd "$root" && find . -type f -printf '%P\n' | sort)
+}
+prepare_private_overlay() {
+  WORK_ROOT="$(mktemp -d /run/stay-r141-metab-shadow-recovery-v4-controller.XXXXXX)" || return 1
+  [[ "$(stat -Lc '%U:%G:%a' "$WORK_ROOT")" == root:root:700 ]] || return 1
+  install -o root -g root -m 0400 "$RUN_ROOT/$EXPECTED_ARCHIVE" "$WORK_ROOT/$EXPECTED_ARCHIVE" || return 1
+  install -d -o root -g root -m 0500 "$WORK_ROOT/overlay" || return 1
+  tar -xzf "$WORK_ROOT/$EXPECTED_ARCHIVE" -C "$WORK_ROOT/overlay" || return 1
+  chown -R root:root "$WORK_ROOT/overlay" || return 1
+  find -P "$WORK_ROOT/overlay" -xdev -type d -exec chmod 0500 {} + || return 1
+  find -P "$WORK_ROOT/overlay" -xdev -type f -exec chmod 0400 {} + || return 1
+  verify_overlay_tree "$WORK_ROOT/overlay"
+}
+durable_runtime_revision() {
+  STAY_DATABASE="$DATABASE" /usr/local/bin/node <<'NODE'
+'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.env.STAY_DATABASE,{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON');const row=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get();if(!row||crypto.createHash('sha256').update(row.json).digest('hex')!==row.sha256)process.exit(2);process.stdout.write(String(Number(JSON.parse(row.json).revision)));}finally{db.close();}
+NODE
+}
+verify_source_release() {
+  [[ "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" && "$(durable_runtime_revision)" == 139 &&
+    "$(systemctl show stay.service -p ActiveState --value)" == active &&
+    "$(systemctl show stay.service -p SubState --value)" == running &&
+    "$(systemctl show stay.service -p User --value)" == staydeploy &&
+    "$(systemctl show stay.service -p Group --value)" == staydeploy &&
+    "$(find "$SOURCE_RELEASE" -type f | wc -l)" -eq "$SOURCE_FILE_COUNT" &&
+    "$(sha256_file "$SOURCE_RELEASE/$SOURCE_MANIFEST")" == "$SOURCE_MANIFEST_SHA256" &&
+    -f "$FREEZE_DIR/R127.json" && ! -L "$FREEZE_DIR/R127.json" &&
+    ! -e "$FREEZE_DIR/R141.json" && ! -L "$FREEZE_DIR/R141.json" &&
+    -f "$SOURCE_MARKER" && ! -L "$SOURCE_MARKER" && ! -e "$R141_MARKER" && ! -e "$SOURCE_PROMOTION_DROPIN" ]] || return 1
+  validate_root_owned_tree "$SOURCE_RELEASE" || return 1
+  (cd "$SOURCE_RELEASE" && sha256sum -c "$SOURCE_MANIFEST" >/dev/null) || return 1
+}
+expected_release_env() {
+  local controller_sha="$1"
+  cat <<EOF
+P1_R141_METAB_SHADOW_RECOVERY=PASS
+SOURCE_RELEASE=$SOURCE_RELEASE
+SOURCE_RUNTIME_REVISION=R139
+TARGET_RUNTIME_REVISION=R141F
+RELEASE_PATH=$EXPECTED_TARGET_RELEASE
+RELEASE_TAG=$EXPECTED_RELEASE_TAG
+RELEASE_COMMIT=$EXPECTED_RELEASE_COMMIT
+RELEASE_TREE=$EXPECTED_RELEASE_TREE
+ARCHIVE_SHA256=sha256:$EXPECTED_ARCHIVE_SHA256
+MANIFEST_SHA256=sha256:$EXPECTED_MANIFEST_SHA256
+CONTROLLER_SHA256=sha256:$controller_sha
+FORWARD_SHA256=sha256:$EXPECTED_FORWARD_SHA256
+METAB_INSTANCE_ID=d424c722-ef31-44b0-8201-ba68c418d14a
+METAB_VERSION=0.2.0-p1r0-shadow.1
+METAB_MODE=SHADOW
+METAB_AUTHORITY=NONE
+METAB_OUTPUTS=0
+METAB_OUTPUT_POLICY=FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT
+EOF
+}
+verify_target_release() {
+  local root="$1" controller_sha="$2" expected_env relative
+  [[ -d "$root" && ! -L "$root" && "$(find "$root" -type f | wc -l)" -eq "$TARGET_FILE_COUNT" &&
+    "$(sha256_file "$root/$MANIFEST")" == "$EXPECTED_MANIFEST_SHA256" &&
+    "$(sha256_file "$root/$FORWARD")" == "$EXPECTED_FORWARD_SHA256" ]] || return 1
+  validate_root_owned_tree "$root" || return 1
+  (cd "$root" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
+  expected_env="$(expected_release_env "$controller_sha")"
+  [[ -f "$root/P1_R141_RELEASE.env" && ! -L "$root/P1_R141_RELEASE.env" &&
+    "$(<"$root/P1_R141_RELEASE.env")" == "$expected_env" ]] || return 1
+  for relative in cores/sntss/i4g cores/chronobiology/c3 cores/chronobiology/c3r4 \
+    cores/chronobiology/c3r5 cores/fetus-legacy-0.6 legacy/0.6.0; do
+    [[ "$(tree_digest "$SOURCE_RELEASE" "$relative")" == "$(tree_digest "$root" "$relative")" ]] || return 1
+    diff -qr "$SOURCE_RELEASE/$relative" "$root/$relative" >/dev/null || return 1
+  done
+}
+run_candidate_preflight() {
+  local root="$1" before_pid before_restarts relative
+  before_pid="$(systemctl show stay.service -p MainPID --value)"; before_restarts="$(systemctl show stay.service -p NRestarts --value)"
+  while IFS= read -r relative; do case "$relative" in *.js) /usr/local/bin/node --check "$root/$relative" >/dev/null||return 1;;*.sh) /bin/bash -n "$root/$relative"||return 1;;esac; done < <(awk '{sub(/^\.\//,"",$2);print $2}' "$root/$MANIFEST")
+  /usr/local/bin/node --disable-sigusr1 --test --test-isolation=none --test-concurrency=1 \
+    "$root/test/p1-r118f-release-contract.test.js" "$root/test/p1-r119f-release-contract.test.js" \
+    "$root/test/p1-r124-release-contract.test.js" "$root/test/p1-r128-metab-shadow.test.js" \
+    "$root/test/p1-r128-release-contract.test.js" "$root/test/p1-r133-metab-shadow-recovery.test.js" \
+    "$root/test/p1-r135-metab-shadow-recovery.test.js" "$root/test/p1-r137-metab-shadow-recovery.test.js" \
+    "$root/test/p1-r139-metab-shadow-recovery.test.js" "$root/test/p1-r141-metab-shadow-recovery.test.js" \
+    > "$WORK_ROOT/focused-tests.tap" 2>&1 || { cat "$WORK_ROOT/focused-tests.tap" >&2; return 1; }
+  cat "$WORK_ROOT/focused-tests.tap"
+  systemd-run --wait --pipe --collect --quiet --property=User=staydeploy --property=Delegate=yes \
+    --property=CPUAccounting=yes --property=MemoryAccounting=yes /usr/bin/env -i PATH="$PATH" LC_ALL=C \
+    STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox /usr/local/bin/node --disable-sigusr1 --test --test-concurrency=1 \
+    --test-name-pattern='the real preflight CLI entry passes through Bubblewrap on Linux' \
+    "$root/test/production-hardening-entry-path.test.js" > "$WORK_ROOT/real-sntss-entry.tap" 2>&1 || { cat "$WORK_ROOT/real-sntss-entry.tap" >&2; return 1; }
+  cat "$WORK_ROOT/real-sntss-entry.tap"
+  systemd-run --wait --pipe --collect --quiet --property=User=staydeploy --property=Delegate=yes \
+    --property=CPUAccounting=yes --property=MemoryAccounting=yes /usr/bin/env -i PATH="$PATH" LC_ALL=C \
+    NODE_ENV=production STAY_R128_REAL_ENTRY=1 STAY_REQUIRE_OS_CORE_SANDBOX=1 \
+    STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 \
+    /usr/local/bin/node --disable-sigusr1 --test --test-isolation=none --test-concurrency=1 \
+    --test-name-pattern='^R128-METAB-ENTRY-09' "$root/test/p1-r128-metab-shadow.test.js" \
+    > "$WORK_ROOT/real-metab-entry.tap" 2>&1 || { cat "$WORK_ROOT/real-metab-entry.tap" >&2; return 1; }
+  cat "$WORK_ROOT/real-metab-entry.tap"
+  systemd-run --wait --pipe --collect --quiet --property=User=staydeploy --property=Delegate=yes \
+    --property=CPUAccounting=yes --property=MemoryAccounting=yes /usr/bin/env -i PATH="$PATH" LC_ALL=C \
+    NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox \
+    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 /usr/local/bin/node \
+    "$root/deploy/live-physiology-transplant/p1-r119f-entry-preflight.js" > "$WORK_ROOT/chronobiology-entry.json" 2>&1 || return 1
+  /usr/local/bin/node - "$WORK_ROOT/chronobiology-entry.json" <<'NODE'
+'use strict';const v=JSON.parse(require('node:fs').readFileSync(process.argv[2],'utf8'));if(!(v.result==='PASS'&&v.version==='1.0.0-c3rc.5'&&v.hardCpuPercent===20&&v.payloadSandboxed===true&&v.payloadAttachedBeforeInit===true))process.exit(1);
+NODE
+  [[ "$(systemctl show stay.service -p MainPID --value)" == "$before_pid" &&
+    "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" &&
+    "$(durable_runtime_revision)" == 139 && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" ]]
+}
+prepare_target_release() {
+  local controller_sha="$1" relative; local -a new_paths=("$MANIFEST" "$FORWARD" test/p1-r141-metab-shadow-recovery.test.js)
+  if [[ -e "$EXPECTED_TARGET_RELEASE" || -L "$EXPECTED_TARGET_RELEASE" ]]; then verify_target_release "$EXPECTED_TARGET_RELEASE" "$controller_sha"; return; fi
+  for relative in "${new_paths[@]}"; do [[ ! -e "$SOURCE_RELEASE/$relative" && ! -L "$SOURCE_RELEASE/$relative" ]] || return 1; done
+  CANDIDATE="$(mktemp -d /opt/stay/releases/.p1m-r141-metab-shadow-recovery.XXXXXX)" || return 1
+  cp -a --reflink=auto "$SOURCE_RELEASE/." "$CANDIDATE/" || return 1
+  while IFS= read -r relative; do relative="${relative#./}"; install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$relative" "$CANDIDATE/$relative" || return 1; done < <(awk '{print $2}' "$WORK_ROOT/overlay/$MANIFEST")
+  install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$MANIFEST" "$CANDIDATE/$MANIFEST" || return 1
+  expected_release_env "$controller_sha" > "$WORK_ROOT/P1_R141_RELEASE.env"
+  install -o root -g root -m 0444 "$WORK_ROOT/P1_R141_RELEASE.env" "$CANDIDATE/P1_R141_RELEASE.env" || return 1
+  chown -R root:root "$CANDIDATE" || return 1
+  find -P "$CANDIDATE" -xdev -type d -exec chmod 0555 {} + || return 1
+  find -P "$CANDIDATE" -xdev -type f -exec chmod 0444 {} + || return 1
+  verify_target_release "$CANDIDATE" "$controller_sha" && run_candidate_preflight "$CANDIDATE" || return 1
+  mv -T "$CANDIDATE" "$EXPECTED_TARGET_RELEASE" || return 1; CANDIDATE=''
+  verify_target_release "$EXPECTED_TARGET_RELEASE" "$controller_sha"
+}
+run_bounded_script() {
+  local controller_sha child_status tee_status; local -a statuses
+  controller_sha="$(sha256_file "$0")"; trusted_root_file "$EXPECTED_TARGET_RELEASE/$FORWARD" || return 125
+  set +e
+  env -i PATH="$PATH" LC_ALL=C STAY_R141_RECOVERY_AUTHORIZATION=AUTHORIZE_R141_METAB_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY \
+    STAY_R141_TARGET_RELEASE="$EXPECTED_TARGET_RELEASE" STAY_R141_RELEASE_TAG="$EXPECTED_RELEASE_TAG" \
+    STAY_R141_RELEASE_COMMIT="$EXPECTED_RELEASE_COMMIT" STAY_R141_RELEASE_TREE="$EXPECTED_RELEASE_TREE" \
+    STAY_R141_ARCHIVE_SHA256="sha256:$EXPECTED_ARCHIVE_SHA256" STAY_R141_MANIFEST_SHA256="sha256:$EXPECTED_MANIFEST_SHA256" \
+    STAY_R141_CONTROLLER_SHA256="sha256:$controller_sha" /usr/bin/timeout --signal=TERM --kill-after=15s "${RUNTIME_SECONDS}s" \
+    /bin/bash "$EXPECTED_TARGET_RELEASE/$FORWARD" 2>&1 | tee "$WORK_ROOT/controller-output.log"
+  statuses=("${PIPESTATUS[@]}"); set -e; child_status="${statuses[0]:-125}"; tee_status="${statuses[1]:-125}"
+  [[ "$tee_status" -eq 0 ]] || return 125; return "$child_status"
+}
+validate_live_contract() {
+  local controller_sha pid evidence="$1"
+  controller_sha="$(sha256_file "$0")"; pid="$(systemctl show stay.service -p MainPID --value)"
+  verify_target_release "$EXPECTED_TARGET_RELEASE" "$controller_sha" || return 1
+  [[ "$evidence" =~ ^/var/lib/stay/evidence/production-hardening/R141F-METAB-SHADOW-[0-9TZ]+$ &&
+    -d "$evidence" && ! -L "$evidence" && "$(stat -Lc '%U:%G' "$evidence")" == root:root &&
+    -z "$(find -P "$evidence" -xdev -perm /022 -print -quit)" && "$(readlink -f /opt/stay/current)" == "$EXPECTED_TARGET_RELEASE" &&
+    "$(durable_runtime_revision)" == 141 && "$(systemctl show stay.service -p ActiveState --value)" == active &&
+    "$(systemctl show stay.service -p SubState --value)" == running && ! -e "$SOURCE_PROMOTION_DROPIN" && ! -e "$SOURCE_MARKER" && ! -e "$R141_MARKER" &&
+    -f "$FREEZE_DIR/R141.json" && ! -L "$FREEZE_DIR/R141.json" && "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+  /usr/local/bin/node "$EXPECTED_TARGET_RELEASE/$PROOF" capture "$DATABASE" > "$WORK_ROOT/live.database.json" || return 1
+  /usr/local/bin/node "$EXPECTED_TARGET_RELEASE/$CLIENT" status resident:sntss > "$WORK_ROOT/live.sntss.json" || return 1
+  /usr/local/bin/node "$EXPECTED_TARGET_RELEASE/$CLIENT" status resident:chronobiology > "$WORK_ROOT/live.chrono.json" || return 1
+  /usr/local/bin/node "$EXPECTED_TARGET_RELEASE/$CLIENT" status resident:metab > "$WORK_ROOT/live.metab.json" || return 1
+  curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta > "$WORK_ROOT/live.meta.json" || return 1
+  /usr/local/bin/node - "$WORK_ROOT" "$EXPECTED_TARGET_RELEASE" "$EXPECTED_RELEASE_TAG" "$EXPECTED_RELEASE_COMMIT" "$EXPECTED_RELEASE_TREE" "sha256:$EXPECTED_ARCHIVE_SHA256" "sha256:$EXPECTED_MANIFEST_SHA256" "sha256:$controller_sha" "$pid" <<'NODE'
+'use strict';const fs=require('node:fs'),path=require('node:path');const[root,release,tag,commit,tree,archive,manifest,controller,pid]=process.argv.slice(2),read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8'));const db=read('live.database.json'),s=read('live.sntss.json').resident,c=read('live.chrono.json').resident,m=read('live.metab.json').resident,meta=read('live.meta.json'),row=id=>db.residents.find(v=>v.residency_id===id),chip=id=>meta.chipProjection?.lifecycle?.find(v=>v.coreId===id),fetus=meta.cores?.find(v=>v.id==='fetus-legacy'),freeze=JSON.parse(fs.readFileSync('/var/lib/stay/evidence/runtime-freezes/R141.json','utf8')),{validateRevisionFreeze}=require(path.join(release,'runtime/revision-freeze'));const contained=v=>v?.status==='RUNNING'&&v.running===true&&v.authorityOwned===false&&v.host?.quarantined===false&&v.host?.osContainment?.payloadSandboxed===true&&v.host?.osContainment?.payloadAttachedBeforeInit===true&&v.host?.resourceGovernor?.policy?.hardRamBytes===100663296&&v.host?.resourceGovernor?.policy?.handlerTimeoutMs===250&&v.host?.osContainment?.limits?.['cpu.max']==='20000 100000';
+if(!(db.quickCheck==='ok'&&db.runtimeRevision===141&&db.pendingDeliveries===0&&db.pendingOutboxIntents===0&&db.failedDeliveries===0&&db.p1Authority===0&&db.sntssAuthority===0&&db.chronobiologyAuthority===0&&db.metabOutboxIntents===0&&row('resident:metab')?.instance_id==='d424c722-ef31-44b0-8201-ba68c418d14a'&&row('resident:metab')?.version==='0.2.0-p1r0-shadow.1'&&db.metabCheckpointState?.activation?.runtimeRevision===139&&db.metabCheckpointState?.engineState?.outputSequence==='0'&&db.capacitySource?.runtimeRevision===128&&db.capacitySource?.pending===null&&db.capacitySource?.lastCommittedFrame===db.metabCheckpointState?.lastAcceptedFrame&&contained(s)&&s.version==='0.5.0-i4g1'&&s.observedOutputs===0&&contained(c)&&c.version==='1.0.0-c3rc.5'&&c.health?.mode==='NEUTRAL'&&contained(m)&&m.version==='0.2.0-p1r0-shadow.1'&&m.health?.mode==='SHADOW'&&m.observedOutputs===0&&fetus?.version==='0.6.0'&&fetus?.ok===true&&meta.ok===true&&meta.revision===141&&meta.revisionFrozen===true&&meta.revisionLabel==='R141F'&&chip('bsf')?.state==='LIVE'&&chip('sntss')?.state==='SHADOW'&&chip('chronobiology')?.state==='SHADOW'&&chip('metab')?.state==='SHADOW'&&validateRevisionFreeze(freeze,141)&&freeze.release?.path===release&&freeze.release?.tag===tag&&freeze.release?.commit===commit&&freeze.release?.tree===tree&&freeze.release?.archiveSha256===archive&&freeze.release?.manifestSha256===manifest&&freeze.release?.controllerSha256===controller&&freeze.runtime?.serviceMainPid===Number(pid)&&freeze.recovery?.pointerRewound===false&&freeze.recovery?.repeatedPromotion===false))process.exit(1);
+NODE
+}
+
+main() {
+  local operation="${1:-}" requested_root="${2:-}" authorization="${3:-}" child_status evidence
+  [[ "$#" -eq 3 ]] || abort_controller 64 ARGUMENT_VALIDATION_FAILED exactly-three-arguments-required
+  [[ "$EUID" -eq 0 ]] || abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
+  trusted_root_file "$0" && [[ -x "$0" ]] || abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
+  [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]] || abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
+  [[ "$operation" == harden-r141-recovery && "$authorization" == AUTHORIZE_R141_METAB_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V4 ]] || abort_controller 74 AUTHORIZATION_FAILED authorization-missing
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r141-metab-shadow-recovery-v4-[0-9]+$ ]] || abort_controller 77 PATH_VALIDATION_FAILED invalid-run-root-pattern
+  validate_run_root "$requested_root" || abort_controller 78 PATH_VALIDATION_FAILED invalid-run-root
+  RUN_ROOT="$requested_root"; trap finish_controller EXIT
+  verify_staged_identity || abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
+  CLEANUP_ARMED=1; prepare_private_overlay || abort_controller 81 STAGED_IDENTITY_FAILED private-release-invalid
+  verify_source_release || abort_controller 82 SOURCE_PREFLIGHT_FAILED exact-r139-source-invalid
+  prepare_target_release "$(sha256_file "$0")" || abort_controller 83 CANDIDATE_FAILED target-release-invalid
+  if run_bounded_script; then child_status=0; else child_status=$?; fi
+  [[ "$child_status" -eq 0 ]] || abort_controller "$child_status" EXECUTION_FAILED child-failed
+  grep -Fx 'R141_METAB_SHADOW_RECOVERY=PASS' "$WORK_ROOT/controller-output.log" >/dev/null || abort_controller 84 RESULT_MARKER_MISSING result-marker-missing
+  for marker in RUNTIME_REVISION=141 REVISION_LABEL=R141F "CURRENT_RELEASE=$EXPECTED_TARGET_RELEASE" BSF_MODE=LIVE SNTSS_MODE=SHADOW SNTSS_OUTPUTS=0 CHRONOBIOLOGY_MODE=SHADOW METAB_MODE=SHADOW METAB_OUTPUTS=0 METAB_AUTHORITY=NONE FETUS_CONTINUITY=PASS PROMOTION_AUTHORITY_ACTIVE=NO; do
+    grep -Fx "$marker" "$WORK_ROOT/controller-output.log" >/dev/null || abort_controller 85 RESULT_CONTRACT_FAILED result-contract-incomplete
+  done
+  evidence="$(sed -n 's/^EVIDENCE_ROOT=//p' "$WORK_ROOT/controller-output.log")"
+  [[ "$(grep -c '^EVIDENCE_ROOT=' "$WORK_ROOT/controller-output.log")" -eq 1 ]] || abort_controller 85 RESULT_CONTRACT_FAILED evidence-marker-invalid
+  validate_live_contract "$evidence" || abort_controller 86 LIVE_ACCEPTANCE_FAILED independent-live-proof-failed
+  CONTROLLER_FAILURE_CLASS='NONE'; printf 'R141_CONTROLLER_REVISION=R141F\nR141_CONTROLLER_RESULT=PASS\n'
+}
+main "$@"
