@@ -12,7 +12,10 @@ const {
   deriveSignal
 } = require('../runtime/kernel/biological-fabric');
 const { EventFabric } = require('../runtime/kernel/event-fabric');
-const { LivingKernel } = require('../runtime/kernel/living-kernel');
+const {
+  LivingKernel,
+  isBoundedMetabPromotionTail
+} = require('../runtime/kernel/living-kernel');
 const {
   ResidentManager
 } = require('../runtime/kernel/resident-manager');
@@ -593,6 +596,18 @@ test('R139-METAB-PROMOTE-04A atomically commits the exact recovery activation bo
   assert.equal(checkpoint.state.engineState.outputSequence, '0');
   assert.equal(unit.observedOutputs, 0);
   assert.equal(stateStore.getAuthority('METAB'), null);
+});
+
+test('R141-METAB-PROMOTE-04B accepts only an exact committed sample and one bounded scheduler pair', async () => {
+  assert.equal(isBoundedMetabPromotionTail(0), true);
+  assert.equal(isBoundedMetabPromotionTail(1), true);
+  assert.equal(isBoundedMetabPromotionTail(2), true);
+  for (const invalid of [-1, 3, null, undefined, 1.5, '2']) {
+    assert.equal(isBoundedMetabPromotionTail(invalid), false);
+  }
+  const source = await fs.readFile(path.join(ROOT, 'runtime', 'kernel', 'living-kernel.js'), 'utf8');
+  assert.match(source, /initialCapacitySample !== true/);
+  assert.match(source, /!isBoundedMetabPromotionTail\(status\?\.pendingDeliveries\)/);
 });
 
 test('R128-METAB-ROLLBACK-05 candidate failure restores the exact neutral generation', async t => {

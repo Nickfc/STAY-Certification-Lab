@@ -77,6 +77,11 @@ const R139_METAB_SHADOW_RECOVERY = Object.freeze({
   acceptancePrefix: 'R139_RECOVERY'
 });
 
+function isBoundedMetabPromotionTail(pendingDeliveries) {
+  return Number.isSafeInteger(pendingDeliveries) &&
+    pendingDeliveries >= 0 && pendingDeliveries <= 2;
+}
+
 function defaultMetabCapacitySampler() {
   const cpuCount = os.cpus()?.length;
   const loadAverage = os.loadavg()?.[0];
@@ -2491,6 +2496,7 @@ class LivingKernel {
       );
 
     if (
+      initialCapacitySample !== true ||
       unit?.residencyId !== 'resident:metab' ||
       promoted?.instanceId !== metabResident.instanceId ||
       promoted?.version !== promotion.shadowVersion ||
@@ -2507,7 +2513,7 @@ class LivingKernel {
       status?.authorityOwned !== false ||
       status?.observedOutputs !== 0 ||
       status?.declaredOutputs !== 0 ||
-      status?.pendingDeliveries !== 0 ||
+      !isBoundedMetabPromotionTail(status?.pendingDeliveries) ||
       consumer?.active !== true ||
       consumer?.required !== false ||
       consumer?.authorityEpoch !== 0 ||
@@ -4640,6 +4646,7 @@ module.exports = {
   R135_METAB_SHADOW_RECOVERY,
   R137_METAB_SHADOW_RECOVERY,
   R139_METAB_SHADOW_RECOVERY,
+  isBoundedMetabPromotionTail,
   defaultMetabCapacitySampler,
   readR124MetabRecoveryFence
 };

@@ -21,6 +21,8 @@ const FINAL_RECOVERY_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physio
   'P1_PRODUCTION_HARDENING_R135_TO_R137.sha256');
 const LATEST_RECOVERY_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R137_TO_R139.sha256');
+const R141_RECOVERY_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'P1_PRODUCTION_HARDENING_R139_TO_R141.sha256');
 const FORWARD = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'p1-r124-metab-neutral-forward.sh');
 const RECOVERY = path.join(ROOT, 'deploy', 'live-physiology-transplant',
@@ -101,7 +103,8 @@ test('R124-REL-01 successor manifest is exact, minimal and excludes future resid
     CURRENT_SUCCESSOR_MANIFEST,
     RECOVERY_SUCCESSOR_MANIFEST,
     FINAL_RECOVERY_SUCCESSOR_MANIFEST,
-    LATEST_RECOVERY_SUCCESSOR_MANIFEST
+    LATEST_RECOVERY_SUCCESSOR_MANIFEST,
+    R141_RECOVERY_SUCCESSOR_MANIFEST
   ]
     .filter(file => fs.existsSync(file))
     .map(file => new Map(read(file).trim().split(/\r?\n/).map(line => {

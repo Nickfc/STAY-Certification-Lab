@@ -19,6 +19,8 @@ const FORWARD = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'p1-r139-metab-shadow-forward-recovery.sh');
 const MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R137_TO_R139.sha256');
+const SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'P1_PRODUCTION_HARDENING_R139_TO_R141.sha256');
 const R139_AUTH =
   'AUTHORIZE_R139_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_RECOVERY_ONLY';
 
@@ -153,9 +155,20 @@ test('R139-REL-05 immutable overlay hashes every changed production dependency',
     'test/p1-r139-metab-shadow-recovery.test.js',
     'test/p1-surgery-a-transplant.test.js'
   ]);
+  const successorEntries = fs.existsSync(SUCCESSOR_MANIFEST)
+    ? new Map(fs.readFileSync(SUCCESSOR_MANIFEST, 'utf8').trim().split(/\r?\n/)
+      .map(line => {
+        const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);
+        assert.ok(match, `invalid R141 successor manifest line: ${line}`);
+        return [match[2], match[1]];
+      }))
+    : new Map();
   for (const [relative, expected] of entries) {
     const actual = crypto.createHash('sha256')
       .update(fs.readFileSync(path.join(ROOT, relative))).digest('hex');
-    assert.equal(actual, expected, relative);
+    if (actual !== expected) {
+      assert.equal(successorEntries.get(relative), actual,
+        `${relative} drifted without exact R141 successor-manifest custody`);
+    }
   }
 });
