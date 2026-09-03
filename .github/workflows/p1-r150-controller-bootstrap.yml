@@ -149,6 +149,7 @@ jobs:
           set -Eeuo pipefail
           root="$1"; wrapper_sha="$2"; installer_sha="$3"; public_sha="$4"
           [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o -type f -links +1 -o ! -type d ! -type f \) -print -quit)" ]]
           (cd "$root" && sha256sum -c P1_R150_HOMEOS_INTERO_V2_CONTROLLER_BOOTSTRAP.sha256)
@@ -156,6 +157,7 @@ jobs:
           [[ "$(sha256sum "$root/install-p1-r150-homeos-intero-production-controller.sh" | awk '{print $1}')" == "$installer_sha" ]]
           [[ "$(sha256sum "$root/p1-r150-expansion-birth-authority.pub" | awk '{print $1}')" == "$public_sha" ]]
           find -P "$root" -xdev -type f -exec chmod 0400 {} +
+          [[ -z "$(find -P "$root" -xdev -type f ! -perm 0400 -print -quit)" ]]
           echo 'R150_HOMEOS_INTERO_V2_CONTROLLER_STAGE=PASS'
           REMOTE
           bridge_script="$(cat <<'BRIDGE'

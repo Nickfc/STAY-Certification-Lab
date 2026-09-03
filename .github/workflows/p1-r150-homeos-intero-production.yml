@@ -322,11 +322,13 @@ jobs:
           set -euo pipefail
           root="$1"; stage="$2"
           [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v2-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
           expected=3; [[ -n "$stage" ]] && expected=5
           [[ "$(find "$root" -maxdepth 1 -type f | wc -l)" -eq "$expected" ]]
           [[ -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy \) -print -quit)" ]]
           find -P "$root" -xdev -type f -exec chmod 0400 {} +
+          [[ -z "$(find -P "$root" -xdev -type f ! -perm 0400 -print -quit)" ]]
           REMOTE
           set +e
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
