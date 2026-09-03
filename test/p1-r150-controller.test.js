@@ -30,32 +30,29 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   const source = read(CONTROLLER);
   for (const exact of [
     "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'",
-    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-4fdcf0e47622'",
-    "PREVIOUS_HOMEOS_MANIFEST_SHA256='4fdcf0e47622fd234e2e2a484df463c0dc298e511c18338548065b87a9aa6cd2'",
-    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='e9cd02663b0772f6410deebde89c16ed582f5c8a530ff709940d9e72d0c848f0'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v5'",
-    "RELEASE_TAG_OBJECT='99b44c1514ebafedbeed9ca49f39fd63b9484fb1'",
-    "RELEASE_COMMIT='3f7c6c477683f57d77e43ea69ff3936c7ace5cff'",
-    "RELEASE_TREE='9de36f3d5d26b40f899d297957a43f8844990c40'",
-    "ARCHIVE_SHA256='760d6be2a54123699c8b3e8740d7825713861d6779dbef4ae93df567cf001d5f'",
-    "MANIFEST_SHA256='7a39b466f82cb6eca5ad74787016073f3358480d211e19aa2d2b3a809b2d61ec'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c'"
+    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c'",
+    "PREVIOUS_HOMEOS_MANIFEST_SHA256='7a39b466f82cb6eca5ad74787016073f3358480d211e19aa2d2b3a809b2d61ec'",
+    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='2fdb213e49f37b1d695a3743a46a004766f50b30aae67af24d5db998aae65ea3'",
+    "RELEASE_TAG='r150-homeos-intero-shadow-v7'",
+    "RELEASE_TAG_OBJECT='fc2e2d0922ccffd3547260a792c90244484dd5df'",
+    "RELEASE_COMMIT='7cd7dc347adff09856ef01a2b5b052be0c328f21'",
+    "RELEASE_TREE='fdf33a06553c5709ed01835ba8188f2d7698f018'",
+    "ARCHIVE_SHA256='8e2606fd8286288cfe9de0d3ea69f5e19bf97a09694d765fba1d3f04797c7413'",
+    "MANIFEST_SHA256='06c383cbdb2e6758a94a72efd48f68fd093c74facb956e18896ff6766d37b9a5'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-06c383cbdb2e'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
-  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 67/);
+  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 78/);
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
   assert.match(source, /expected_previous_homeos_release_env/);
   assert.match(source, /mv -Tf "\$pointer_tmp" \/opt\/stay\/current/);
 });
 
-test('R150-CTRL-02 authority is four-operation exact and benchmark cannot start', () => {
+test('R150-CTRL-02 authority is one-operation exact and benchmark cannot start', () => {
   const source = read(CONTROLLER);
-  for (const pair of [
-    'harden-r145-homeos:AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_V1',
-    'recover-r145-homeos:AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1',
-    'harden-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_V1',
-    'recover-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_RECOVERY_V1'
-  ]) assert.ok(source.includes(pair), pair);
+  assert.ok(source.includes(
+    'recover-r146-homeos:AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1'));
+  assert.doesNotMatch(source, /harden-r145-homeos:|recover-r145-homeos:|harden-r150-intero:|recover-r150-intero:/);
   assert.match(source, /RUNTIME_SECONDS=120/);
   assert.match(source, /BENCHMARK_ACTIVE=NO/);
   assert.doesNotMatch(source, /systemctl start stay-physiology-benchmark/);
@@ -124,7 +121,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V6_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V8_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
@@ -147,16 +144,9 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   ]) assert.ok(capture.includes(exact), exact);
   assert.doesNotMatch(capture, /\bsudo\b|\bscp\b|systemctl\s+(?:start|stop|restart)|benchmark-start/);
   for (const exact of [
-    'harden-r145-homeos', 'recover-r145-homeos',
-    'harden-r150-intero', 'recover-r150-intero',
-    'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_V1',
-    'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1',
-    'AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_V1',
-    'AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_RECOVERY_V1',
-    'secrets.STAY_R150_HOMEOS_CERTIFICATE_B64',
-    'secrets.STAY_R150_HOMEOS_DOSSIER_B64',
-    'secrets.STAY_R150_INTERO_CERTIFICATE_B64',
-    'secrets.STAY_R150_INTERO_DOSSIER_B64',
+    'recover-r146-homeos',
+    'AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1',
+    'RELEASE_TAG_OBJECT: fc2e2d0922ccffd3547260a792c90244484dd5df',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
     'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
@@ -170,6 +160,12 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     '-type f ! -perm 0400 -print -quit',
     'for attempt in $(seq 1 20); do',
     '[[ "$attempt" -eq 20 ]] || sleep 0.25',
+    "f.consumerId==='core:fetus-legacy'",
+    'Number(f.minimum)===4194077',
+    'Number(f.maximum)-Number(f.minimum)+1===Number(f.count)',
+    "failed[0].consumerId==='resident:metab'",
+    'Number(failed[0].sequence)===4179960',
+    '[[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 146 ]]',
     'recover-*)',
     'restoring that failed service is the sole purpose of this path',
     'SERVICE_STATE=%s/%s',
@@ -177,8 +173,6 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",
     "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);
-  assert.match(production,
-    /harden-\*\)[\s\S]*?curl --fail --silent --max-time 3 http:\/\/127\.0\.0\.1:8787\/__stay\/meta[\s\S]*?recover-\*\)/);
   for (const source of [bootstrap, capture, production]) {
     assert.doesNotMatch(source, /systemctl start stay-physiology-benchmark|benchmark-start/);
     assert.doesNotMatch(source, /TimeoutStartSec|TimeoutStopSec|CPUQuota=|MemoryMax=|PIDsMax=/);

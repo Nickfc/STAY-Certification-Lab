@@ -555,6 +555,43 @@ test('cold recovery includes an authority-contained quarantined Chronobiology re
   }]);
 });
 
+test('exact R146 Q48 repair cold-starts only METAB and requires zero abandonment', async () => {
+  const calls = [];
+  const kernel = Object.create(require('../runtime/kernel/living-kernel').LivingKernel.prototype);
+  kernel.runtimeRevision = 146;
+  kernel.metabQ48R146RecoveryActive = true;
+  kernel.statusCache = {};
+  kernel.stateStore = {
+    getResident(residencyId) {
+      return residencyId === 'resident:metab'
+        ? { residencyId, coreId: 'METAB', status: 'RESYNC_REQUIRED' }
+        : null;
+    }
+  };
+  kernel.ensureOrganismBinding = async () => ({ identitySha256: `sha256:${'1'.repeat(64)}` });
+  kernel.ensureResidentManager = () => ({
+    async resynchronize(residencyId, _binding, revision, options) {
+      calls.push({ residencyId, revision, options });
+      return { record: { abandonedCount: 0 } };
+    }
+  });
+  const previous = process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION;
+  process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION = '146';
+  try {
+    assert.deepEqual(await kernel.recoverColdFailedResidents(), [{
+      residencyId: 'resident:metab', recovered: true, coldRecovery: true,
+      abandonedCount: 0, status: 'RUNNING'
+    }]);
+  } finally {
+    if (previous == null) delete process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION;
+    else process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION = previous;
+  }
+  assert.deepEqual(calls, [{
+    residencyId: 'resident:metab', revision: 146,
+    options: { allowColdQuarantine: false }
+  }]);
+});
+
 test('failed cold Chronobiology recovery restores quarantine without abandoning its consumer', async () => {
   const recoveryRecords = [];
   let status = 'QUARANTINED';
