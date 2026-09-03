@@ -162,12 +162,19 @@ jobs:
           RECOVERY_SHA256=$RECOVERY_SHA256
           TARGET_RELEASE=$TARGET_RELEASE
           EOF
-      - name: Run focused and real entry-path regressions
+      - name: Prepare sandbox-readable validation tree
         shell: bash
-        working-directory: release-source
         run: |
           set -euo pipefail
-          find . -type d -exec chmod a+rx {} +
+          git clone --no-hardlinks release-source /tmp/stay-r128-validation-source
+          [[ "$(git -C /tmp/stay-r128-validation-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
+          [[ -z "$(git -C /tmp/stay-r128-validation-source status --porcelain)" ]]
+          find /tmp/stay-r128-validation-source -type d -exec chmod a+rx {} +
+      - name: Run focused and real entry-path regressions
+        shell: bash
+        working-directory: /tmp/stay-r128-validation-source
+        run: |
+          set -euo pipefail
           STAY_BWRAP=/usr/local/bin/stay-ci-bwrap node --disable-sigusr1 --test \
             --test-isolation=none --test-concurrency=1 \
             test/p1-r128-metab-shadow.test.js test/p1-r128-release-contract.test.js
