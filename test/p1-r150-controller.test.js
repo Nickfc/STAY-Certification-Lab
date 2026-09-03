@@ -160,7 +160,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     '-type f ! -perm 0400 -print -quit',
     'for attempt in $(seq 1 20); do',
     '[[ "$attempt" -eq 20 ]] || sleep 0.25',
-    "v.consumerId==='core:fetus-legacy'",
+    "f.consumerId==='core:fetus-legacy'",
     'Number(f.minimum)===4194077',
     'Number(f.maximum)-Number(f.minimum)+1===Number(f.count)',
     "failed[0].consumerId==='resident:metab'",
