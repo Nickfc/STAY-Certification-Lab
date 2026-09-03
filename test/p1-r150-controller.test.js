@@ -127,6 +127,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'MANUAL_ROOT_BRIDGE_COMMAND=',
     'p1-r150-expansion-birth-authority.pub',
     "chmod 0700 '$run_root'",
+    'chmod 0700 "$root"',
     "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700"
   ]) assert.ok(bootstrap.includes(exact), exact);
   for (const exact of [
@@ -155,7 +156,9 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'working-directory: /tmp/stay-r150-validation-source',
     'sudo -n /usr/local/sbin/stay-p1-production-controller',
     "chmod 0700 '$run_root'",
+    'chmod 0700 "$root"',
     "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700",
+    '-type f ! -perm 0400 -print -quit',
     'for attempt in $(seq 1 20); do',
     '[[ "$attempt" -eq 20 ]] || sleep 0.25',
     "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",
