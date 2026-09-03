@@ -156,6 +156,8 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'sudo -n /usr/local/sbin/stay-p1-production-controller',
     "chmod 0700 '$run_root'",
     "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700",
+    'for attempt in $(seq 1 20); do',
+    '[[ "$attempt" -eq 20 ]] || sleep 0.25',
     "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",
     "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);

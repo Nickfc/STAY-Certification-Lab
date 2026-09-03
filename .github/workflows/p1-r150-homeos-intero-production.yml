@@ -267,10 +267,16 @@ jobs:
           [[ -f /etc/stay/p1-r0-expansion-birth-authority.pub && ! -L /etc/stay/p1-r0-expansion-birth-authority.pub &&
             "$(sha256sum /etc/stay/p1-r0-expansion-birth-authority.pub | awk '{print $1}')" == "$public_sha" ]]
           current="$(readlink -f /opt/stay/current)"
-          revision="$(node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
+          revision=''
+          for attempt in $(seq 1 20); do
+            if revision="$(node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
           'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase(),r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get(),count=(t,w)=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value),ok=r&&crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256,pending=count('biological_deliveries',"status='PENDING'"),failed=count('biological_deliveries',"status='FAILED'"),outbox=count('biological_outbox_intents',"status='PENDING'"),authority=count('authority',"core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')");if(!(q==='ok'&&ok&&pending===0&&failed===0&&outbox===0&&authority===0))process.exit(1);process.stdout.write(String(Number(JSON.parse(r.json).revision)));}finally{db.close();}
           NODE
-          )"
+            )"; then break; fi
+            revision=''
+            [[ "$attempt" -eq 20 ]] || sleep 0.25
+          done
+          [[ "$revision" =~ ^[0-9]+$ ]]
           case "$operation" in
             harden-r145-homeos) [[ "$current" == "$source_release" && "$revision" == 141 ]] ;;
             recover-r145-homeos) [[ "$current" == "$target_release" && "$revision" -ge 142 && "$revision" -le 145 ]] ;;
