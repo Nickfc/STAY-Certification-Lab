@@ -13,6 +13,8 @@ const MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R123F_TO_R124.sha256');
 const SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R127F_TO_R128.sha256');
+const CURRENT_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'P1_PRODUCTION_HARDENING_R131_TO_R133.sha256');
 const FORWARD = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'p1-r124-metab-neutral-forward.sh');
 const RECOVERY = path.join(ROOT, 'deploy', 'live-physiology-transplant',
@@ -88,17 +90,19 @@ function manifestEntries() {
 
 test('R124-REL-01 successor manifest is exact, minimal and excludes future resident runtimes', () => {
   const entries = manifestEntries();
-  const successorEntries = new Map(read(SUCCESSOR_MANIFEST).trim().split(/\r?\n/).map(line => {
-    const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);
-    assert.ok(match, `invalid R128 successor manifest line: ${line}`);
-    return [match[2], match[1]];
-  }));
+  const successorEntries = [SUCCESSOR_MANIFEST, CURRENT_SUCCESSOR_MANIFEST]
+    .filter(file => fs.existsSync(file))
+    .map(file => new Map(read(file).trim().split(/\r?\n/).map(line => {
+      const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);
+      assert.ok(match, `invalid successor manifest line: ${line}`);
+      return [match[2], match[1]];
+    })));
   assert.deepEqual([...entries.keys()], EXPECTED_OVERLAY);
   for (const [relative, digest] of entries) {
     const actual = hash(path.join(ROOT, relative));
     if (actual !== digest) {
-      assert.equal(successorEntries.get(relative), actual,
-        `${relative} drifted without exact R128 successor-manifest custody`);
+      assert.equal(successorEntries.some(manifest => manifest.get(relative) === actual), true,
+        `${relative} drifted without exact successor-manifest custody`);
     }
   }
   for (const forbidden of [

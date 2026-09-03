@@ -49,10 +49,11 @@ function publicMetadata(status) {
     : (Array.isArray(status.health?.residencies) ? status.health.residencies : []);
   const residents = residentStatus.filter(Boolean).map((resident) => {
     const observedMode = String(resident.health?.mode || '').toUpperCase();
-    const mode = ['LIVE', 'SHADOW', 'NEUTRAL'].includes(observedMode)
+    const mode = resident.coreId === 'chronobiology'
+      ? 'SHADOW'
+      : ['LIVE', 'SHADOW', 'NEUTRAL'].includes(observedMode)
       ? observedMode
-      : resident.coreId === 'chronobiology' ||
-          (resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1')
+      : resident.coreId === 'sntss' && resident.version === '0.5.0-i4g1'
         ? 'SHADOW'
         : 'NEUTRAL';
     return {

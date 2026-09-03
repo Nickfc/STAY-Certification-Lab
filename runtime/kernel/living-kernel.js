@@ -35,6 +35,15 @@ const R128_METAB_SHADOW = Object.freeze({
     'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'
 });
 
+const R133_METAB_SHADOW_RECOVERY = Object.freeze({
+  ...R128_METAB_SHADOW,
+  authorization:
+    'AUTHORIZE_R133_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_RECOVERY_ONLY',
+  runtimeRevision: 133,
+  activationLabel: 'r133',
+  acceptancePrefix: 'R133_RECOVERY'
+});
+
 function defaultMetabCapacitySampler() {
   const cpuCount = os.cpus()?.length;
   const loadAverage = os.loadavg()?.[0];
@@ -338,6 +347,9 @@ class LivingKernel {
     metabShadowPromotionAuthorization =
       process.env.STAY_METAB_SHADOW_PROMOTION_AUTHORIZATION || '',
 
+    metabShadowRecoveryAuthorization =
+      process.env.STAY_METAB_SHADOW_RECOVERY_AUTHORIZATION || '',
+
     metabCapacitySampler =
       defaultMetabCapacitySampler,
 
@@ -462,6 +474,9 @@ class LivingKernel {
 
     this.metabShadowPromotionAuthorization =
       String(metabShadowPromotionAuthorization);
+
+    this.metabShadowRecoveryAuthorization =
+      String(metabShadowRecoveryAuthorization);
 
     if (typeof metabCapacitySampler !== 'function') {
       throw Object.assign(
@@ -2126,27 +2141,39 @@ class LivingKernel {
 
 
   async promoteMetabShadow() {
-    if (
-      !this.allowMetabShadowPromotion ||
-      this.metabShadowPromotionAuthorization !==
-        R128_METAB_SHADOW.authorization
-    ) {
+    const normalAuthorized =
+      this.metabShadowPromotionAuthorization ===
+        R128_METAB_SHADOW.authorization;
+    const recoveryAuthorized =
+      this.metabShadowRecoveryAuthorization ===
+        R133_METAB_SHADOW_RECOVERY.authorization;
+    if (!this.allowMetabShadowPromotion || normalAuthorized === recoveryAuthorized) {
       throw Object.assign(
-        new Error('R128 METAB shadow promotion is not authorized'),
+        new Error('METAB shadow promotion is not exactly authorized'),
         { code: 'P1_METAB_SHADOW_NOT_AUTHORIZED' }
       );
     }
 
-    if (this.runtimeRevision !== R128_METAB_SHADOW.runtimeRevision) {
+    const promotion = recoveryAuthorized
+      ? R133_METAB_SHADOW_RECOVERY
+      : Object.freeze({
+          ...R128_METAB_SHADOW,
+          activationLabel: 'r128',
+          acceptancePrefix: 'R128'
+        });
+
+    if (this.runtimeRevision !== promotion.runtimeRevision) {
       throw Object.assign(
-        new Error('METAB shadow promotion is fenced to runtime R128'),
+        new Error(
+          `METAB shadow promotion is fenced to runtime R${promotion.runtimeRevision}`
+        ),
         { code: 'P1_METAB_SHADOW_REVISION' }
       );
     }
 
     const { readRevisionFreeze } = require('../revision-freeze');
     const parentFreeze = readRevisionFreeze(
-      R128_METAB_SHADOW.parentRevision,
+      promotion.parentRevision,
       { directory: this.runtimeFreezeDirectory }
     );
 
@@ -2210,17 +2237,17 @@ class LivingKernel {
 
     if (
       metabResident?.instanceId !==
-        R128_METAB_SHADOW.instanceId ||
+        promotion.instanceId ||
       metabResident?.version !==
-        R128_METAB_SHADOW.neutralVersion ||
+        promotion.neutralVersion ||
       metabResident?.stateSchema !== 1 ||
       metabResident?.moduleRelativePath !==
         'cores/p1-r0/metab-neutral/index.js' ||
       metabResident?.checkpointHash !==
-        R128_METAB_SHADOW.neutralCheckpointHash ||
+        promotion.neutralCheckpointHash ||
       metabResident?.status !== 'RUNNING' ||
       metabCheckpoint?.blobHash !==
-        R128_METAB_SHADOW.neutralCheckpointHash ||
+        promotion.neutralCheckpointHash ||
       metabCheckpoint?.state?.engineState?.frameIndex !== 0 ||
       metabCheckpoint?.state?.engineState?.outputSequence !== '0' ||
       metabStatus?.running !== true ||
@@ -2314,7 +2341,7 @@ class LivingKernel {
       acceptanceCommit:
         this.metabShadowAcceptanceCommit(
           storage,
-          'R128_SHADOW_ACCEPTED_OUTPUT_FIREWALLED',
+          `${promotion.acceptancePrefix}_SHADOW_ACCEPTED_OUTPUT_FIREWALLED`,
           parentFreeze.recordSha256
         ),
       publishActivation:
@@ -2338,16 +2365,16 @@ class LivingKernel {
               METAB_SHADOW_RESIDENT_CONTRACT.stateSchema,
             runtimeRevision: this.runtimeRevision,
             parentRevision:
-              R128_METAB_SHADOW.parentRevision,
+              promotion.parentRevision,
             parentFreezeRecordSha256:
               parentFreeze.recordSha256,
             mode: 'SHADOW',
             authorityEpoch: '0',
             outputPolicy:
-              R128_METAB_SHADOW.outputPolicy
+              promotion.outputPolicy
           };
           const signalId =
-            `runtime.metab.shadow-activation:r128:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`;
+            `runtime.metab.shadow-activation:${promotion.activationLabel}:g${sourceCheckpoint.generation}:${sourceCheckpoint.blobHash}`;
           const signal = createSignal({
             signalId,
             topic:
@@ -2358,7 +2385,7 @@ class LivingKernel {
               observedAtMs:
                 Number(this.clock()),
               pulseId:
-                `metab-shadow-activation-r128-g${sourceCheckpoint.generation}`
+                `metab-shadow-activation-${promotion.activationLabel}-g${sourceCheckpoint.generation}`
             },
             provenance: {
               producerType: 'kernel',
@@ -2408,17 +2435,17 @@ class LivingKernel {
     if (
       unit?.residencyId !== 'resident:metab' ||
       promoted?.instanceId !== metabResident.instanceId ||
-      promoted?.version !== R128_METAB_SHADOW.shadowVersion ||
+      promoted?.version !== promotion.shadowVersion ||
       promoted?.stateSchema !== 2 ||
       promoted?.status !== 'RUNNING' ||
       checkpoint?.state?.activation?.sourceCheckpointHash !==
-        `sha256:${R128_METAB_SHADOW.neutralCheckpointHash}` ||
+        `sha256:${promotion.neutralCheckpointHash}` ||
       checkpoint?.state?.lastAcceptedFrame < 1 ||
       checkpoint?.state?.engineState?.outputSequence !== '0' ||
       status?.running !== true ||
       status?.health?.mode !== 'SHADOW' ||
       status?.health?.outputPolicy !==
-        R128_METAB_SHADOW.outputPolicy ||
+        promotion.outputPolicy ||
       status?.authorityOwned !== false ||
       status?.observedOutputs !== 0 ||
       status?.declaredOutputs !== 0 ||
@@ -2438,7 +2465,7 @@ class LivingKernel {
 
     this.metabShadowAcceptanceCommit(
       storage,
-      'R128_SHADOW_RUNNING_OUTPUT_FIREWALLED',
+      `${promotion.acceptancePrefix}_SHADOW_RUNNING_OUTPUT_FIREWALLED`,
       parentFreeze.recordSha256
     )({
       checkpoint,
@@ -2453,13 +2480,13 @@ class LivingKernel {
       residencyId: 'resident:metab',
       instanceId: promoted.instanceId,
       fromVersion:
-        R128_METAB_SHADOW.neutralVersion,
+        promotion.neutralVersion,
       toVersion: promoted.version,
       runtimeRevision: this.runtimeRevision,
       parentFreezeRecordSha256:
         parentFreeze.recordSha256,
       sourceCheckpointHash:
-        R128_METAB_SHADOW.neutralCheckpointHash,
+        promotion.neutralCheckpointHash,
       acceptedFrame:
         checkpoint.state.lastAcceptedFrame,
       authorityOwned: false,
