@@ -157,38 +157,50 @@ r139_failure="$(sed -n 's/^R139_FAILURE_EVIDENCE=//p' "$SOURCE_MARKER")"
   -d "$r139_failure" && ! -L "$r139_failure" && "$(stat -Lc '%U:%G' "$r139_failure")" == root:root &&
   -z "$(find -P "$r139_failure" -xdev \( -type l -o ! -type d ! -type f -o ! -user root -o ! -group root -o -perm /022 \) -print -quit)" ]] ||
   abort r139-failure-evidence-invalid 3311
-[[ -S "$SOCKET" && ! -L "$SOCKET" &&
+prior_files=(R127.freeze.json R137.failure-marker.env before.proof.json database.before.json \
+  database.before.json.attempts sntss.before.json chronobiology.before.json metab.before.json fetus.before.html)
+[[ "$(find "$r139_failure" -maxdepth 1 -type f | wc -l)" -eq "${#prior_files[@]}" ]] ||
+  abort r139-failure-evidence-inventory-invalid 3311
+for prior in "${prior_files[@]}"; do
+  [[ -f "$r139_failure/$prior" && ! -L "$r139_failure/$prior" ]] ||
+    abort r139-failure-evidence-inventory-invalid 3311
+done
+[[ ! -e "$SOCKET" && ! -L "$SOCKET" &&
   "$(systemctl show stay.service -p ActiveState --value)" == active &&
   "$(systemctl show stay.service -p SubState --value)" == running &&
   "$(systemctl show stay.service -p User --value)" == staydeploy &&
-  "$(systemctl show stay.service -p Group --value)" == staydeploy ]] || abort live-service-preflight-invalid 3312
+  "$(systemctl show stay.service -p Group --value)" == staydeploy ]] &&
+  ! curl --fail --silent --max-time 1 http://127.0.0.1:8787/healthz >/dev/null 2>&1 ||
+  abort exact-r139-stopped-kernel-preflight-invalid 3312
 
 WORK="$(mktemp -d "$EVIDENCE_ROOT/.R141-METAB-SHADOW-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
 install -o root -g root -m 0400 "$PARENT_FREEZE" "$WORK/R127.freeze.json"
 install -o root -g root -m 0400 "$SOURCE_MARKER" "$WORK/R139.failure-marker.env"
+for prior in "${prior_files[@]}"; do
+  install -o root -g root -m 0400 "$r139_failure/$prior" "$WORK/R139.$prior"
+done
 before_pid="$(systemctl show stay.service -p MainPID --value)"
 before_restarts="$(systemctl show stay.service -p NRestarts --value)"
 [[ "$before_pid" =~ ^[1-9][0-9]*$ && "$before_restarts" =~ ^[0-9]+$ ]] || abort service-identity-invalid 3313
-capture_quiescent "$WORK/database.before.json" || abort database-before-not-quiescent 3314
-/usr/local/bin/node "$SOURCE_RELEASE/$CLIENT" status resident:sntss > "$WORK/sntss.before.json"
-/usr/local/bin/node "$SOURCE_RELEASE/$CLIENT" status resident:chronobiology > "$WORK/chronobiology.before.json"
-/usr/local/bin/node "$SOURCE_RELEASE/$CLIENT" status resident:metab > "$WORK/metab.before.json"
+/usr/local/bin/node "$STAY_R141_TARGET_RELEASE/$PROOF" capture "$DATABASE" > "$WORK/database.before.json" ||
+  abort database-before-unreadable 3314
 curl --fail --silent --max-time 3 http://127.0.0.1:8788/ > "$WORK/fetus.before.html"
 /usr/local/bin/node - "$WORK" "$SOURCE_RELEASE" > "$WORK/before.proof.json" <<'NODE'
 'use strict';const fs=require('node:fs'),path=require('node:path');const[root,current]=process.argv.slice(2),read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8'));
-const db=read('database.before.json'),s=read('sntss.before.json').resident,c=read('chronobiology.before.json').resident,m=read('metab.before.json').resident;
-const row=id=>db.residents.find(v=>v.residency_id===id),state=db.metabCheckpointState,source=db.capacitySource,fetusAuthority=db.authorities?.find(v=>v.core_id==='fetus-legacy');
-const contained=v=>v?.status==='RUNNING'&&v.running===true&&v.authorityOwned===false&&v.host?.quarantined===false&&v.host?.osContainment?.required===true&&v.host?.osContainment?.available===true&&v.host?.osContainment?.payloadSandboxed===true&&v.host?.osContainment?.payloadAttachedBeforeInit===true&&v.host?.osContainment?.supervisorChargedToKernel===true&&v.host?.resourceGovernor?.policy?.softRamBytes===67108864&&v.host?.resourceGovernor?.policy?.hardRamBytes===100663296&&v.host?.resourceGovernor?.policy?.hardCpuDuty===0.2&&v.host?.resourceGovernor?.policy?.handlerTimeoutMs===250&&v.host?.resourceGovernor?.policy?.pidsMax===16&&v.host?.osContainment?.limits?.['memory.high']==='67108864'&&v.host?.osContainment?.limits?.['memory.max']==='100663296'&&v.host?.osContainment?.limits?.['pids.max']==='16'&&v.host?.osContainment?.limits?.['cpu.max']==='20000 100000';
+const db=read('database.before.json'),prior=read('R139.before.proof.json');
+const row=id=>db.residents.find(v=>v.residency_id===id),consumer=id=>db.consumers.find(v=>v.consumer_id===id),state=db.metabCheckpointState,source=db.capacitySource,fetusAuthority=db.authorities?.find(v=>v.core_id==='fetus-legacy');
+const {validateCapacitySourceState}=require(path.join(current,'runtime/p1-r0/metab-capacity-source'));
+const validatedSource=validateCapacitySourceState(source,{instanceId:'d424c722-ef31-44b0-8201-ba68c418d14a',residentVersion:'0.2.0-p1r0-shadow.1'}),checkpointFrame=Number(state?.lastAcceptedFrame),allowedFrames=validatedSource.pending?[validatedSource.lastCommittedFrame,validatedSource.pending.sampleFrame]:[validatedSource.lastCommittedFrame];
 if(!(current==='/opt/stay/releases/0.8.11.3-p1m-r139-metab-shadow-recovery-6a343c91a536'&&db.quickCheck==='ok'&&db.runtimeRevision===139&&
-db.pendingDeliveries===0&&db.pendingOutboxIntents===0&&db.failedDeliveries===0&&db.p1Authority===0&&db.sntssAuthority===0&&db.chronobiologyAuthority===0&&db.metabOutboxIntents===0&&
+prior?.result==='PASS'&&prior?.runtimeRevision===137&&db.pendingDeliveries>=0&&db.pendingDeliveries<=8&&db.pendingOutboxIntents===0&&db.failedDeliveries===0&&db.abandonedDeliveries===0&&db.p1Authority===0&&db.sntssAuthority===0&&db.chronobiologyAuthority===0&&db.metabOutboxIntents===0&&
 row('resident:metab')?.instance_id==='d424c722-ef31-44b0-8201-ba68c418d14a'&&row('resident:metab')?.version==='0.2.0-p1r0-shadow.1'&&row('resident:metab')?.state_schema===2&&row('resident:metab')?.module_relative_path==='cores/p1-r0/metab-shadow/index.js'&&row('resident:metab')?.status==='RUNNING'&&
-state?.activation?.instanceId==='d424c722-ef31-44b0-8201-ba68c418d14a'&&state?.activation?.runtimeRevision===139&&state?.activation?.sourceCheckpointHash==='sha256:4a16fc393b9846d1dd6f2f9849920053e3d2b5235c066dde3c5cd72699595107'&&state?.lastAcceptedFrame>=1&&state?.engineState?.outputSequence==='0'&&
-source?.runtimeRevision===128&&source?.instanceId==='d424c722-ef31-44b0-8201-ba68c418d14a'&&source?.residentVersion==='0.2.0-p1r0-shadow.1'&&source?.pending===null&&source?.lastCommittedFrame===state.lastAcceptedFrame&&
+state?.activation?.instanceId==='d424c722-ef31-44b0-8201-ba68c418d14a'&&state?.activation?.runtimeRevision===139&&state?.activation?.sourceCheckpointHash==='sha256:4a16fc393b9846d1dd6f2f9849920053e3d2b5235c066dde3c5cd72699595107'&&state?.lastAcceptedFrame>=1&&state?.engineState?.outputSequence==='0'&&allowedFrames.includes(checkpointFrame)&&
+validatedSource.runtimeRevision===128&&validatedSource.instanceId==='d424c722-ef31-44b0-8201-ba68c418d14a'&&validatedSource.residentVersion==='0.2.0-p1r0-shadow.1'&&
 row('resident:sntss')?.instance_id==='8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f'&&row('resident:sntss')?.version==='0.5.0-i4g1'&&
 row('resident:chronobiology')?.instance_id==='f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a'&&row('resident:chronobiology')?.version==='1.0.0-c3rc.5'&&
-contained(s)&&s?.observedOutputs===0&&contained(c)&&c?.health?.mode==='NEUTRAL'&&contained(m)&&m?.health?.mode==='SHADOW'&&m?.health?.outputPolicy==='FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'&&m?.declaredOutputs===0&&m?.observedOutputs===0&&
+consumer('resident:metab')?.active===1&&consumer('resident:metab')?.required===0&&consumer('resident:metab')?.authority_epoch===0&&consumer('resident:sntss')?.active===1&&consumer('resident:chronobiology')?.active===1&&
 db.authorities?.length===1&&fetusAuthority?.instance_id==='82202211-8dd6-44d4-a4ec-8f2553d8dc6f'&&fetusAuthority?.version==='0.6.0'))process.exit(1);
-process.stdout.write(JSON.stringify({result:'PASS',runtimeRevision:139,sntssCheckpointGeneration:Number(row('resident:sntss').checkpoint_generation),chronobiologyCheckpointGeneration:Number(row('resident:chronobiology').checkpoint_generation),metabCheckpointGeneration:Number(row('resident:metab').checkpoint_generation),fetusInstanceId:fetusAuthority.instance_id,metabInstanceId:row('resident:metab').instance_id,metabActivationSourceCheckpointHash:state.activation.sourceCheckpointHash,metabAcceptedFrame:state.lastAcceptedFrame,abandonedDeliveries:db.abandonedDeliveries,founder:state.founder,metabChipHistory:db.metabChipHistory})+'\n');
+process.stdout.write(JSON.stringify({result:'PASS',runtimeRevision:139,pendingDeliveries:db.pendingDeliveries,capacityPendingFrame:validatedSource.pending?.sampleFrame||null,sntssCheckpointGeneration:Number(row('resident:sntss').checkpoint_generation),chronobiologyCheckpointGeneration:Number(row('resident:chronobiology').checkpoint_generation),metabCheckpointGeneration:Number(row('resident:metab').checkpoint_generation),fetusInstanceId:fetusAuthority.instance_id,metabInstanceId:row('resident:metab').instance_id,metabActivationSourceCheckpointHash:state.activation.sourceCheckpointHash,metabAcceptedFrame:state.lastAcceptedFrame,abandonedDeliveries:db.abandonedDeliveries,founder:state.founder,metabChipHistory:db.metabChipHistory})+'\n');
 NODE
 
 point_current "$STAY_R141_TARGET_RELEASE"; POINTER_SWITCHED=1
@@ -239,8 +251,8 @@ STAY_R141_AFTER_PID="$after_pid" STAY_R141_AFTER_RESTARTS="$after_restarts" \
 const before=read('before.proof.json'),after=read('after.proof.json'),parent=read('R127.freeze.json');
 const release=Object.fromEntries(fs.readFileSync(path.join(root,'P1_R141_RELEASE.env'),'utf8').trim().split('\n').map(line=>{const at=line.indexOf('=');return[line.slice(0,at),line.slice(at+1)];}));
 if(!(before.result==='PASS'&&after.result==='PASS'&&after.runtimeRevision===141&&after.instanceId===before.metabInstanceId))process.exit(2);
-const names=['R127.freeze.json','R139.failure-marker.env','before.proof.json','after.proof.json','database.before.json','database.after.json','sntss.before.json','sntss.after.json','chronobiology.before.json','chronobiology.after.json','metab.before.json','metab.after.json','fetus.before.html','meta.after.json','P1_R141_RELEASE.env'];
-const record=sealRevisionFreeze({format:'stay-runtime-revision-freeze-v1',result:'PASS',acceptance:'ACCEPTED',freezeType:'R141_METAB_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY',runtime:{revision:141,revisionLabel:'R141F',progression:[123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141],serviceMainPid:Number(process.env.STAY_R141_AFTER_PID),serviceNRestarts:Number(process.env.STAY_R141_AFTER_RESTARTS),restartCommands:1},parentFreeze:{revision:127,recordSha256:parent.recordSha256},recoveryBoundary:{revision:139,r139FailureMarkerSha256:hash('R139.failure-marker.env'),pointerRewound:false},release:{path:release.RELEASE_PATH,tag:release.RELEASE_TAG,commit:release.RELEASE_COMMIT,tree:release.RELEASE_TREE,archiveSha256:release.ARCHIVE_SHA256,manifestSha256:release.MANIFEST_SHA256,controllerSha256:release.CONTROLLER_SHA256},metab:{residencyId:'resident:metab',instanceId:after.instanceId,version:after.version,mode:'SHADOW',checkpointGeneration:after.checkpointGeneration,acceptedFrame:after.acceptedFrame,activationRuntimeRevision:after.activationRuntimeRevision,capacitySourceRuntimeRevision:after.capacitySourceRuntimeRevision,authorityOwned:false,observedOutputs:0,outputPolicy:'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'},continuity:{sntssCheckpointGenerationBefore:before.sntssCheckpointGeneration,chronobiologyCheckpointGenerationBefore:before.chronobiologyCheckpointGeneration,pendingDeliveries:0,pendingOutboxIntents:0,abandonedDeliveries:before.abandonedDeliveries,inventedBiologicalTime:false,fetusContinuity:true},recovery:{revisionFenced:true,pointerRewound:false,repeatedPromotion:false},evidence:Object.fromEntries(names.map(n=>[n,hash(n)])),capturedAt:new Date().toISOString()});
+const names=['R127.freeze.json','R139.failure-marker.env','R139.R127.freeze.json','R139.R137.failure-marker.env','R139.before.proof.json','R139.database.before.json','R139.database.before.json.attempts','R139.sntss.before.json','R139.chronobiology.before.json','R139.metab.before.json','R139.fetus.before.html','before.proof.json','after.proof.json','database.before.json','database.after.json','sntss.after.json','chronobiology.after.json','metab.after.json','fetus.before.html','meta.after.json','P1_R141_RELEASE.env'];
+const record=sealRevisionFreeze({format:'stay-runtime-revision-freeze-v1',result:'PASS',acceptance:'ACCEPTED',freezeType:'R141_METAB_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY',runtime:{revision:141,revisionLabel:'R141F',progression:[123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141],serviceMainPid:Number(process.env.STAY_R141_AFTER_PID),serviceNRestarts:Number(process.env.STAY_R141_AFTER_RESTARTS),restartCommands:1},parentFreeze:{revision:127,recordSha256:parent.recordSha256},recoveryBoundary:{revision:139,r139FailureMarkerSha256:hash('R139.failure-marker.env'),pointerRewound:false},release:{path:release.RELEASE_PATH,tag:release.RELEASE_TAG,commit:release.RELEASE_COMMIT,tree:release.RELEASE_TREE,archiveSha256:release.ARCHIVE_SHA256,manifestSha256:release.MANIFEST_SHA256,controllerSha256:release.CONTROLLER_SHA256},metab:{residencyId:'resident:metab',instanceId:after.instanceId,version:after.version,mode:'SHADOW',checkpointGeneration:after.checkpointGeneration,acceptedFrame:after.acceptedFrame,activationRuntimeRevision:after.activationRuntimeRevision,capacitySourceRuntimeRevision:after.capacitySourceRuntimeRevision,authorityOwned:false,observedOutputs:0,outputPolicy:'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'},continuity:{sntssCheckpointGenerationBefore:before.sntssCheckpointGeneration,chronobiologyCheckpointGenerationBefore:before.chronobiologyCheckpointGeneration,pendingDeliveriesBefore:before.pendingDeliveries,pendingDeliveries:0,pendingOutboxIntents:0,abandonedDeliveries:before.abandonedDeliveries,inventedBiologicalTime:false,fetusContinuity:true},recovery:{revisionFenced:true,pointerRewound:false,repeatedPromotion:false,stagedCapacityFrameBefore:before.capacityPendingFrame,recoveredPendingToZero:true},evidence:Object.fromEntries(names.map(n=>[n,hash(n)])),capturedAt:new Date().toISOString()});
 if(!validateRevisionFreeze(record,141))process.exit(3);process.stdout.write(JSON.stringify(record)+'\n');
 NODE
 install_atomic "$WORK/R141.freeze.json" "$TARGET_FREEZE" 0444

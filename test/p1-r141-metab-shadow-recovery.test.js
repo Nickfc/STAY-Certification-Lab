@@ -21,7 +21,12 @@ test('R141-RECOVERY-01 is exact forward-only recovery of the existing shadow res
     "SOURCE_MARKER='/run/stay-r139-metab-shadow-recovery.env'",
     'R139_RELEASE_COMMIT=532467bf2b46f6a992df5c5ea63de57dfd39b156',
     'R139_CONTROLLER_SHA256=sha256:13949ecef06065571296d34848cb54c50d01c741bfd5b5053b47c9fe807426f7',
+    'prior_files=(R127.freeze.json R137.failure-marker.env before.proof.json database.before.json',
+    '! -e "$SOCKET"',
+    'exact-r139-stopped-kernel-preflight-invalid',
     "db.runtimeRevision===139",
+    'db.pendingDeliveries>=0&&db.pendingDeliveries<=8',
+    'validateCapacitySourceState(source',
     "row('resident:metab')?.version==='0.2.0-p1r0-shadow.1'",
     'state?.activation?.runtimeRevision===139',
     'source?.runtimeRevision===128',
@@ -38,6 +43,7 @@ test('R141-RECOVERY-01 is exact forward-only recovery of the existing shadow res
   assert.match(source, /RESTART_COMMITTED=1\s+systemctl restart stay\.service/);
   const committed = source.slice(source.indexOf('RESTART_COMMITTED=1'));
   assert.doesNotMatch(committed, /point_current "\$SOURCE_RELEASE"/);
+  assert.doesNotMatch(source, /status resident:(?:sntss|chronobiology|metab) > "\$WORK\/(?:sntss|chronobiology|metab)\.before\.json"/);
 });
 
 test('R141-RECOVERY-02 cannot grant a second promotion capability or mutate biology directly', () => {
