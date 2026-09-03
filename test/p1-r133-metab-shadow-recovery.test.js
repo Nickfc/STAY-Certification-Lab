@@ -170,6 +170,8 @@ test('R133-REL-05 shell, embedded JavaScript and immutable overlay parse and has
     'deploy/live-physiology-transplant/p1-r133-metab-shadow-forward-recovery.sh',
     'runtime/kernel/living-kernel.js',
     'server.js',
+    'test/p1-r118f-release-contract.test.js',
+    'test/p1-r119f-release-contract.test.js',
     'test/p1-r124-release-contract.test.js',
     'test/p1-r128-release-contract.test.js',
     'test/p1-r133-metab-shadow-recovery.test.js'
