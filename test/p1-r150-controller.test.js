@@ -125,7 +125,9 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
     'secrets.STAY_DEPLOY_KEY',
     'MANUAL_ROOT_BRIDGE_COMMAND=',
-    'p1-r150-expansion-birth-authority.pub'
+    'p1-r150-expansion-birth-authority.pub',
+    "chmod 0700 '$run_root'",
+    "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700"
   ]) assert.ok(bootstrap.includes(exact), exact);
   for (const exact of [
     'AUTHORIZE_R150_READ_ONLY_ORIGIN_CAPTURE_V1',
@@ -152,6 +154,8 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
     'working-directory: /tmp/stay-r150-validation-source',
     'sudo -n /usr/local/sbin/stay-p1-production-controller',
+    "chmod 0700 '$run_root'",
+    "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700",
     "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",
     "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);
