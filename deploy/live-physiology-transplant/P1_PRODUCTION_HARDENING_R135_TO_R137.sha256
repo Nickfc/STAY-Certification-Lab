@@ -1,0 +1,15 @@
+046ba5a49245f1fffd8b82e654ee6cd6fb7fb85b58d6fca2bbf604124694d116  ./cores/p1-r0/metab-shadow/index.js
+6356f3f139f3084d045e4832dfdbbbba52868973209d6036ff450043918e38a1  ./cores/p1-r0/metab-shadow/package-policy.json
+fd3ecc8cd21962237ddad2abddf0f0b67175abede04d515da3a87ec43548edbc  ./deploy/live-physiology-transplant/p1-r128-metab-shadow-live-proof.js
+e9ee6848af39dbb55878241b50d6e6c9d574d69557cf81f885993185ae0ddac8  ./deploy/live-physiology-transplant/p1-r137-metab-shadow-forward-recovery.sh
+cfe73b37a1f9ea5882d7dc1b8f4b997874b612cfbe7f9a790fd01dce6e6176a2  ./runtime/kernel/living-kernel.js
+d8aacb94a22839a94e0962347c1eb2366a762b325c4dc35e5dcadfb7167bf88e  ./runtime/p1-r0/resident-package-hashes.json
+b4f45065fc6080d80d80adb1da8af603eab6351c939996926138cf49da8b5564  ./runtime/p1-r0/residents/metab-shadow.js
+6eaa764ba0edb177234b8629ce508ae0eba89edfcf402cfb7cf6f2841c1792ec  ./test/p1-r118f-release-contract.test.js
+2c1ce2d3fbad119ecfaba6924b0bc6d44da9fd4b2ced937a5654abf9e2c2dbbb  ./test/p1-r119f-release-contract.test.js
+3abf26faf52e00408bd9f62c9af46a5eeaa5c6d02880f777226682267c9dd540  ./test/p1-r124-release-contract.test.js
+68e297943ba95f1941ea0aed40755fda103a5c64fbf69c10c517aaad828c25af  ./test/p1-r128-metab-shadow.test.js
+b6e56e3155496a060eaf589cb4a618430059bf267882ce37008caac0d71caa23  ./test/p1-r128-release-contract.test.js
+9609255af10c339dbe65b42b3a30f50b3fb589215cbfefe1f6171bca2e1381f5  ./test/p1-r133-metab-shadow-recovery.test.js
+863e9df148efeac7d717fc2b8256184c29641cc95ef702c0cb6b8a09f3bf1bf4  ./test/p1-r135-metab-shadow-recovery.test.js
+a916224fce66d648dc90dd5a68416b5aff40c4ae3d6341139fbe31fa41c0178c  ./test/p1-r137-metab-shadow-recovery.test.js

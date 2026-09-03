@@ -377,6 +377,32 @@ test('R119F-REL-03 scripts expose one restart, exact revision progression and no
 test('R119F-REL-04 release manifest is exact for every listed file and carries repair dependencies', () => {
   const manifestFile = path.join(root,
     'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R118_TO_R119F.sha256');
+  const successorEntries = new Map();
+  for (const successorFile of [
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R123F_TO_R124.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R127F_TO_R128.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R131_TO_R133.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R133_TO_R135.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R135_TO_R137.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R137_TO_R139.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'),
+    path.join(root,
+      'deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256')
+  ]) {
+    if (!fs.existsSync(successorFile)) continue;
+    for (const line of fs.readFileSync(successorFile, 'utf8').trim().split(/\r?\n/)) {
+      const match = /^([0-9a-f]{64})  \.\/(.+)$/.exec(line);
+      assert.ok(match, `invalid successor manifest line: ${line}`);
+      successorEntries.set(match[2], match[1]);
+    }
+  }
   const lines = fs.readFileSync(manifestFile, 'utf8').trim().split(/\r?\n/);
   const entries = new Map();
   for (const line of lines) {
@@ -385,7 +411,11 @@ test('R119F-REL-04 release manifest is exact for every listed file and carries r
     assert.equal(entries.has(match[2]), false, `duplicate manifest path: ${match[2]}`);
     entries.set(match[2], match[1]);
     const bytes = fs.readFileSync(path.join(root, match[2]));
-    assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), match[1], match[2]);
+    const actual = crypto.createHash('sha256').update(bytes).digest('hex');
+    if (actual !== match[1]) {
+      assert.equal(successorEntries.get(match[2]), actual,
+        `${match[2]} drifted without exact R124 successor-manifest custody`);
+    }
   }
   for (const required of [
     'cores/chronobiology/c3/aggregate.js',
