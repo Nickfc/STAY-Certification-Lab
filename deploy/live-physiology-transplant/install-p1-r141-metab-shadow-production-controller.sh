@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_WRAPPER_SHA256='18907d1b032744cd28d5488635d1d174b335835d6a744a0068942d19181e6e2a'
+EXPECTED_WRAPPER_SHA256='f6dedfa56389b66908500b5ee0c576f4868f3a61b1a69502d0712a4dd4c310ed'
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-r141-metab-shadow-production-controller"
 TARGET_WRAPPER='/usr/local/sbin/stay-p1-production-controller'
@@ -41,11 +41,11 @@ id staydeploy >/dev/null 2>&1 || {
   exit 65
 }
 
-staging="$(mktemp -d /run/stay-r141-metab-shadow-recovery-v2-bootstrap.XXXXXX)"
+staging="$(mktemp -d /run/stay-r141-metab-shadow-recovery-v3-bootstrap.XXXXXX)"
 cleanup() {
   local status=$?
   trap - EXIT
-  [[ "$staging" =~ ^/run/stay-r141-metab-shadow-recovery-v2-bootstrap\.[A-Za-z0-9]+$ &&
+  [[ "$staging" =~ ^/run/stay-r141-metab-shadow-recovery-v3-bootstrap\.[A-Za-z0-9]+$ &&
     -d "$staging" && ! -L "$staging" ]] || exit 66
   rm -rf --one-file-system -- "$staging"
   exit "$status"

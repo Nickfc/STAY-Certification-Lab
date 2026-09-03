@@ -10,16 +10,16 @@ SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r139-metab-shadow-recovery-6a343
 SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R137_TO_R139.sha256'
 SOURCE_MANIFEST_SHA256='6a343c91a536d9fab8147f9a214d05654e15f0221622b063477f53ea3212c981'
 SOURCE_FILE_COUNT=675
-EXPECTED_RELEASE_TAG='r141-metab-shadow-recovery-v2'
-EXPECTED_RELEASE_TAG_OBJECT='70919f78c582fd1a796780281f14a21d9d4aa74a'
-EXPECTED_RELEASE_COMMIT='563efb7d47ea6451ecae3373f191385f91c2a0ba'
-EXPECTED_RELEASE_TREE='45978e42ec2a9ac8e69ab10d6cc4af0f0b197658'
-EXPECTED_ARCHIVE='STAY_P1_R141_METAB_SHADOW_RECOVERY_V2_BUNDLE_20260903.tar.gz'
-EXPECTED_ARCHIVE_SHA256='2e2c8f11e5c1980b3f069898ab2ab2dc74abf32b637897e7ddd66a555476442a'
-EXPECTED_SIDECAR_SHA256='1087bdd5d39dd84fca0919be8fbe1cda030e96b1ea3463415fac4b53d599fb28'
-EXPECTED_MANIFEST_SHA256='097d977e8484eb9534439ed30a91ce0eb023b0123b98f95ab4ed061abe5a4cc9'
-EXPECTED_FORWARD_SHA256='bd69eb5a62f6cdb7ac6de40f9f7fed0b6d459d7304a2a99f479875ad339a665e'
-EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-097d977e8484'
+EXPECTED_RELEASE_TAG='r141-metab-shadow-recovery-v3'
+EXPECTED_RELEASE_TAG_OBJECT='6e26e8e97e03beb1630f8e0c560687b4aa59a3f2'
+EXPECTED_RELEASE_COMMIT='c84a5391b9c74fd1e7fcdb52189151eba2363d2f'
+EXPECTED_RELEASE_TREE='c84ceb80226ebbc5c4765df3f56aedad8beb8707'
+EXPECTED_ARCHIVE='STAY_P1_R141_METAB_SHADOW_RECOVERY_V3_BUNDLE_20260903.tar.gz'
+EXPECTED_ARCHIVE_SHA256='7e36068510856e4a2aa958ae92901af97e9122d1d938c4b473ec40d94dbc16a3'
+EXPECTED_SIDECAR_SHA256='2050752bcdc22020638146038d131ba47b3523d8cf2b33c50d11bfec64126a58'
+EXPECTED_MANIFEST_SHA256='ae4a3ba2ddb14b522ab4bfaeeb71d0d800029a34482cff4b0ba1fcd3cc9db78a'
+EXPECTED_FORWARD_SHA256='b2696e943750f568b3a07dbabd72703fab9febaaac0d314e72edbd16f290f914'
+EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-ae4a3ba2ddb1'
 TARGET_FILE_COUNT=679
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'
 FORWARD='deploy/live-physiology-transplant/p1-r141-metab-shadow-forward-recovery.sh'
@@ -78,7 +78,7 @@ validate_run_root() {
   [[ -d "$candidate" && ! -L "$candidate" ]] || return 1
   parent_real="$(readlink -f -- "$(dirname -- "$candidate")")" || return 1
   [[ "$parent_real" == "$incoming_real" &&
-    "$(basename -- "$candidate")" =~ ^r141-metab-shadow-recovery-v2-[0-9]+$ &&
+    "$(basename -- "$candidate")" =~ ^r141-metab-shadow-recovery-v3-[0-9]+$ &&
     "$(stat -Lc '%U:%G' "$candidate")" == staydeploy:staydeploy ]] || return 1
   mode="$(stat -Lc '%a' "$candidate")" || return 1
   [[ "$mode" == 700 || "$mode" == 2700 ]] && validate_plain_tree "$candidate"
@@ -94,7 +94,7 @@ safe_cleanup_run_root() {
 }
 safe_cleanup_work_root() {
   local candidate="$1"
-  [[ "$candidate" =~ ^/run/stay-r141-metab-shadow-recovery-v2-controller\.[A-Za-z0-9]+$ &&
+  [[ "$candidate" =~ ^/run/stay-r141-metab-shadow-recovery-v3-controller\.[A-Za-z0-9]+$ &&
     -d "$candidate" && ! -L "$candidate" && "$(stat -Lc '%U:%G:%a' "$candidate")" == root:root:700 ]] || return 96
   validate_plain_tree "$candidate" || return 97
   find -P "$candidate" -xdev -type d -exec chmod u+rwx {} + || return 98
@@ -177,7 +177,7 @@ verify_overlay_tree() {
   done < <(cd "$root" && find . -type f -printf '%P\n' | sort)
 }
 prepare_private_overlay() {
-  WORK_ROOT="$(mktemp -d /run/stay-r141-metab-shadow-recovery-v2-controller.XXXXXX)" || return 1
+  WORK_ROOT="$(mktemp -d /run/stay-r141-metab-shadow-recovery-v3-controller.XXXXXX)" || return 1
   [[ "$(stat -Lc '%U:%G:%a' "$WORK_ROOT")" == root:root:700 ]] || return 1
   install -o root -g root -m 0400 "$RUN_ROOT/$EXPECTED_ARCHIVE" "$WORK_ROOT/$EXPECTED_ARCHIVE" || return 1
   install -d -o root -g root -m 0500 "$WORK_ROOT/overlay" || return 1
@@ -340,8 +340,8 @@ main() {
   [[ "$EUID" -eq 0 ]] || abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
   trusted_root_file "$0" && [[ -x "$0" ]] || abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
   [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]] || abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
-  [[ "$operation" == harden-r141-recovery && "$authorization" == AUTHORIZE_R141_METAB_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V2 ]] || abort_controller 74 AUTHORIZATION_FAILED authorization-missing
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r141-metab-shadow-recovery-v2-[0-9]+$ ]] || abort_controller 77 PATH_VALIDATION_FAILED invalid-run-root-pattern
+  [[ "$operation" == harden-r141-recovery && "$authorization" == AUTHORIZE_R141_METAB_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V3 ]] || abort_controller 74 AUTHORIZATION_FAILED authorization-missing
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r141-metab-shadow-recovery-v3-[0-9]+$ ]] || abort_controller 77 PATH_VALIDATION_FAILED invalid-run-root-pattern
   validate_run_root "$requested_root" || abort_controller 78 PATH_VALIDATION_FAILED invalid-run-root
   RUN_ROOT="$requested_root"; trap finish_controller EXIT
   verify_staged_identity || abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
