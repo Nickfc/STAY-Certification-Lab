@@ -8,24 +8,24 @@ EXPECTED_PRIVATE_IPV4='172.26.9.207'
 SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'
 SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'
 SOURCE_MANIFEST_SHA256='6a1e6a9ffbfd484c3d0623bd5ec20e922b34bfe79fd74562c11cda59a0fa5107'
-PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-4fdcf0e47622'
-PREVIOUS_HOMEOS_MANIFEST_SHA256='4fdcf0e47622fd234e2e2a484df463c0dc298e511c18338548065b87a9aa6cd2'
-PREVIOUS_HOMEOS_CONTROLLER_SHA256='e9cd02663b0772f6410deebde89c16ed582f5c8a530ff709940d9e72d0c848f0'
-RELEASE_TAG='r150-homeos-intero-shadow-v5'
-RELEASE_TAG_OBJECT='99b44c1514ebafedbeed9ca49f39fd63b9484fb1'
-RELEASE_COMMIT='3f7c6c477683f57d77e43ea69ff3936c7ace5cff'
-RELEASE_TREE='9de36f3d5d26b40f899d297957a43f8844990c40'
-ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V5_BUNDLE_20260903.tar.gz'
-ARCHIVE_SHA256='760d6be2a54123699c8b3e8740d7825713861d6779dbef4ae93df567cf001d5f'
-SIDECAR_SHA256='5c53c99b78c6420baf8e22af16a8e83f67cf442336f09f0154366f0bbff5cc78'
+PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c'
+PREVIOUS_HOMEOS_MANIFEST_SHA256='7a39b466f82cb6eca5ad74787016073f3358480d211e19aa2d2b3a809b2d61ec'
+PREVIOUS_HOMEOS_CONTROLLER_SHA256='2fdb213e49f37b1d695a3743a46a004766f50b30aae67af24d5db998aae65ea3'
+RELEASE_TAG='r150-homeos-intero-shadow-v6'
+RELEASE_TAG_OBJECT='075632f624cfb7292792bcb12e5a9c7b5b0141a0'
+RELEASE_COMMIT='1905ee5b561120d98b35b2bbb1bb8c89dea321e3'
+RELEASE_TREE='befd6435e49d1afbd51198abfe07899f41d68b03'
+ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V6_BUNDLE_20260903.tar.gz'
+ARCHIVE_SHA256='2de6134c06014832ecedc2c2f89d9c3454780e05c3ca91208c81185dec150930'
+SIDECAR_SHA256='14d302bab62dc9e4fda5cd20be3cef93ae7a26dd7aaa467e8739a2c468db895a'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-MANIFEST_SHA256='7a39b466f82cb6eca5ad74787016073f3358480d211e19aa2d2b3a809b2d61ec'
+MANIFEST_SHA256='72735fcf72d9cff68ed93cf0d2a6d578fdfcedb8a69f51e0de7c3fec5434d227'
 FORWARD='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh'
 FORWARD_SHA256='98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c'
 RECOVERY='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh'
-RECOVERY_SHA256='740f426d4883e356200bded52dcf35cd270df213cb66e7e933daf05d4fd3373d'
+RECOVERY_SHA256='d8727e38eee583654c9b0e0c2c43395cb08db66c6fe32b2ca50890f7250a7ece'
 PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
-TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c'
+TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-72735fcf72d9'
 PUBLIC_KEY='/etc/stay/p1-r0-expansion-birth-authority.pub'
 PUBLIC_KEY_SHA256='f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc'
 FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
@@ -46,7 +46,7 @@ finish_controller(){
   if [[ "$CLEANUP_ARMED" -eq 1 ]]; then
     if [[ -n "$CANDIDATE" && "$CANDIDATE" =~ ^/opt/stay/releases/\.p1r0-r150\.[A-Za-z0-9]+$ && -d "$CANDIDATE" && ! -L "$CANDIDATE" ]]; then rm -rf --one-file-system -- "$CANDIDATE"||cleanup=1; fi
     if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then rm -rf --one-file-system -- "$WORK_ROOT"||cleanup=1; fi
-    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v6-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then rm -rf --one-file-system -- "$RUN_ROOT"||cleanup=1; fi
+    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v7-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then rm -rf --one-file-system -- "$RUN_ROOT"||cleanup=1; fi
   fi
   printf 'R150_CONTROLLER_FAILURE_CLASS=%s\nR150_CONTROLLER_CLEANUP_STATUS=%s\n' "$FAILURE_CLASS" "$([[ "$cleanup" -eq 0 ]]&&echo PASS||echo FAIL)"
   [[ "$status" -ne 0 ]]&&exit "$status"; exit "$cleanup"
@@ -54,7 +54,7 @@ finish_controller(){
 
 validate_run_root(){
   local root="$1"
-  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v6-[0-9]+$ && -d "$root" && ! -L "$root" &&
+  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v7-[0-9]+$ && -d "$root" && ! -L "$root" &&
     "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 &&
     -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy -o -perm /077 \) -print -quit)" ]]
 }
@@ -86,7 +86,7 @@ verify_staged_release(){
     "$(sha256_file "$RUN_ROOT/$ARCHIVE.sha256")" == "$SIDECAR_SHA256" ]]||return 1
   (cd "$RUN_ROOT"&&sha256sum -c "$ARCHIVE.sha256" >/dev/null)||return 1
   mapfile -t entries < <(tar -tzf "$RUN_ROOT/$ARCHIVE")
-  [[ "${#entries[@]}" -gt 66 && "$(printf '%s\n' "${entries[@]}"|sort -u|wc -l)" -eq "${#entries[@]}" ]]||return 1
+  [[ "${#entries[@]}" -gt 72 && "$(printf '%s\n' "${entries[@]}"|sort -u|wc -l)" -eq "${#entries[@]}" ]]||return 1
   for entry in "${entries[@]}";do [[ -n "$entry" ]]&&safe_relative "${entry%/}"||return 1;done
   tar -tvzf "$RUN_ROOT/$ARCHIVE"|awk 'substr($1,1,1)!~/[-d]/{bad=1}END{exit bad}'||return 1
 }
@@ -95,7 +95,7 @@ prepare_overlay(){
   WORK_ROOT="$(mktemp -d /run/stay-r150-controller.XXXXXX)"||return 1
   install -d -o root -g root -m 0700 "$WORK_ROOT/overlay"
   tar -xzf "$RUN_ROOT/$ARCHIVE" -C "$WORK_ROOT/overlay"||return 1
-  [[ "$(find "$WORK_ROOT/overlay" -type f|wc -l)" -eq 67 &&
+  [[ "$(find "$WORK_ROOT/overlay" -type f|wc -l)" -eq 73 &&
     "$(sha256_file "$WORK_ROOT/overlay/$MANIFEST")" == "$MANIFEST_SHA256" &&
     "$(sha256_file "$WORK_ROOT/overlay/$FORWARD")" == "$FORWARD_SHA256" &&
     "$(sha256_file "$WORK_ROOT/overlay/$RECOVERY")" == "$RECOVERY_SHA256" ]]||return 1
@@ -119,7 +119,7 @@ expected_release_env(){ local controller_sha="$1";cat <<EOF
 P1_R150_HOMEOS_INTERO_SHADOW=PASS
 SOURCE_RELEASE=$SOURCE_RELEASE
 SOURCE_RUNTIME_REVISION=R141F
-TARGET_RUNTIME_REVISION=R150F
+TARGET_RUNTIME_REVISION=R146F
 RELEASE_PATH=$TARGET_RELEASE
 RELEASE_TAG=$RELEASE_TAG
 RELEASE_COMMIT=$RELEASE_COMMIT
@@ -140,14 +140,14 @@ SOURCE_RELEASE=$SOURCE_RELEASE
 SOURCE_RUNTIME_REVISION=R141F
 TARGET_RUNTIME_REVISION=R150F
 RELEASE_PATH=$PREVIOUS_HOMEOS_RELEASE
-RELEASE_TAG=r150-homeos-intero-shadow-v4
-RELEASE_COMMIT=6f2a6590d304dfcb8bc164bdd15e124467c8e8cd
-RELEASE_TREE=ca21ec272b47977a0ac262e597c657b70af55d5a
-ARCHIVE_SHA256=sha256:6aff58932ff2ca44051e7a57b094d28783e29bd6bcf5f8ff4d90a169d7230622
+RELEASE_TAG=r150-homeos-intero-shadow-v5
+RELEASE_COMMIT=3f7c6c477683f57d77e43ea69ff3936c7ace5cff
+RELEASE_TREE=9de36f3d5d26b40f899d297957a43f8844990c40
+ARCHIVE_SHA256=sha256:760d6be2a54123699c8b3e8740d7825713861d6779dbef4ae93df567cf001d5f
 MANIFEST_SHA256=sha256:$PREVIOUS_HOMEOS_MANIFEST_SHA256
 CONTROLLER_SHA256=sha256:$PREVIOUS_HOMEOS_CONTROLLER_SHA256
 FORWARD_SHA256=sha256:98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
-RECOVERY_SHA256=sha256:89894af0b2c9cdbce6f176c3e6dcac23462636cf72fce25249aa8cc4b1295279
+RECOVERY_SHA256=sha256:740f426d4883e356200bded52dcf35cd270df213cb66e7e933daf05d4fd3373d
 EXPANSION_PUBLIC_KEY_SHA256=sha256:$PUBLIC_KEY_SHA256
 BENCHMARK_START_AUTHORIZED=NO
 EOF
@@ -166,6 +166,7 @@ run_candidate_preflight(){
   before_pid="$(systemctl show stay.service -p MainPID --value)";before_restarts="$(systemctl show stay.service -p NRestarts --value)"
   STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox STAY_REQUIRE_OS_CORE_SANDBOX=1 \
     /usr/local/bin/node --test --test-isolation=none --test-concurrency=1 \
+    "$root/test/p1-r0-metab-red.test.js" "$root/test/p1-r146-metab-q48-implementation-repair.test.js" \
     "$root/test/p1-r143-homeos-neutral-birth.test.js" "$root/test/p1-r145-homeos-shadow.test.js" \
     "$root/test/p1-r150-intero-shadow.test.js" "$root/test/p1-r150-production-gates.test.js" \
     >"$WORK_ROOT/focused-tests.tap" 2>&1||{ cat "$WORK_ROOT/focused-tests.tap" >&2;return 1; }
@@ -243,7 +244,7 @@ validate_live(){
   [[ "$target_revision" -eq 150 ]]&&/usr/local/bin/node "$TARGET_RELEASE/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:intero>"$WORK_ROOT/live.intero.json"
   curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta>"$WORK_ROOT/live.meta.json"||return 1
   STAY_LIVE_ROOT="$WORK_ROOT" STAY_RELEASE="$TARGET_RELEASE" STAY_REVISION="$target_revision" STAY_CONTROLLER="sha256:$controller_sha" /usr/local/bin/node <<'NODE'
-'use strict';const fs=require('node:fs'),path=require('node:path'),root=process.env.STAY_LIVE_ROOT,read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8')),db=read('live.database.json'),m=read('live.meta.json'),r=Number(process.env.STAY_REVISION),freeze=JSON.parse(fs.readFileSync(`/var/lib/stay/evidence/runtime-freezes/R${r}.json`,'utf8')),{validateRevisionFreeze}=require(path.join(process.env.STAY_RELEASE,'runtime/revision-freeze')),chip=id=>m.chipProjection?.lifecycle?.find(v=>v.coreId===id),status=id=>read(`live.${id}.json`).resident,contained=(v,version,mode)=>{const p=v?.host?.resourceGovernor?.policy,l=v?.host?.osContainment?.limits;return v?.status==='RUNNING'&&v.running===true&&v.version===version&&v.authorityOwned===false&&v.health?.ok===true&&(mode===undefined||v.health?.mode===mode)&&v.host?.quarantined===false&&v.host?.osContainment?.required===true&&v.host?.osContainment?.available===true&&v.host?.osContainment?.payloadSandboxed===true&&v.host?.osContainment?.payloadAttachedBeforeInit===true&&v.host?.osContainment?.supervisorChargedToKernel===true&&p?.softRamBytes===67108864&&p?.hardRamBytes===100663296&&p?.hardCpuDuty===0.2&&p?.handlerTimeoutMs===250&&p?.pidsMax===16&&l?.['memory.high']==='67108864'&&l?.['memory.max']==='100663296'&&l?.['cpu.max']==='20000 100000'&&l?.['pids.max']==='16';};const ids=r===145?['bsf','sntss','chronobiology','metab','homeos']:['bsf','sntss','chronobiology','metab','homeos','intero'];if(!(db.quickCheck==='ok'&&db.runtimeRevision===r&&db.pendingDeliveries===0&&db.pendingOutboxIntents===0&&db.failedDeliveries===0&&db.p1Authority===0&&db.outputs.sntss===0&&db.outputs.intero===0&&m.ok===true&&m.revision===r&&m.revisionFrozen===true&&m.revisionLabel===`R${r}F`&&chip('bsf')?.state==='LIVE'&&ids.slice(1).every(id=>chip(id)?.state==='SHADOW')&&contained(status('sntss'),'0.5.0-i4g1')&&contained(status('chronobiology'),'1.0.0-c3rc.5','NEUTRAL')&&contained(status('metab'),r===145?'0.3.0-p1r0-homeos-feed.1':'0.4.0-p1r0-intero-feed.1','SHADOW')&&contained(status('homeos'),r===145?'0.2.0-p1r0-shadow.1':'0.3.0-p1r0-intero-feed.1','SHADOW')&&(r!==150||contained(status('intero'),'0.2.0-p1r0-shadow.1','SHADOW'))&&validateRevisionFreeze(freeze,r)&&freeze.release?.path===process.env.STAY_RELEASE&&freeze.release?.controllerSha256===process.env.STAY_CONTROLLER&&freeze.benchmark?.started===false))process.exit(1);
+'use strict';const fs=require('node:fs'),path=require('node:path'),root=process.env.STAY_LIVE_ROOT,read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8')),db=read('live.database.json'),m=read('live.meta.json'),r=Number(process.env.STAY_REVISION),freeze=JSON.parse(fs.readFileSync(`/var/lib/stay/evidence/runtime-freezes/R${r}.json`,'utf8')),{validateRevisionFreeze}=require(path.join(process.env.STAY_RELEASE,'runtime/revision-freeze')),chip=id=>m.chipProjection?.lifecycle?.find(v=>v.coreId===id),status=id=>read(`live.${id}.json`).resident,contained=(v,version,mode)=>{const p=v?.host?.resourceGovernor?.policy,l=v?.host?.osContainment?.limits;return v?.status==='RUNNING'&&v.running===true&&v.version===version&&v.authorityOwned===false&&v.health?.ok===true&&(mode===undefined||v.health?.mode===mode)&&v.host?.quarantined===false&&v.host?.osContainment?.required===true&&v.host?.osContainment?.available===true&&v.host?.osContainment?.payloadSandboxed===true&&v.host?.osContainment?.payloadAttachedBeforeInit===true&&v.host?.osContainment?.supervisorChargedToKernel===true&&p?.softRamBytes===67108864&&p?.hardRamBytes===100663296&&p?.hardCpuDuty===0.2&&p?.handlerTimeoutMs===250&&p?.pidsMax===16&&l?.['memory.high']==='67108864'&&l?.['memory.max']==='100663296'&&l?.['cpu.max']==='20000 100000'&&l?.['pids.max']==='16';};const ids=r===146?['bsf','sntss','chronobiology','metab','homeos']:['bsf','sntss','chronobiology','metab','homeos','intero'];if(!(db.quickCheck==='ok'&&db.runtimeRevision===r&&db.pendingDeliveries===0&&db.pendingOutboxIntents===0&&db.failedDeliveries===0&&db.p1Authority===0&&db.outputs.sntss===0&&db.outputs.intero===0&&m.ok===true&&m.revision===r&&m.revisionFrozen===true&&m.revisionLabel===`R${r}F`&&chip('bsf')?.state==='LIVE'&&ids.slice(1).every(id=>chip(id)?.state==='SHADOW')&&contained(status('sntss'),'0.5.0-i4g1')&&contained(status('chronobiology'),'1.0.0-c3rc.5','NEUTRAL')&&contained(status('metab'),r===146?'0.3.0-p1r0-homeos-feed.1':'0.4.0-p1r0-intero-feed.1','SHADOW')&&contained(status('homeos'),r===146?'0.2.0-p1r0-shadow.1':'0.3.0-p1r0-intero-feed.1','SHADOW')&&(r!==150||contained(status('intero'),'0.2.0-p1r0-shadow.1','SHADOW'))&&validateRevisionFreeze(freeze,r)&&freeze.release?.path===process.env.STAY_RELEASE&&freeze.release?.controllerSha256===process.env.STAY_CONTROLLER&&freeze.benchmark?.started===false))process.exit(1);
 NODE
   [[ "$pid" =~ ^[1-9][0-9]*$ && "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" &&
     "$(systemctl show stay.service -p ActiveState --value)" == active && "$(systemctl show stay.service -p SubState --value)" == running &&
@@ -258,13 +259,10 @@ main(){
   trusted_root_file "$0"&&[[ -x "$0" ]]||abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
   [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]]||abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
   case "$operation:$authorization" in
-    harden-r145-homeos:AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_V1) STAGE=homeos;FORWARD_OPERATION=1;target_revision=145;FORWARD_SCRIPT_AUTH=AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_ONLY;;
-    recover-r145-homeos:AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1) STAGE=homeos;FORWARD_OPERATION=0;target_revision=145;RECOVERY_SCRIPT_AUTH=AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY;;
-    harden-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_V1) STAGE=intero;FORWARD_OPERATION=1;target_revision=150;FORWARD_SCRIPT_AUTH=AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_FORWARD_ONLY;;
-    recover-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_RECOVERY_V1) STAGE=intero;FORWARD_OPERATION=0;target_revision=150;RECOVERY_SCRIPT_AUTH=AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_FORWARD_RECOVERY_ONLY;;
+    recover-r146-homeos:AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1) STAGE=homeos;FORWARD_OPERATION=0;target_revision=146;RECOVERY_SCRIPT_AUTH=AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY;;
     *)abort_controller 74 AUTHORIZATION_FAILED authorization-missing;;esac
   if [[ "$FORWARD_OPERATION" -eq 1 ]];then CERTIFICATE_SHA256="$supplied_cert";DOSSIER_SHA256="$supplied_dossier";[[ "$CERTIFICATE_SHA256" =~ ^sha256:[0-9a-f]{64}$ && "$DOSSIER_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED birth-hash-invalid;else CERTIFICATE_SHA256='sha256:0000000000000000000000000000000000000000000000000000000000000000';DOSSIER_SHA256="$CERTIFICATE_SHA256";[[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED recovery-hash-must-be-none;fi
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v6-[0-9]+$ ]]||abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v7-[0-9]+$ ]]||abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
   validate_run_root "$requested_root"||abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
   RUN_ROOT="$requested_root";trap finish_controller EXIT;CLEANUP_ARMED=1
   verify_staged_release||abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid

@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_WRAPPER_SHA256='2fdb213e49f37b1d695a3743a46a004766f50b30aae67af24d5db998aae65ea3'
+EXPECTED_WRAPPER_SHA256='765b55ca264ac3ccba3d2a9625976dcc2e6cbf5b6fcb642d959ce41ae4f58cf1'
 EXPECTED_PUBLIC_KEY_SHA256='f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc'
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-r150-homeos-intero-production-controller"
@@ -29,8 +29,8 @@ if [[ -e "$TARGET_PUBLIC_KEY" || -L "$TARGET_PUBLIC_KEY" ]]; then
     abort existing-expansion-public-key-conflict 67
 fi
 
-staging="$(mktemp -d /run/stay-r150-controller-v6-bootstrap.XXXXXX)"
-cleanup(){ local status=$?;trap - EXIT;[[ "$staging" =~ ^/run/stay-r150-controller-v6-bootstrap\.[A-Za-z0-9]+$ && -d "$staging" && ! -L "$staging" ]]||exit 66;rm -rf --one-file-system -- "$staging";exit "$status"; }
+staging="$(mktemp -d /run/stay-r150-controller-v7-bootstrap.XXXXXX)"
+cleanup(){ local status=$?;trap - EXIT;[[ "$staging" =~ ^/run/stay-r150-controller-v7-bootstrap\.[A-Za-z0-9]+$ && -d "$staging" && ! -L "$staging" ]]||exit 66;rm -rf --one-file-system -- "$staging";exit "$status"; }
 trap cleanup EXIT
 sudoers_staged="$staging/stay-p1-production-controller.sudoers"
 cat > "$sudoers_staged" <<'SUDOERS'
@@ -58,6 +58,5 @@ printf '%s\n' 'P1_PRIVILEGED_BRIDGE_BOOTSTRAP=PASS' 'HOST_IDENTITY_GUARD=PASS' \
   "ROOT_WRAPPER_SHA256=sha256:$EXPECTED_WRAPPER_SHA256" \
   "EXPANSION_PUBLIC_KEY_SHA256=sha256:$EXPECTED_PUBLIC_KEY_SHA256" \
   'SUDOERS_SCOPE=STAYDEPLOY_TO_PINNED_P1_CONTROLLER_ONLY' \
-  'R145_HOMEOS_FORWARD_AUTHORIZED=NO' 'R145_HOMEOS_RECOVERY_AUTHORIZED=NO' \
-  'R150_INTERO_FORWARD_AUTHORIZED=NO' 'R150_INTERO_RECOVERY_AUTHORIZED=NO' \
+  'R146_HOMEOS_RECOVERY_AUTHORIZED=NO' \
   'BENCHMARK_START_AUTHORIZED=NO'
