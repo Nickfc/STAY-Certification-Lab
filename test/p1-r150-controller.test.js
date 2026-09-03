@@ -30,13 +30,13 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   const source = read(CONTROLLER);
   for (const exact of [
     "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v1'",
-    "RELEASE_TAG_OBJECT='7235c7522df72842132847fe67304f8aec0188a7'",
-    "RELEASE_COMMIT='31739a53ee607e9439363b4e57466794e909ba3f'",
-    "RELEASE_TREE='3628fde0d1055e128e74fc65f3dbba4d584a836a'",
-    "ARCHIVE_SHA256='2659dd92c37015b2f7a89e02e59d38ea94cd6d498e3a4e10205f09c712adf403'",
-    "MANIFEST_SHA256='130376cf30dda32159c8f719492fbbd226c6a029f74e19488a77a4adaad175d6'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-130376cf30dd'"
+    "RELEASE_TAG='r150-homeos-intero-shadow-v2'",
+    "RELEASE_TAG_OBJECT='b6e9e00ae74ca6652cf86ab353b85e4c07ef0b40'",
+    "RELEASE_COMMIT='110391ad336238008dd8d2a25dbe7a205a10a826'",
+    "RELEASE_TREE='aa765cf91f0fed6cd8cb20315eba98db5c6cb7af'",
+    "ARCHIVE_SHA256='d786818cc7dd2c74b134424cab6133a3fe28c48119b96110cbcbe54a922e1d38'",
+    "MANIFEST_SHA256='6f4b674e40097a4be6844fa7b9600e28f8921b7921af58718aa9e431d942b537'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-6f4b674e4009'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
   assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 60/);
@@ -119,7 +119,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V1_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V2_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
