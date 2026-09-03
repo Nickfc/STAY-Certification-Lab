@@ -821,7 +821,7 @@ test('chip projection keeps quarantined residents visible and separates non-live
   assert.equal(projection.lifecycle[1].outputs, 0);
   assert.deepEqual(
     projection.roadmap.map(entry => [entry.coreId, entry.stage, entry.nonLive]),
-    [['homeos', 'PLANNED', true], ['intero', 'PLANNED', true]]
+    [['homeos', 'LAB QUALIFIED', true], ['intero', 'LAB QUALIFIED', true]]
   );
   const recovered = projectObservationChips({
     systems: [{ id: 'bsf', mode: 'LIVE', status: 'RUNNING', running: true }],
@@ -865,7 +865,7 @@ test('public metadata adds the read-only chip projection without replacing legac
   );
   assert.deepEqual(
     meta.chipProjection.roadmap.map(entry => `${entry.label} · ${entry.stage}`),
-    ['METAB · PLANNED', 'HOMEOS · PLANNED', 'INTERO · PLANNED']
+    ['METAB · LAB QUALIFIED', 'HOMEOS · LAB QUALIFIED', 'INTERO · LAB QUALIFIED']
   );
   const bridgeMeta = bridgePublicMetadata({
     kernel: { runtimeRevision: 114 },
