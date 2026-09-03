@@ -30,15 +30,16 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   const source = read(CONTROLLER);
   for (const exact of [
     "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'",
-    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-418c80c33029'",
-    "PREVIOUS_HOMEOS_MANIFEST_SHA256='418c80c33029f9e2e2920c999e262cf3fea259630a2b378e4258f13833d3735d'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v4'",
-    "RELEASE_TAG_OBJECT='5519e170a4ab50141eb6982d13370dc254f386f8'",
-    "RELEASE_COMMIT='6f2a6590d304dfcb8bc164bdd15e124467c8e8cd'",
-    "RELEASE_TREE='ca21ec272b47977a0ac262e597c657b70af55d5a'",
-    "ARCHIVE_SHA256='6aff58932ff2ca44051e7a57b094d28783e29bd6bcf5f8ff4d90a169d7230622'",
-    "MANIFEST_SHA256='4fdcf0e47622fd234e2e2a484df463c0dc298e511c18338548065b87a9aa6cd2'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-4fdcf0e47622'"
+    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-4fdcf0e47622'",
+    "PREVIOUS_HOMEOS_MANIFEST_SHA256='4fdcf0e47622fd234e2e2a484df463c0dc298e511c18338548065b87a9aa6cd2'",
+    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='e9cd02663b0772f6410deebde89c16ed582f5c8a530ff709940d9e72d0c848f0'",
+    "RELEASE_TAG='r150-homeos-intero-shadow-v5'",
+    "RELEASE_TAG_OBJECT='99b44c1514ebafedbeed9ca49f39fd63b9484fb1'",
+    "RELEASE_COMMIT='3f7c6c477683f57d77e43ea69ff3936c7ace5cff'",
+    "RELEASE_TREE='9de36f3d5d26b40f899d297957a43f8844990c40'",
+    "ARCHIVE_SHA256='760d6be2a54123699c8b3e8740d7825713861d6779dbef4ae93df567cf001d5f'",
+    "MANIFEST_SHA256='7a39b466f82cb6eca5ad74787016073f3358480d211e19aa2d2b3a809b2d61ec'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
   assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 67/);
@@ -123,7 +124,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V5_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V6_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
