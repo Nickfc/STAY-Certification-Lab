@@ -51,6 +51,7 @@ test('R141-BRIDGE-03 verifies exact clean archive shape and assembled target', (
   assert.match(wrapper, /find "\$root" -type f \| wc -l\)" -eq 13/);
   assert.match(wrapper, /wc -l < "\$root\/\$MANIFEST"\)" -eq 12/);
   assert.match(wrapper, /sha256sum -c "\$MANIFEST"/);
+  assert.match(wrapper, /"\$EXPECTED_ARCHIVE_SHA256  \$EXPECTED_ARCHIVE"/);
   assert.match(wrapper, /cmp "\$expected" "\$actual"/);
   assert.match(wrapper, /\/usr\/local\/bin\/node --check/);
   assert.match(wrapper, /\/bin\/bash -n/);
@@ -104,7 +105,7 @@ test('R141-BRIDGE-06 controller cannot mutate biology directly or widen limits',
 });
 
 test('R141-BRIDGE-07 installer pins the controller and grants no general sudo', () => {
-  assert.equal(wrapperSha256, '1ddf3dd3374f1e40df4a28bcedf58064ee0d4c41a83cdf254ed8b790bdb9583e');
+  assert.equal(wrapperSha256, '18907d1b032744cd28d5488635d1d174b335835d6a744a0068942d19181e6e2a');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);

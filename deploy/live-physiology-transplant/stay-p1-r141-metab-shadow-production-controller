@@ -154,7 +154,7 @@ verify_staged_identity() {
     -f "$archive" && ! -L "$archive" && -f "$sidecar" && ! -L "$sidecar" &&
     "$(sha256_file "$archive")" == "$EXPECTED_ARCHIVE_SHA256" &&
     "$(sha256_file "$sidecar")" == "$EXPECTED_SIDECAR_SHA256" &&
-    "$(<"$sidecar")" == "$EXPECTED_ARCHIVE_SHA256 *$EXPECTED_ARCHIVE" &&
+    "$(<"$sidecar")" == "$EXPECTED_ARCHIVE_SHA256  $EXPECTED_ARCHIVE" &&
     -f "$identity" && ! -L "$identity" && "$(<"$identity")" == "$(expected_identity)" ]] || return 1
   verify_archive_shape "$archive"
 }
