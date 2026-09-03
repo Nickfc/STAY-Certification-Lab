@@ -24,24 +24,24 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-homeos-intero-v7-production
+  group: stay-r150-homeos-intero-v8-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v7
-  RELEASE_TAG_OBJECT: fc2e2d0922ccffd3547260a792c90244484dd5df
-  RELEASE_COMMIT: 7cd7dc347adff09856ef01a2b5b052be0c328f21
-  RELEASE_TREE: fdf33a06553c5709ed01835ba8188f2d7698f018
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V7_BUNDLE_20260904.tar.gz
-  ARCHIVE_SHA256: 8e2606fd8286288cfe9de0d3ea69f5e19bf97a09694d765fba1d3f04797c7413
-  SIDECAR_SHA256: df65c346fed037325e7bd091637be765e29c7d6f26706dd3d3ab6f92185859f6
-  MANIFEST_SHA256: 06c383cbdb2e6758a94a72efd48f68fd093c74facb956e18896ff6766d37b9a5
+  RELEASE_TAG: r150-homeos-intero-shadow-v8
+  RELEASE_TAG_OBJECT: a3af7d6eeb41f031ee7da6c9e187cc01ad706cf7
+  RELEASE_COMMIT: ee6fc256b9fb886a975f4a639957439ee42f3d95
+  RELEASE_TREE: a6e384e674a149296b0d7fc22a41d8ec02e9d913
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V8_BUNDLE_20260904.tar.gz
+  ARCHIVE_SHA256: 47e401d0adb0031ba4255455fdab289587ad9d5c9b2f7810df44816794b2f41c
+  SIDECAR_SHA256: 4d9396d31e385efb4eb7eb88fa4c08d5ed1b9281aab50f97394be33a1432e0b5
+  MANIFEST_SHA256: 1badcd78bfa266b1618ba2d393c0c19967a06e97d0f10fd32e6076e2202e2796
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
-  RECOVERY_SHA256: d8727e38eee583654c9b0e0c2c43395cb08db66c6fe32b2ca50890f7250a7ece
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-06c383cbdb2e
+  RECOVERY_SHA256: ea95e26d66474a4a0c2ad9b35cfbe651279e0e9c344ee3d4f51192f4f249f2fb
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-1badcd78bfa2
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
-  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c
-  WRAPPER_SHA256: 753a048fe7879f662c5e5d66d79d008223d1ac55c7386c79bbfe5da607a66433
+  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-06c383cbdb2e
+  WRAPPER_SHA256: 1ac4e43c314dc9b45cc6711888ac00af5da4abb80357782ddf9915bdb1ca11a3
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -166,7 +166,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r150-homeos-intero-v7-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v8-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}.sha256
@@ -184,7 +184,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r150-homeos-intero-v7-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v8-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -303,7 +303,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v8-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v9-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -322,7 +322,7 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
           set -euo pipefail
           root="$1"; stage="${2:-}"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v8-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v9-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
