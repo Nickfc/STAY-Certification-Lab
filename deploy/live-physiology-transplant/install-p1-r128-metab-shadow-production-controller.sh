@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_WRAPPER_SHA256='f5f13672ff3172d4166f08f18368f7ec14bd596ef13fc9c821e5ee2fbbf1e6e1'
+EXPECTED_WRAPPER_SHA256='df7172ea545bb882450f81326765ea165dc90c6a3a15349bb88035b1a52925c6'
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-r128-metab-shadow-production-controller"
 TARGET_WRAPPER='/usr/local/sbin/stay-p1-production-controller'

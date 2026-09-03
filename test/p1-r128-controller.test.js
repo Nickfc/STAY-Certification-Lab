@@ -43,7 +43,7 @@ test('R128-BRIDGE-01 controller pins the certified release and exact R127F sourc
     "EXPECTED_FORWARD_SHA256='e4816b25c3a52b5ae3ec0f2f64f6a009013296d8b951b7a596a062ba5a6b8386'",
     "EXPECTED_RECOVERY_SHA256='0f63e520019640402b0b71cba02302144e489852cbf59819b88826f39c874c6f'",
     "EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r128-metab-shadow-70b7e3055a78'",
-    'TARGET_FILE_COUNT=658'
+    'TARGET_FILE_COUNT=659'
   ]) assert.equal(wrapper.includes(identity), true, identity);
   assert.match(wrapper, /durable_runtime_revision[\s\S]*revision/);
   assert.match(wrapper, /validateRevisionFreeze\(value,127\)/);
@@ -92,6 +92,7 @@ test('R128-BRIDGE-04 candidate is assembled from frozen R127F and protects exist
   assert.match(wrapper, /tree_digest "\$SOURCE_RELEASE" "\$relative"/);
   assert.match(wrapper, /diff -qr "\$SOURCE_RELEASE\/\$relative" "\$root\/\$relative"/);
   assert.match(wrapper, /P1_R128_RELEASE\.env/);
+  assert.match(wrapper, /scripts\/build-p1-r0-resident-packages\.js/);
   assert.match(wrapper, /CONTROLLER_SHA256=sha256:\$controller_sha/);
   assert.match(wrapper, /METAB_OUTPUT_POLICY=FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT/);
 });
@@ -147,7 +148,7 @@ test('R128-BRIDGE-07 controller cannot edit biology, restart services or widen r
 
 test('R128-BRIDGE-08 installer pins the wrapper and grants no general sudo surface', () => {
   assert.equal(wrapperSha256,
-    'f5f13672ff3172d4166f08f18368f7ec14bd596ef13fc9c821e5ee2fbbf1e6e1');
+    'df7172ea545bb882450f81326765ea165dc90c6a3a15349bb88035b1a52925c6');
   assert.match(installer, new RegExp(`EXPECTED_WRAPPER_SHA256='${wrapperSha256}'`));
   assert.match(installer,
     /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
@@ -186,7 +187,7 @@ test('R128-BRIDGE-10 workflows pin immutable inputs and repeat clean and real-en
     'ARCHIVE_SHA256: fb39dbe1769fcb4735af2df517a95e915565ca8aa8914030b00a39aadb0a855e',
     'SIDECAR_SHA256: 52207912dcafd1e50e7c9e9ac8ad200227ffed2ec7be59a106cc175bc5698f6c',
     'MANIFEST_SHA256: 70b7e3055a789adc91cfe46f6e25ff1fc7662d88d2c642da580e4d46e554a34d',
-    'WRAPPER_SHA256: f5f13672ff3172d4166f08f18368f7ec14bd596ef13fc9c821e5ee2fbbf1e6e1'
+    'WRAPPER_SHA256: df7172ea545bb882450f81326765ea165dc90c6a3a15349bb88035b1a52925c6'
   ]) assert.equal(production.includes(identity), true, identity);
   for (const validation of [
     'gh release download', 'sha256sum -c "$ARCHIVE.sha256"',
@@ -205,9 +206,9 @@ test('R128-BRIDGE-10 workflows pin immutable inputs and repeat clean and real-en
 
 test('R128-BRIDGE-11 bootstrap stages the exact controller but does not authorize production', () => {
   assert.match(bootstrap,
-    /WRAPPER_SHA256: f5f13672ff3172d4166f08f18368f7ec14bd596ef13fc9c821e5ee2fbbf1e6e1/);
+    /WRAPPER_SHA256: df7172ea545bb882450f81326765ea165dc90c6a3a15349bb88035b1a52925c6/);
   assert.match(bootstrap,
-    /INSTALLER_SHA256: f74c33c4579bddee26f2678910f710649938c825f62f5c2c909eadc0989e1b86/);
+    /INSTALLER_SHA256: a171c24a711ebf73d19a6d298ca629e091be33260606d1d514470903e4cb37ec/);
   assert.match(bootstrap, /AUTHORIZE_R128_METAB_SHADOW_V1_PINNED_CONTROLLER_BOOTSTRAP/);
   assert.match(bootstrap, /node --test --test-concurrency=1 test\/p1-r128-controller\.test\.js/);
   assert.match(bootstrap, /P1_R128_METAB_SHADOW_V1_CONTROLLER_BOOTSTRAP\.sha256/);

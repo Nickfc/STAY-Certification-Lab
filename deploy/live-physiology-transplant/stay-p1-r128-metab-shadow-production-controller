@@ -26,7 +26,7 @@ EXPECTED_MANIFEST_SHA256='70b7e3055a789adc91cfe46f6e25ff1fc7662d88d2c642da580e4d
 EXPECTED_FORWARD_SHA256='e4816b25c3a52b5ae3ec0f2f64f6a009013296d8b951b7a596a062ba5a6b8386'
 EXPECTED_RECOVERY_SHA256='0f63e520019640402b0b71cba02302144e489852cbf59819b88826f39c874c6f'
 EXPECTED_TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r128-metab-shadow-70b7e3055a78'
-TARGET_FILE_COUNT=658
+TARGET_FILE_COUNT=659
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R127F_TO_R128.sha256'
 FORWARD='deploy/live-physiology-transplant/p1-r128-metab-shadow-forward.sh'
 RECOVERY='deploy/live-physiology-transplant/p1-r128-metab-shadow-forward-recovery.sh'
@@ -371,6 +371,7 @@ prepare_target_release() {
     runtime/p1-r0/metab-capacity-source.js
     runtime/p1-r0/metab-shadow-contract.js
     runtime/p1-r0/residents/metab-shadow.js
+    scripts/build-p1-r0-resident-packages.js
     test/p1-r128-metab-shadow.test.js
     test/p1-r128-release-contract.test.js
   )
