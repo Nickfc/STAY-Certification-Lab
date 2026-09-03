@@ -165,9 +165,14 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     '-type f ! -perm 0400 -print -quit',
     'for attempt in $(seq 1 20); do',
     '[[ "$attempt" -eq 20 ]] || sleep 0.25',
+    'recover-*)',
+    'restoring that failed service is the sole purpose of this path',
+    'SERVICE_STATE=%s/%s',
     "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",
     "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);
+  assert.match(production,
+    /harden-\*\)[\s\S]*?curl --fail --silent --max-time 3 http:\/\/127\.0\.0\.1:8787\/__stay\/meta[\s\S]*?recover-\*\)/);
   for (const source of [bootstrap, capture, production]) {
     assert.doesNotMatch(source, /systemctl start stay-physiology-benchmark|benchmark-start/);
     assert.doesNotMatch(source, /TimeoutStartSec|TimeoutStopSec|CPUQuota=|MemoryMax=|PIDsMax=/);

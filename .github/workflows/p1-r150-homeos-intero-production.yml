@@ -285,15 +285,26 @@ jobs:
             *) exit 64 ;;
           esac
           pid="$(systemctl show stay.service -p MainPID --value)"; restarts="$(systemctl show stay.service -p NRestarts --value)"
-          [[ "$(systemctl show stay.service -p ActiveState --value)" == active && "$(systemctl show stay.service -p SubState --value)" == running &&
-            "$pid" =~ ^[1-9][0-9]*$ && "$restarts" =~ ^[0-9]+$ &&
+          active="$(systemctl show stay.service -p ActiveState --value)"; substate="$(systemctl show stay.service -p SubState --value)"
+          [[ "$pid" =~ ^[0-9]+$ && "$restarts" =~ ^[0-9]+$ && -n "$active" && -n "$substate" &&
             "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null || true)" == inactive ]]
-          meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
-          node - "$revision" "$meta" <<'NODE'
+          case "$operation" in
+            harden-*)
+              [[ "$active" == active && "$substate" == running && "$pid" =~ ^[1-9][0-9]*$ ]]
+              meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
+              node - "$revision" "$meta" <<'NODE'
           'use strict';const [revision,encoded]=process.argv.slice(2),m=JSON.parse(encoded),chip=id=>m.chipProjection?.lifecycle?.find(v=>v.coreId===id),f=m.cores?.find(v=>v.id==='fetus-legacy');if(!(m.ok===true&&m.revision===Number(revision)&&m.revisionFrozen===true&&chip('bsf')?.state==='LIVE'&&chip('sntss')?.state==='SHADOW'&&chip('chronobiology')?.state==='SHADOW'&&chip('metab')?.state==='SHADOW'&&f?.ok===true&&f?.memoryGuardian?.status==='healthy'))process.exit(1);
           NODE
-          [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" && "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
-          printf 'R150_READ_ONLY_PREFLIGHT=PASS\nRUNTIME_REVISION=%s\nSERVICE_PID=%s\nBENCHMARK_ACTIVE=NO\n' "$revision" "$pid"
+              [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" && "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
+              ;;
+            recover-*)
+              # Recovery is cohort-fenced by the target pointer, durable revision,
+              # immutable marker, and controller. HTTP may be unavailable because
+              # restoring that failed service is the sole purpose of this path.
+              ;;
+          esac
+          printf 'R150_READ_ONLY_PREFLIGHT=PASS\nRUNTIME_REVISION=%s\nSERVICE_PID=%s\nSERVICE_STATE=%s/%s\nBENCHMARK_ACTIVE=NO\n' \
+            "$revision" "$pid" "$active" "$substate"
           REMOTE
       - name: Stage and invoke only the pinned root controller
         shell: bash
