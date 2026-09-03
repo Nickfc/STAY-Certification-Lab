@@ -1,0 +1,376 @@
+name: R150 HOMEOS INTERO output-firewalled shadow production
+run-name: R150 HOMEOS INTERO · ${{ inputs.operation }} · ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Fixed revision-fenced operation
+        required: true
+        type: choice
+        default: harden-r145-homeos
+        options:
+          - harden-r145-homeos
+          - recover-r145-homeos
+          - harden-r150-intero
+          - recover-r150-intero
+      authorization:
+        description: Exact operation-specific authorization
+        required: true
+        type: choice
+        default: NO
+        options:
+          - NO
+          - AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_V1
+          - AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1
+          - AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_V1
+          - AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_RECOVERY_V1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stay-r150-homeos-intero-v5-production
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: r150-homeos-intero-shadow-v5
+  RELEASE_TAG_OBJECT: 99b44c1514ebafedbeed9ca49f39fd63b9484fb1
+  RELEASE_COMMIT: 3f7c6c477683f57d77e43ea69ff3936c7ace5cff
+  RELEASE_TREE: 9de36f3d5d26b40f899d297957a43f8844990c40
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V5_BUNDLE_20260903.tar.gz
+  ARCHIVE_SHA256: 760d6be2a54123699c8b3e8740d7825713861d6779dbef4ae93df567cf001d5f
+  SIDECAR_SHA256: 5c53c99b78c6420baf8e22af16a8e83f67cf442336f09f0154366f0bbff5cc78
+  MANIFEST_SHA256: 7a39b466f82cb6eca5ad74787016073f3358480d211e19aa2d2b3a809b2d61ec
+  FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
+  RECOVERY_SHA256: 740f426d4883e356200bded52dcf35cd270df213cb66e7e933daf05d4fd3373d
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c
+  SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
+  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-4fdcf0e47622
+  WRAPPER_SHA256: 2fdb213e49f37b1d695a3743a46a004766f50b30aae67af24d5db998aae65ea3
+  PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
+  PRODUCTION_PUBLIC_IPV4: 35.157.242.167
+  PRODUCTION_PRIVATE_IPV4: 172.26.9.207
+  PRODUCTION_SSH_ED25519_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBvxednOQ0VcQL1KR0MewyXFCqufbwWsg0Lkgg/MwMUS
+  PRODUCTION_SSH_ED25519_FINGERPRINT: SHA256:z0aBq4eHfQpARjsa7pfpL2spIVi62lqwx54mlm9XU8Q
+
+jobs:
+  validate-immutable-release:
+    name: Revalidate immutable release and real entry path
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate fixed dispatch
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          case "$OPERATION:$AUTHORIZATION" in
+            harden-r145-homeos:AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_V1|\
+            recover-r145-homeos:AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1|\
+            harden-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_V1|\
+            recover-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_RECOVERY_V1) ;;
+            *) exit 64 ;;
+          esac
+      - name: Checkout exact certified release
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.RELEASE_COMMIT }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: release-source
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Install real OS sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap
+          sudo tee /usr/local/bin/stay-ci-bwrap >/dev/null <<'EOF'
+          #!/bin/sh
+          exec sudo -n /usr/bin/bwrap "$@"
+          EOF
+          sudo chown root:root /usr/local/bin/stay-ci-bwrap
+          sudo chmod 0755 /usr/local/bin/stay-ci-bwrap
+          sudo -n true
+      - name: Download and validate hosted immutable archive
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/r150-homeos-intero-release"
+          extract="$root/extract"
+          install -d -m 0700 "$root" "$extract"
+          [[ "$(git -C release-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
+          [[ "$(git -C release-source rev-parse HEAD^{tree})" == "$RELEASE_TREE" ]]
+          read -r ref_type ref_sha < <(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.type + " " + .object.sha')
+          [[ "$ref_type" == tag && "$ref_sha" == "$RELEASE_TAG_OBJECT" ]]
+          read -r target_type target_sha < <(gh api "repos/$GITHUB_REPOSITORY/git/tags/$RELEASE_TAG_OBJECT" --jq '.object.type + " " + .object.sha')
+          [[ "$target_type" == commit && "$target_sha" == "$RELEASE_COMMIT" ]]
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$ARCHIVE" --pattern "$ARCHIVE.sha256" --dir "$root"
+          [[ "$(sha256sum "$root/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
+          (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
+          mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
+          [[ "${#entries[@]}" -gt 66 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq "${#entries[@]}" ]]
+          for entry in "${entries[@]}"; do
+            [[ -n "$entry" && "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && "$entry" != *\\* && ! "$entry" =~ ^[A-Za-z]: ]]
+          done
+          tar -tvzf "$root/$ARCHIVE" | awk 'substr($1,1,1) !~ /[-d]/ {bad=1} END {exit bad}'
+          tar -xzf "$root/$ARCHIVE" -C "$extract"
+          manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
+          [[ "$(find "$extract" -type f | wc -l)" -eq 67 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 66 ]]
+          [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
+          [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
+          (cd "$extract" && sha256sum -c "$manifest")
+          { awk '{sub(/^\.\//,"",$2); print $2}' "$extract/$manifest"; echo "$manifest"; } | LC_ALL=C sort > "$root/expected"
+          (cd "$extract" && find . -type f -printf '%P\n' | LC_ALL=C sort) > "$root/actual"
+          cmp "$root/expected" "$root/actual"
+          while IFS= read -r file; do
+            case "$file" in *.js) node --check "$extract/$file" >/dev/null ;; *.sh) bash -n "$extract/$file" ;; esac
+            cmp "$extract/$file" "release-source/$file"
+          done < "$root/actual"
+          cat > "$root/P1_R150_RELEASE.identity" <<EOF
+          RELEASE_TAG=$RELEASE_TAG
+          RELEASE_TAG_OBJECT=$RELEASE_TAG_OBJECT
+          RELEASE_COMMIT=$RELEASE_COMMIT
+          RELEASE_TREE=$RELEASE_TREE
+          ARCHIVE=$ARCHIVE
+          ARCHIVE_SHA256=$ARCHIVE_SHA256
+          SIDECAR_SHA256=$SIDECAR_SHA256
+          MANIFEST_SHA256=$MANIFEST_SHA256
+          FORWARD_SHA256=$FORWARD_SHA256
+          RECOVERY_SHA256=$RECOVERY_SHA256
+          TARGET_RELEASE=$TARGET_RELEASE
+          EOF
+      - name: Prepare sandbox-readable validation tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-hardlinks release-source /tmp/stay-r150-validation-source
+          [[ "$(git -C /tmp/stay-r150-validation-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
+          [[ "$(git -C /tmp/stay-r150-validation-source rev-parse HEAD^{tree})" == "$RELEASE_TREE" ]]
+          [[ -z "$(git -C /tmp/stay-r150-validation-source status --porcelain)" ]]
+          find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +
+      - name: Run focused regressions and real Bubblewrap entry
+        shell: bash
+        working-directory: /tmp/stay-r150-validation-source
+        run: |
+          set -euo pipefail
+          STAY_BWRAP=/usr/local/bin/stay-ci-bwrap STAY_REQUIRE_OS_CORE_SANDBOX=1 \
+            node --disable-sigusr1 --test --test-isolation=none --test-concurrency=1 \
+            test/p1-r143-homeos-neutral-birth.test.js test/p1-r145-homeos-shadow.test.js \
+            test/p1-r150-intero-shadow.test.js test/p1-r150-production-gates.test.js
+      - name: Upload independently validated release inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r150-homeos-intero-v5-validated-release-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}
+            ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}.sha256
+            ${{ runner.temp }}/r150-homeos-intero-release/P1_R150_RELEASE.identity
+          if-no-files-found: error
+          retention-days: 7
+
+  production-transition:
+    name: Read-only preflight and pinned production transition
+    needs: validate-immutable-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Download validated release inputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: r150-homeos-intero-v5-validated-release-${{ github.run_id }}
+          path: release-assets
+      - name: Reverify isolated deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=$'P1_R150_RELEASE.identity\n'"$ARCHIVE"$'\n'"$ARCHIVE.sha256"
+          [[ "$(find release-assets -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)" == "$expected" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE" | awk '{print $1}')" == "$ARCHIVE_SHA256" ]]
+          [[ "$(sha256sum "release-assets/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
+          (cd release-assets && sha256sum -c "$ARCHIVE.sha256")
+      - name: Materialize the selected short-lived birth authority
+        if: startsWith(inputs.operation, 'harden-')
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          HOMEOS_CERTIFICATE_B64: ${{ secrets.STAY_R150_HOMEOS_CERTIFICATE_B64 }}
+          HOMEOS_DOSSIER_B64: ${{ secrets.STAY_R150_HOMEOS_DOSSIER_B64 }}
+          INTERO_CERTIFICATE_B64: ${{ secrets.STAY_R150_INTERO_CERTIFICATE_B64 }}
+          INTERO_DOSSIER_B64: ${{ secrets.STAY_R150_INTERO_DOSSIER_B64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          case "$OPERATION" in
+            harden-r145-homeos) stage=homeos; certificate="$HOMEOS_CERTIFICATE_B64"; dossier="$HOMEOS_DOSSIER_B64" ;;
+            harden-r150-intero) stage=intero; certificate="$INTERO_CERTIFICATE_B64"; dossier="$INTERO_DOSSIER_B64" ;;
+            *) exit 64 ;;
+          esac
+          [[ -n "$certificate" && -n "$dossier" ]]
+          printf '%s' "$certificate" | base64 --decode > "release-assets/$stage.birth-certificate.json"
+          printf '%s' "$dossier" | base64 --decode > "release-assets/$stage.founder-dossier.json"
+          certificate_sha="$(sha256sum "release-assets/$stage.birth-certificate.json" | awk '{print $1}')"
+          dossier_sha="$(node - "release-assets/$stage.founder-dossier.json" <<'NODE'
+          'use strict';const fs=require('node:fs'),crypto=require('node:crypto'),file=process.argv[2];const stable=v=>Array.isArray(v)?`[${v.map(stable).join(',')}]`:v&&typeof v==='object'?`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`:JSON.stringify(v);process.stdout.write(crypto.createHash('sha256').update(stable(JSON.parse(fs.readFileSync(file,'utf8')))).digest('hex'));
+          NODE
+          )"
+          node - "$stage" "$certificate_sha" "$dossier_sha" \
+            "release-assets/$stage.birth-certificate.json" "release-assets/$stage.founder-dossier.json" <<'NODE'
+          'use strict';const fs=require('node:fs'),crypto=require('node:crypto');const [stage,certSha,dossierSha,certFile,dossierFile]=process.argv.slice(2),cert=JSON.parse(fs.readFileSync(certFile,'utf8')),dossier=JSON.parse(fs.readFileSync(dossierFile,'utf8')),core=stage.toUpperCase(),now=Date.now();if(!(cert?.body?.founderDossierSha256===`sha256:${dossierSha}`&&cert.body.residencyId===`resident:${stage}`&&cert.body.founderBinding?.coreId===core&&dossier.coreId===core&&cert.body.issuedAtMs<=now&&cert.body.expiresAtMs>now&&cert.body.expiresAtMs-cert.body.issuedAtMs<=86400000&&crypto.createHash('sha256').update(fs.readFileSync(certFile)).digest('hex')===certSha))process.exit(1);
+          NODE
+          printf 'sha256:%s\n' "$certificate_sha" > release-assets/CERTIFICATE.sha256
+          printf 'sha256:%s\n' "$dossier_sha" > release-assets/DOSSIER.sha256
+          printf '%s\n' "$stage" > release-assets/STAGE
+      - name: Prepare pinned production SSH identity
+        shell: bash
+        env:
+          STAY_DEPLOY_KEY: ${{ secrets.STAY_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$STAY_DEPLOY_KEY" > ~/.ssh/stay_deploy
+          chmod 0600 ~/.ssh/stay_deploy
+          printf '%s %s\n' "$PRODUCTION_PUBLIC_IPV4" "$PRODUCTION_SSH_ED25519_KEY" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+          [[ "$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')" == "$PRODUCTION_SSH_ED25519_FINGERPRINT" ]]
+      - name: Exact read-only production preflight
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          set -euo pipefail
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- \
+            "$PRODUCTION_PRIVATE_IPV4" "$WRAPPER_SHA256" "$PUBLIC_KEY_SHA256" "$OPERATION" \
+            "$SOURCE_RELEASE" "$TARGET_RELEASE" "$PREVIOUS_HOMEOS_RELEASE" <<'REMOTE'
+          set -Eeuo pipefail
+          expected_ip="$1"; wrapper_sha="$2"; public_sha="$3"; operation="$4"; source_release="$5"; target_release="$6"; previous_homeos_release="$7"
+          observed="$(ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u)"
+          [[ "$observed" == "$expected_ip" ]]
+          [[ -f /usr/local/sbin/stay-p1-production-controller && ! -L /usr/local/sbin/stay-p1-production-controller &&
+            "$(sha256sum /usr/local/sbin/stay-p1-production-controller | awk '{print $1}')" == "$wrapper_sha" ]]
+          [[ -f /etc/stay/p1-r0-expansion-birth-authority.pub && ! -L /etc/stay/p1-r0-expansion-birth-authority.pub &&
+            "$(sha256sum /etc/stay/p1-r0-expansion-birth-authority.pub | awk '{print $1}')" == "$public_sha" ]]
+          current="$(readlink -f /opt/stay/current)"
+          revision=''
+          for attempt in $(seq 1 20); do
+            if revision="$(node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
+          'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase(),r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get(),count=(t,w)=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value),ok=r&&crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256,pending=count('biological_deliveries',"status='PENDING'"),failed=count('biological_deliveries',"status='FAILED'"),outbox=count('biological_outbox_intents',"status='PENDING'"),authority=count('authority',"core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')");if(!(q==='ok'&&ok&&pending===0&&failed===0&&outbox===0&&authority===0))process.exit(1);process.stdout.write(String(Number(JSON.parse(r.json).revision)));}finally{db.close();}
+          NODE
+            )"; then break; fi
+            revision=''
+            [[ "$attempt" -eq 20 ]] || sleep 0.25
+          done
+          [[ "$revision" =~ ^[0-9]+$ ]]
+          case "$operation" in
+            harden-r145-homeos) [[ "$current" == "$source_release" && "$revision" == 141 ]] ;;
+            recover-r145-homeos) [[ ( "$current" == "$target_release" || "$current" == "$previous_homeos_release" ) && "$revision" -ge 142 && "$revision" -le 145 ]] ;;
+            harden-r150-intero) [[ "$current" == "$target_release" && "$revision" == 145 ]] ;;
+            recover-r150-intero) [[ "$current" == "$target_release" && "$revision" -ge 146 && "$revision" -le 150 ]] ;;
+            *) exit 64 ;;
+          esac
+          pid="$(systemctl show stay.service -p MainPID --value)"; restarts="$(systemctl show stay.service -p NRestarts --value)"
+          active="$(systemctl show stay.service -p ActiveState --value)"; substate="$(systemctl show stay.service -p SubState --value)"
+          [[ "$pid" =~ ^[0-9]+$ && "$restarts" =~ ^[0-9]+$ && -n "$active" && -n "$substate" &&
+            "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null || true)" == inactive ]]
+          case "$operation" in
+            harden-*)
+              [[ "$active" == active && "$substate" == running && "$pid" =~ ^[1-9][0-9]*$ ]]
+              meta="$(curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta)"
+              node - "$revision" "$meta" <<'NODE'
+          'use strict';const [revision,encoded]=process.argv.slice(2),m=JSON.parse(encoded),chip=id=>m.chipProjection?.lifecycle?.find(v=>v.coreId===id),f=m.cores?.find(v=>v.id==='fetus-legacy');if(!(m.ok===true&&m.revision===Number(revision)&&m.revisionFrozen===true&&chip('bsf')?.state==='LIVE'&&chip('sntss')?.state==='SHADOW'&&chip('chronobiology')?.state==='SHADOW'&&chip('metab')?.state==='SHADOW'&&f?.ok===true&&f?.memoryGuardian?.status==='healthy'))process.exit(1);
+          NODE
+              [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" && "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
+              ;;
+            recover-*)
+              # Recovery is cohort-fenced by the target pointer, durable revision,
+              # immutable marker, and controller. HTTP may be unavailable because
+              # restoring that failed service is the sole purpose of this path.
+              ;;
+          esac
+          printf 'R150_READ_ONLY_PREFLIGHT=PASS\nRUNTIME_REVISION=%s\nSERVICE_PID=%s\nSERVICE_STATE=%s/%s\nBENCHMARK_ACTIVE=NO\n' \
+            "$revision" "$pid" "$active" "$substate"
+          REMOTE
+      - name: Stage and invoke only the pinned root controller
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          AUTHORIZATION: ${{ inputs.authorization }}
+        run: |
+          set -euo pipefail
+          run_root="/opt/stay/incoming/r150-controller-v6-${GITHUB_RUN_ID}"
+          ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          certificate=NONE; dossier=NONE; stage=''
+          if [[ "$OPERATION" == harden-* ]]; then
+            stage="$(<release-assets/STAGE)"; certificate="$(<release-assets/CERTIFICATE.sha256)"; dossier="$(<release-assets/DOSSIER.sha256)"
+          fi
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            "set -euo pipefail; test ! -e '$run_root'; install -d -m 0700 '$run_root'; chmod u-s,g-s '$run_root'; chmod 0700 '$run_root'"
+          scp "${ssh_options[@]}" release-assets/"$ARCHIVE" release-assets/"$ARCHIVE.sha256" \
+            release-assets/P1_R150_RELEASE.identity staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
+          if [[ -n "$stage" ]]; then
+            scp "${ssh_options[@]}" "release-assets/$stage.birth-certificate.json" \
+              "release-assets/$stage.founder-dossier.json" staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
+          fi
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
+          set -euo pipefail
+          root="$1"; stage="${2:-}"
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v6-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          chmod u-s,g-s "$root"
+          chmod 0700 "$root"
+          [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
+          expected=3; [[ -n "$stage" ]] && expected=5
+          [[ "$(find "$root" -maxdepth 1 -type f | wc -l)" -eq "$expected" ]]
+          [[ -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy \) -print -quit)" ]]
+          find -P "$root" -xdev -type f -exec chmod 0400 {} +
+          [[ -z "$(find -P "$root" -xdev -type f ! -perm 0400 -print -quit)" ]]
+          REMOTE
+          set +e
+          ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" \
+            sudo -n /usr/local/sbin/stay-p1-production-controller \
+            "$OPERATION" "$run_root" "$AUTHORIZATION" "$certificate" "$dossier" 2>&1 | tee controller.output
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          [[ "${statuses[0]}" -eq 0 && "${statuses[1]}" -eq 0 ]]
+          grep -Fx 'R150_CONTROLLER_RESULT=PASS' controller.output
+          grep -Fx 'R150_CONTROLLER_FAILURE_CLASS=NONE' controller.output
+          grep -Fx 'R150_CONTROLLER_CLEANUP_STATUS=PASS' controller.output
+          grep -Fx 'P1_AUTHORITY=NONE' controller.output
+          grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output
+          case "$OPERATION" in *r145*) revision=145; stage=homeos ;; *r150*) revision=150; stage=intero ;; esac
+          grep -Fx "R150_CONTROLLER_STAGE=$stage" controller.output
+          grep -Fx "R150_CONTROLLER_REVISION=R${revision}F" controller.output
+          grep -Fx "RUNTIME_REVISION=$revision" controller.output
+          grep -Fx "CURRENT_RELEASE=$TARGET_RELEASE" controller.output
+          code="$(curl --silent --output public.html --write-out '%{http_code}' --max-time 5 "http://$PRODUCTION_PUBLIC_IPV4/")"
+          [[ "$code" == 200 && -s public.html ]]
+          ! grep -Fqi '502 Bad Gateway' public.html
+          printf 'PUBLIC_ENTRY_HTTP=%s\nBENCHMARK_ACTIVE=NO\n' "$code"
+      - name: Upload sanitized controller evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r150-homeos-intero-controller-output-${{ github.run_id }}
+          path: |
+            controller.output
+            public.html
+          if-no-files-found: warn
+          retention-days: 14
