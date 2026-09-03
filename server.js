@@ -607,11 +607,9 @@ async function main() {
     await kernel.recoverMetabNeutralBirth();
   }
 
-  if (process.env.STAY_BOOT_CORE) {
-    await kernel.installCore(process.env.STAY_BOOT_CORE);
-  }
-
-  if (
+  if (kernel.homeosStrandedR145RecoveryActive === true) {
+    await kernel.recoverStrandedR145Homeos();
+  } else if (
     process.env.STAY_ALLOW_METAB_SHADOW_PROMOTION === '1' &&
     kernel.stateStore.getResident('resident:metab')?.version ===
       '0.1.0-p1r0-neutral.1'
@@ -678,6 +676,10 @@ async function main() {
       '0.1.0-p1r0-neutral.1'
   ) {
     await kernel.promoteInteroShadow();
+  }
+
+  if (process.env.STAY_BOOT_CORE) {
+    await kernel.installCore(process.env.STAY_BOOT_CORE);
   }
 
   const badgeSource = await fs.readFile(badgePath, 'utf8');

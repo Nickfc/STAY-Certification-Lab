@@ -152,6 +152,11 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh'), 'utf8');
   const recovery = await fs.readFile(path.join(ROOT,
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh'), 'utf8');
+  const server = await fs.readFile(path.join(ROOT, 'server.js'), 'utf8');
+  assert.match(recovery,
+    /STAY_HOMEOS_STRANDED_R145_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R145_HOMEOS_FORWARD_RECOVERY_ONLY/);
+  assert.ok(server.indexOf('await kernel.recoverStrandedR145Homeos();') <
+    server.indexOf('await kernel.installCore(process.env.STAY_BOOT_CORE);'));
   for (const source of [forward, recovery]) {
     assert.match(source, /EXPECTED_PRIVATE_IPV4='172\.26\.9\.207'/);
     assert.match(source, /P1_PRODUCTION_HARDENING_R141F_TO_R150\.sha256/);

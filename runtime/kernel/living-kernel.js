@@ -81,6 +81,8 @@ const R145_HOMEOS_SHADOW = Object.freeze({
   birthAuthorization: 'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY',
   metabRouteAuthorization: 'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY',
   shadowAuthorization: 'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY',
+  strandedRecoveryAuthorization:
+    'AUTHORIZE_STRANDED_R145_HOMEOS_FORWARD_RECOVERY_ONLY',
   parentRevision: 141,
   birthRevision: 143,
   metabRouteRevision: 144,
@@ -419,6 +421,9 @@ class LivingKernel {
     homeosShadowPromotionAuthorization =
       process.env.STAY_HOMEOS_SHADOW_PROMOTION_AUTHORIZATION || '',
 
+    homeosStrandedR145RecoveryAuthorization =
+      process.env.STAY_HOMEOS_STRANDED_R145_RECOVERY_AUTHORIZATION || '',
+
     interoNeutralBirthAuthorization =
       process.env.STAY_INTERO_NEUTRAL_BIRTH_AUTHORIZATION || '',
 
@@ -583,6 +588,13 @@ class LivingKernel {
 
     this.homeosShadowPromotionAuthorization =
       String(homeosShadowPromotionAuthorization);
+
+    this.homeosStrandedR145RecoveryAuthorization =
+      String(homeosStrandedR145RecoveryAuthorization);
+
+    this.homeosStrandedR145RecoveryActive = false;
+    this.p1ExpansionFetusInstallRevisionPreservation = null;
+    this.p1ExpansionFetusInstallPreserved = false;
 
     this.interoNeutralBirthAuthorization =
       String(interoNeutralBirthAuthorization);
@@ -1164,7 +1176,23 @@ class LivingKernel {
     const authorityPresent = this.stateStore.listAuthority().some(entry =>
       ['METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)
     );
-    if (authorityPresent || !homeos || homeos.status === 'QUARANTINED') return false;
+    if (authorityPresent) return false;
+    const strandedR145 =
+      this.homeosStrandedR145RecoveryAuthorization ===
+        R145_HOMEOS_SHADOW.strandedRecoveryAuthorization &&
+      this.runtimeRevision === 145 &&
+      !homeos &&
+      !this.stateStore.getResident('resident:intero') &&
+      !this.stateStore.getBiologicalConsumer('resident:homeos') &&
+      metab?.instanceId === R145_HOMEOS_SHADOW.metabInstanceId &&
+      metab?.version === '0.2.0-p1r0-shadow.1' && metab?.stateSchema === 2 &&
+      metab?.moduleRelativePath === 'cores/p1-r0/metab-shadow/index.js' &&
+      metab?.status === 'RUNNING';
+    if (strandedR145) {
+      this.homeosStrandedR145RecoveryActive = true;
+      return true;
+    }
+    if (!homeos || homeos.status === 'QUARANTINED') return false;
     const atR143 =
       this.runtimeRevision === 143 &&
       metab?.version === '0.2.0-p1r0-shadow.1' && metab?.stateSchema === 2 &&
@@ -1947,10 +1975,13 @@ class LivingKernel {
   }
 
   async installCore(modulePath) {
+    const expansionRevision = this.p1ExpansionFetusInstallRevisionPreservation;
     const preserveExactFetusInstall =
-      this.metabNeutralRecoveryRevisionPreserved &&
-      this.metabNeutralRecoveryCompletedAtPreservedRevision &&
-      !this.metabNeutralRecoveryFetusInstallPreserved;
+      (this.metabNeutralRecoveryRevisionPreserved &&
+       this.metabNeutralRecoveryCompletedAtPreservedRevision &&
+       !this.metabNeutralRecoveryFetusInstallPreserved) ||
+      (this.p1ExpansionFetusInstallRevisionPreservation !== null &&
+       !this.p1ExpansionFetusInstallPreserved);
     const resolvedModulePath = path.resolve(modulePath);
     if (preserveExactFetusInstall) {
       let trustedModulePath;
@@ -1969,28 +2000,34 @@ class LivingKernel {
       }
       if (requestedModulePath !== trustedModulePath) {
         throw Object.assign(
-          new Error('R127 recovery revision preservation permits only the release-sealed fetus module'),
-          { code: 'P1_METAB_RECOVERY_FETUS_FENCE' }
+          new Error('revision preservation permits only the release-sealed fetus module'),
+          { code: expansionRevision === null
+            ? 'P1_METAB_RECOVERY_FETUS_FENCE'
+            : 'P1_EXPANSION_RECOVERY_FETUS_FENCE' }
         );
       }
     }
     const unit = await this.upgrades.installInitial(resolvedModulePath);
     if (preserveExactFetusInstall) {
-      if (
-        this.runtimeRevision !== 127 ||
-        unit.manifest?.coreId !== 'fetus-legacy' ||
-        unit.manifest?.version !== '0.6.0'
-      ) {
+      const exactRevision = expansionRevision === null
+        ? this.runtimeRevision === 127
+        : this.runtimeRevision === expansionRevision;
+      if (!exactRevision || unit.manifest?.coreId !== 'fetus-legacy' || unit.manifest?.version !== '0.6.0') {
         throw Object.assign(
-          new Error('R127 recovery revision preservation permits only the exact fetus continuity install'),
-          { code: 'P1_METAB_RECOVERY_FETUS_FENCE' }
+          new Error('revision preservation permits only the exact fetus continuity install'),
+          { code: expansionRevision === null
+            ? 'P1_METAB_RECOVERY_FETUS_FENCE'
+            : 'P1_EXPANSION_RECOVERY_FETUS_FENCE' }
         );
       }
-      this.metabNeutralRecoveryFetusInstallPreserved = true;
+      if (expansionRevision === null) this.metabNeutralRecoveryFetusInstallPreserved = true;
+      else this.p1ExpansionFetusInstallPreserved = true;
       await this.stateStore.appendJournal({
         type: 'runtime.revision-preserved',
         at: new Date().toISOString(),
-        reason: 'fetus.install.exact-r127-metab-forward-recovery',
+        reason: expansionRevision === null
+          ? 'fetus.install.exact-r127-metab-forward-recovery'
+          : `fetus.install.exact-r${expansionRevision}-p1-expansion`,
         runtimeRevision: this.runtimeRevision,
         coreId: unit.manifest.coreId,
         coreVersion: unit.manifest.version,
@@ -2943,10 +2980,16 @@ class LivingKernel {
   }
 
 
-  async birthHomeosNeutral() {
+  async birthHomeosNeutral({ preserveRevision = false } = {}) {
+    const exactStrandedRecovery =
+      preserveRevision === true &&
+      this.homeosStrandedR145RecoveryActive === true &&
+      this.homeosStrandedR145RecoveryAuthorization ===
+        R145_HOMEOS_SHADOW.strandedRecoveryAuthorization &&
+      this.runtimeRevision === 145;
     if (
       this.homeosNeutralBirthAuthorization !== R145_HOMEOS_SHADOW.birthAuthorization ||
-      this.runtimeRevision !== 142
+      (this.runtimeRevision !== 142 && !exactStrandedRecovery)
     ) {
       throw Object.assign(
         new Error('HOMEOS neutral birth is not exactly authorized at R142'),
@@ -3052,20 +3095,33 @@ class LivingKernel {
     ) throw Object.assign(new Error('HOMEOS neutral containment proof failed'), {
       code: 'P1_HOMEOS_BIRTH_ACCEPTANCE'
     });
-    await this.bumpRuntimeRevision('resident.homeos-neutral-birth', {
-      residencyId: 'resident:homeos',
-      coreVersion: status.version,
-      parentFreezeRecordSha256: parentFreeze.recordSha256
-    });
+    if (exactStrandedRecovery) {
+      await this.stateStore.appendJournal({
+        type: 'runtime.revision-preserved', at: new Date(Number(this.clock())).toISOString(),
+        reason: 'resident.homeos-neutral-birth.exact-stranded-r145-forward-recovery',
+        runtimeRevision: this.runtimeRevision, residencyId: 'resident:homeos',
+        coreVersion: status.version, parentFreezeRecordSha256: parentFreeze.recordSha256,
+        authorityOwned: false
+      });
+    } else {
+      await this.bumpRuntimeRevision('resident.homeos-neutral-birth', {
+        residencyId: 'resident:homeos', coreVersion: status.version,
+        parentFreezeRecordSha256: parentFreeze.recordSha256
+      });
+    }
     this.statusCache = null;
     return unit;
   }
 
 
-  async promoteMetabHomeosRoute() {
+  async promoteMetabHomeosRoute({ preserveRevision = false } = {}) {
+    const exactStrandedRecovery =
+      preserveRevision === true && this.homeosStrandedR145RecoveryActive === true &&
+      this.homeosStrandedR145RecoveryAuthorization ===
+        R145_HOMEOS_SHADOW.strandedRecoveryAuthorization && this.runtimeRevision === 145;
     if (
       this.metabHomeosRouteAuthorization !== R145_HOMEOS_SHADOW.metabRouteAuthorization ||
-      this.runtimeRevision !== 143
+      (this.runtimeRevision !== 143 && !exactStrandedRecovery)
     ) throw Object.assign(new Error('METAB HOMEOS route is not exactly authorized at R143'), {
       code: 'P1_METAB_HOMEOS_NOT_AUTHORIZED'
     });
@@ -3171,20 +3227,33 @@ class LivingKernel {
     ) throw Object.assign(new Error('METAB HOMEOS route acceptance proof failed'), {
       code: 'P1_METAB_HOMEOS_ACCEPTANCE'
     });
-    await this.bumpRuntimeRevision('resident.metab-homeos-route', {
-      residencyId: 'resident:metab',
-      coreVersion: metabStatus.version,
-      parentFreezeRecordSha256: parentFreeze.recordSha256
-    });
+    if (exactStrandedRecovery) {
+      await this.stateStore.appendJournal({
+        type: 'runtime.revision-preserved', at: new Date(Number(this.clock())).toISOString(),
+        reason: 'resident.metab-homeos-route.exact-stranded-r145-forward-recovery',
+        runtimeRevision: this.runtimeRevision, residencyId: 'resident:metab',
+        coreVersion: metabStatus.version, parentFreezeRecordSha256: parentFreeze.recordSha256,
+        authorityOwned: false
+      });
+    } else {
+      await this.bumpRuntimeRevision('resident.metab-homeos-route', {
+        residencyId: 'resident:metab', coreVersion: metabStatus.version,
+        parentFreezeRecordSha256: parentFreeze.recordSha256
+      });
+    }
     this.statusCache = null;
     return unit;
   }
 
 
-  async promoteHomeosShadow() {
+  async promoteHomeosShadow({ preserveRevision = false } = {}) {
+    const exactStrandedRecovery =
+      preserveRevision === true && this.homeosStrandedR145RecoveryActive === true &&
+      this.homeosStrandedR145RecoveryAuthorization ===
+        R145_HOMEOS_SHADOW.strandedRecoveryAuthorization && this.runtimeRevision === 145;
     if (
       this.homeosShadowPromotionAuthorization !== R145_HOMEOS_SHADOW.shadowAuthorization ||
-      this.runtimeRevision !== 144
+      (this.runtimeRevision !== 144 && !exactStrandedRecovery)
     ) throw Object.assign(new Error('HOMEOS shadow is not exactly authorized at R144'), {
       code: 'P1_HOMEOS_SHADOW_NOT_AUTHORIZED'
     });
@@ -3275,13 +3344,42 @@ class LivingKernel {
     ) throw Object.assign(new Error('HOMEOS shadow acceptance proof failed'), {
       code: 'P1_HOMEOS_SHADOW_ACCEPTANCE'
     });
-    await this.bumpRuntimeRevision('resident.homeos-shadow', {
-      residencyId: 'resident:homeos',
-      coreVersion: status.version,
-      parentFreezeRecordSha256: parentFreeze.recordSha256
-    });
+    if (exactStrandedRecovery) {
+      await this.stateStore.appendJournal({
+        type: 'runtime.revision-preserved', at: new Date(Number(this.clock())).toISOString(),
+        reason: 'resident.homeos-shadow.exact-stranded-r145-forward-recovery',
+        runtimeRevision: this.runtimeRevision, residencyId: 'resident:homeos',
+        coreVersion: status.version, parentFreezeRecordSha256: parentFreeze.recordSha256,
+        authorityOwned: false
+      });
+    } else {
+      await this.bumpRuntimeRevision('resident.homeos-shadow', {
+        residencyId: 'resident:homeos', coreVersion: status.version,
+        parentFreezeRecordSha256: parentFreeze.recordSha256
+      });
+    }
+    this.p1ExpansionFetusInstallRevisionPreservation = 145;
     this.statusCache = null;
     return unit;
+  }
+
+  async recoverStrandedR145Homeos() {
+    if (!this.homeosStrandedR145RecoveryActive || this.runtimeRevision !== 145 ||
+        this.stateStore.getResident('resident:homeos') ||
+        this.stateStore.getResident('resident:intero')) {
+      throw Object.assign(new Error('stranded R145 HOMEOS recovery cohort is not exact'), {
+        code: 'P1_HOMEOS_STRANDED_R145_RECOVERY_FENCE'
+      });
+    }
+    await this.birthHomeosNeutral({ preserveRevision: true });
+    await this.promoteMetabHomeosRoute({ preserveRevision: true });
+    await this.promoteHomeosShadow({ preserveRevision: true });
+    if (this.runtimeRevision !== 145) {
+      throw Object.assign(new Error('stranded R145 HOMEOS recovery changed durable revision'), {
+        code: 'P1_HOMEOS_STRANDED_R145_REVISION_CHANGED'
+      });
+    }
+    return this.stateStore.getResident('resident:homeos');
   }
 
   async birthInteroNeutral() {
@@ -3739,6 +3837,7 @@ class LivingKernel {
       residencyId: 'resident:intero', coreVersion: status.version,
       parentFreezeRecordSha256: parentFreeze.recordSha256
     });
+    this.p1ExpansionFetusInstallRevisionPreservation = 150;
     this.statusCache = null;
     return unit;
   }

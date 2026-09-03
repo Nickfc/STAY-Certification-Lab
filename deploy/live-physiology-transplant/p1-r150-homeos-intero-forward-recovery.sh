@@ -16,6 +16,13 @@ PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
 VERIFY='deploy/live-physiology-transplant/p1-r150-verify-birth-certificate.js'
 FREEZER='deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js'
 CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
+PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-418c80c33029'
+PREVIOUS_HOMEOS_TAG='r150-homeos-intero-shadow-v3'
+PREVIOUS_HOMEOS_COMMIT='b21e56776be8a0954ef1af34bd28c13d6e03dd5d'
+PREVIOUS_HOMEOS_TREE='3f4864991e8454cdc2fedae11fe448677c84d706'
+PREVIOUS_HOMEOS_ARCHIVE_SHA256='sha256:183887ece2eec09358e13c8a8effa80d98551d76e0b208ae5f90272e34f07e5e'
+PREVIOUS_HOMEOS_MANIFEST_SHA256='sha256:418c80c33029f9e2e2920c999e262cf3fea259630a2b378e4258f13833d3735d'
+PREVIOUS_HOMEOS_CONTROLLER_SHA256='sha256:f70cb15c890d396ba6013e3747e464d8a297bd3add5eb958b9c3d693a1a6d404'
 
 : "${STAY_R150_STAGE:?}"
 : "${STAY_R150_RECOVERY_AUTHORIZATION:?}"
@@ -136,15 +143,28 @@ for file in "$DATABASE" "$PARENT_FREEZE" "$RECOVERY_MARKER" "$ACTIVE_PUBLIC_KEY"
   "$STAY_R150_TARGET_RELEASE/$CLIENT" "$STAY_R150_TARGET_RELEASE/P1_R150_RELEASE.env"; do
   [[ -f "$file" && ! -L "$file" ]] || abort recovery-input-invalid 3607
 done
-[[ "$(stat -Lc '%U:%G:%a' "$RECOVERY_MARKER")" == root:root:400 &&
-  "$(marker_value R150_STAGE)" == "$STAY_R150_STAGE" &&
-  "$(marker_value R150_TARGET_RELEASE)" == "$STAY_R150_TARGET_RELEASE" &&
+marker_cohort='INVALID'
+if [[ "$(marker_value R150_TARGET_RELEASE)" == "$STAY_R150_TARGET_RELEASE" &&
   "$(marker_value R150_RELEASE_TAG)" == "$STAY_R150_RELEASE_TAG" &&
   "$(marker_value R150_RELEASE_COMMIT)" == "$STAY_R150_RELEASE_COMMIT" &&
   "$(marker_value R150_RELEASE_TREE)" == "$STAY_R150_RELEASE_TREE" &&
   "$(marker_value R150_ARCHIVE_SHA256)" == "$STAY_R150_ARCHIVE_SHA256" &&
   "$(marker_value R150_MANIFEST_SHA256)" == "$STAY_R150_MANIFEST_SHA256" &&
-  "$(marker_value R150_CONTROLLER_SHA256)" == "$STAY_R150_CONTROLLER_SHA256" ]] || abort recovery-marker-cohort-invalid 3608
+  "$(marker_value R150_CONTROLLER_SHA256)" == "$STAY_R150_CONTROLLER_SHA256" ]]; then
+  marker_cohort='CURRENT'
+elif [[ "$STAY_R150_STAGE" == homeos &&
+  "$(marker_value R150_TARGET_RELEASE)" == "$PREVIOUS_HOMEOS_TARGET" &&
+  "$(marker_value R150_RELEASE_TAG)" == "$PREVIOUS_HOMEOS_TAG" &&
+  "$(marker_value R150_RELEASE_COMMIT)" == "$PREVIOUS_HOMEOS_COMMIT" &&
+  "$(marker_value R150_RELEASE_TREE)" == "$PREVIOUS_HOMEOS_TREE" &&
+  "$(marker_value R150_ARCHIVE_SHA256)" == "$PREVIOUS_HOMEOS_ARCHIVE_SHA256" &&
+  "$(marker_value R150_MANIFEST_SHA256)" == "$PREVIOUS_HOMEOS_MANIFEST_SHA256" &&
+  "$(marker_value R150_CONTROLLER_SHA256)" == "$PREVIOUS_HOMEOS_CONTROLLER_SHA256" ]]; then
+  marker_cohort='EXACT_PREVIOUS_HOMEOS_FAILURE'
+fi
+[[ "$(stat -Lc '%U:%G:%a' "$RECOVERY_MARKER")" == root:root:400 &&
+  "$(marker_value R150_STAGE)" == "$STAY_R150_STAGE" && "$marker_cohort" != INVALID ]] ||
+  abort recovery-marker-cohort-invalid 3608
 FAILURE_EVIDENCE="$(marker_value R150_FAILURE_EVIDENCE)"
 CERTIFICATE_SHA256="$(marker_value R150_CERTIFICATE_SHA256)"
 [[ "$FAILURE_EVIDENCE" =~ ^/var/lib/stay/evidence/production-hardening/FAILED-R${TARGET_REVISION}-${STAY_R150_STAGE^^}-[A-Za-z0-9TZ.-]+$ &&
@@ -194,6 +214,7 @@ if [[ "$need_restart" -eq 1 ]]; then
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_AUTHORIZATION=AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY
 Environment=STAY_METAB_HOMEOS_ROUTE_AUTHORIZATION=AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY
 Environment=STAY_HOMEOS_SHADOW_PROMOTION_AUTHORIZATION=AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY
+Environment=STAY_HOMEOS_STRANDED_R145_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R145_HOMEOS_FORWARD_RECOVERY_ONLY
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_CERTIFICATE=$ACTIVE_CERTIFICATE
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_PUBLIC_KEY=$ACTIVE_PUBLIC_KEY
 DROPIN
