@@ -21,6 +21,8 @@ const FORWARD = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'p1-r133-metab-shadow-forward-recovery.sh');
 const MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R131_TO_R133.sha256');
+const SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'P1_PRODUCTION_HARDENING_R133_TO_R135.sha256');
 
 function guardHarness({
   revision,
@@ -176,9 +178,20 @@ test('R133-REL-05 shell, embedded JavaScript and immutable overlay parse and has
     'test/p1-r128-release-contract.test.js',
     'test/p1-r133-metab-shadow-recovery.test.js'
   ]);
+  const successorEntries = fsSync.existsSync(SUCCESSOR_MANIFEST)
+    ? new Map(fsSync.readFileSync(SUCCESSOR_MANIFEST, 'utf8').trim().split(/\r?\n/)
+      .map(line => {
+        const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);
+        assert.ok(match, `invalid R135 successor manifest line: ${line}`);
+        return [match[2], match[1]];
+      }))
+    : new Map();
   for (const [relative, expected] of entries) {
     const actual = crypto.createHash('sha256')
       .update(fsSync.readFileSync(path.join(ROOT, relative))).digest('hex');
-    assert.equal(actual, expected, relative);
+    if (actual !== expected) {
+      assert.equal(successorEntries.get(relative), actual,
+        `${relative} drifted without exact R135 successor-manifest custody`);
+    }
   }
 });

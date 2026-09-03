@@ -31,6 +31,10 @@ const R128_METAB_SHADOW = Object.freeze({
     '4a16fc393b9846d1dd6f2f9849920053e3d2b5235c066dde3c5cd72699595107',
   shadowVersion:
     '0.2.0-p1r0-shadow.1',
+  sntssHealthMode:
+    'SHADOW',
+  chronobiologyHealthMode:
+    'SHADOW',
   outputPolicy:
     'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT'
 });
@@ -42,6 +46,17 @@ const R133_METAB_SHADOW_RECOVERY = Object.freeze({
   runtimeRevision: 133,
   activationLabel: 'r133',
   acceptancePrefix: 'R133_RECOVERY'
+});
+
+const R135_METAB_SHADOW_RECOVERY = Object.freeze({
+  ...R133_METAB_SHADOW_RECOVERY,
+  authorization:
+    'AUTHORIZE_R135_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_RECOVERY_ONLY',
+  runtimeRevision: 135,
+  sntssHealthMode: null,
+  chronobiologyHealthMode: 'NEUTRAL',
+  activationLabel: 'r135',
+  acceptancePrefix: 'R135_RECOVERY'
 });
 
 function defaultMetabCapacitySampler() {
@@ -2144,19 +2159,29 @@ class LivingKernel {
     const normalAuthorized =
       this.metabShadowPromotionAuthorization ===
         R128_METAB_SHADOW.authorization;
-    const recoveryAuthorized =
+    const r133RecoveryAuthorized =
       this.metabShadowRecoveryAuthorization ===
         R133_METAB_SHADOW_RECOVERY.authorization;
-    if (!this.allowMetabShadowPromotion || normalAuthorized === recoveryAuthorized) {
+    const r135RecoveryAuthorized =
+      this.metabShadowRecoveryAuthorization ===
+        R135_METAB_SHADOW_RECOVERY.authorization;
+    const authorizationCount = [
+      normalAuthorized,
+      r133RecoveryAuthorized,
+      r135RecoveryAuthorized
+    ].filter(Boolean).length;
+    if (!this.allowMetabShadowPromotion || authorizationCount !== 1) {
       throw Object.assign(
         new Error('METAB shadow promotion is not exactly authorized'),
         { code: 'P1_METAB_SHADOW_NOT_AUTHORIZED' }
       );
     }
 
-    const promotion = recoveryAuthorized
-      ? R133_METAB_SHADOW_RECOVERY
-      : Object.freeze({
+    const promotion = r135RecoveryAuthorized
+      ? R135_METAB_SHADOW_RECOVERY
+      : r133RecoveryAuthorized
+        ? R133_METAB_SHADOW_RECOVERY
+        : Object.freeze({
           ...R128_METAB_SHADOW,
           activationLabel: 'r128',
           acceptancePrefix: 'R128'
@@ -2260,7 +2285,9 @@ class LivingKernel {
       sntss?.version !==
         R127_POST_RESTART_CONTINUITY.sntss.version ||
       sntss?.running !== true ||
-      sntss?.health?.mode !== 'SHADOW' ||
+      (promotion.sntssHealthMode === null
+        ? sntss?.health?.mode !== undefined
+        : sntss?.health?.mode !== promotion.sntssHealthMode) ||
       sntss?.authorityOwned !== false ||
       sntss?.observedOutputs !== 0 ||
       sntss?.pendingDeliveries !== 0 ||
@@ -2269,7 +2296,8 @@ class LivingKernel {
       chronobiology?.version !==
         R127_POST_RESTART_CONTINUITY.chronobiology.version ||
       chronobiology?.running !== true ||
-      chronobiology?.health?.mode !== 'SHADOW' ||
+      chronobiology?.health?.mode !==
+        promotion.chronobiologyHealthMode ||
       chronobiology?.authorityOwned !== false ||
       chronobiology?.pendingDeliveries !== 0 ||
       p1Authority.length !== 0 ||
@@ -4579,6 +4607,7 @@ module.exports = {
   KERNEL_VERSION,
   R124_METAB_RECOVERY,
   R128_METAB_SHADOW,
+  R135_METAB_SHADOW_RECOVERY,
   defaultMetabCapacitySampler,
   readR124MetabRecoveryFence
 };

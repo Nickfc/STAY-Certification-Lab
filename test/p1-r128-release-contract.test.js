@@ -19,6 +19,8 @@ const PROOF = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'p1-r128-metab-shadow-live-proof.js');
 const SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R131_TO_R133.sha256');
+const RECOVERY_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'P1_PRODUCTION_HARDENING_R133_TO_R135.sha256');
 
 const EXPECTED_OVERLAY = Object.freeze([
   'cores/p1-r0/metab-neutral/index.js',
@@ -94,13 +96,15 @@ function clone(value) { return JSON.parse(JSON.stringify(value)); }
 
 test('R128-REL-01 manifest is exact, hash-complete and excludes future resident attachment', () => {
   const entries = manifestEntries();
-  const successorEntries = fs.existsSync(SUCCESSOR_MANIFEST)
-    ? new Map(read(SUCCESSOR_MANIFEST).trim().split(/\r?\n/).map(line => {
+  const successorEntries = new Map();
+  for (const successorManifest of [SUCCESSOR_MANIFEST, RECOVERY_SUCCESSOR_MANIFEST]) {
+    if (!fs.existsSync(successorManifest)) continue;
+    for (const line of read(successorManifest).trim().split(/\r?\n/)) {
         const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);
-        assert.ok(match, `invalid R133 successor manifest line: ${line}`);
-        return [match[2], match[1]];
-      }))
-    : new Map();
+        assert.ok(match, `invalid successor manifest line: ${line}`);
+        successorEntries.set(match[2], match[1]);
+    }
+  }
   assert.deepEqual([...entries.keys()], EXPECTED_OVERLAY);
   for (const [relative, expected] of entries) {
     const actual = sha256(path.join(ROOT, relative));
