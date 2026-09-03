@@ -22,8 +22,13 @@ test('R141-RECOVERY-01 is exact forward-only recovery of the existing shadow res
     'R139_RELEASE_COMMIT=532467bf2b46f6a992df5c5ea63de57dfd39b156',
     'R139_CONTROLLER_SHA256=sha256:13949ecef06065571296d34848cb54c50d01c741bfd5b5053b47c9fe807426f7',
     'prior_files=(R127.freeze.json R137.failure-marker.env before.proof.json database.before.json',
-    '! -e "$SOCKET"',
-    'exact-r139-stopped-kernel-preflight-invalid',
+    '-S "$SOCKET"',
+    "stat -Lc '%U:%G:%a' \"$SOCKET\"",
+    'ss -xlpn',
+    'exact-r139-failed-http-live-control-preflight-invalid',
+    'status resident:sntss > "$WORK/sntss.before.current.json"',
+    'status resident:chronobiology > "$WORK/chronobiology.before.current.json"',
+    'status resident:metab > "$WORK/metab.before.current.json"',
     "db.runtimeRevision===139",
     'db.pendingDeliveries>=0&&db.pendingDeliveries<=8',
     'validateCapacitySourceState(source',
@@ -43,7 +48,9 @@ test('R141-RECOVERY-01 is exact forward-only recovery of the existing shadow res
   assert.match(source, /RESTART_COMMITTED=1\s+systemctl restart stay\.service/);
   const committed = source.slice(source.indexOf('RESTART_COMMITTED=1'));
   assert.doesNotMatch(committed, /point_current "\$SOURCE_RELEASE"/);
-  assert.doesNotMatch(source, /status resident:(?:sntss|chronobiology|metab) > "\$WORK\/(?:sntss|chronobiology|metab)\.before\.json"/);
+  assert.match(source, /contained\(s\).*s\?\.observedOutputs===0/);
+  assert.match(source, /contained\(c\).*c\?\.health\?\.mode==='NEUTRAL'/);
+  assert.match(source, /contained\(m\).*m\?\.observedOutputs===0/);
 });
 
 test('R141-RECOVERY-02 cannot grant a second promotion capability or mutate biology directly', () => {
