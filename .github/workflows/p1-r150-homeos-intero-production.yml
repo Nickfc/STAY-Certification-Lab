@@ -271,7 +271,7 @@ jobs:
           done
           [[ "$revision" =~ ^[0-9]+$ ]]
           case "$operation" in
-            recover-r146-homeos) [[ "$current" == "$previous_homeos_release" && "$revision" == 146 ]] ;;
+            recover-r146-homeos) [[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 146 ]] ;;
             *) exit 64 ;;
           esac
           pid="$(systemctl show stay.service -p MainPID --value)"; restarts="$(systemctl show stay.service -p NRestarts --value)"
