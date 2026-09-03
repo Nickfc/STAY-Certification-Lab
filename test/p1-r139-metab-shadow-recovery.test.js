@@ -11,20 +11,16 @@ const test = require('node:test');
 
 const {
   LivingKernel,
-  R135_METAB_SHADOW_RECOVERY
+  R139_METAB_SHADOW_RECOVERY
 } = require('../runtime/kernel/living-kernel');
 
 const ROOT = path.resolve(__dirname, '..');
 const FORWARD = path.join(ROOT, 'deploy', 'live-physiology-transplant',
-  'p1-r135-metab-shadow-forward-recovery.sh');
+  'p1-r139-metab-shadow-forward-recovery.sh');
 const MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
-  'P1_PRODUCTION_HARDENING_R133_TO_R135.sha256');
-const SUCCESSOR_MANIFESTS = [
-  'P1_PRODUCTION_HARDENING_R135_TO_R137.sha256',
-  'P1_PRODUCTION_HARDENING_R137_TO_R139.sha256'
-].map(name => path.join(ROOT, 'deploy', 'live-physiology-transplant', name));
-const R135_AUTH =
-  'AUTHORIZE_R135_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_RECOVERY_ONLY';
+  'P1_PRODUCTION_HARDENING_R137_TO_R139.sha256');
+const R139_AUTH =
+  'AUTHORIZE_R139_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_RECOVERY_ONLY';
 
 function guard({ revision, normal = '', recovery = '', freezeDirectory }) {
   return {
@@ -36,44 +32,44 @@ function guard({ revision, normal = '', recovery = '', freezeDirectory }) {
   };
 }
 
-test('R135-RECOVERY-01 exact authorization is fenced to durable revision 135', async t => {
-  const freezeDirectory = await fsp.mkdtemp(path.join(os.tmpdir(), 'stay-r135-guard-'));
+test('R139-RECOVERY-01 exact authorization is fenced to durable revision 139', async t => {
+  const freezeDirectory = await fsp.mkdtemp(path.join(os.tmpdir(), 'stay-r139-guard-'));
   t.after(() => fsp.rm(freezeDirectory, { recursive: true, force: true }));
   await assert.rejects(
     () => LivingKernel.prototype.promoteMetabShadow.call(guard({
-      revision: 133,
-      recovery: R135_AUTH,
+      revision: 137,
+      recovery: R139_AUTH,
       freezeDirectory
     })),
     { code: 'P1_METAB_SHADOW_REVISION' }
   );
   await assert.rejects(
     () => LivingKernel.prototype.promoteMetabShadow.call(guard({
-      revision: 135,
+      revision: 139,
       normal: 'AUTHORIZE_R128_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_ONLY',
-      recovery: R135_AUTH,
+      recovery: R139_AUTH,
       freezeDirectory
     })),
     { code: 'P1_METAB_SHADOW_NOT_AUTHORIZED' }
   );
   await assert.rejects(
     () => LivingKernel.prototype.promoteMetabShadow.call(guard({
-      revision: 135,
-      recovery: R135_AUTH,
+      revision: 139,
+      recovery: R139_AUTH,
       freezeDirectory
     })),
     { code: 'P1_METAB_SHADOW_PARENT_FREEZE' }
   );
 });
 
-test('R135-RECOVERY-02 exact deployed health semantics remain fail closed', () => {
-  assert.equal(R135_METAB_SHADOW_RECOVERY.runtimeRevision, 135);
-  assert.equal(R135_METAB_SHADOW_RECOVERY.parentRevision, 127);
-  assert.equal(R135_METAB_SHADOW_RECOVERY.sntssHealthMode, null);
-  assert.equal(R135_METAB_SHADOW_RECOVERY.chronobiologyHealthMode, 'NEUTRAL');
-  assert.equal(R135_METAB_SHADOW_RECOVERY.instanceId,
+test('R139-RECOVERY-02 exact deployed health semantics remain fail closed', () => {
+  assert.equal(R139_METAB_SHADOW_RECOVERY.runtimeRevision, 139);
+  assert.equal(R139_METAB_SHADOW_RECOVERY.parentRevision, 127);
+  assert.equal(R139_METAB_SHADOW_RECOVERY.sntssHealthMode, null);
+  assert.equal(R139_METAB_SHADOW_RECOVERY.chronobiologyHealthMode, 'NEUTRAL');
+  assert.equal(R139_METAB_SHADOW_RECOVERY.instanceId,
     'd424c722-ef31-44b0-8201-ba68c418d14a');
-  assert.equal(R135_METAB_SHADOW_RECOVERY.outputPolicy,
+  assert.equal(R139_METAB_SHADOW_RECOVERY.outputPolicy,
     'FORBIDDEN_UNTIL_HOMEOS_ATTACHMENT');
 
   const source = fs.readFileSync(path.join(ROOT, 'runtime', 'kernel', 'living-kernel.js'), 'utf8');
@@ -84,22 +80,22 @@ test('R135-RECOVERY-02 exact deployed health semantics remain fail closed', () =
   assert.match(source, /authorizationCount !== 1/);
 });
 
-test('R135-REL-03 continuation is exact, one-restart and forward-only', () => {
+test('R139-REL-03 continuation is exact, one-restart and forward-only', () => {
   const source = fs.readFileSync(FORWARD, 'utf8');
   for (const exact of [
-    "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r133-metab-shadow-recovery-087a96cd77b6'",
-    "SOURCE_MANIFEST_SHA256='087a96cd77b65b15ce68bebbfc7cfdc02b6beed013d0e507f396a6eba8daa949'",
-    "SOURCE_MARKER='/run/stay-r133-metab-shadow-recovery.env'",
-    "PROMOTION_AUTHORIZATION='AUTHORIZE_R135_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_RECOVERY_ONLY'",
-    'R133_CONTROLLER_SHA256=sha256:f6e90413bcfbbb6c09c9bf7716c62915f05ce8b455542fd48bbfbed677ab65a0',
+    "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r137-metab-shadow-recovery-c1f670abe065'",
+    "SOURCE_MANIFEST_SHA256='c1f670abe065710a6da7ad777c18fff0d2d6a6cba0c317dff1bf6d9737494af4'",
+    "SOURCE_MARKER='/run/stay-r137-metab-shadow-recovery.env'",
+    "PROMOTION_AUTHORIZATION='AUTHORIZE_R139_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_RECOVERY_ONLY'",
+    'R137_CONTROLLER_SHA256=sha256:cf66b744ee46275e740f55e48355ec8ee4aa6967b6b25ae91fdca8aa7d50d6ef',
     "c?.health?.mode==='NEUTRAL'",
     "m?.health?.mode==='NEUTRAL'",
-    'db.runtimeRevision===135',
-    'state?.activation?.runtimeRevision===135',
-    'source?.runtimeRevision===135',
+    'db.runtimeRevision===139',
+    'state?.activation?.runtimeRevision===139',
+    'source?.runtimeRevision===139',
     "chip('chronobiology')?.state==='SHADOW'",
     "chip('metab')?.state==='SHADOW'",
-    'validateRevisionFreeze(record,135)'
+    'validateRevisionFreeze(record,139)'
   ]) assert.equal(source.includes(exact), true, exact);
   assert.equal((source.match(/systemctl restart stay\.service/g) || []).length, 1);
   assert.equal((source.match(/systemctl start stay\.service/g) || []).length, 0);
@@ -112,7 +108,7 @@ test('R135-REL-03 continuation is exact, one-restart and forward-only', () => {
     /TimeoutStartSec|TimeoutStopSec|CPUQuota=|git reset|git checkout|sqlite3\s+.*(?:DELETE|UPDATE)/);
 });
 
-test('R135-REL-04 shell and embedded JavaScript parse', () => {
+test('R139-REL-04 shell and embedded JavaScript parse', () => {
   const bash = process.platform === 'win32'
     ? path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe')
     : 'bash';
@@ -129,7 +125,7 @@ test('R135-REL-04 shell and embedded JavaScript parse', () => {
   }
 });
 
-test('R135-REL-05 immutable overlay hashes every changed production dependency', () => {
+test('R139-REL-05 immutable overlay hashes every changed production dependency', () => {
   const entries = new Map();
   for (const line of fs.readFileSync(MANIFEST, 'utf8').trim().split(/\r?\n/)) {
     const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);
@@ -137,30 +133,29 @@ test('R135-REL-05 immutable overlay hashes every changed production dependency',
     entries.set(match[2], match[1]);
   }
   assert.deepEqual([...entries.keys()], [
-    'deploy/live-physiology-transplant/p1-r135-metab-shadow-forward-recovery.sh',
+    'cores/p1-r0/metab-shadow/index.js',
+    'cores/p1-r0/metab-shadow/package-policy.json',
+    'deploy/live-physiology-transplant/p1-r128-metab-shadow-live-proof.js',
+    'deploy/live-physiology-transplant/p1-r139-metab-shadow-forward-recovery.sh',
     'runtime/kernel/living-kernel.js',
+    'runtime/kernel/state-store.js',
+    'runtime/p1-r0/resident-package-hashes.json',
+    'runtime/p1-r0/residents/metab-shadow.js',
+    'runtime/release/surgery-a-control.js',
     'test/p1-r118f-release-contract.test.js',
     'test/p1-r119f-release-contract.test.js',
     'test/p1-r124-release-contract.test.js',
+    'test/p1-r128-metab-shadow.test.js',
     'test/p1-r128-release-contract.test.js',
     'test/p1-r133-metab-shadow-recovery.test.js',
-    'test/p1-r135-metab-shadow-recovery.test.js'
+    'test/p1-r135-metab-shadow-recovery.test.js',
+    'test/p1-r137-metab-shadow-recovery.test.js',
+    'test/p1-r139-metab-shadow-recovery.test.js',
+    'test/p1-surgery-a-transplant.test.js'
   ]);
-  const successorEntries = new Map();
-  for (const successorManifest of SUCCESSOR_MANIFESTS) {
-    if (!fs.existsSync(successorManifest)) continue;
-    for (const line of fs.readFileSync(successorManifest, 'utf8').trim().split(/\r?\n/)) {
-      const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);
-      assert.ok(match, `invalid successor manifest line: ${line}`);
-      successorEntries.set(match[2], match[1]);
-    }
-  }
   for (const [relative, expected] of entries) {
     const actual = crypto.createHash('sha256')
       .update(fs.readFileSync(path.join(ROOT, relative))).digest('hex');
-    if (actual !== expected) {
-      assert.equal(successorEntries.get(relative), actual,
-        `${relative} drifted without exact successor-manifest custody`);
-    }
+    assert.equal(actual, expected, relative);
   }
 });

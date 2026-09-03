@@ -25,6 +25,8 @@ const SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant
   'P1_PRODUCTION_HARDENING_R133_TO_R135.sha256');
 const FINAL_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
   'P1_PRODUCTION_HARDENING_R135_TO_R137.sha256');
+const LATEST_SUCCESSOR_MANIFEST = path.join(ROOT, 'deploy', 'live-physiology-transplant',
+  'P1_PRODUCTION_HARDENING_R137_TO_R139.sha256');
 
 function guardHarness({
   revision,
@@ -181,7 +183,8 @@ test('R133-REL-05 shell, embedded JavaScript and immutable overlay parse and has
     'test/p1-r133-metab-shadow-recovery.test.js'
   ]);
   const successorEntries = new Map();
-  for (const successor of [SUCCESSOR_MANIFEST, FINAL_SUCCESSOR_MANIFEST]) {
+  for (const successor of [SUCCESSOR_MANIFEST, FINAL_SUCCESSOR_MANIFEST,
+    LATEST_SUCCESSOR_MANIFEST]) {
     if (!fsSync.existsSync(successor)) continue;
     for (const line of fsSync.readFileSync(successor, 'utf8').trim().split(/\r?\n/)) {
       const match = /^([0-9a-f]{64})  \.\/([A-Za-z0-9._/-]+)$/.exec(line);

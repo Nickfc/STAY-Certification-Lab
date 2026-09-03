@@ -22,6 +22,14 @@ const IDENTITIES = Object.freeze({
     biologicalSignallingFabric: '9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a',
     residentManager: '744bf91b5374a7f99f3542eb95616cee0c87c3f21cad552493461b41c4e6d45b',
     stateStore: '28dde80f852294e243ed7a70689a0626062f7f3efa6536d3682e770b4bb521a1'
+  }),
+  revisionFencedSuccessorAnchors: Object.freeze({
+    stateStore: Object.freeze([
+      Object.freeze({
+        revision: 139,
+        sha256: 'cfac570e1d9afc43a17b9cb157cc285132ffa03337f2b95c3d1fc79cc03b82c9'
+      })
+    ])
   })
 });
 
@@ -56,8 +64,17 @@ function verifyAnchors(rootDir, { verifyGitTrees = true } = {}) {
   for (const [name, relative] of Object.entries(ANCHOR_PATHS)) {
     const actual = fileSha256(path.join(root, relative));
     const expected = IDENTITIES.anchors[name];
-    if (actual !== expected) fail(`${name} anchor mismatch`, 'P1_SHARED_ANCHOR_MISMATCH');
-    files[name] = Object.freeze({ path: relative, sha256: actual });
+    const successor = (IDENTITIES.revisionFencedSuccessorAnchors[name] || [])
+      .find(candidate => candidate.sha256 === actual);
+    if (actual !== expected && !successor) {
+      fail(`${name} anchor mismatch`, 'P1_SHARED_ANCHOR_MISMATCH');
+    }
+    files[name] = Object.freeze({
+      path: relative,
+      sha256: actual,
+      certifiedAnchorSha256: expected,
+      successorRevision: successor?.revision || null
+    });
   }
 
   const policy = JSON.parse(fs.readFileSync(

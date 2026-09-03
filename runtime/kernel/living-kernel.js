@@ -68,6 +68,15 @@ const R137_METAB_SHADOW_RECOVERY = Object.freeze({
   acceptancePrefix: 'R137_RECOVERY'
 });
 
+const R139_METAB_SHADOW_RECOVERY = Object.freeze({
+  ...R137_METAB_SHADOW_RECOVERY,
+  authorization:
+    'AUTHORIZE_R139_METAB_NEUTRAL_TO_OUTPUT_FIREWALLED_SHADOW_RECOVERY_ONLY',
+  runtimeRevision: 139,
+  activationLabel: 'r139',
+  acceptancePrefix: 'R139_RECOVERY'
+});
+
 function defaultMetabCapacitySampler() {
   const cpuCount = os.cpus()?.length;
   const loadAverage = os.loadavg()?.[0];
@@ -2177,11 +2186,15 @@ class LivingKernel {
     const r137RecoveryAuthorized =
       this.metabShadowRecoveryAuthorization ===
         R137_METAB_SHADOW_RECOVERY.authorization;
+    const r139RecoveryAuthorized =
+      this.metabShadowRecoveryAuthorization ===
+        R139_METAB_SHADOW_RECOVERY.authorization;
     const authorizationCount = [
       normalAuthorized,
       r133RecoveryAuthorized,
       r135RecoveryAuthorized,
-      r137RecoveryAuthorized
+      r137RecoveryAuthorized,
+      r139RecoveryAuthorized
     ].filter(Boolean).length;
     if (!this.allowMetabShadowPromotion || authorizationCount !== 1) {
       throw Object.assign(
@@ -2190,17 +2203,19 @@ class LivingKernel {
       );
     }
 
-    const promotion = r137RecoveryAuthorized
-      ? R137_METAB_SHADOW_RECOVERY
-      : r135RecoveryAuthorized
-        ? R135_METAB_SHADOW_RECOVERY
-        : r133RecoveryAuthorized
-          ? R133_METAB_SHADOW_RECOVERY
-          : Object.freeze({
-            ...R128_METAB_SHADOW,
-            activationLabel: 'r128',
-            acceptancePrefix: 'R128'
-          });
+    const promotion = r139RecoveryAuthorized
+      ? R139_METAB_SHADOW_RECOVERY
+      : r137RecoveryAuthorized
+        ? R137_METAB_SHADOW_RECOVERY
+        : r135RecoveryAuthorized
+          ? R135_METAB_SHADOW_RECOVERY
+          : r133RecoveryAuthorized
+            ? R133_METAB_SHADOW_RECOVERY
+            : Object.freeze({
+              ...R128_METAB_SHADOW,
+              activationLabel: 'r128',
+              acceptancePrefix: 'R128'
+            });
 
     if (this.runtimeRevision !== promotion.runtimeRevision) {
       throw Object.assign(
@@ -4624,6 +4639,7 @@ module.exports = {
   R128_METAB_SHADOW,
   R135_METAB_SHADOW_RECOVERY,
   R137_METAB_SHADOW_RECOVERY,
+  R139_METAB_SHADOW_RECOVERY,
   defaultMetabCapacitySampler,
   readR124MetabRecoveryFence
 };

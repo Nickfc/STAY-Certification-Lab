@@ -35,8 +35,13 @@ test('P1-A-01 transplant identities and certified shared anchors are exact', () 
     '9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a');
   assert.equal(result.files.residentManager.sha256,
     '744bf91b5374a7f99f3542eb95616cee0c87c3f21cad552493461b41c4e6d45b');
-  assert.equal(result.files.stateStore.sha256,
+  assert.equal(surgery.IDENTITIES.anchors.stateStore,
     '28dde80f852294e243ed7a70689a0626062f7f3efa6536d3682e770b4bb521a1');
+  assert.equal(result.files.stateStore.sha256,
+    'cfac570e1d9afc43a17b9cb157cc285132ffa03337f2b95c3d1fc79cc03b82c9');
+  assert.equal(result.files.stateStore.certifiedAnchorSha256,
+    surgery.IDENTITIES.anchors.stateStore);
+  assert.equal(result.files.stateStore.successorRevision, 139);
 });
 
 test('P1-A-02 Surgery A source has no implicit SNTSS or Chronobiology attachment', () => {

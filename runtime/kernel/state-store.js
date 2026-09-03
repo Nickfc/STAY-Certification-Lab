@@ -8284,6 +8284,8 @@ class StateStore {
       genesisEvent?.topic ===
         'runtime.sntss.continuity-genesis';
 
+    const metabShadowActivationRevision =
+      genesisEvent?.payload?.runtimeRevision;
     const metabShadowPromotion =
       promotionKind ===
         'METAB_NEUTRAL_TO_SHADOW_R128' &&
@@ -8323,7 +8325,9 @@ class StateStore {
         toVersion &&
       genesisEvent?.payload?.toStateSchema ===
         toStateSchema &&
-      genesisEvent?.payload?.runtimeRevision === 128 &&
+      [128, 135, 137, 139].includes(
+        metabShadowActivationRevision
+      ) &&
       genesisEvent?.payload?.parentRevision === 127 &&
       genesisEvent?.payload?.mode === 'SHADOW' &&
       genesisEvent?.payload?.authorityEpoch === '0' &&

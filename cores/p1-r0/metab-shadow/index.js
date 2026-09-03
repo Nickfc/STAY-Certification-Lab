@@ -1,6 +1,6 @@
 'use strict';
 
-// Deterministic P1-R0 resident bundle. Source seal: sha256:b3342a371e91f51688804797c80a1e71face76af47a7c2468ae96617ec89fbe5
+// Deterministic P1-R0 resident bundle. Source seal: sha256:0bf615e09be3353b3b975319a027d930df5f3dbd471b1764f3436d2857be2412
 const __bundleModules = {
 "runtime/kernel/biological-envelope.js": function(module, exports, __bundleRequire) {
 'use strict';
@@ -3181,7 +3181,8 @@ function containedEngineIdentity(founder) {
 const ACTIVATION_BOUNDARIES = Object.freeze({
   128: Object.freeze({ label: 'r128', parentRevision: 127 }),
   135: Object.freeze({ label: 'r135', parentRevision: 127 }),
-  137: Object.freeze({ label: 'r137', parentRevision: 127 })
+  137: Object.freeze({ label: 'r137', parentRevision: 127 }),
+  139: Object.freeze({ label: 'r139', parentRevision: 127 })
 });
 
 function normalizeActivationPayload(payload) {

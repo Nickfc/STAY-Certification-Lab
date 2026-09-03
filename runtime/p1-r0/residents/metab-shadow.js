@@ -117,7 +117,8 @@ function containedEngineIdentity(founder) {
 const ACTIVATION_BOUNDARIES = Object.freeze({
   128: Object.freeze({ label: 'r128', parentRevision: 127 }),
   135: Object.freeze({ label: 'r135', parentRevision: 127 }),
-  137: Object.freeze({ label: 'r137', parentRevision: 127 })
+  137: Object.freeze({ label: 'r137', parentRevision: 127 }),
+  139: Object.freeze({ label: 'r139', parentRevision: 127 })
 });
 
 function normalizeActivationPayload(payload) {

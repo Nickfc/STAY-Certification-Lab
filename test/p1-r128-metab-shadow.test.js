@@ -473,7 +473,7 @@ test('R137-METAB-CORE-02A accepts only the exact fenced recovery activation boun
     generation: 10,
     blobHash: 'b'.repeat(64)
   };
-  for (const runtimeRevision of [135, 137]) {
+  for (const runtimeRevision of [135, 137, 139]) {
     const migrated = await shadow.migrateState({
       state: neutralState(),
       fromSchema: 1,
@@ -566,6 +566,32 @@ test('R128-METAB-PROMOTE-04 atomic promotion preserves instance, lineage and zer
   const advanced = await stateStore.readResidentCheckpoint('resident:metab');
   assert.equal(advanced.state.lastAcceptedFrame, 1);
   assert.equal(advanced.state.engineState.outputSequence, '0');
+  assert.equal(stateStore.getAuthority('METAB'), null);
+});
+
+test('R139-METAB-PROMOTE-04A atomically commits the exact recovery activation boundary', async t => {
+  const { stateStore, fabric, manager } = await makeManager(t);
+  const before = stateStore.getResident('resident:metab');
+  const unit = await manager.promoteMetabShadow({
+    binding: binding(),
+    shadowContract: METAB_SHADOW_RESIDENT_CONTRACT,
+    publishActivation: async ({ sourceCheckpoint }) =>
+      fabric.publishBiologicalSignal(
+        activationSignal(sourceCheckpoint, { runtimeRevision: 139 }),
+        {
+          eventClass: 'critical',
+          sourceVersion: '0.8.11.3',
+          evidenceHash: IDENTITY_HASH
+        }
+      )
+  });
+  const promoted = stateStore.getResident('resident:metab');
+  const checkpoint = await stateStore.readResidentCheckpoint('resident:metab');
+  assert.equal(promoted.instanceId, before.instanceId);
+  assert.equal(promoted.version, shadow.VERSION);
+  assert.equal(checkpoint.state.activation.runtimeRevision, 139);
+  assert.equal(checkpoint.state.engineState.outputSequence, '0');
+  assert.equal(unit.observedOutputs, 0);
   assert.equal(stateStore.getAuthority('METAB'), null);
 });
 
