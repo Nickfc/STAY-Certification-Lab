@@ -7,6 +7,32 @@ const { stableStringify } = require('../runtime/kernel/canonical-json');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFINITIONS = Object.freeze({
+  METAB_NEUTRAL: Object.freeze({
+    entry: 'runtime/p1-r0/residents/metab-neutral.js',
+    output: 'cores/p1-r0/metab-neutral',
+    leaf: 'p1-r0-metab-<instance>',
+    policyCoreId: 'METAB'
+  }),
+  METAB_SHADOW: Object.freeze({
+    entry: 'runtime/p1-r0/residents/metab-shadow.js',
+    output: 'cores/p1-r0/metab-shadow',
+    leaf: 'p1-r0-metab-<instance>',
+    policyCoreId: 'METAB'
+  }),
+  METAB_HOMEOS: Object.freeze({
+    entry: 'runtime/p1-r0/residents/metab-homeos.js',
+    output: 'cores/p1-r0/metab-homeos',
+    leaf: 'p1-r0-metab-<instance>',
+    policyCoreId: 'METAB',
+    productionOutputs: 2
+  }),
+  METAB_INTERO: Object.freeze({
+    entry: 'runtime/p1-r0/residents/metab-intero.js',
+    output: 'cores/p1-r0/metab-intero',
+    leaf: 'p1-r0-metab-<instance>',
+    policyCoreId: 'METAB',
+    productionOutputs: 4
+  }),
   METAB: Object.freeze({
     entry: 'runtime/p1-r0/residents/metab.js',
     output: 'cores/p1-r0/metab',
@@ -17,10 +43,41 @@ const DEFINITIONS = Object.freeze({
     output: 'cores/p1-r0/homeos',
     leaf: 'p1-r0-homeos-<instance>'
   }),
+  HOMEOS_NEUTRAL: Object.freeze({
+    entry: 'runtime/p1-r0/residents/homeos-neutral.js',
+    output: 'cores/p1-r0/homeos-neutral',
+    leaf: 'p1-r0-homeos-<instance>',
+    policyCoreId: 'HOMEOS'
+  }),
+  HOMEOS_SHADOW: Object.freeze({
+    entry: 'runtime/p1-r0/residents/homeos-shadow.js',
+    output: 'cores/p1-r0/homeos-shadow',
+    leaf: 'p1-r0-homeos-<instance>',
+    policyCoreId: 'HOMEOS'
+  }),
+  HOMEOS_INTERO: Object.freeze({
+    entry: 'runtime/p1-r0/residents/homeos-intero.js',
+    output: 'cores/p1-r0/homeos-intero',
+    leaf: 'p1-r0-homeos-<instance>',
+    policyCoreId: 'HOMEOS',
+    productionOutputs: 1
+  }),
   INTERO: Object.freeze({
     entry: 'runtime/p1-r0/residents/intero.js',
     output: 'cores/p1-r0/intero',
     leaf: 'p1-r0-intero-<instance>'
+  }),
+  INTERO_NEUTRAL: Object.freeze({
+    entry: 'runtime/p1-r0/residents/intero-neutral.js',
+    output: 'cores/p1-r0/intero-neutral',
+    leaf: 'p1-r0-intero-<instance>',
+    policyCoreId: 'INTERO'
+  }),
+  INTERO_SHADOW: Object.freeze({
+    entry: 'runtime/p1-r0/residents/intero-shadow.js',
+    output: 'cores/p1-r0/intero-shadow',
+    leaf: 'p1-r0-intero-<instance>',
+    policyCoreId: 'INTERO'
   })
 });
 
@@ -156,7 +213,7 @@ function policy(coreId, definition, bundleRecord) {
       migrationWorkItems: 1,
       shutdownMs: 2000,
       pendingRequests: 128,
-      productionOutputs: 0
+      productionOutputs: definition.productionOutputs || 0
     }
   };
   return Object.freeze({ ...body, policyHash: digest(stableStringify(body)) });
@@ -166,7 +223,7 @@ function buildAll({ root = ROOT } = {}) {
   const hashes = {};
   for (const [coreId, definition] of Object.entries(DEFINITIONS)) {
     const bundleRecord = bundle(definition.entry, root);
-    const packagePolicy = policy(coreId, definition, bundleRecord);
+    const packagePolicy = policy(definition.policyCoreId || coreId, definition, bundleRecord);
     const outputRoot = path.resolve(root, definition.output);
     fs.mkdirSync(outputRoot, { recursive: true });
     fs.writeFileSync(path.join(outputRoot, 'index.js'), bundleRecord.output);
