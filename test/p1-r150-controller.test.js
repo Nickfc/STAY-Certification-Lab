@@ -33,16 +33,16 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
     "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-7a39b466f82c'",
     "PREVIOUS_HOMEOS_MANIFEST_SHA256='7a39b466f82cb6eca5ad74787016073f3358480d211e19aa2d2b3a809b2d61ec'",
     "PREVIOUS_HOMEOS_CONTROLLER_SHA256='2fdb213e49f37b1d695a3743a46a004766f50b30aae67af24d5db998aae65ea3'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v6'",
-    "RELEASE_TAG_OBJECT='075632f624cfb7292792bcb12e5a9c7b5b0141a0'",
-    "RELEASE_COMMIT='1905ee5b561120d98b35b2bbb1bb8c89dea321e3'",
-    "RELEASE_TREE='befd6435e49d1afbd51198abfe07899f41d68b03'",
-    "ARCHIVE_SHA256='2de6134c06014832ecedc2c2f89d9c3454780e05c3ca91208c81185dec150930'",
-    "MANIFEST_SHA256='72735fcf72d9cff68ed93cf0d2a6d578fdfcedb8a69f51e0de7c3fec5434d227'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-72735fcf72d9'"
+    "RELEASE_TAG='r150-homeos-intero-shadow-v7'",
+    "RELEASE_TAG_OBJECT='fc2e2d0922ccffd3547260a792c90244484dd5df'",
+    "RELEASE_COMMIT='7cd7dc347adff09856ef01a2b5b052be0c328f21'",
+    "RELEASE_TREE='fdf33a06553c5709ed01835ba8188f2d7698f018'",
+    "ARCHIVE_SHA256='8e2606fd8286288cfe9de0d3ea69f5e19bf97a09694d765fba1d3f04797c7413'",
+    "MANIFEST_SHA256='06c383cbdb2e6758a94a72efd48f68fd093c74facb956e18896ff6766d37b9a5'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-06c383cbdb2e'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
-  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 73/);
+  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 78/);
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
   assert.match(source, /expected_previous_homeos_release_env/);
   assert.match(source, /mv -Tf "\$pointer_tmp" \/opt\/stay\/current/);
@@ -121,7 +121,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V7_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V8_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
@@ -146,7 +146,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   for (const exact of [
     'recover-r146-homeos',
     'AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1',
-    'RELEASE_TAG_OBJECT: 075632f624cfb7292792bcb12e5a9c7b5b0141a0',
+    'RELEASE_TAG_OBJECT: fc2e2d0922ccffd3547260a792c90244484dd5df',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
     'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
