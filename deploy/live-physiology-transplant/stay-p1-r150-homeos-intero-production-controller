@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH LC_ALL=C
+
+EXPECTED_PRIVATE_IPV4='172.26.9.207'
+SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'
+SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'
+SOURCE_MANIFEST_SHA256='6a1e6a9ffbfd484c3d0623bd5ec20e922b34bfe79fd74562c11cda59a0fa5107'
+RELEASE_TAG='r150-homeos-intero-shadow-v3'
+RELEASE_TAG_OBJECT='dc2f83e9e7b5a96139fcfa20b0fec573e0c343d2'
+RELEASE_COMMIT='b21e56776be8a0954ef1af34bd28c13d6e03dd5d'
+RELEASE_TREE='3f4864991e8454cdc2fedae11fe448677c84d706'
+ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V3_BUNDLE_20260903.tar.gz'
+ARCHIVE_SHA256='183887ece2eec09358e13c8a8effa80d98551d76e0b208ae5f90272e34f07e5e'
+SIDECAR_SHA256='f7a22655fc19f4dd223e87e3999c858ee89b64d1960ce2372dc131152827abde'
+MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
+MANIFEST_SHA256='418c80c33029f9e2e2920c999e262cf3fea259630a2b378e4258f13833d3735d'
+FORWARD='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh'
+FORWARD_SHA256='98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c'
+RECOVERY='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh'
+RECOVERY_SHA256='c4d2ae425c3a7ca9e627b329daca26b3cbb789457277e11ce45490a7c52502b7'
+PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
+TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-418c80c33029'
+PUBLIC_KEY='/etc/stay/p1-r0-expansion-birth-authority.pub'
+PUBLIC_KEY_SHA256='f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc'
+FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
+DATABASE='/var/lib/stay/data/continuity.sqlite3'
+RUNTIME_SECONDS=120
+
+WORK_ROOT=''; CANDIDATE=''; RUN_ROOT=''; CLEANUP_ARMED=0; FAILURE_CLASS='UNCLASSIFIED'
+abort_controller(){ printf 'R150_CONTROLLER_ABORT=%s\nR150_CONTROLLER_FAILURE_CLASS=%s\n' "$3" "$2" >&2; exit "$1"; }
+sha256_file(){ sha256sum "$1"|awk '{print $1}'; }
+observed_private_ipv4(){ ip -o -4 addr show scope global|awk '{a=$4;sub(/\/.*/,"",a);print a}'|sort -u; }
+trusted_root_file(){ [[ -f "$1" && ! -L "$1" && "$(stat -Lc '%U:%G' "$1")" == root:root && -z "$(find -P "$1" -maxdepth 0 -perm /022 -print -quit)" ]]; }
+safe_relative(){ [[ "$1" =~ ^[A-Za-z0-9._/-]+$ && "$1" != /* && ! "$1" =~ (^|/)\.\.(/|$) && "$1" != *\\* ]]; }
+validate_root_tree(){ [[ -z "$(find -P "$1" -xdev \( -type l -o ! -type d ! -type f -o ! -user root -o ! -group root -o -perm /022 \) -print -quit)" ]]; }
+
+finish_controller(){
+  local status=$? cleanup=0
+  trap - EXIT; set +e
+  if [[ "$CLEANUP_ARMED" -eq 1 ]]; then
+    if [[ -n "$CANDIDATE" && "$CANDIDATE" =~ ^/opt/stay/releases/\.p1r0-r150\.[A-Za-z0-9]+$ && -d "$CANDIDATE" && ! -L "$CANDIDATE" ]]; then rm -rf --one-file-system -- "$CANDIDATE"||cleanup=1; fi
+    if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then rm -rf --one-file-system -- "$WORK_ROOT"||cleanup=1; fi
+    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then rm -rf --one-file-system -- "$RUN_ROOT"||cleanup=1; fi
+  fi
+  printf 'R150_CONTROLLER_FAILURE_CLASS=%s\nR150_CONTROLLER_CLEANUP_STATUS=%s\n' "$FAILURE_CLASS" "$([[ "$cleanup" -eq 0 ]]&&echo PASS||echo FAIL)"
+  [[ "$status" -ne 0 ]]&&exit "$status"; exit "$cleanup"
+}
+
+validate_run_root(){
+  local root="$1"
+  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ && -d "$root" && ! -L "$root" &&
+    "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 &&
+    -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy -o -perm /077 \) -print -quit)" ]]
+}
+
+expected_identity(){ cat <<EOF
+RELEASE_TAG=$RELEASE_TAG
+RELEASE_TAG_OBJECT=$RELEASE_TAG_OBJECT
+RELEASE_COMMIT=$RELEASE_COMMIT
+RELEASE_TREE=$RELEASE_TREE
+ARCHIVE=$ARCHIVE
+ARCHIVE_SHA256=$ARCHIVE_SHA256
+SIDECAR_SHA256=$SIDECAR_SHA256
+MANIFEST_SHA256=$MANIFEST_SHA256
+FORWARD_SHA256=$FORWARD_SHA256
+RECOVERY_SHA256=$RECOVERY_SHA256
+TARGET_RELEASE=$TARGET_RELEASE
+EOF
+}
+
+verify_staged_release(){
+  local expected actual line entry
+  expected="$(printf '%s\n' P1_R150_RELEASE.identity "$ARCHIVE" "$ARCHIVE.sha256"|sort)"
+  actual="$(find "$RUN_ROOT" -maxdepth 1 -type f -printf '%f\n'|sort)"
+  if [[ "$FORWARD_OPERATION" -eq 1 ]]; then
+    expected="$(printf '%s\n' P1_R150_RELEASE.identity "$ARCHIVE" "$ARCHIVE.sha256" "$STAGE.birth-certificate.json" "$STAGE.founder-dossier.json"|sort)"
+  fi
+  [[ "$actual" == "$expected" && "$(<"$RUN_ROOT/P1_R150_RELEASE.identity")" == "$(expected_identity)" &&
+    "$(sha256_file "$RUN_ROOT/$ARCHIVE")" == "$ARCHIVE_SHA256" &&
+    "$(sha256_file "$RUN_ROOT/$ARCHIVE.sha256")" == "$SIDECAR_SHA256" ]]||return 1
+  (cd "$RUN_ROOT"&&sha256sum -c "$ARCHIVE.sha256" >/dev/null)||return 1
+  mapfile -t entries < <(tar -tzf "$RUN_ROOT/$ARCHIVE")
+  [[ "${#entries[@]}" -gt 66 && "$(printf '%s\n' "${entries[@]}"|sort -u|wc -l)" -eq "${#entries[@]}" ]]||return 1
+  for entry in "${entries[@]}";do [[ -n "$entry" ]]&&safe_relative "${entry%/}"||return 1;done
+  tar -tvzf "$RUN_ROOT/$ARCHIVE"|awk 'substr($1,1,1)!~/[-d]/{bad=1}END{exit bad}'||return 1
+}
+
+prepare_overlay(){
+  WORK_ROOT="$(mktemp -d /run/stay-r150-controller.XXXXXX)"||return 1
+  install -d -o root -g root -m 0700 "$WORK_ROOT/overlay"
+  tar -xzf "$RUN_ROOT/$ARCHIVE" -C "$WORK_ROOT/overlay"||return 1
+  [[ "$(find "$WORK_ROOT/overlay" -type f|wc -l)" -eq 67 &&
+    "$(sha256_file "$WORK_ROOT/overlay/$MANIFEST")" == "$MANIFEST_SHA256" &&
+    "$(sha256_file "$WORK_ROOT/overlay/$FORWARD")" == "$FORWARD_SHA256" &&
+    "$(sha256_file "$WORK_ROOT/overlay/$RECOVERY")" == "$RECOVERY_SHA256" ]]||return 1
+  (cd "$WORK_ROOT/overlay"&&sha256sum -c "$MANIFEST" >/dev/null)||return 1
+  { awk '{sub(/^\.\//,"",$2);print $2}' "$WORK_ROOT/overlay/$MANIFEST";echo "$MANIFEST";}|sort > "$WORK_ROOT/expected"
+  (cd "$WORK_ROOT/overlay"&&find . -type f -printf '%P\n'|sort)>"$WORK_ROOT/actual"
+  cmp "$WORK_ROOT/expected" "$WORK_ROOT/actual" >/dev/null||return 1
+  while IFS= read -r line;do case "$line" in *.js)/usr/local/bin/node --check "$WORK_ROOT/overlay/$line" >/dev/null||return 1;;*.sh)/bin/bash -n "$WORK_ROOT/overlay/$line"||return 1;;esac;done < "$WORK_ROOT/actual"
+  if [[ "$FORWARD_OPERATION" -eq 1 ]]; then
+    install -o root -g root -m 0400 "$RUN_ROOT/$STAGE.birth-certificate.json" "$WORK_ROOT/$STAGE.birth-certificate.json"
+    install -o root -g root -m 0400 "$RUN_ROOT/$STAGE.founder-dossier.json" "$WORK_ROOT/$STAGE.founder-dossier.json"
+    [[ "$(sha256_file "$WORK_ROOT/$STAGE.birth-certificate.json")" == "${CERTIFICATE_SHA256#sha256:}" ]]||return 1
+    STAY_DOSSIER="$WORK_ROOT/$STAGE.founder-dossier.json" STAY_CERT="$WORK_ROOT/$STAGE.birth-certificate.json" \
+      STAY_DOSSIER_SHA="$DOSSIER_SHA256" /usr/local/bin/node <<'NODE'
+'use strict';const fs=require('node:fs'),crypto=require('node:crypto');const stable=v=>Array.isArray(v)?`[${v.map(stable).join(',')}]`:v&&typeof v==='object'?`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`:JSON.stringify(v);const d=JSON.parse(fs.readFileSync(process.env.STAY_DOSSIER,'utf8')),c=JSON.parse(fs.readFileSync(process.env.STAY_CERT,'utf8')),h=`sha256:${crypto.createHash('sha256').update(stable(d)).digest('hex')}`;if(!(h===process.env.STAY_DOSSIER_SHA&&c?.body?.founderDossierSha256===h))process.exit(1);
+NODE
+  fi
+}
+
+expected_release_env(){ local controller_sha="$1";cat <<EOF
+P1_R150_HOMEOS_INTERO_SHADOW=PASS
+SOURCE_RELEASE=$SOURCE_RELEASE
+SOURCE_RUNTIME_REVISION=R141F
+TARGET_RUNTIME_REVISION=R150F
+RELEASE_PATH=$TARGET_RELEASE
+RELEASE_TAG=$RELEASE_TAG
+RELEASE_COMMIT=$RELEASE_COMMIT
+RELEASE_TREE=$RELEASE_TREE
+ARCHIVE_SHA256=sha256:$ARCHIVE_SHA256
+MANIFEST_SHA256=sha256:$MANIFEST_SHA256
+CONTROLLER_SHA256=sha256:$controller_sha
+FORWARD_SHA256=sha256:$FORWARD_SHA256
+RECOVERY_SHA256=sha256:$RECOVERY_SHA256
+EXPANSION_PUBLIC_KEY_SHA256=sha256:$PUBLIC_KEY_SHA256
+BENCHMARK_START_AUTHORIZED=NO
+EOF
+}
+
+verify_target(){
+  local root="$1" controller_sha="$2"
+  [[ -d "$root" && ! -L "$root" && "$(sha256_file "$root/$MANIFEST")" == "$MANIFEST_SHA256" &&
+    "$(sha256_file "$root/$FORWARD")" == "$FORWARD_SHA256" && "$(sha256_file "$root/$RECOVERY")" == "$RECOVERY_SHA256" &&
+    "$(<"$root/P1_R150_RELEASE.env")" == "$(expected_release_env "$controller_sha")" ]]||return 1
+  validate_root_tree "$root"&&(cd "$root"&&sha256sum -c "$MANIFEST" >/dev/null)
+}
+
+run_candidate_preflight(){
+  local root="$1" before_pid before_restarts
+  before_pid="$(systemctl show stay.service -p MainPID --value)";before_restarts="$(systemctl show stay.service -p NRestarts --value)"
+  STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox STAY_REQUIRE_OS_CORE_SANDBOX=1 \
+    /usr/local/bin/node --test --test-isolation=none --test-concurrency=1 \
+    "$root/test/p1-r143-homeos-neutral-birth.test.js" "$root/test/p1-r145-homeos-shadow.test.js" \
+    "$root/test/p1-r150-intero-shadow.test.js" "$root/test/p1-r150-production-gates.test.js" \
+    >"$WORK_ROOT/focused-tests.tap" 2>&1||{ cat "$WORK_ROOT/focused-tests.tap" >&2;return 1; }
+  systemd-run --wait --pipe --collect --quiet --property=User=staydeploy --property=Delegate=yes \
+    --property=CPUAccounting=yes --property=MemoryAccounting=yes /usr/bin/env -i PATH="$PATH" LC_ALL=C \
+    NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox \
+    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 /usr/local/bin/node --test --test-concurrency=1 \
+    --test-name-pattern='^R150-PRODUCTION-05' "$root/test/p1-r150-production-gates.test.js" \
+    >"$WORK_ROOT/real-r150-entry.tap" 2>&1||{ cat "$WORK_ROOT/real-r150-entry.tap" >&2;return 1; }
+  [[ "$(systemctl show stay.service -p MainPID --value)" == "$before_pid" &&
+    "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" ]]
+}
+
+prepare_target(){
+  local controller_sha="$1" relative
+  if [[ -e "$TARGET_RELEASE" || -L "$TARGET_RELEASE" ]];then verify_target "$TARGET_RELEASE" "$controller_sha";return;fi
+  [[ "$STAGE" == homeos && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" &&
+    "$(sha256_file "$SOURCE_RELEASE/$SOURCE_MANIFEST")" == "$SOURCE_MANIFEST_SHA256" ]]||return 1
+  validate_root_tree "$SOURCE_RELEASE"&&(cd "$SOURCE_RELEASE"&&sha256sum -c "$SOURCE_MANIFEST" >/dev/null)||return 1
+  CANDIDATE="$(mktemp -d /opt/stay/releases/.p1r0-r150.XXXXXX)"||return 1
+  cp -a --reflink=auto "$SOURCE_RELEASE/." "$CANDIDATE/"||return 1
+  while IFS= read -r relative;do install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$relative" "$CANDIDATE/$relative"||return 1;done < <(awk '{sub(/^\.\//,"",$2);print $2}' "$WORK_ROOT/overlay/$MANIFEST")
+  install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$MANIFEST" "$CANDIDATE/$MANIFEST"||return 1
+  expected_release_env "$controller_sha">"$WORK_ROOT/P1_R150_RELEASE.env"
+  install -o root -g root -m 0444 "$WORK_ROOT/P1_R150_RELEASE.env" "$CANDIDATE/P1_R150_RELEASE.env"
+  chown -R root:root "$CANDIDATE";find -P "$CANDIDATE" -xdev -type d -exec chmod 0555 {} +;find -P "$CANDIDATE" -xdev -type f -exec chmod 0444 {} +
+  verify_target "$CANDIDATE" "$controller_sha"&&run_candidate_preflight "$CANDIDATE"||return 1
+  mv -T "$CANDIDATE" "$TARGET_RELEASE";CANDIDATE='';verify_target "$TARGET_RELEASE" "$controller_sha"
+}
+
+run_transition(){
+  local controller_sha="$1" script auth_name auth_value child_status tee_status;local -a statuses
+  if [[ "$FORWARD_OPERATION" -eq 1 ]];then script="$FORWARD";auth_name=STAY_R150_FORWARD_AUTHORIZATION;auth_value="$FORWARD_SCRIPT_AUTH";else script="$RECOVERY";auth_name=STAY_R150_RECOVERY_AUTHORIZATION;auth_value="$RECOVERY_SCRIPT_AUTH";fi
+  set +e
+  env -i PATH="$PATH" LC_ALL=C STAY_R150_STAGE="$STAGE" "$auth_name=$auth_value" \
+    STAY_R150_TARGET_RELEASE="$TARGET_RELEASE" STAY_R150_RELEASE_TAG="$RELEASE_TAG" STAY_R150_RELEASE_COMMIT="$RELEASE_COMMIT" \
+    STAY_R150_RELEASE_TREE="$RELEASE_TREE" STAY_R150_ARCHIVE_SHA256="sha256:$ARCHIVE_SHA256" \
+    STAY_R150_MANIFEST_SHA256="sha256:$MANIFEST_SHA256" STAY_R150_CONTROLLER_SHA256="sha256:$controller_sha" \
+    STAY_R150_EXPANSION_PUBLIC_KEY_SHA256="sha256:$PUBLIC_KEY_SHA256" \
+    STAY_R150_CERTIFICATE_FILE="${WORK_ROOT:-/nonexistent}/$STAGE.birth-certificate.json" \
+    STAY_R150_CERTIFICATE_SHA256="$CERTIFICATE_SHA256" STAY_R150_DOSSIER_SHA256="$DOSSIER_SHA256" \
+    /usr/bin/timeout --signal=TERM --kill-after=15s "${RUNTIME_SECONDS}s" /bin/bash "$TARGET_RELEASE/$script" 2>&1|tee "$WORK_ROOT/controller-output.log"
+  statuses=("${PIPESTATUS[@]}");set -e;child_status="${statuses[0]:-125}";tee_status="${statuses[1]:-125}"
+  [[ "$tee_status" -eq 0 ]]||return 125;return "$child_status"
+}
+
+validate_live(){
+  local target_revision="$1" controller_sha="$2" pid meta
+  pid="$(systemctl show stay.service -p MainPID --value)"
+  /usr/local/bin/node "$TARGET_RELEASE/$PROOF" capture "$DATABASE">"$WORK_ROOT/live.database.json"||return 1
+  for id in sntss chronobiology metab homeos;do /usr/local/bin/node "$TARGET_RELEASE/deploy/live-physiology-transplant/p1-resident-control-client.js" status "resident:$id">"$WORK_ROOT/live.$id.json"||return 1;done
+  [[ "$target_revision" -eq 150 ]]&&/usr/local/bin/node "$TARGET_RELEASE/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:intero>"$WORK_ROOT/live.intero.json"
+  curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta>"$WORK_ROOT/live.meta.json"||return 1
+  STAY_LIVE_ROOT="$WORK_ROOT" STAY_RELEASE="$TARGET_RELEASE" STAY_REVISION="$target_revision" STAY_CONTROLLER="sha256:$controller_sha" /usr/local/bin/node <<'NODE'
+'use strict';const fs=require('node:fs'),path=require('node:path'),root=process.env.STAY_LIVE_ROOT,read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8')),db=read('live.database.json'),m=read('live.meta.json'),r=Number(process.env.STAY_REVISION),freeze=JSON.parse(fs.readFileSync(`/var/lib/stay/evidence/runtime-freezes/R${r}.json`,'utf8')),{validateRevisionFreeze}=require(path.join(process.env.STAY_RELEASE,'runtime/revision-freeze')),chip=id=>m.chipProjection?.lifecycle?.find(v=>v.coreId===id),status=id=>read(`live.${id}.json`).resident,contained=(v,version,mode)=>{const p=v?.host?.resourceGovernor?.policy,l=v?.host?.osContainment?.limits;return v?.status==='RUNNING'&&v.running===true&&v.version===version&&v.authorityOwned===false&&v.health?.ok===true&&(mode===undefined||v.health?.mode===mode)&&v.host?.quarantined===false&&v.host?.osContainment?.required===true&&v.host?.osContainment?.available===true&&v.host?.osContainment?.payloadSandboxed===true&&v.host?.osContainment?.payloadAttachedBeforeInit===true&&v.host?.osContainment?.supervisorChargedToKernel===true&&p?.softRamBytes===67108864&&p?.hardRamBytes===100663296&&p?.hardCpuDuty===0.2&&p?.handlerTimeoutMs===250&&p?.pidsMax===16&&l?.['memory.high']==='67108864'&&l?.['memory.max']==='100663296'&&l?.['cpu.max']==='20000 100000'&&l?.['pids.max']==='16';};const ids=r===145?['bsf','sntss','chronobiology','metab','homeos']:['bsf','sntss','chronobiology','metab','homeos','intero'];if(!(db.quickCheck==='ok'&&db.runtimeRevision===r&&db.pendingDeliveries===0&&db.pendingOutboxIntents===0&&db.failedDeliveries===0&&db.p1Authority===0&&db.outputs.sntss===0&&db.outputs.intero===0&&m.ok===true&&m.revision===r&&m.revisionFrozen===true&&m.revisionLabel===`R${r}F`&&chip('bsf')?.state==='LIVE'&&ids.slice(1).every(id=>chip(id)?.state==='SHADOW')&&contained(status('sntss'),'0.5.0-i4g1')&&contained(status('chronobiology'),'1.0.0-c3rc.5','NEUTRAL')&&contained(status('metab'),r===145?'0.3.0-p1r0-homeos-feed.1':'0.4.0-p1r0-intero-feed.1','SHADOW')&&contained(status('homeos'),r===145?'0.2.0-p1r0-shadow.1':'0.3.0-p1r0-intero-feed.1','SHADOW')&&(r!==150||contained(status('intero'),'0.2.0-p1r0-shadow.1','SHADOW'))&&validateRevisionFreeze(freeze,r)&&freeze.release?.path===process.env.STAY_RELEASE&&freeze.release?.controllerSha256===process.env.STAY_CONTROLLER&&freeze.benchmark?.started===false))process.exit(1);
+NODE
+  [[ "$pid" =~ ^[1-9][0-9]*$ && "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" &&
+    "$(systemctl show stay.service -p ActiveState --value)" == active && "$(systemctl show stay.service -p SubState --value)" == running &&
+    "$(systemctl show stay.service -p User --value)" == staydeploy && "$(systemctl show stay.service -p Group --value)" == staydeploy &&
+    "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null||true)" == inactive ]]
+}
+
+main(){
+  local operation="${1:-}" requested_root="${2:-}" authorization="${3:-}" supplied_cert="${4:-}" supplied_dossier="${5:-}" controller_sha child_status target_revision
+  [[ "$#" -eq 5 ]]||abort_controller 64 ARGUMENT_VALIDATION_FAILED exactly-five-arguments-required
+  [[ "$EUID" -eq 0 ]]||abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
+  trusted_root_file "$0"&&[[ -x "$0" ]]||abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
+  [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]]||abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
+  case "$operation:$authorization" in
+    harden-r145-homeos:AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_V1) STAGE=homeos;FORWARD_OPERATION=1;target_revision=145;FORWARD_SCRIPT_AUTH=AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_ONLY;;
+    recover-r145-homeos:AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1) STAGE=homeos;FORWARD_OPERATION=0;target_revision=145;RECOVERY_SCRIPT_AUTH=AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY;;
+    harden-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_V1) STAGE=intero;FORWARD_OPERATION=1;target_revision=150;FORWARD_SCRIPT_AUTH=AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_FORWARD_ONLY;;
+    recover-r150-intero:AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_RECOVERY_V1) STAGE=intero;FORWARD_OPERATION=0;target_revision=150;RECOVERY_SCRIPT_AUTH=AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_FORWARD_RECOVERY_ONLY;;
+    *)abort_controller 74 AUTHORIZATION_FAILED authorization-missing;;esac
+  if [[ "$FORWARD_OPERATION" -eq 1 ]];then CERTIFICATE_SHA256="$supplied_cert";DOSSIER_SHA256="$supplied_dossier";[[ "$CERTIFICATE_SHA256" =~ ^sha256:[0-9a-f]{64}$ && "$DOSSIER_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED birth-hash-invalid;else CERTIFICATE_SHA256='sha256:0000000000000000000000000000000000000000000000000000000000000000';DOSSIER_SHA256="$CERTIFICATE_SHA256";[[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED recovery-hash-must-be-none;fi
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v3-[0-9]+$ ]]||abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
+  validate_run_root "$requested_root"||abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
+  RUN_ROOT="$requested_root";trap finish_controller EXIT;CLEANUP_ARMED=1
+  verify_staged_release||abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
+  prepare_overlay||abort_controller 81 STAGED_IDENTITY_FAILED private-overlay-invalid
+  trusted_root_file "$PUBLIC_KEY"&&[[ "$(sha256_file "$PUBLIC_KEY")" == "$PUBLIC_KEY_SHA256" ]]||abort_controller 82 TRUST_ROOT_FAILED expansion-public-key-invalid
+  controller_sha="$(sha256_file "$0")";prepare_target "$controller_sha"||abort_controller 83 CANDIDATE_FAILED target-release-invalid
+  if run_transition "$controller_sha";then child_status=0;else child_status=$?;fi
+  [[ "$child_status" -eq 0 ]]||abort_controller "$child_status" EXECUTION_FAILED child-failed
+  grep -Fx "RUNTIME_REVISION=$target_revision" "$WORK_ROOT/controller-output.log">/dev/null||abort_controller 84 RESULT_MARKER_MISSING revision-marker-missing
+  grep -Fx 'P1_AUTHORITY=NONE' "$WORK_ROOT/controller-output.log">/dev/null||abort_controller 85 RESULT_CONTRACT_FAILED authority-marker-missing
+  grep -Fx 'BENCHMARK_ACTIVE=NO' "$WORK_ROOT/controller-output.log">/dev/null||abort_controller 85 RESULT_CONTRACT_FAILED benchmark-marker-missing
+  validate_live "$target_revision" "$controller_sha"||abort_controller 86 LIVE_ACCEPTANCE_FAILED independent-live-proof-failed
+  FAILURE_CLASS='NONE';printf 'R150_CONTROLLER_STAGE=%s\nR150_CONTROLLER_REVISION=R%sF\nR150_CONTROLLER_RESULT=PASS\n' "$STAGE" "$target_revision"
+}
+main "$@"
