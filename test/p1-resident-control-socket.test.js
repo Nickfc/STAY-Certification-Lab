@@ -52,7 +52,9 @@ async function waitFor(check, timeoutMs = 5000) {
 }
 
 test('P1-A1-01 protocol rejects arbitrary operations, modules, residencies and fields', () => {
-  assert.deepEqual(Object.keys(RESIDENT_MODULES).sort(), ['resident:chronobiology', 'resident:sntss']);
+  assert.deepEqual(Object.keys(RESIDENT_MODULES).sort(), [
+    'resident:chronobiology', 'resident:metab', 'resident:sntss'
+  ]);
   assert.throws(() => validateRequest({ format: FORMAT, operation: 'eval', residencyId: 'resident:sntss' }),
     error => error.code === 'RESIDENT_CONTROL_OPERATION');
   assert.throws(() => validateRequest({ format: FORMAT, operation: 'attach', residencyId: '../../tmp/core' }),
