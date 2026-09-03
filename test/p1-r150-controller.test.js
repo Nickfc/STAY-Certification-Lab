@@ -165,6 +165,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'Number(f.maximum)-Number(f.minimum)+1===Number(f.count)',
     "failed[0].consumerId==='resident:metab'",
     'Number(failed[0].sequence)===4179960',
+    '[[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 146 ]]',
     'recover-*)',
     'restoring that failed service is the sole purpose of this path',
     'SERVICE_STATE=%s/%s',
