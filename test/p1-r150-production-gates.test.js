@@ -157,6 +157,18 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
     /STAY_HOMEOS_STRANDED_R146_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R146_METAB_Q48_HOMEOS_FORWARD_RECOVERY_ONLY/);
   assert.match(recovery,
     /METAB_REPAIR='deploy\/live-physiology-transplant\/p1-r146-metab-q48-implementation-repair\.js'/);
+  for (const exact of [
+    "ORIGINAL_HOMEOS_FAILURE_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-418c80c33029'",
+    "ORIGINAL_HOMEOS_FAILURE_TAG='r150-homeos-intero-shadow-v3'",
+    "ORIGINAL_HOMEOS_FAILURE_COMMIT='b21e56776be8a0954ef1af34bd28c13d6e03dd5d'",
+    "ORIGINAL_HOMEOS_FAILURE_TREE='3f4864991e8454cdc2fedae11fe448677c84d706'",
+    "ORIGINAL_HOMEOS_FAILURE_ARCHIVE_SHA256='sha256:183887ece2eec09358e13c8a8effa80d98551d76e0b208ae5f90272e34f07e5e'",
+    "ORIGINAL_HOMEOS_FAILURE_MANIFEST_SHA256='sha256:418c80c33029f9e2e2920c999e262cf3fea259630a2b378e4258f13833d3735d'",
+    "ORIGINAL_HOMEOS_FAILURE_CONTROLLER_SHA256='sha256:f70cb15c890d396ba6013e3747e464d8a297bd3add5eb958b9c3d693a1a6d404'",
+    "ORIGINAL_HOMEOS_FAILURE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R145-HOMEOS-20260903T201401Z.qIMbPE'",
+    "ORIGINAL_HOMEOS_FAILURE_CERTIFICATE_SHA256='sha256:a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c'",
+    "marker_cohort='EXACT_ORIGINAL_HOMEOS_FAILURE'"
+  ]) assert.ok(recovery.includes(exact), exact);
   assert.match(recovery, /ExecStartPre=.*\$METAB_REPAIR apply/);
   assert.ok(server.indexOf('await kernel.recoverStrandedR145Homeos();') <
     server.indexOf('await kernel.installCore(process.env.STAY_BOOT_CORE);'));
