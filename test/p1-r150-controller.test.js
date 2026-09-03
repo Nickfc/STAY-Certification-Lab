@@ -168,6 +168,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     'recover-*)',
     'restoring that failed service is the sole purpose of this path',
     'SERVICE_STATE=%s/%s',
+    'root="$1"; stage="${2:-}"',
     "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",
     "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);
