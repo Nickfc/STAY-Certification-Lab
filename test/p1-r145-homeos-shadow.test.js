@@ -709,7 +709,9 @@ test('R145-HOMEOS-ENTRY-06 real LivingKernel path reaches R145 output-firewalled
   assert.equal(kernel.runtimeRevision, 143);
   await kernel.promoteMetabHomeosRoute();
   assert.equal(kernel.runtimeRevision, 144);
-  await runtime.manager.drain('resident:homeos');
+  const routedHomeos = await runtime.manager.status('resident:homeos');
+  assert.equal(routedHomeos.health.physiologicalInputs >= 2, true);
+  assert.equal(routedHomeos.observedOutputs, 0);
   await kernel.promoteHomeosShadow();
   assert.equal(kernel.runtimeRevision, 145);
 

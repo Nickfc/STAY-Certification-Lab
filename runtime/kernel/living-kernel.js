@@ -3156,6 +3156,7 @@ class LivingKernel {
         code: 'P1_METAB_HOMEOS_SAMPLE'
       });
     }
+    await manager.drain('resident:homeos');
     const metabStatus = await manager.status('resident:metab');
     const nextHomeosStatus = await manager.status('resident:homeos');
     if (
