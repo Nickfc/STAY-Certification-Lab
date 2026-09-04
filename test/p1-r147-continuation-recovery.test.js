@@ -11,6 +11,7 @@ const {
   LivingKernel,
   R147_HOMEOS_CONTINUATION_RECOVERY
 } = require('../runtime/kernel/living-kernel');
+const { ResidentManager } = require('../runtime/kernel/resident-manager');
 const { StateStore } = require('../runtime/kernel/state-store');
 const { createCapacitySourceState } = require('../runtime/p1-r0/metab-capacity-source');
 
@@ -42,13 +43,22 @@ function continuationHarness() {
       .map(value => [value.residencyId, {
         coreId: value.coreId,
         required: false,
-        active: value.status === 'RUNNING',
+        active: ['RUNNING', 'RECOVERING'].includes(value.status),
         authorityEpoch: 0,
         cursor: value.consumerCursor,
         checkpointHash: value.checkpointHash,
         topicsHash: value.topicsHash
       }])
   );
+  consumers[expected.fetus.consumerId] = {
+    coreId: expected.fetus.coreId,
+    required: true,
+    active: true,
+    authorityEpoch: expected.fetus.authorityEpoch,
+    cursor: expected.fetus.consumerCursor,
+    checkpointHash: expected.fetus.consumerCheckpointHash,
+    topicsHash: expected.fetus.topicsHash
+  };
   const capacity = {
     ...createCapacitySourceState({
       instanceId: expected.metab.instanceId,
@@ -78,7 +88,13 @@ function continuationHarness() {
     stateStore: {
       getResident: residencyId => residents[residencyId] || null,
       getBiologicalConsumer: residencyId => consumers[residencyId] || null,
-      listAuthority: () => [],
+      listAuthority: () => [{
+        coreId: expected.fetus.coreId,
+        instanceId: expected.fetus.instanceId,
+        version: expected.fetus.version,
+        epoch: expected.fetus.authorityEpoch,
+        checkpointHash: expected.fetus.checkpointHash
+      }],
       db: {
         prepare: sql => ({
           get: (...args) => {
@@ -95,11 +111,32 @@ function continuationHarness() {
                 input_cursor: fence.inputCursor
               };
             }
+            if (sql.includes('FROM authority')) {
+              return {
+                core_id: expected.fetus.coreId,
+                instance_id: expected.fetus.instanceId,
+                version: expected.fetus.version,
+                epoch: expected.fetus.authorityEpoch,
+                checkpoint_hash: expected.fetus.checkpointHash
+              };
+            }
+            if (sql.includes('FROM checkpoints')) {
+              return {
+                core_id: expected.fetus.coreId,
+                instance_id: expected.fetus.instanceId,
+                version: expected.fetus.version,
+                authority_epoch: expected.fetus.authorityEpoch,
+                generation: expected.fetus.checkpointGeneration,
+                blob_hash: expected.fetus.checkpointHash,
+                byte_length: expected.fetus.checkpointBytes
+              };
+            }
             if (sql.includes("status!='ACKED'")) return { count: 6 };
             if (sql.includes('biological_outbox_intents')) return { count: 0 };
             if (sql.includes('COALESCE(MAX(sequence),0)')) return { value: expected.highWater };
             if (sql.includes("status='PENDING'")) {
               const fence = residents[args[0]];
+              if (!fence) return { count: 0, minimum: null, maximum: null };
               return {
                 count: fence.pendingCount,
                 minimum: fence.firstPendingSequence,
@@ -119,7 +156,17 @@ function continuationHarness() {
             }
             if (sql.includes('ORDER BY id DESC LIMIT 1') &&
                 !sql.includes("type='biological.consumer-resynchronized'")) {
-              return { id: expected.latestRecoveryRecordId, type: 'resident.resync-required', core_id: 'HOMEOS' };
+              return {
+                id: expected.latestRecoveryRecordId,
+                type: 'resident.recovered',
+                core_id: expected.chronobiology.coreId,
+                detail_json: JSON.stringify({
+                  residencyId: expected.chronobiology.residencyId,
+                  instanceId: expected.chronobiology.instanceId,
+                  version: expected.chronobiology.version,
+                  checkpointHash: expected.chronobiology.checkpointHash
+                })
+              };
             }
             if (sql.includes("type='biological.consumer-resynchronized'")) {
               return {
@@ -298,8 +345,12 @@ test('R147-CONTINUATION-03 fetus installs before sequential recovery and HTTP ex
     p1ExpansionFetusInstallPreserved: true,
     heartbeatTimer: null,
     snapshotTimer: null,
-    recoverDurableResidents: async () => {
+    recoverDurableResidents: async options => {
       calls.push('ordinary');
+      assert.deepEqual(
+        [...options.exactCurrentCheckpointFences.keys()],
+        ['resident:chronobiology', 'resident:metab']
+      );
       return [
         { residencyId: 'resident:chronobiology', recovered: true },
         { residencyId: 'resident:sntss', skipped: true, status: 'RESYNC_REQUIRED' },
@@ -332,8 +383,8 @@ test('R147-CONTINUATION-03 fetus installs before sequential recovery and HTTP ex
     'live-physiology-transplant', 'p1-r150-homeos-intero-forward-recovery.sh'), 'utf8');
   const preflight = await fs.readFile(path.resolve(__dirname, '..', 'deploy',
     'live-physiology-transplant', 'p1-r147-homeos-continuation-preflight.js'), 'utf8');
-  assert.match(recoveryScript, /AUTHORIZE_R147_HOMEOS_SEQUENTIAL_CONTINUATION_RECOVERY_ONLY/);
-  assert.match(recoveryScript, /AUTHORIZE_STRANDED_R147_HOMEOS_CONTINUATION_RECOVERY_ONLY/);
+  assert.match(recoveryScript, /AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_ONLY/);
+  assert.match(recoveryScript, /AUTHORIZE_STRANDED_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_ONLY/);
   assert.match(recoveryScript, /p1-r147-homeos-continuation-preflight\.js/);
   assert.match(recoveryScript, /systemctl stop stay\.service/);
   assert.doesNotMatch(`${recoveryScript}\n${preflight}`,
@@ -350,5 +401,80 @@ test('R147-CONTINUATION-03 fetus installs before sequential recovery and HTTP ex
   assert.deepEqual(
     await LivingKernel.prototype.repairExactR146FetusEmptyInputContinuity.call(fetusHarness),
     { ...resolved, idempotent: true }
+  );
+});
+
+test('R147-CONTINUATION-04 exact current-checkpoint recovery bypasses retained-history enumeration', async () => {
+  const expected = R147_HOMEOS_CONTINUATION_RECOVERY.chronobiology;
+  const resident = {
+    ...expected,
+    organismIdentityHash: IDENTITY_HASH
+  };
+  const checkpoint = {
+    checkpointId: expected.checkpointId,
+    residencyId: expected.residencyId,
+    instanceId: expected.instanceId,
+    version: expected.version,
+    stateSchema: expected.stateSchema,
+    generation: expected.checkpointGeneration,
+    blobHash: expected.checkpointHash,
+    byteLength: expected.checkpointBytes,
+    inputCursor: expected.inputCursor,
+    state: { exact: true }
+  };
+  const calls = [];
+  const harness = {
+    closed: false,
+    units: new Map(),
+    organismIdentityHash: IDENTITY_HASH,
+    stateStore: {
+      getResident: () => resident,
+      readResidentCheckpoint: async () => checkpoint,
+      buildResidentCheckpointRecoveryPlan: async () => {
+        throw new Error('retained history must not be enumerated');
+      },
+      setResidentStatus: (residencyId, status) => calls.push(['status', residencyId, status])
+    },
+    validateBinding: () => {},
+    inspect: async () => ({
+      contract: { priorCheckpointRecovery: true },
+      definition: { manifest: {} }
+    }),
+    verifyExistingIdentity: () => {},
+    preflightResidentCheckpoint: async (_resident, _inspected, value) => {
+      calls.push(['preflight', value.checkpointId]);
+      return true;
+    },
+    startUnit: async options => {
+      calls.push(['start', options]);
+      return options;
+    }
+  };
+
+  const recovered = await ResidentManager.prototype.recover.call(
+    harness,
+    expected.residencyId,
+    { organismId: 'stay-test' },
+    { exactCurrentCheckpoint: expected }
+  );
+  assert.equal(recovered.checkpoint, checkpoint);
+  assert.deepEqual(recovered.finalizedReplay, []);
+  assert.equal(recovered.backfillInactiveGap, true);
+  assert.deepEqual(calls.slice(0, 2), [
+    ['preflight', expected.checkpointId],
+    ['status', expected.residencyId, 'RECOVERING']
+  ]);
+
+  await assert.rejects(
+    ResidentManager.prototype.recover.call(
+      { ...harness, stateStore: {
+        ...harness.stateStore,
+        readResidentCheckpoint: async () => ({ ...checkpoint, generation: checkpoint.generation - 1 })
+      } },
+      expected.residencyId,
+      { organismId: 'stay-test' },
+      { exactCurrentCheckpoint: expected }
+    ),
+    { code: 'RESIDENT_EXACT_CURRENT_CHECKPOINT_MISMATCH' }
   );
 });

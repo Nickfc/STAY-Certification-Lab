@@ -2881,7 +2881,8 @@ class ResidentManager {
     residencyId,
     binding,
     {
-      acceptanceCommit = null
+      acceptanceCommit = null,
+      exactCurrentCheckpoint = null
     } = {}
   ) {
     if (
@@ -2960,7 +2961,34 @@ class ResidentManager {
     let checkpoint;
     let finalizedReplay = [];
 
-    if (inspected.contract.priorCheckpointRecovery) {
+    if (exactCurrentCheckpoint !== null) {
+      checkpoint = await this.stateStore.readResidentCheckpoint(residencyId);
+      const exact = checkpoint &&
+        checkpoint.checkpointId === exactCurrentCheckpoint.checkpointId &&
+        checkpoint.residencyId === residencyId &&
+        checkpoint.instanceId === resident.instanceId &&
+        checkpoint.version === resident.version &&
+        checkpoint.stateSchema === resident.stateSchema &&
+        checkpoint.generation === exactCurrentCheckpoint.checkpointGeneration &&
+        checkpoint.blobHash === exactCurrentCheckpoint.checkpointHash &&
+        checkpoint.byteLength === exactCurrentCheckpoint.checkpointBytes &&
+        checkpoint.inputCursor === exactCurrentCheckpoint.inputCursor;
+      if (!exact) {
+        fail(
+          'current resident checkpoint changed outside the exact recovery fence',
+          'RESIDENT_EXACT_CURRENT_CHECKPOINT_MISMATCH'
+        );
+      }
+      if (
+        inspected.contract.priorCheckpointRecovery &&
+        !await this.preflightResidentCheckpoint(resident, inspected, checkpoint)
+      ) {
+        fail(
+          'exact current resident checkpoint does not validate',
+          'RESIDENT_EXACT_CURRENT_CHECKPOINT_INVALID'
+        );
+      }
+    } else if (inspected.contract.priorCheckpointRecovery) {
       const plan = await this.stateStore.buildResidentCheckpointRecoveryPlan(residencyId);
       if (plan) {
         for (const candidate of plan.candidates) {

@@ -252,10 +252,10 @@ const R147_HOMEOS_FORWARD_RECOVERY = Object.freeze({
 
 const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
   authorization:
-    'AUTHORIZE_STRANDED_R147_HOMEOS_CONTINUATION_RECOVERY_ONLY',
+    'AUTHORIZE_STRANDED_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_ONLY',
   runtimeRevision: 147,
   highWater: 4575520,
-  latestRecoveryRecordId: 211,
+  latestRecoveryRecordId: 212,
   fetusResolutionRecordId: 194,
   capacitySource: Object.freeze({
     runtimeRevision: 128,
@@ -267,9 +267,9 @@ const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
     residencyId: 'resident:metab', coreId: 'METAB',
     instanceId: R145_HOMEOS_SHADOW.metabInstanceId,
     version: '0.3.0-p1r0-homeos-feed.1', stateSchema: 3,
-    status: 'RUNNING', checkpointGeneration: 325398,
+    status: 'RECOVERING', checkpointGeneration: 325399,
     checkpointHash: 'ec9a31171e5dd07fbe09479aaad9eb5e66de929668c1241914d28a85f9bbc0fe',
-    checkpointId: '88ef8550-d093-40d8-be3f-e187245e9ffd',
+    checkpointId: 'd8bee226-7317-45bc-92a4-afc5fb865fae',
     checkpointBytes: 5008, inputCursor: 4575518, consumerCursor: 4575520,
     moduleRelativePath: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleRelativePath,
     moduleHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleHash,
@@ -317,15 +317,25 @@ const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
     residencyId: 'resident:chronobiology', coreId: 'chronobiology',
     instanceId: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
     version: '1.0.0-c3rc.5', stateSchema: 2,
-    status: 'RUNNING', checkpointGeneration: 12385,
+    status: 'RUNNING', checkpointGeneration: 12386,
     checkpointHash: 'd6374f44ba42dfa716cea7f291422f3c4684308fc73c95db1b2723d03639e022',
-    checkpointId: '7df51681-f3f3-440c-9f7d-4434001b2245',
+    checkpointId: '1aa3f028-1e6b-4cd1-bbda-69d0caca9ca2',
     checkpointBytes: 49187, inputCursor: 4575400, consumerCursor: 4575520,
     moduleRelativePath: 'cores/chronobiology/c3r5/index.js',
     moduleHash: 'sha256:ecac9b25bf5897d6344cbca702a6ce30ab76c5ff69af76ad17f1aea734e54867',
     manifestHash: 'sha256:4f809b9fee2b4099d51250d339fbee15d226ed9aa0126c4a83d47ff580021012',
     packagePolicyHash: 'sha256:887ff83909b360a75abc1ea6f755db597e613186acaa9b7b20d33b1d21d2232b',
     topicsHash: 'a0897ae1c2f0bdf9f94e5491cf681820cda4a0126afcb47511cc4a538d5a281e'
+  }),
+  fetus: Object.freeze({
+    consumerId: 'core:fetus-legacy', coreId: 'fetus-legacy',
+    instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f', version: '0.6.0',
+    authorityEpoch: 1, consumerCursor: 4574204,
+    consumerCheckpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
+    checkpointGeneration: 204,
+    checkpointHash: 'ebb6a3c62e4ea1968868e310350bfa219f29183494c31c99f0d79b36138cb9f1',
+    checkpointBytes: 56820,
+    topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
   })
 });
 
@@ -1648,7 +1658,8 @@ class LivingKernel {
         resident?.moduleHash === fence.moduleHash && resident?.manifestHash === fence.manifestHash &&
         resident?.packagePolicyHash === fence.packagePolicyHash &&
         consumer?.coreId === fence.coreId && consumer?.required === false &&
-        consumer?.active === (fence.status === 'RUNNING') && consumer?.authorityEpoch === 0 &&
+        consumer?.active === ['RUNNING', 'RECOVERING'].includes(fence.status) &&
+        consumer?.authorityEpoch === 0 &&
         consumer?.cursor === fence.consumerCursor && consumer?.checkpointHash === fence.checkpointHash &&
         consumer?.topicsHash === fence.topicsHash && checkpoint?.checkpoint_id === fence.checkpointId &&
         checkpoint?.instance_id === fence.instanceId && checkpoint?.version === fence.version &&
@@ -1692,8 +1703,10 @@ class LivingKernel {
           detail?.sequence !== fence.failureSequence || detail?.code !== fence.failureCode) return false;
     }
     const latest = this.stateStore.db.prepare(
-      'SELECT id,type,core_id FROM recovery_records ORDER BY id DESC LIMIT 1'
+      'SELECT id,type,core_id,detail_json FROM recovery_records ORDER BY id DESC LIMIT 1'
     ).get();
+    let latestDetail = null;
+    try { latestDetail = JSON.parse(latest?.detail_json || 'null'); } catch {}
     const fetusResolution = this.stateStore.db.prepare(`
       SELECT id,detail_json FROM recovery_records
       WHERE type='biological.consumer-resynchronized' AND core_id='fetus-legacy'
@@ -1701,12 +1714,42 @@ class LivingKernel {
     `).get();
     let fetusDetail = null;
     try { fetusDetail = JSON.parse(fetusResolution?.detail_json || 'null'); } catch {}
-    if (Number(latest?.id) !== expected.latestRecoveryRecordId || latest?.core_id !== 'HOMEOS' ||
+    if (Number(latest?.id) !== expected.latestRecoveryRecordId ||
+        latest?.type !== 'resident.recovered' || latest?.core_id !== expected.chronobiology.coreId ||
+        latestDetail?.residencyId !== expected.chronobiology.residencyId ||
+        latestDetail?.instanceId !== expected.chronobiology.instanceId ||
+        latestDetail?.version !== expected.chronobiology.version ||
+        latestDetail?.checkpointHash !== expected.chronobiology.checkpointHash ||
         Number(fetusResolution?.id) !== expected.fetusResolutionRecordId ||
         fetusDetail?.cohort !== 'r146-fetus-empty-input-continuity-v1' ||
         fetusDetail?.toCursor !== 4574204 || fetusDetail?.abandonedCount !== 0 ||
-        fetusDetail?.inventedBiologicalTime !== false || fetusDetail?.authorityChanged !== false ||
-        !this.exactR146FetusContinuityCohort().resolved) return false;
+        fetusDetail?.inventedBiologicalTime !== false || fetusDetail?.authorityChanged !== false) return false;
+
+    const fetus = expected.fetus;
+    const fetusConsumer = this.stateStore.getBiologicalConsumer(fetus.consumerId);
+    const fetusAuthority = this.stateStore.db.prepare(
+      'SELECT * FROM authority WHERE core_id=?'
+    ).get(fetus.coreId);
+    const fetusCheckpoint = this.stateStore.db.prepare(`
+      SELECT * FROM checkpoints WHERE core_id=? ORDER BY generation DESC LIMIT 1
+    `).get(fetus.coreId);
+    if (
+      fetusConsumer?.coreId !== fetus.coreId || fetusConsumer?.required !== true ||
+      fetusConsumer?.active !== true || fetusConsumer?.cursor !== fetus.consumerCursor ||
+      fetusConsumer?.authorityEpoch !== fetus.authorityEpoch ||
+      fetusConsumer?.checkpointHash !== fetus.consumerCheckpointHash ||
+      fetusConsumer?.topicsHash !== fetus.topicsHash ||
+      fetusAuthority?.instance_id !== fetus.instanceId || fetusAuthority?.version !== fetus.version ||
+      Number(fetusAuthority?.epoch) !== fetus.authorityEpoch ||
+      fetusAuthority?.checkpoint_hash !== fetus.checkpointHash ||
+      fetusCheckpoint?.instance_id !== fetus.instanceId || fetusCheckpoint?.version !== fetus.version ||
+      Number(fetusCheckpoint?.authority_epoch) !== fetus.authorityEpoch ||
+      Number(fetusCheckpoint?.generation) !== fetus.checkpointGeneration ||
+      fetusCheckpoint?.blob_hash !== fetus.checkpointHash ||
+      Number(fetusCheckpoint?.byte_length) !== fetus.checkpointBytes ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE consumer_id=? AND status='PENDING'", fetus.consumerId) !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE producer_core_id=? AND status='PENDING'", fetus.coreId) !== 0
+    ) return false;
 
     const capacityRow = this.stateStore.db.prepare(`
       SELECT json,sha256 FROM metadata WHERE key='life:p1-r0-metab-capacity-source'
@@ -1730,7 +1773,7 @@ class LivingKernel {
 
     this.homeosFinalR146RecoveryActive = true;
     this.homeosFinalR147RecoveryActive = true;
-    this.fetusEmptyInputR147RecoveryActive = true;
+    this.fetusEmptyInputR147RecoveryActive = false;
     this.r147HomeosContinuationRecoveryActive = true;
     this.r147DeferredResidentRecovery = true;
     this.p1ExpansionFetusInstallRevisionPreservation = this.runtimeRevision;
@@ -5829,7 +5872,18 @@ class LivingKernel {
     );
   }
 
-  async recoverDurableResidents() {
+  async recoverDurableResidents({
+    exactCurrentCheckpointFences = null
+  } = {}) {
+    if (
+      exactCurrentCheckpointFences !== null &&
+      !(exactCurrentCheckpointFences instanceof Map)
+    ) {
+      throw Object.assign(
+        new Error('exact current checkpoint fences must be a Map'),
+        { code: 'RESIDENT_EXACT_CURRENT_CHECKPOINT_FENCES' }
+      );
+    }
     const residents =
       this.stateStore
         .listResidents();
@@ -6283,6 +6337,16 @@ class LivingKernel {
               recoveryOptions.acceptanceCommit
           });
         } else {
+          const exactCurrentCheckpoint =
+            exactCurrentCheckpointFences?.get(
+              resident.residencyId
+            );
+          if (exactCurrentCheckpoint) {
+            recoveryOptions = {
+              ...(recoveryOptions || {}),
+              exactCurrentCheckpoint
+            };
+          }
           await manager.recover(
             resident.residencyId,
             binding,
@@ -6587,7 +6651,14 @@ class LivingKernel {
         { code: 'P1_R147_CONTINUATION_BOUNDARY' }
       );
     }
-    const ordinaryRecovery = await this.recoverDurableResidents();
+    const ordinaryRecovery = await this.recoverDurableResidents({
+      exactCurrentCheckpointFences: new Map([
+        [R147_HOMEOS_CONTINUATION_RECOVERY.chronobiology.residencyId,
+          R147_HOMEOS_CONTINUATION_RECOVERY.chronobiology],
+        [R147_HOMEOS_CONTINUATION_RECOVERY.metab.residencyId,
+          R147_HOMEOS_CONTINUATION_RECOVERY.metab]
+      ])
+    });
     const coldRecovery = await this.recoverColdFailedResidents();
     const ordinary = new Map(ordinaryRecovery.map(row => [row.residencyId, row]));
     const cold = new Map(coldRecovery.map(row => [row.residencyId, row]));
