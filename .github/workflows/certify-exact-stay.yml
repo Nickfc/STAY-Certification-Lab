@@ -1,0 +1,73 @@
+name: Certify exact STAY commit
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Exact 40-character STAY commit
+        required: true
+        type: string
+      tree:
+        description: Exact 40-character STAY tree
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: certify-exact-stay-${{ inputs.commit }}
+  cancel-in-progress: false
+
+jobs:
+  complete-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate immutable inputs
+        shell: bash
+        env:
+          EXACT_COMMIT: ${{ inputs.commit }}
+          EXACT_TREE: ${{ inputs.tree }}
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXACT_TREE" =~ ^[0-9a-f]{40}$ ]]
+      - name: Checkout exact commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Prepare exact sandboxed validation tree
+        shell: bash
+        env:
+          EXACT_COMMIT: ${{ inputs.commit }}
+          EXACT_TREE: ${{ inputs.tree }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXACT_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$EXACT_TREE" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          command -v bwrap >/dev/null || sudo apt-get install --yes --no-install-recommends bubblewrap
+          sudo tee /usr/local/bin/stay-ci-bwrap >/dev/null <<'EOF'
+          #!/bin/sh
+          exec sudo -n /usr/bin/bwrap "$@"
+          EOF
+          sudo chown root:root /usr/local/bin/stay-ci-bwrap
+          sudo chmod 0755 /usr/local/bin/stay-ci-bwrap
+          sudo -n true
+          git clone --no-hardlinks "$GITHUB_WORKSPACE" /tmp/stay-certified-source
+          [[ "$(git -C /tmp/stay-certified-source rev-parse HEAD)" == "$EXACT_COMMIT" ]]
+          [[ "$(git -C /tmp/stay-certified-source rev-parse HEAD^{tree})" == "$EXACT_TREE" ]]
+          [[ -z "$(git -C /tmp/stay-certified-source status --porcelain)" ]]
+          find /tmp/stay-certified-source -type d -exec chmod a+rx {} +
+      - name: Run complete suite with real Bubblewrap
+        working-directory: /tmp/stay-certified-source
+        env:
+          STAY_BWRAP: /usr/local/bin/stay-ci-bwrap
+        run: npm test
