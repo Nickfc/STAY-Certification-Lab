@@ -332,9 +332,9 @@ const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
     instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f', version: '0.6.0',
     authorityEpoch: 1, consumerCursor: 4574204,
     consumerCheckpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
-    checkpointGeneration: 204,
-    checkpointHash: 'ebb6a3c62e4ea1968868e310350bfa219f29183494c31c99f0d79b36138cb9f1',
-    checkpointBytes: 56820,
+    checkpointGeneration: 205,
+    checkpointHash: '8803909172edc449006cf412e0a27ec38f4bd671385f02de93652f3cd762fd16',
+    checkpointBytes: 57678,
     topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
   })
 });

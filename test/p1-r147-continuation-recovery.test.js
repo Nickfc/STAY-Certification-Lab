@@ -212,6 +212,15 @@ function insertEvent(store, sequence, topic, deduplicationKey) {
 
 test('R147-CONTINUATION-01 preserves only the exact stopped six-delivery cohort', () => {
   const { expected, harness, residents } = continuationHarness();
+  assert.deepEqual({
+    generation: expected.fetus.checkpointGeneration,
+    hash: expected.fetus.checkpointHash,
+    bytes: expected.fetus.checkpointBytes
+  }, {
+    generation: 205,
+    hash: '8803909172edc449006cf412e0a27ec38f4bd671385f02de93652f3cd762fd16',
+    bytes: 57678
+  });
   assert.equal(
     LivingKernel.prototype.preserveExactR147HomeosContinuationRevision.call(harness),
     true
