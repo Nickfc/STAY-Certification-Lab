@@ -9,7 +9,7 @@ const { DatabaseSync } = require('node:sqlite');
 const EXPECTED = Object.freeze({
   runtimeRevision: 147,
   highWater: 4575520,
-  latestRecoveryRecordId: 211,
+  latestRecoveryRecordId: 212,
   fetusResolutionRecordId: 194,
   capacitySource: Object.freeze({
     instanceId: 'd424c722-ef31-44b0-8201-ba68c418d14a',
@@ -22,16 +22,21 @@ const EXPECTED = Object.freeze({
   fetus: Object.freeze({
     consumerId: 'core:fetus-legacy', coreId: 'fetus-legacy',
     instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f', version: '0.6.0',
-    checkpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
-    cursor: 4574204
+    authorityEpoch: 1,
+    consumerCheckpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
+    checkpointGeneration: 204,
+    checkpointHash: 'ebb6a3c62e4ea1968868e310350bfa219f29183494c31c99f0d79b36138cb9f1',
+    checkpointBytes: 56820,
+    cursor: 4574204,
+    topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
   }),
   residents: Object.freeze({
     'resident:chronobiology': Object.freeze({
       coreId: 'chronobiology', instanceId: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
       version: '1.0.0-c3rc.5', stateSchema: 2, status: 'RUNNING',
-      checkpointGeneration: 12385,
+      checkpointGeneration: 12386,
       checkpointHash: 'd6374f44ba42dfa716cea7f291422f3c4684308fc73c95db1b2723d03639e022',
-      checkpointId: '7df51681-f3f3-440c-9f7d-4434001b2245', checkpointBytes: 49187,
+      checkpointId: '1aa3f028-1e6b-4cd1-bbda-69d0caca9ca2', checkpointBytes: 49187,
       inputCursor: 4575400, consumerCursor: 4575520,
       moduleRelativePath: 'cores/chronobiology/c3r5/index.js',
       topics: Object.freeze(['runtime.organism.binding', 'runtime.organism.time.pulse']),
@@ -39,10 +44,10 @@ const EXPECTED = Object.freeze({
     }),
     'resident:metab': Object.freeze({
       coreId: 'METAB', instanceId: 'd424c722-ef31-44b0-8201-ba68c418d14a',
-      version: '0.3.0-p1r0-homeos-feed.1', stateSchema: 3, status: 'RUNNING',
-      checkpointGeneration: 325398,
+      version: '0.3.0-p1r0-homeos-feed.1', stateSchema: 3, status: 'RECOVERING',
+      checkpointGeneration: 325399,
       checkpointHash: 'ec9a31171e5dd07fbe09479aaad9eb5e66de929668c1241914d28a85f9bbc0fe',
-      checkpointId: '88ef8550-d093-40d8-be3f-e187245e9ffd', checkpointBytes: 5008,
+      checkpointId: 'd8bee226-7317-45bc-92a4-afc5fb865fae', checkpointBytes: 5008,
       inputCursor: 4575518, consumerCursor: 4575520,
       moduleRelativePath: 'cores/p1-r0/metab-homeos/index.js',
       topics: Object.freeze(['resource.capacity.eligible.v1', 'resource.capacity.quality.v1',
@@ -146,7 +151,7 @@ function validate(databasePath) {
         resident.module_relative_path === expected.moduleRelativePath,
       `${residencyId} identity changed`);
       assert(consumer?.core_id === expected.coreId && Number(consumer.required) === 0 &&
-        Number(consumer.active) === (expected.status === 'RUNNING' ? 1 : 0) &&
+        Number(consumer.active) === (['RUNNING', 'RECOVERING'].includes(expected.status) ? 1 : 0) &&
         Number(consumer.authority_epoch) === 0 && Number(consumer.cursor) === expected.consumerCursor &&
         consumer.checkpoint_hash === expected.checkpointHash && consumer.topics_sha256 === expected.topicsHash,
       `${residencyId} consumer changed`);
@@ -186,10 +191,25 @@ function validate(databasePath) {
     const fetusConsumer = database.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
       .get(fetus.consumerId);
     const fetusAuthority = database.prepare('SELECT * FROM authority WHERE core_id=?').get(fetus.coreId);
-    assert(fetusConsumer?.core_id === fetus.coreId && Number(fetusConsumer.active) === 0 &&
-      Number(fetusConsumer.cursor) === fetus.cursor && fetusConsumer.checkpoint_hash === fetus.checkpointHash &&
+    const fetusCheckpoint = database.prepare(`SELECT * FROM checkpoints
+      WHERE core_id=? ORDER BY generation DESC LIMIT 1`).get(fetus.coreId);
+    assert(fetusConsumer?.core_id === fetus.coreId && Number(fetusConsumer.required) === 1 &&
+      Number(fetusConsumer.active) === 1 && Number(fetusConsumer.authority_epoch) === fetus.authorityEpoch &&
+      Number(fetusConsumer.cursor) === fetus.cursor &&
+      fetusConsumer.checkpoint_hash === fetus.consumerCheckpointHash &&
+      fetusConsumer.topics_sha256 === fetus.topicsHash &&
       fetusAuthority?.instance_id === fetus.instanceId && fetusAuthority.version === fetus.version &&
-      fetusAuthority.checkpoint_hash === fetus.checkpointHash, 'fetus continuity changed');
+      Number(fetusAuthority.epoch) === fetus.authorityEpoch &&
+      fetusAuthority.checkpoint_hash === fetus.checkpointHash &&
+      fetusCheckpoint?.instance_id === fetus.instanceId && fetusCheckpoint.version === fetus.version &&
+      Number(fetusCheckpoint.authority_epoch) === fetus.authorityEpoch &&
+      Number(fetusCheckpoint.generation) === fetus.checkpointGeneration &&
+      fetusCheckpoint.blob_hash === fetus.checkpointHash &&
+      Number(fetusCheckpoint.byte_length) === fetus.checkpointBytes &&
+      checkpointBlobIsExact(databasePath, fetusCheckpoint), 'fetus continuity changed');
+    assert(Number(database.prepare(`SELECT COUNT(*) count FROM biological_deliveries
+      WHERE consumer_id=? AND status='PENDING'`).get(fetus.consumerId).count) === 0,
+    'fetus pending input changed');
     const resolution = database.prepare(`SELECT id,detail_json FROM recovery_records
       WHERE type='biological.consumer-resynchronized' AND core_id='fetus-legacy'
       ORDER BY id DESC LIMIT 1`).get();
@@ -200,9 +220,17 @@ function validate(databasePath) {
       resolutionDetail?.toCursor === fetus.cursor && resolutionDetail?.abandonedCount === 0 &&
       resolutionDetail?.inventedBiologicalTime === false && resolutionDetail?.authorityChanged === false,
     'fetus resolution changed');
-    const latest = database.prepare('SELECT id,type,core_id FROM recovery_records ORDER BY id DESC LIMIT 1').get();
+    const latest = database.prepare(
+      'SELECT id,type,core_id,detail_json FROM recovery_records ORDER BY id DESC LIMIT 1'
+    ).get();
+    let latestDetail;
+    try { latestDetail = JSON.parse(latest?.detail_json || 'null'); } catch { latestDetail = null; }
     assert(Number(latest?.id) === EXPECTED.latestRecoveryRecordId &&
-      latest.type === 'resident.resync-required' && latest.core_id === 'HOMEOS',
+      latest.type === 'resident.recovered' && latest.core_id === 'chronobiology' &&
+      latestDetail?.residencyId === 'resident:chronobiology' &&
+      latestDetail?.instanceId === EXPECTED.residents['resident:chronobiology'].instanceId &&
+      latestDetail?.version === EXPECTED.residents['resident:chronobiology'].version &&
+      latestDetail?.checkpointHash === EXPECTED.residents['resident:chronobiology'].checkpointHash,
     'latest recovery boundary changed');
     const source = metadata(database, 'life:p1-r0-metab-capacity-source');
     assert(source.instanceId === EXPECTED.capacitySource.instanceId &&
@@ -214,7 +242,7 @@ function validate(databasePath) {
       source.pending === null, 'METAB capacity source changed');
     database.exec('COMMIT');
     return Object.freeze({
-      format: 'stay-r147-homeos-continuation-preflight-v1', result: 'PASS',
+      format: 'stay-r147-homeos-post-timeout-continuation-preflight-v2', result: 'PASS',
       runtimeRevision: EXPECTED.runtimeRevision, highWater: EXPECTED.highWater,
       pendingDeliveries: 6, homeosReplayEvents: 492, sntssReplayEvents: 261,
       authorityOwned: false, pendingOutboxIntents: 0, benchmarkStarted: false
