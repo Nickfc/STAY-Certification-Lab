@@ -57,7 +57,7 @@ e17b81c8befdf50c7eba645872ef4654b7b0b036cf0302ca718df025da803fd9  ./runtime/p1-r
 fabdaebd1d0bc918c9346c03bd5d9b4312af1780f53311b5ce45e41d4ec6e2dc  ./runtime/p1-r0/residents/intero-shadow.js
 55ce62c147e1fc8aecbd0fdee285521aef87016f41fa24f5eb9b313e5ffdea03  ./runtime/p1-r0/residents/metab-homeos.js
 c5436c0b05c91602176508d2666318faec61ef4965e76bcb438ee03b02e158e2  ./runtime/p1-r0/residents/metab-intero.js
-52e5eb7441239db462674b475f9a3c8c80748a0c70e4f66cb19501699fbbb9d1  ./runtime/release/surgery-a-control.js
+89050020afad274367ed3c9449c4abe3ecc93e4827185a79845d505f054000df  ./runtime/release/surgery-a-control.js
 08ec328c40fa64be296e862d98e9dbcefed4913b49a598a479cc81e5589acf83  ./scripts/build-p1-r0-resident-packages.js
 ae261d6a738ad5f30fcb04299a1db20045d95a4ffea528e8213a04dc8fd0325d  ./server.js
 27709f995c83ad7441bc15f19a10f3030b074f917d6387dc0f93fb28e044dd92  ./test/biological-ledger.test.js
@@ -77,6 +77,6 @@ a0437ed81a84a1892c1ab6e963a7139239c48139487989253764b1b491693578  ./test/p1-r146
 1e922973b8a120b2cc89b2be924fe5d8c4a77e4b776dede63875caf07c590f3e  ./test/p1-r147-continuation-recovery.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
 2f1e29b9d606c651227d5bdd12292d15205ebafc22e7525ddbb7dbf83bd84745  ./test/p1-r150-production-gates.test.js
-e173ef5d0583d448adf742170153b9de0ac30ccbad6219861516fc235e619c23  ./test/p1-surgery-a-transplant.test.js
+f518342acd116e388f64ae5b631f632545e69bf1555ec84e30d4dee3286bbab6  ./test/p1-surgery-a-transplant.test.js
 b1e401c43d4a2b6cee8e3c67a1dd1a3b10bfb9e376926d361ac1a99da64b3cb1  ./test/production-hardening.test.js
 32d6f4ab1a9b6f162d757c673938f4c6b1464187667811cb5b440ee894053212  ./tools/sign-p1-r0-expansion-birth.js

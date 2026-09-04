@@ -41,7 +41,7 @@ test('P1-A-01 transplant identities and certified shared anchors are exact', () 
   assert.equal(surgery.IDENTITIES.anchors.stateStore,
     '28dde80f852294e243ed7a70689a0626062f7f3efa6536d3682e770b4bb521a1');
   assert.equal(result.files.stateStore.sha256,
-    'c9112baf6743b02d59a66dd0168467ec9af68ca425a339d4b6519d6d4828e5e0');
+    'c4356f3f212eadc2fec4fdbd2ea72fa63413e97199a0180b98c186f62f07fe73');
   assert.equal(result.files.stateStore.certifiedAnchorSha256,
     surgery.IDENTITIES.anchors.stateStore);
   assert.equal(result.files.stateStore.successorRevision, 147);
