@@ -147,3 +147,38 @@ test('G0-06: altered durable envelope fails integrity verification before replay
   store.db.prepare('UPDATE biological_events SET envelope_json=? WHERE sequence=?').run('{"corrupt":true}', event.sequence);
   assert.throws(() => store.listPendingBiologicalEvents('core:a'), error => error.code === 'BIOLOGICAL_EVENT_CORRUPT');
 });
+
+test('G0-07: unclaimed pruning preserves pending deliveries for inactive optional consumers', async t => {
+  const dataDir = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'stay-g0-unclaimed-'));
+  const store = new StateStore(dataDir);
+  await store.init();
+  t.after(async () => { store.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  store.registerBiologicalConsumer({
+    consumerId: 'resident:optional',
+    coreId: 'optional',
+    topics: ['bio.optional'],
+    required: false
+  });
+  const events = [1, 2, 3].map(value => store.appendBiologicalEvent({
+    topic: 'bio.optional',
+    payload: { value },
+    meta: { deduplicationKey: `g0-07-${value}` },
+    eventClass: 'durable',
+    at: 2000 + value,
+    minimum: value - 1
+  }).event);
+  store.acknowledgeBiologicalEvent({
+    consumerId: 'resident:optional',
+    sequence: events[0].sequence
+  });
+  store.deactivateBiologicalConsumer('resident:optional');
+
+  const pruned = store.pruneUnclaimedBiologicalEvents({ retainCount: 1 });
+  assert.equal(pruned.removed, 1);
+  assert.deepEqual(
+    store.listPendingBiologicalEvents('resident:optional').map(event => event.sequence),
+    [events[1].sequence, events[2].sequence]
+  );
+  assert.ok(store.db.prepare('SELECT 1 FROM biological_events WHERE sequence=?')
+    .get(events[1].sequence));
+});

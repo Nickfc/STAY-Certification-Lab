@@ -1254,6 +1254,53 @@ test('R146-HOMEOS-RECOVERY-11 repairs only the exact route-boundary checkpoint',
   assert.deepEqual(repaired.state.neutralState.pendingAvailability, {});
   assert.deepEqual(repaired.state.neutralState.pendingReserve, {});
 
+  const prunedPair = [
+    {
+      topic: neutralHomeos.AVAILABILITY_TOPIC,
+      payload: retainedFrame(
+        frames.find(value => value.topic.name === neutralHomeos.AVAILABILITY_TOPIC),
+        shadowHomeos.R146_ROUTE_BOUNDARY.lastRetainedSourceFrame + 1,
+        39
+      )
+    },
+    {
+      topic: neutralHomeos.RESERVE_TOPIC,
+      payload: retainedFrame(
+        frames.find(value => value.topic.name === neutralHomeos.RESERVE_TOPIC),
+        shadowHomeos.R146_ROUTE_BOUNDARY.lastRetainedSourceFrame + 1,
+        40
+      )
+    }
+  ];
+  const recoveredPruned = shadowHomeos.applyExactR146PrunedOutboxPair(
+    repaired.state,
+    prunedPair
+  );
+  assert.equal(recoveredPruned.state.neutralState.engineState.frameIndex, 98025);
+  assert.equal(recoveredPruned.state.neutralState.engineState.outputSequence, '0');
+  assert.equal(
+    recoveredPruned.state.neutralState.handledEvents,
+    repaired.state.neutralState.handledEvents + 2
+  );
+  assert.deepEqual(recoveredPruned.evidence, {
+    cohort: 'r146-homeos-pruned-delivery-recovery-v1',
+    sourceFrame: 98024,
+    producerSequences: ['39', '40'],
+    handledEventsAdded: 2,
+    physiologyApplied: 1,
+    biologicalOutputs: 0,
+    abandonedCount: 0,
+    inventedBiologicalTime: false,
+    authorityChanged: false
+  });
+
+  const driftedPair = clone(prunedPair);
+  driftedPair[1].payload.producerSequence = '41';
+  assert.throws(
+    () => shadowHomeos.applyExactR146PrunedOutboxPair(repaired.state, driftedPair),
+    { code: 'P1_HOMEOS_R146_PRUNED_PAIR' }
+  );
+
   const drifted = clone(exactState);
   drifted.neutralState.pendingReserve['98023'].producerSequence = '999';
   await assert.rejects(
@@ -1363,6 +1410,42 @@ test('R146-HOMEOS-RECOVERY-12 begins only the exact two-delivery replay atomical
   );
   assert.equal(stateStore.db.prepare(`SELECT COUNT(*) count FROM biological_deliveries
     WHERE consumer_id='resident:homeos' AND status='ACKED'`).get().count, 0);
+
+  stateStore.db.prepare(`UPDATE resident_instances SET status='RESYNC_REQUIRED'
+    WHERE residency_id='resident:homeos'`).run();
+  stateStore.db.prepare(`UPDATE resident_checkpoints SET input_cursor=?
+    WHERE residency_id='resident:homeos' AND generation=?`).run(
+    4241118, expected.finalHomeosCheckpointGeneration);
+  stateStore.db.prepare(`UPDATE biological_consumers SET cursor=?
+    WHERE consumer_id='resident:homeos'`).run(4241118);
+  stateStore.db.prepare('DELETE FROM biological_events WHERE sequence IN (?,?)').run(
+    ...pending.map(value => value[0]));
+  stateStore.db.prepare(`INSERT INTO recovery_records(
+    type,core_id,detail_json,created_at
+  ) VALUES('resident.implementation-repaired','HOMEOS',?,?)`).run(
+    JSON.stringify({
+      repairId: expected.finalHomeosRepairId,
+      deliveryMode: 'pruned',
+      repairedCheckpointHash: expected.finalHomeosCheckpointHash,
+      pendingDeliveriesPreserved: 0,
+      prunedDeliveriesRecovered: 2,
+      sourceIntentSha256: [
+        '3e2897f3a6dfc26d5ea0faea147d8dbd552cad7a10b9028cae5dc6f78e866e21',
+        'e004c64e4fa571ab00e0858dc4e1299ee4b7207f5b24555cf4be778509cad6bc'
+      ],
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    }),
+    at
+  );
+  assert.throws(() => stateStore.beginExactR146HomeosBacklogReplay({
+    residencyId: 'resident:homeos',
+    coreId: 'HOMEOS',
+    checkpointHash: expected.finalHomeosCheckpointHash,
+    runtimeRevision: 146
+  }), { code: 'P1_HOMEOS_R146_REPLAY_STATE' });
+  assert.equal(stateStore.getResident('resident:homeos').status, 'RESYNC_REQUIRED');
 });
 
 test('R146-HOMEOS-RECOVERY-13 fences unresolved and sealed fetus continuity exactly', () => {

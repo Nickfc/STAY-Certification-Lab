@@ -261,8 +261,9 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     entries.set(match[2], match[1]);
   }
   assert.deepEqual([...entries.keys()], [...entries.keys()].toSorted());
-  assert.equal(entries.size, 77);
+  assert.equal(entries.size, 79);
   for (const required of [
+    'runtime/kernel/hardened-living-kernel.js',
     'runtime/kernel/living-kernel.js', 'runtime/kernel/resident-manager.js',
     'runtime/kernel/state-store.js', 'runtime/p1-r0/production-persistence.js',
     'runtime/p1-r0/deterministic-noise.js',
@@ -274,7 +275,7 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh',
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js',
     'deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js',
-    'test/p1-r145-homeos-shadow.test.js',
+    'test/biological-ledger.test.js', 'test/p1-r145-homeos-shadow.test.js',
     'test/p1-r146-metab-q48-implementation-repair.test.js',
     'test/p1-r150-production-gates.test.js'
   ]) assert.equal(entries.has(required), true, required);

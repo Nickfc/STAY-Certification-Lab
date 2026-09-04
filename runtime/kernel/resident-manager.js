@@ -4713,7 +4713,7 @@ class ResidentManager {
               ? 2
               : 1023,
         preserveConsumerOnFailure:
-          containedChronobiologyBacklog
+          containedChronobiologyBacklog || containedR146HomeosBacklog
       });
 
     this.stateStore

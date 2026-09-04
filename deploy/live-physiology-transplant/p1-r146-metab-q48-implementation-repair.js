@@ -69,10 +69,10 @@ const FINAL_HOMEOS = Object.freeze({
   stateSchema: 2,
   moduleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
   sourceModuleHash: 'sha256:851f3b9dd7351f056011cc183fbda99fd310c05b102d1ec3f28687947160dac8',
-  targetModuleHash: 'sha256:c27ae45c464b11c4c772260ad3c8517854b80dd08846ea7e602e7e2338b0a700',
+  targetModuleHash: 'sha256:28ce93b507a070fef823e40cce3e7368928466077fed943c98a1a88b5a84299a',
   manifestHash: 'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
   sourcePackagePolicyHash: 'sha256:5f250142eafc5ad5d13463c5752ee3e8f205b5a2e609bfe6c7c59ab151316636',
-  targetPackagePolicyHash: 'sha256:9ad9344c9c386eed8e9a1b61334fc96074bb5c69a2b34c136343228143bb05c9',
+  targetPackagePolicyHash: 'sha256:1afd6096fed7727491847e702d2506aa9492f8ad7d1424300b99ca3645d8b161',
   sourceCheckpointId: '0078dfa1-607d-4452-80ea-c310f29feeb0',
   sourceCheckpointGeneration: 41,
   sourceCheckpointHash: 'ed9143e79dcfee9025926c07bf48a6ab9a5bd70a0646ca16458cb789662423fd',
@@ -94,6 +94,41 @@ const FINAL_HOMEOS = Object.freeze({
     'core-output:dd4f1feb2e23462bc77206e91d066aa9e88d41ba145228599d7e64ef0a0ed8dd',
     'core-output:63fadd3d778d1132eed2ec1ff533a69825b2fd2524ec16d2b35d81d01e8aeef9'
   ]),
+  prunedConsumerCursor: 4241118,
+  publishedIntents: Object.freeze([
+    Object.freeze({
+      producerEventId: 'dd4f1feb2e23462bc77206e91d066aa9e88d41ba145228599d7e64ef0a0ed8dd',
+      streamSequence: 39,
+      outputIndex: 1,
+      topic: 'metab.energy.availability.v1',
+      proposalSha256: '5c2f1d583b2b55cf17104e83ed4f52c019cf5c9f8ee84a798bb1e739b6e182b7',
+      intentSha256: '3e2897f3a6dfc26d5ea0faea147d8dbd552cad7a10b9028cae5dc6f78e866e21',
+      fabricSequence: 4241117,
+      fabricEventId: 'evt-2iwgt-5dfa074d002fd9eb'
+    }),
+    Object.freeze({
+      producerEventId: '63fadd3d778d1132eed2ec1ff533a69825b2fd2524ec16d2b35d81d01e8aeef9',
+      streamSequence: 40,
+      outputIndex: 2,
+      topic: 'metab.energy.reserve.v1',
+      proposalSha256: '377e77b8c5c579e36f902ed7232138f6ec696e40aff74bfc312a33fb2b95b776',
+      intentSha256: 'e004c64e4fa571ab00e0858dc4e1299ee4b7207f5b24555cf4be778509cad6bc',
+      fabricSequence: 4241118,
+      fabricEventId: 'evt-2iwgu-554aaf44c4edc5a1'
+    })
+  ]),
+  publishedIntentCommon: Object.freeze({
+    producerCoreId: 'METAB',
+    producerInstanceId: 'd424c722-ef31-44b0-8201-ba68c418d14a',
+    producerVersion: '0.3.0-p1r0-homeos-feed.1',
+    authorityEpoch: 1,
+    producerStreamId: 'core:METAB:outputs',
+    transitionId: 'sha256:add174f19c585bfdc3e96158458dd63445f2b89d3944af6762fbccca107580d2',
+    causeSequence: 4241116,
+    checkpointId: 'cc2b2a0d-919b-4944-a37d-b23ef9b9fdcb',
+    checkpointHash: '45dd76aa69ef778e0672c588781dbf2d754b77ecbe680c4f61a1c59a0ddc81cb',
+    checkpointGeneration: 196076
+  }),
   fetus: Object.freeze({
     consumerId: 'core:fetus-legacy',
     instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f',
@@ -125,6 +160,83 @@ function metadataRevision(db) {
   return Number(JSON.parse(row.json).revision);
 }
 function scalar(db, sql, ...args) { return Number(db.prepare(sql).get(...args)?.value || 0); }
+
+function verifiedOutboxIntent(row, expected = null) {
+  assert(row && typeof row.intent_json === 'string' &&
+    sha256(row.intent_json) === row.intent_sha256,
+  'biological outbox intent integrity changed', 'R146_HOMEOS_ROUTE_OUTBOX');
+  let intent = null;
+  try { intent = JSON.parse(row.intent_json); } catch {}
+  assert(intent?.format === 'stay-biological-outbox-intent-v1' &&
+    intent.producer_event_id === row.producer_event_id &&
+    intent.producer_core_id === row.producer_core_id &&
+    intent.producer_instance_id === row.producer_instance_id &&
+    intent.producer_version === row.producer_version &&
+    Number(intent.authority_epoch) === Number(row.authority_epoch) &&
+    intent.producer_stream_id === row.producer_stream_id &&
+    Number(intent.stream_sequence) === Number(row.stream_sequence) &&
+    intent.transition_id === row.transition_id &&
+    Number(intent.cause_sequence) === Number(row.cause_sequence) &&
+    Number(intent.output_index) === Number(row.output_index) &&
+    intent.topic === row.topic &&
+    intent.checkpoint?.id === row.checkpoint_id &&
+    intent.checkpoint?.hash === row.checkpoint_hash &&
+    Number(intent.checkpoint?.generation) === Number(row.checkpoint_generation),
+  'biological outbox row disagrees with its immutable intent', 'R146_HOMEOS_ROUTE_OUTBOX');
+  if (expected) {
+    const common = FINAL_HOMEOS.publishedIntentCommon;
+    assert(row.producer_event_id === expected.producerEventId &&
+      row.producer_core_id === common.producerCoreId &&
+      row.producer_instance_id === common.producerInstanceId &&
+      row.producer_version === common.producerVersion &&
+      Number(row.authority_epoch) === common.authorityEpoch &&
+      row.producer_stream_id === common.producerStreamId &&
+      Number(row.stream_sequence) === expected.streamSequence &&
+      row.transition_id === common.transitionId &&
+      Number(row.cause_sequence) === common.causeSequence &&
+      Number(row.output_index) === expected.outputIndex &&
+      row.topic === expected.topic &&
+      row.proposal_sha256 === expected.proposalSha256 &&
+      row.intent_sha256 === expected.intentSha256 &&
+      row.checkpoint_id === common.checkpointId &&
+      row.checkpoint_hash === common.checkpointHash &&
+      Number(row.checkpoint_generation) === common.checkpointGeneration &&
+      row.status === 'PUBLISHED' &&
+      Number(row.fabric_sequence) === expected.fabricSequence &&
+      row.fabric_event_id === expected.fabricEventId,
+    'exact R146 published HOMEOS source intent changed', 'R146_HOMEOS_ROUTE_OUTBOX');
+  }
+  return intent;
+}
+
+function assertMovingMetabOutboxContained(db) {
+  const rows = db.prepare(`SELECT * FROM biological_outbox_intents
+    WHERE producer_core_id IN ('METAB','HOMEOS') AND status='PENDING'
+    ORDER BY producer_core_id,stream_sequence`).all();
+  if (rows.length === 0) return 0;
+  assert(rows.length === 2 && rows.every(row => row.producer_core_id === 'METAB'),
+    'pending P1 output is not one bounded METAB pair', 'R146_HOMEOS_ROUTE_CONTAINMENT');
+  const intents = rows.map(row => verifiedOutboxIntent(row));
+  assert(rows[0].producer_instance_id === BASELINE.instanceId &&
+    rows[0].producer_version === PARTIAL_ROUTE.metabVersion &&
+    Number(rows[0].authority_epoch) === 1 &&
+    rows[0].producer_stream_id === 'core:METAB:outputs' &&
+    rows[1].producer_instance_id === rows[0].producer_instance_id &&
+    rows[1].producer_version === rows[0].producer_version &&
+    Number(rows[1].authority_epoch) === Number(rows[0].authority_epoch) &&
+    rows[1].producer_stream_id === rows[0].producer_stream_id &&
+    Number(rows[1].stream_sequence) === Number(rows[0].stream_sequence) + 1 &&
+    rows[0].transition_id === rows[1].transition_id &&
+    Number(rows[0].cause_sequence) === Number(rows[1].cause_sequence) &&
+    rows[0].checkpoint_id === rows[1].checkpoint_id &&
+    rows[0].checkpoint_hash === rows[1].checkpoint_hash &&
+    Number(rows[0].checkpoint_generation) === Number(rows[1].checkpoint_generation) &&
+    rows[0].topic === FINAL_HOMEOS.pendingTopics[0] && Number(rows[0].output_index) === 1 &&
+    rows[1].topic === FINAL_HOMEOS.pendingTopics[1] && Number(rows[1].output_index) === 2 &&
+    intents[0]?.payload?.committedFrame === intents[1]?.payload?.committedFrame,
+  'pending METAB output pair lost its containment fence', 'R146_HOMEOS_ROUTE_CONTAINMENT');
+  return rows.length;
+}
 function readBlob(databasePath, checkpoint) {
   const file = path.join(path.dirname(databasePath), 'blobs', 'sha256',
     checkpoint.blob_hash.slice(0, 2), checkpoint.blob_hash);
@@ -378,6 +490,17 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
     FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
     WHERE d.consumer_id=? AND d.status='PENDING' ORDER BY d.sequence`)
     .all(FINAL_HOMEOS.residencyId);
+  const publishedRows = db.prepare(`SELECT * FROM biological_outbox_intents
+    WHERE producer_event_id IN (?,?) ORDER BY fabric_sequence`).all(
+    ...FINAL_HOMEOS.publishedIntents.map(value => value.producerEventId));
+  assert(publishedRows.length === FINAL_HOMEOS.publishedIntents.length,
+    'exact R146 published HOMEOS source intents are absent', 'R146_HOMEOS_ROUTE_OUTBOX');
+  const publishedPair = publishedRows.map((row, index) => ({
+    topic: row.topic,
+    payload: verifiedOutboxIntent(row, FINAL_HOMEOS.publishedIntents[index]).payload
+  }));
+  const retainedEvents = scalar(db, `SELECT COUNT(*) value FROM biological_events
+    WHERE sequence IN (?,?)`, ...FINAL_HOMEOS.pendingSequences);
   const capacity = db.prepare('SELECT json,sha256 FROM metadata WHERE key=?')
     .get(BASELINE.capacityMetadataKey);
   const fetusConsumer = db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
@@ -398,6 +521,15 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
   try { fetusDemotionDetail = JSON.parse(fetusDemotion?.detail_json || 'null'); } catch {}
   try { fetusResolutionDetail = JSON.parse(fetusResolution?.detail_json || 'null'); } catch {}
   try { source = JSON.parse(capacity?.json || 'null'); } catch {}
+  const deliveryMode = repaired && repairDetail?.deliveryMode
+    ? repairDetail.deliveryMode
+    : pending.length === FINAL_HOMEOS.pendingSequences.length
+      ? 'retained'
+      : pending.length === 0 && retainedEvents === 0
+        ? 'pruned'
+        : null;
+  assert(['retained', 'pruned'].includes(deliveryMode),
+    'HOMEOS retained-delivery state is neither exact nor recoverable', 'R146_HOMEOS_ROUTE_PENDING');
   const expectedModuleHash = repaired
     ? FINAL_HOMEOS.targetModuleHash : FINAL_HOMEOS.sourceModuleHash;
   const expectedPolicyHash = repaired
@@ -434,15 +566,22 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
     Number(sourceCheckpoint?.input_cursor) === FINAL_HOMEOS.sourceInputCursor,
   'HOMEOS source checkpoint changed', 'R146_HOMEOS_ROUTE_CHECKPOINT');
   if (repaired) {
+    const expectedRepairedHash = deliveryMode === 'retained'
+      ? FINAL_HOMEOS.repairedCheckpointHash : repairDetail?.repairedCheckpointHash;
+    const expectedRepairedBytes = deliveryMode === 'retained'
+      ? FINAL_HOMEOS.repairedCheckpointBytes : Number(repairDetail?.repairedCheckpointBytes);
+    const expectedInputCursor = deliveryMode === 'retained'
+      ? FINAL_HOMEOS.sourceInputCursor : FINAL_HOMEOS.prunedConsumerCursor;
     assert(repairedCheckpoint?.checkpoint_id === FINAL_HOMEOS.repairedCheckpointId &&
       repairedCheckpoint?.instance_id === FINAL_HOMEOS.instanceId &&
       repairedCheckpoint?.version === FINAL_HOMEOS.version &&
       Number(repairedCheckpoint?.state_schema) === FINAL_HOMEOS.stateSchema &&
       Number(repairedCheckpoint?.generation) === FINAL_HOMEOS.repairedCheckpointGeneration &&
-      repairedCheckpoint?.blob_hash === FINAL_HOMEOS.repairedCheckpointHash &&
-      Number(repairedCheckpoint?.byte_length) === FINAL_HOMEOS.repairedCheckpointBytes &&
-      Number(repairedCheckpoint?.input_cursor) === FINAL_HOMEOS.sourceInputCursor &&
+      repairedCheckpoint?.blob_hash === expectedRepairedHash &&
+      Number(repairedCheckpoint?.byte_length) === expectedRepairedBytes &&
+      Number(repairedCheckpoint?.input_cursor) === expectedInputCursor &&
       repairDetail?.repairId === FINAL_HOMEOS.repairId &&
+      repairDetail?.deliveryMode === deliveryMode &&
       repairDetail?.sourceCheckpointHash === FINAL_HOMEOS.sourceCheckpointHash &&
       repairDetail?.repairedCheckpointHash === repairedCheckpoint.blob_hash &&
       repairDetail?.abandonedCount === 0 &&
@@ -450,15 +589,19 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
       repairDetail?.authorityChanged === false,
     'HOMEOS repaired checkpoint evidence changed', 'R146_HOMEOS_ROUTE_CHECKPOINT');
   }
+  const expectedConsumerCursor = repaired && deliveryMode === 'pruned'
+    ? FINAL_HOMEOS.prunedConsumerCursor : FINAL_HOMEOS.consumerCursor;
   assert(consumer?.core_id === FINAL_HOMEOS.coreId && Number(consumer?.required) === 0 &&
-    Number(consumer?.active) === 0 && Number(consumer?.cursor) === FINAL_HOMEOS.consumerCursor &&
+    Number(consumer?.active) === 0 && Number(consumer?.cursor) === expectedConsumerCursor &&
     Number(consumer?.authority_epoch) === 0 && consumer?.topics_sha256 === FINAL_HOMEOS.consumerTopicsHash &&
     consumer?.checkpoint_hash === checkpoint?.blob_hash,
   'HOMEOS consumer is not contained', 'R146_HOMEOS_ROUTE_CONSUMER');
-  assert(pending.length === 2 && pending.every((row, index) =>
-    Number(row.sequence) === FINAL_HOMEOS.pendingSequences[index] && row.status === 'PENDING' &&
-    row.topic === FINAL_HOMEOS.pendingTopics[index] &&
-    row.deduplication_key === FINAL_HOMEOS.pendingDeduplicationKeys[index]),
+  assert((deliveryMode === 'retained' && retainedEvents === 2 &&
+    pending.length === 2 && pending.every((row, index) =>
+      Number(row.sequence) === FINAL_HOMEOS.pendingSequences[index] && row.status === 'PENDING' &&
+      row.topic === FINAL_HOMEOS.pendingTopics[index] &&
+      row.deduplication_key === FINAL_HOMEOS.pendingDeduplicationKeys[index])) ||
+    (deliveryMode === 'pruned' && retainedEvents === 0 && pending.length === 0),
   'HOMEOS retained delivery pair changed', 'R146_HOMEOS_ROUTE_PENDING');
   assert(Number(failure?.id) === FINAL_HOMEOS.failureRecordId &&
     failureDetail?.residencyId === FINAL_HOMEOS.residencyId &&
@@ -466,9 +609,8 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
     failureDetail?.topic === FINAL_HOMEOS.pendingTopics[0] &&
     failureDetail?.code === 'P1_RESIDENT_PENDING_BOUND',
   'HOMEOS route-boundary failure identity changed', 'R146_HOMEOS_ROUTE_FAILURE');
+  const movingMetabOutbox = assertMovingMetabOutboxContained(db);
   assert(capacity && sha256(capacity.json) === capacity.sha256 && source?.pending === null &&
-    scalar(db, `SELECT COUNT(*) value FROM biological_outbox_intents
-      WHERE producer_core_id IN ('METAB','HOMEOS') AND status='PENDING'`) === 0 &&
     scalar(db, `SELECT COUNT(*) value FROM authority
       WHERE core_id IN ('METAB','HOMEOS','INTERO')`) === 0,
   'final R146 source or authority containment changed', 'R146_HOMEOS_ROUTE_CONTAINMENT');
@@ -527,7 +669,8 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
   const state = JSON.parse(readBlob(databasePath, checkpoint));
   if (repaired) {
     definition.validateState(state);
-    assert(state.neutralState?.engineState?.frameIndex === 98024 &&
+    assert(state.neutralState?.engineState?.frameIndex ===
+        (deliveryMode === 'retained' ? 98024 : 98025) &&
       state.neutralState?.engineState?.outputSequence === '0' &&
       Object.keys(state.neutralState?.pendingAvailability || {}).length === 0 &&
       Object.keys(state.neutralState?.pendingReserve || {}).length === 0,
@@ -535,7 +678,8 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
   } else {
     definition.repairExactR146RouteBoundaryState(state);
   }
-  return { metab, homeos, checkpoint, sourceCheckpoint, repairedCheckpoint, consumer, state, definition };
+  return { metab, homeos, checkpoint, sourceCheckpoint, repairedCheckpoint, consumer, state,
+    definition, deliveryMode, publishedPair, movingMetabOutbox };
 }
 
 function repairIncompleteCheckpointState(state, definition, baseline = BASELINE) {
@@ -581,7 +725,10 @@ function prepareFinalHomeosRepair(databasePath, releaseRoot) {
   db.exec('PRAGMA query_only=ON');
   try {
     const current = assertFinalHomeosCohort(db, databasePath, releaseRoot);
-    const repaired = current.definition.repairExactR146RouteBoundaryState(current.state);
+    const boundary = current.definition.repairExactR146RouteBoundaryState(current.state);
+    const repaired = current.deliveryMode === 'pruned'
+      ? current.definition.applyExactR146PrunedOutboxPair(boundary.state, current.publishedPair)
+      : boundary;
     return { current, repaired };
   } finally { db.close(); }
 }
@@ -599,18 +746,31 @@ function preflightRepair({ databasePath, releaseRoot }) {
       const repaired = homeos.module_hash === FINAL_HOMEOS.targetModuleHash;
       const current = assertFinalHomeosCohort(
         probe, databasePath, releaseRoot, { repaired });
-      const projected = repaired
+      const boundary = repaired
         ? null : current.definition.repairExactR146RouteBoundaryState(current.state);
+      const projected = repaired
+        ? null
+        : current.deliveryMode === 'pruned'
+          ? current.definition.applyExactR146PrunedOutboxPair(boundary.state, current.publishedPair)
+          : boundary;
       return Object.freeze({
-        result: repaired ? 'FINAL_HOMEOS_ALREADY_REPAIRED' : 'FINAL_HOMEOS_RECOVERY_READY',
+        result: repaired ? 'FINAL_HOMEOS_ALREADY_REPAIRED' :
+          current.deliveryMode === 'pruned'
+            ? 'FINAL_HOMEOS_PRUNED_RECOVERY_READY'
+            : 'FINAL_HOMEOS_RECOVERY_READY',
         repairId: FINAL_HOMEOS.repairId,
         sourceCheckpointHash: FINAL_HOMEOS.sourceCheckpointHash,
         repairedCheckpointHash: repaired
           ? current.repairedCheckpoint.blob_hash
           : sha256(Buffer.from(JSON.stringify(projected.state))),
-        pendingDeliveries: FINAL_HOMEOS.pendingSequences.length,
+        deliveryMode: current.deliveryMode,
+        pendingDeliveries: current.deliveryMode === 'retained'
+          ? FINAL_HOMEOS.pendingSequences.length : 0,
         retainedPairCount: repaired
-          ? 16 : projected.evidence.retainedPairCount,
+          ? 16
+          : current.deliveryMode === 'retained'
+            ? projected.evidence.retainedPairCount
+            : 16,
         abandonedCount: 0,
         inventedBiologicalTime: false,
         authorityOwned: false,
@@ -645,9 +805,14 @@ function preflightRepair({ databasePath, releaseRoot }) {
 function applyFinalHomeosRepair({ databasePath, releaseRoot, now = () => new Date().toISOString() }) {
   const prepared = prepareFinalHomeosRepair(databasePath, releaseRoot);
   const blob = ensureBlob(databasePath, prepared.repaired.state);
-  assert(blob.hash === FINAL_HOMEOS.repairedCheckpointHash &&
-    blob.bytes === FINAL_HOMEOS.repairedCheckpointBytes,
+  assert(prepared.current.deliveryMode === 'pruned' ||
+    (blob.hash === FINAL_HOMEOS.repairedCheckpointHash &&
+    blob.bytes === FINAL_HOMEOS.repairedCheckpointBytes),
   'HOMEOS repaired checkpoint projection changed', 'R146_HOMEOS_ROUTE_CHECKPOINT');
+  const repairedInputCursor = prepared.current.deliveryMode === 'pruned'
+    ? FINAL_HOMEOS.prunedConsumerCursor : FINAL_HOMEOS.sourceInputCursor;
+  const repairedConsumerCursor = prepared.current.deliveryMode === 'pruned'
+    ? FINAL_HOMEOS.prunedConsumerCursor : FINAL_HOMEOS.consumerCursor;
   const at = now();
   const db = new DatabaseSync(databasePath);
   db.exec('PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA busy_timeout=0; BEGIN EXCLUSIVE');
@@ -657,7 +822,7 @@ function applyFinalHomeosRepair({ databasePath, releaseRoot, now = () => new Dat
       generation,blob_hash,byte_length,input_cursor,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
       FINAL_HOMEOS.repairedCheckpointId, FINAL_HOMEOS.residencyId, FINAL_HOMEOS.instanceId,
       FINAL_HOMEOS.version, FINAL_HOMEOS.stateSchema, FINAL_HOMEOS.repairedCheckpointGeneration,
-      blob.hash, blob.bytes, FINAL_HOMEOS.sourceInputCursor, at);
+      blob.hash, blob.bytes, repairedInputCursor, at);
     const residentChanged = db.prepare(`UPDATE resident_instances SET module_hash=?,package_policy_hash=?,
       checkpoint_generation=?,checkpoint_hash=?,updated_at=? WHERE residency_id=? AND instance_id=? AND
       version=? AND state_schema=? AND module_relative_path=? AND module_hash=? AND manifest_hash=? AND
@@ -670,10 +835,11 @@ function applyFinalHomeosRepair({ databasePath, releaseRoot, now = () => new Dat
         FINAL_HOMEOS.sourceCheckpointHash);
     assert(residentChanged.changes === 1,
       'HOMEOS implementation repair lost its resident fence', 'R146_HOMEOS_ROUTE_ATOMIC');
-    const consumerChanged = db.prepare(`UPDATE biological_consumers SET checkpoint_hash=?,updated_at=?
+    const consumerChanged = db.prepare(`UPDATE biological_consumers SET cursor=?,checkpoint_hash=?,updated_at=?
       WHERE consumer_id=? AND core_id=? AND active=0 AND required=0 AND cursor=? AND authority_epoch=0 AND
-      topics_sha256=? AND checkpoint_hash=?`).run(blob.hash, at, FINAL_HOMEOS.residencyId,
-        FINAL_HOMEOS.coreId, FINAL_HOMEOS.consumerCursor, FINAL_HOMEOS.consumerTopicsHash,
+      topics_sha256=? AND checkpoint_hash=?`).run(repairedConsumerCursor, blob.hash, at,
+        FINAL_HOMEOS.residencyId, FINAL_HOMEOS.coreId, FINAL_HOMEOS.consumerCursor,
+        FINAL_HOMEOS.consumerTopicsHash,
         FINAL_HOMEOS.sourceCheckpointHash);
     assert(consumerChanged.changes === 1,
       'HOMEOS implementation repair lost its consumer fence', 'R146_HOMEOS_ROUTE_ATOMIC');
@@ -690,9 +856,15 @@ function applyFinalHomeosRepair({ databasePath, releaseRoot, now = () => new Dat
         repairedCheckpointHash: blob.hash,
         fromCheckpointGeneration: FINAL_HOMEOS.sourceCheckpointGeneration,
         toCheckpointGeneration: FINAL_HOMEOS.repairedCheckpointGeneration,
+        repairedCheckpointBytes: blob.bytes,
+        deliveryMode: prepared.current.deliveryMode,
         pendingSequences: [...FINAL_HOMEOS.pendingSequences],
         ...prepared.repaired.evidence,
-        pendingDeliveriesPreserved: FINAL_HOMEOS.pendingSequences.length,
+        sourceIntentSha256: FINAL_HOMEOS.publishedIntents.map(value => value.intentSha256),
+        pendingDeliveriesPreserved: prepared.current.deliveryMode === 'retained'
+          ? FINAL_HOMEOS.pendingSequences.length : 0,
+        prunedDeliveriesRecovered: prepared.current.deliveryMode === 'pruned'
+          ? FINAL_HOMEOS.pendingSequences.length : 0,
         resourceLimitsChanged: false,
         runtimeRevision: BASELINE.runtimeRevision
       }), at);
@@ -702,8 +874,13 @@ function applyFinalHomeosRepair({ databasePath, releaseRoot, now = () => new Dat
       result: 'FINAL_HOMEOS_REPAIRED',
       repairId: FINAL_HOMEOS.repairId,
       repairedCheckpointHash: blob.hash,
-      retainedPairCount: prepared.repaired.evidence.retainedPairCount,
-      pendingDeliveriesPreserved: FINAL_HOMEOS.pendingSequences.length,
+      deliveryMode: prepared.current.deliveryMode,
+      retainedPairCount: prepared.current.deliveryMode === 'retained'
+        ? prepared.repaired.evidence.retainedPairCount : 16,
+      pendingDeliveriesPreserved: prepared.current.deliveryMode === 'retained'
+        ? FINAL_HOMEOS.pendingSequences.length : 0,
+      prunedDeliveriesRecovered: prepared.current.deliveryMode === 'pruned'
+        ? FINAL_HOMEOS.pendingSequences.length : 0,
       abandonedCount: 0,
       inventedBiologicalTime: false,
       authorityChanged: false
@@ -826,16 +1003,20 @@ function rollbackFinalHomeosRepair({ databasePath, releaseRoot, now = () => new 
       FINAL_HOMEOS.targetModuleHash, FINAL_HOMEOS.targetPackagePolicyHash,
       FINAL_HOMEOS.repairedCheckpointGeneration, current.repairedCheckpoint.blob_hash).changes === 1,
     'HOMEOS rollback lost its resident fence', 'R146_HOMEOS_ROUTE_ROLLBACK');
-    assert(db.prepare(`UPDATE biological_consumers SET checkpoint_hash=?,updated_at=?
+    const repairedConsumerCursor = current.deliveryMode === 'pruned'
+      ? FINAL_HOMEOS.prunedConsumerCursor : FINAL_HOMEOS.consumerCursor;
+    assert(db.prepare(`UPDATE biological_consumers SET cursor=?,checkpoint_hash=?,updated_at=?
       WHERE consumer_id=? AND active=0 AND required=0 AND cursor=? AND authority_epoch=0 AND
-      checkpoint_hash=?`).run(FINAL_HOMEOS.sourceCheckpointHash, at, FINAL_HOMEOS.residencyId,
-      FINAL_HOMEOS.consumerCursor, current.repairedCheckpoint.blob_hash).changes === 1,
+      checkpoint_hash=?`).run(FINAL_HOMEOS.consumerCursor, FINAL_HOMEOS.sourceCheckpointHash, at,
+      FINAL_HOMEOS.residencyId, repairedConsumerCursor, current.repairedCheckpoint.blob_hash).changes === 1,
     'HOMEOS rollback lost its consumer fence', 'R146_HOMEOS_ROUTE_ROLLBACK');
     db.prepare('DELETE FROM resident_checkpoints WHERE residency_id=? AND generation=?')
       .run(FINAL_HOMEOS.residencyId, FINAL_HOMEOS.repairedCheckpointGeneration);
     db.prepare(`INSERT INTO recovery_records(type,core_id,detail_json,created_at) VALUES(?,?,?,?)`).run(
       'resident.implementation-repair-rolled-back', FINAL_HOMEOS.coreId,
-      stableStringify({ repairId: FINAL_HOMEOS.repairId, pendingDeliveriesPreserved: 2,
+      stableStringify({ repairId: FINAL_HOMEOS.repairId, deliveryMode: current.deliveryMode,
+        pendingDeliveriesPreserved: current.deliveryMode === 'retained' ? 2 : 0,
+        prunedDeliveriesRecovered: current.deliveryMode === 'pruned' ? 2 : 0,
         abandonedCount: 0, inventedBiologicalTime: false, authorityChanged: false }), at);
     assertFinalHomeosCohort(db, databasePath, releaseRoot);
     db.exec('COMMIT');

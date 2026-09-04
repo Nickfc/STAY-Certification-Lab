@@ -7330,13 +7330,14 @@ class StateStore {
       version: '0.2.0-p1r0-shadow.1',
       stateSchema: 2,
       moduleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
-      moduleHash: 'sha256:c27ae45c464b11c4c772260ad3c8517854b80dd08846ea7e602e7e2338b0a700',
+      moduleHash: 'sha256:28ce93b507a070fef823e40cce3e7368928466077fed943c98a1a88b5a84299a',
       manifestHash: 'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
-      packagePolicyHash: 'sha256:9ad9344c9c386eed8e9a1b61334fc96074bb5c69a2b34c136343228143bb05c9',
+      packagePolicyHash: 'sha256:1afd6096fed7727491847e702d2506aa9492f8ad7d1424300b99ca3645d8b161',
       checkpointGeneration: 42,
       checkpointHash: '562d336fcf6f7184acaf826d29fe0d890d5705b40c3b49aa4a70a41fa3328046',
       inputCursor: 4241113,
       consumerCursor: 4241116,
+      prunedConsumerCursor: 4241118,
       topicsHash: 'abea82189093d4bb54bee213ed9f9a7ebdd9b2b0b76f6f77dcc2762555e75231',
       pending: Object.freeze([
         Object.freeze({
@@ -7352,12 +7353,35 @@ class StateStore {
             'core-output:63fadd3d778d1132eed2ec1ff533a69825b2fd2524ec16d2b35d81d01e8aeef9'
         })
       ]),
+      publishedIntents: Object.freeze([
+        Object.freeze({
+          producerEventId: 'dd4f1feb2e23462bc77206e91d066aa9e88d41ba145228599d7e64ef0a0ed8dd',
+          intentSha256: '3e2897f3a6dfc26d5ea0faea147d8dbd552cad7a10b9028cae5dc6f78e866e21',
+          fabricSequence: 4241117,
+          streamSequence: 39,
+          outputIndex: 1,
+          topic: 'metab.energy.availability.v1'
+        }),
+        Object.freeze({
+          producerEventId: '63fadd3d778d1132eed2ec1ff533a69825b2fd2524ec16d2b35d81d01e8aeef9',
+          intentSha256: 'e004c64e4fa571ab00e0858dc4e1299ee4b7207f5b24555cf4be778509cad6bc',
+          fabricSequence: 4241118,
+          streamSequence: 40,
+          outputIndex: 2,
+          topic: 'metab.energy.reserve.v1'
+        })
+      ]),
       repairId: 'homeos-r146-route-boundary-continuity-v1'
     });
+    const registeredCheckpointHash = this.db.prepare(`SELECT checkpoint_hash
+      FROM resident_instances WHERE residency_id=? AND core_id=?`).get(
+      expected.residencyId, expected.coreId)?.checkpoint_hash;
     if (
       residencyId !== expected.residencyId ||
       coreId !== expected.coreId ||
-      checkpointHash !== expected.checkpointHash ||
+      !/^[0-9a-f]{64}$/.test(checkpointHash || '') ||
+      (checkpointHash !== expected.checkpointHash &&
+        checkpointHash !== registeredCheckpointHash) ||
       runtimeRevision !== 146
     ) {
       throw Object.assign(
@@ -7403,6 +7427,51 @@ class StateStore {
           SELECT COUNT(*) count FROM biological_outbox_intents
           WHERE producer_core_id=? AND status='PENDING'
         `).get(coreId)?.count || 0);
+        const deliveryMode = repairDetail?.deliveryMode === 'pruned' ? 'pruned' : 'retained';
+        const expectedCheckpointHash = deliveryMode === 'pruned'
+          ? repairDetail?.repairedCheckpointHash : expected.checkpointHash;
+        const expectedInputCursor = deliveryMode === 'pruned'
+          ? expected.prunedConsumerCursor : expected.inputCursor;
+        const expectedConsumerCursor = deliveryMode === 'pruned'
+          ? expected.prunedConsumerCursor : expected.consumerCursor;
+        const retainedPendingMatches = deliveryMode === 'retained' &&
+          pending.length === expected.pending.length &&
+          pending.every((row, index) =>
+            Number(row.sequence) === expected.pending[index].sequence &&
+            row.status === 'PENDING' &&
+            row.topic === expected.pending[index].topic &&
+            row.deduplication_key === expected.pending[index].deduplicationKey);
+        let prunedIntentMatches = false;
+        if (deliveryMode === 'pruned' && pending.length === 0) {
+          const absentEvents = Number(this.db.prepare(`SELECT COUNT(*) count
+            FROM biological_events WHERE sequence IN (?,?)`).get(
+            ...expected.pending.map(value => value.sequence))?.count || 0) === 0;
+          const intentRows = this.db.prepare(`SELECT * FROM biological_outbox_intents
+            WHERE producer_event_id IN (?,?) ORDER BY fabric_sequence`).all(
+            ...expected.publishedIntents.map(value => value.producerEventId));
+          prunedIntentMatches = absentEvents && intentRows.length === expected.publishedIntents.length &&
+            intentRows.every((row, index) => {
+              let intent;
+              try { intent = this.biologicalOutboxIntentFromRow(row); } catch { return false; }
+              const exact = expected.publishedIntents[index];
+              return row.producer_event_id === exact.producerEventId &&
+                row.producer_core_id === 'METAB' &&
+                row.producer_instance_id === 'd424c722-ef31-44b0-8201-ba68c418d14a' &&
+                row.producer_version === '0.3.0-p1r0-homeos-feed.1' &&
+                Number(row.authority_epoch) === 1 &&
+                row.producer_stream_id === 'core:METAB:outputs' &&
+                Number(row.stream_sequence) === exact.streamSequence &&
+                row.transition_id === 'sha256:add174f19c585bfdc3e96158458dd63445f2b89d3944af6762fbccca107580d2' &&
+                Number(row.cause_sequence) === 4241116 &&
+                Number(row.output_index) === exact.outputIndex &&
+                row.topic === exact.topic && row.intent_sha256 === exact.intentSha256 &&
+                row.checkpoint_id === 'cc2b2a0d-919b-4944-a37d-b23ef9b9fdcb' &&
+                row.checkpoint_hash === '45dd76aa69ef778e0672c588781dbf2d754b77ecbe680c4f61a1c59a0ddc81cb' &&
+                Number(row.checkpoint_generation) === 196076 && row.status === 'PUBLISHED' &&
+                Number(row.fabric_sequence) === exact.fabricSequence &&
+                intent.producerEventId === exact.producerEventId;
+            });
+        }
         if (
           resident?.core_id !== coreId ||
           resident?.instance_id !== expected.instanceId ||
@@ -7414,33 +7483,33 @@ class StateStore {
           resident?.package_policy_hash !== expected.packagePolicyHash ||
           resident?.status !== 'RESYNC_REQUIRED' ||
           Number(resident?.checkpoint_generation) !== expected.checkpointGeneration ||
-          resident?.checkpoint_hash !== expected.checkpointHash ||
+          resident?.checkpoint_hash !== expectedCheckpointHash ||
           checkpoint?.instance_id !== expected.instanceId ||
           checkpoint?.version !== expected.version ||
           Number(checkpoint?.state_schema) !== expected.stateSchema ||
-          checkpoint?.blob_hash !== expected.checkpointHash ||
-          Number(checkpoint?.input_cursor) !== expected.inputCursor ||
+          checkpoint?.blob_hash !== expectedCheckpointHash ||
+          Number(checkpoint?.input_cursor) !== expectedInputCursor ||
           consumer?.core_id !== coreId ||
           Number(consumer?.required) !== 0 ||
           Number(consumer?.active) !== 0 ||
-          Number(consumer?.cursor) !== expected.consumerCursor ||
+          Number(consumer?.cursor) !== expectedConsumerCursor ||
           Number(consumer?.authority_epoch) !== 0 ||
           consumer?.topics_sha256 !== expected.topicsHash ||
-          consumer?.checkpoint_hash !== expected.checkpointHash ||
-          pending.length !== expected.pending.length ||
-          pending.some((row, index) =>
-            Number(row.sequence) !== expected.pending[index].sequence ||
-            row.status !== 'PENDING' ||
-            row.topic !== expected.pending[index].topic ||
-            row.deduplication_key !== expected.pending[index].deduplicationKey) ||
+          consumer?.checkpoint_hash !== expectedCheckpointHash ||
+          (!retainedPendingMatches && !prunedIntentMatches) ||
           repairDetail?.repairId !== expected.repairId ||
-          repairDetail?.repairedCheckpointHash !== expected.checkpointHash ||
-          repairDetail?.pendingDeliveriesPreserved !== expected.pending.length ||
+          repairDetail?.repairedCheckpointHash !== expectedCheckpointHash ||
+          repairDetail?.pendingDeliveriesPreserved !==
+            (deliveryMode === 'retained' ? expected.pending.length : 0) ||
+          (deliveryMode === 'pruned' &&
+            (repairDetail?.prunedDeliveriesRecovered !== expected.pending.length ||
+             JSON.stringify(repairDetail?.sourceIntentSha256) !==
+               JSON.stringify(expected.publishedIntents.map(value => value.intentSha256)))) ||
           repairDetail?.abandonedCount !== 0 ||
           repairDetail?.inventedBiologicalTime !== false ||
           repairDetail?.authorityChanged !== false ||
           authorityCount !== 0 ||
-          pendingOutputCount !== 0
+          pendingOutputCount !== 0 || checkpointHash !== expectedCheckpointHash
         ) {
           throw Object.assign(
             new Error('R146 HOMEOS retained replay state changed'),
@@ -7454,12 +7523,14 @@ class StateStore {
           checkpointHash,
           checkpointGeneration: expected.checkpointGeneration,
           runtimeRevision,
-          pendingCount: expected.pending.length,
-          firstPendingSequence: expected.pending[0].sequence,
-          lastPendingSequence: expected.pending.at(-1).sequence,
-          fromCursor: expected.consumerCursor,
-          toCursor: expected.consumerCursor,
+          deliveryMode,
+          pendingCount: deliveryMode === 'retained' ? expected.pending.length : 0,
+          firstPendingSequence: deliveryMode === 'retained' ? expected.pending[0].sequence : null,
+          lastPendingSequence: deliveryMode === 'retained' ? expected.pending.at(-1).sequence : null,
+          fromCursor: expectedConsumerCursor,
+          toCursor: expectedConsumerCursor,
           maximumPending: expected.pending.length,
+          prunedDeliveriesRecovered: deliveryMode === 'pruned' ? expected.pending.length : 0,
           abandonedCount: 0,
           inventedBiologicalTime: false,
           authorityChanged: false
@@ -7618,6 +7689,24 @@ class StateStore {
         WHERE d.sequence<=? AND d.status='PENDING' AND c.active=1 AND c.required=1`).get(throughSequence)?.count;
       if (Number(blocked) > 0) throw Object.assign(new Error('biological retention boundary still has required pending deliveries'), { code: 'BIOLOGICAL_RETENTION_BLOCKED' });
       const result = this.db.prepare('DELETE FROM biological_events WHERE sequence<=?').run(throughSequence);
+      return { removed: Number(result.changes) || 0, throughSequence, retained };
+    });
+  }
+
+  pruneUnclaimedBiologicalEvents({ retainCount = 4096 } = {}) {
+    const retained = Math.max(1, Math.min(1000000, Number(retainCount) || 4096));
+    return this.withTransaction(() => {
+      const keepBoundary = this.db.prepare(
+        'SELECT sequence FROM biological_events ORDER BY sequence DESC LIMIT 1 OFFSET ?'
+      ).get(retained - 1)?.sequence;
+      if (keepBoundary == null) return { removed: 0, throughSequence: 0, retained };
+      const throughSequence = Number(keepBoundary) - 1;
+      if (throughSequence < 1) return { removed: 0, throughSequence: 0, retained };
+      const result = this.db.prepare(`DELETE FROM biological_events
+        WHERE sequence<=? AND NOT EXISTS (
+          SELECT 1 FROM biological_deliveries d
+          WHERE d.sequence=biological_events.sequence AND d.status='PENDING'
+        )`).run(throughSequence);
       return { removed: Number(result.changes) || 0, throughSequence, retained };
     });
   }
