@@ -209,7 +209,7 @@ function verifiedOutboxIntent(row, expected = null) {
   return intent;
 }
 
-function assertMovingMetabOutboxContained(db) {
+function assertMovingMetabOutboxContained(db, { checkpoint, state }) {
   const rows = db.prepare(`SELECT * FROM biological_outbox_intents
     WHERE producer_core_id IN ('METAB','HOMEOS') AND status='PENDING'
     ORDER BY producer_core_id,stream_sequence`).all();
@@ -231,9 +231,15 @@ function assertMovingMetabOutboxContained(db) {
     rows[0].checkpoint_id === rows[1].checkpoint_id &&
     rows[0].checkpoint_hash === rows[1].checkpoint_hash &&
     Number(rows[0].checkpoint_generation) === Number(rows[1].checkpoint_generation) &&
+    rows[0].checkpoint_id === checkpoint.checkpoint_id &&
+    rows[0].checkpoint_hash === checkpoint.blob_hash &&
+    Number(rows[0].checkpoint_generation) === Number(checkpoint.generation) &&
+    Number(rows[0].cause_sequence) === Number(checkpoint.input_cursor) &&
+    Number(rows[1].stream_sequence) === Number(state.emittedOutputSequence) &&
     rows[0].topic === FINAL_HOMEOS.pendingTopics[0] && Number(rows[0].output_index) === 1 &&
     rows[1].topic === FINAL_HOMEOS.pendingTopics[1] && Number(rows[1].output_index) === 2 &&
-    intents[0]?.payload?.committedFrame === intents[1]?.payload?.committedFrame,
+    intents[0]?.payload?.committedFrame === intents[1]?.payload?.committedFrame &&
+    intents[0]?.payload?.committedFrame === state.sourceState?.lastAcceptedFrame,
   'pending METAB output pair lost its containment fence', 'R146_HOMEOS_ROUTE_CONTAINMENT');
   return rows.length;
 }
@@ -277,6 +283,31 @@ function validateFinalHomeosRelease(releaseRoot) {
     typeof definition.repairExactR146RouteBoundaryState === 'function',
   'repaired HOMEOS package identity or containment changed', 'R146_HOMEOS_ROUTE_RELEASE');
   return definition;
+}
+function validateMovingMetabRelease(releaseRoot) {
+  const entry = path.resolve(releaseRoot, PARTIAL_ROUTE.metabModuleRelativePath);
+  const policy = enforcePackagePolicy(entry);
+  const definition = require(entry);
+  const durable = validateManifest(definition.manifest);
+  verifyManifestAgainstPackagePolicy(policy, definition.manifest);
+  assert(`sha256:${sha256(fs.readFileSync(entry))}` === PARTIAL_ROUTE.metabModuleHash &&
+    `sha256:${sha256(stableStringify(durable))}` === PARTIAL_ROUTE.metabManifestHash &&
+    policy.policy.policyHash === PARTIAL_ROUTE.metabPackagePolicyHash &&
+    definition.manifest.version === PARTIAL_ROUTE.metabVersion &&
+    definition.manifest.stateSchema === PARTIAL_ROUTE.metabStateSchema &&
+    definition.manifest.productionEligible === false,
+  'moving METAB package identity or containment changed', 'R146_HOMEOS_ROUTE_RELEASE');
+  return definition;
+}
+function validateMovingCapacitySource(input) {
+  const source = validateCapacitySourceState(input, {
+    instanceId: BASELINE.instanceId,
+    residentVersion: PARTIAL_ROUTE.metabVersion
+  });
+  assert(source.runtimeRevision === 128 && source.lastCommittedFrame >= BASELINE.acceptedFrame &&
+    (source.pending === null || source.pending.sampleFrame === source.lastCommittedFrame + 1),
+  'moving METAB capacity source crossed its continuity fence', 'R146_HOMEOS_ROUTE_CONTAINMENT');
+  return source;
 }
 function snapshot(db) {
   return {
@@ -466,11 +497,16 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
     metadataRevision(db) === BASELINE.runtimeRevision,
   'database is not the final R146 HOMEOS recovery boundary');
   const definition = validateFinalHomeosRelease(releaseRoot);
+  const metabDefinition = validateMovingMetabRelease(releaseRoot);
   const metab = db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
     .get(BASELINE.residencyId);
   const homeos = db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
     .get(FINAL_HOMEOS.residencyId);
   const intero = db.prepare("SELECT * FROM resident_instances WHERE residency_id='resident:intero'").get();
+  const metabCheckpoint = db.prepare(`SELECT * FROM resident_checkpoints
+    WHERE residency_id=? AND generation=?`).get(BASELINE.residencyId, metab?.checkpoint_generation);
+  const metabConsumer = db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
+    .get(BASELINE.residencyId);
   const sourceCheckpoint = db.prepare(`SELECT * FROM resident_checkpoints
     WHERE residency_id=? AND generation=?`).get(
     FINAL_HOMEOS.residencyId, FINAL_HOMEOS.sourceCheckpointGeneration);
@@ -515,12 +551,21 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
     WHERE type='biological.consumer-resynchronized' AND core_id='fetus-legacy'
     ORDER BY id DESC LIMIT 1`).get();
   let failureDetail = null, repairDetail = null, fetusDemotionDetail = null;
-  let fetusResolutionDetail = null, source = null;
+  let fetusResolutionDetail = null, source = null, metabState = null;
   try { failureDetail = JSON.parse(failure?.detail_json || 'null'); } catch {}
   try { repairDetail = JSON.parse(repair?.detail_json || 'null'); } catch {}
   try { fetusDemotionDetail = JSON.parse(fetusDemotion?.detail_json || 'null'); } catch {}
   try { fetusResolutionDetail = JSON.parse(fetusResolution?.detail_json || 'null'); } catch {}
-  try { source = JSON.parse(capacity?.json || 'null'); } catch {}
+  try {
+    assert(capacity && sha256(capacity.json) === capacity.sha256,
+      'moving METAB capacity source metadata is corrupt', 'R146_HOMEOS_ROUTE_CONTAINMENT');
+    source = validateMovingCapacitySource(JSON.parse(capacity.json));
+    metabState = JSON.parse(readBlob(databasePath, metabCheckpoint));
+    metabDefinition.validateState(metabState);
+  } catch (error) {
+    fail(`moving METAB state is invalid: ${error.message}`,
+      error.code || 'R146_HOMEOS_ROUTE_CONTAINMENT');
+  }
   const deliveryMode = repaired && repairDetail?.deliveryMode
     ? repairDetail.deliveryMode
     : pending.length === FINAL_HOMEOS.pendingSequences.length
@@ -543,7 +588,19 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
     metab?.module_hash === PARTIAL_ROUTE.metabModuleHash &&
     metab?.manifest_hash === PARTIAL_ROUTE.metabManifestHash &&
     metab?.package_policy_hash === PARTIAL_ROUTE.metabPackagePolicyHash &&
-    metab?.status === 'RUNNING' && !intero,
+    metab?.status === 'RUNNING' &&
+    metab?.checkpoint_hash === metabCheckpoint?.blob_hash &&
+    Number(metab?.checkpoint_generation) === Number(metabCheckpoint?.generation) &&
+    metabCheckpoint?.instance_id === BASELINE.instanceId &&
+    metabCheckpoint?.version === PARTIAL_ROUTE.metabVersion &&
+    Number(metabCheckpoint?.state_schema) === PARTIAL_ROUTE.metabStateSchema &&
+    Number(metabCheckpoint?.input_cursor) <= Number(metabConsumer?.cursor) &&
+    metabConsumer?.core_id === BASELINE.coreId && Number(metabConsumer?.required) === 0 &&
+    Number(metabConsumer?.active) === 1 && Number(metabConsumer?.authority_epoch) === 0 &&
+    metabConsumer?.checkpoint_hash === metabCheckpoint?.blob_hash &&
+    sha256(metabConsumer?.topics_json || '') === metabConsumer?.topics_sha256 &&
+    stableStringify([...JSON.parse(metabConsumer?.topics_json || 'null')].sort()) ===
+      stableStringify([...metabDefinition.manifest.inputs].sort()) && !intero,
   'final R146 METAB/HOMEOS cohort changed', 'R146_HOMEOS_ROUTE_RESIDENT');
   assert(homeos?.core_id === FINAL_HOMEOS.coreId &&
     homeos?.instance_id === FINAL_HOMEOS.instanceId &&
@@ -609,8 +666,24 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
     failureDetail?.topic === FINAL_HOMEOS.pendingTopics[0] &&
     failureDetail?.code === 'P1_RESIDENT_PENDING_BOUND',
   'HOMEOS route-boundary failure identity changed', 'R146_HOMEOS_ROUTE_FAILURE');
-  const movingMetabOutbox = assertMovingMetabOutboxContained(db);
-  assert(capacity && sha256(capacity.json) === capacity.sha256 && source?.pending === null &&
+  const movingMetabOutbox = assertMovingMetabOutboxContained(db, {
+    checkpoint: metabCheckpoint,
+    state: metabState
+  });
+  const movingAcceptedFrame = Number(metabState?.sourceState?.lastAcceptedFrame);
+  const allowedMovingFrames = source.pending === null
+    ? [source.lastCommittedFrame]
+    : [source.lastCommittedFrame, source.pending.sampleFrame];
+  assert(allowedMovingFrames.includes(movingAcceptedFrame) &&
+    metabState?.activation?.targetRevision === 144 &&
+    metabState?.activation?.fromVersion === BASELINE.version &&
+    metabState?.sourceState?.pendingEligible === null &&
+    metabState?.sourceState?.pendingQuality === null &&
+    metabState?.sourceState?.engineState?.outputSequence === '0' &&
+    /^\d+$/.test(metabState?.emittedOutputSequence || '') &&
+    ((movingAcceptedFrame === source.lastCommittedFrame && movingMetabOutbox === 0) ||
+      (source.pending !== null && movingAcceptedFrame === source.pending.sampleFrame &&
+        movingMetabOutbox === 2)) &&
     scalar(db, `SELECT COUNT(*) value FROM authority
       WHERE core_id IN ('METAB','HOMEOS','INTERO')`) === 0,
   'final R146 source or authority containment changed', 'R146_HOMEOS_ROUTE_CONTAINMENT');
@@ -679,7 +752,7 @@ function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = fal
     definition.repairExactR146RouteBoundaryState(state);
   }
   return { metab, homeos, checkpoint, sourceCheckpoint, repairedCheckpoint, consumer, state,
-    definition, deliveryMode, publishedPair, movingMetabOutbox };
+    definition, deliveryMode, publishedPair, movingMetabOutbox, source, metabCheckpoint, metabState };
 }
 
 function repairIncompleteCheckpointState(state, definition, baseline = BASELINE) {
@@ -722,7 +795,7 @@ function ensureBlob(databasePath, state) {
 }
 function prepareFinalHomeosRepair(databasePath, releaseRoot) {
   const db = new DatabaseSync(databasePath, { readOnly: true });
-  db.exec('PRAGMA query_only=ON');
+  db.exec('PRAGMA query_only=ON; BEGIN');
   try {
     const current = assertFinalHomeosCohort(db, databasePath, releaseRoot);
     const boundary = current.definition.repairExactR146RouteBoundaryState(current.state);
@@ -730,12 +803,12 @@ function prepareFinalHomeosRepair(databasePath, releaseRoot) {
       ? current.definition.applyExactR146PrunedOutboxPair(boundary.state, current.publishedPair)
       : boundary;
     return { current, repaired };
-  } finally { db.close(); }
+  } finally { try { db.exec('ROLLBACK'); } catch {} db.close(); }
 }
 function preflightRepair({ databasePath, releaseRoot }) {
   validateRelease(releaseRoot);
   const probe = new DatabaseSync(databasePath, { readOnly: true });
-  probe.exec('PRAGMA query_only=ON');
+  probe.exec('PRAGMA query_only=ON; BEGIN');
   try {
     const resident = probe.prepare('SELECT module_hash FROM resident_instances WHERE residency_id=?')
       .get(BASELINE.residencyId);
@@ -795,7 +868,7 @@ function preflightRepair({ databasePath, releaseRoot }) {
         abandonedCount: 0, biologicalAcceptedStateChanged: false,
         inventedBiologicalTime: false, authorityOwned: false });
     }
-  } finally { probe.close(); }
+  } finally { try { probe.exec('ROLLBACK'); } catch {} probe.close(); }
   const { repairedState } = prepareRepair(databasePath, releaseRoot);
   return Object.freeze({ result: 'PASS', repairId: REPAIR.repairId,
     repairedCheckpointHash: sha256(Buffer.from(JSON.stringify(repairedState))),
@@ -1102,4 +1175,5 @@ if (require.main === module) {
 }
 module.exports = Object.freeze({ BASELINE, REPAIR, PARTIAL_ROUTE, FINAL_HOMEOS, applyRepair,
   preflightRepair, rollbackRepair, assertPartialRouteCohort, assertFinalHomeosCohort,
-  repairIncompleteCheckpointState, validateRelease, validateFinalHomeosRelease });
+  repairIncompleteCheckpointState, validateRelease, validateFinalHomeosRelease,
+  validateMovingMetabRelease, validateMovingCapacitySource });
