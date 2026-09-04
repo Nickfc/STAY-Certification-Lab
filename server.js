@@ -682,6 +682,10 @@ async function main() {
     await kernel.installCore(process.env.STAY_BOOT_CORE);
   }
 
+  if (kernel.r147DeferredResidentRecovery === true) {
+    await kernel.completeExactR147DeferredResidentRecovery();
+  }
+
   const badgeSource = await fs.readFile(badgePath, 'utf8');
   const gpuEngineSource = await fs.readFile(gpuEnginePath, 'utf8');
   const computeGovernorSource = await fs.readFile(computeGovernorPath, 'utf8');

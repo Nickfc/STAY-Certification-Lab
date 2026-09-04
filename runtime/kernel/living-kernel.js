@@ -250,6 +250,85 @@ const R147_HOMEOS_FORWARD_RECOVERY = Object.freeze({
   })
 });
 
+const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
+  authorization:
+    'AUTHORIZE_STRANDED_R147_HOMEOS_CONTINUATION_RECOVERY_ONLY',
+  runtimeRevision: 147,
+  highWater: 4575520,
+  latestRecoveryRecordId: 211,
+  fetusResolutionRecordId: 194,
+  capacitySource: Object.freeze({
+    runtimeRevision: 128,
+    lastCommittedFrame: 162684,
+    lastTrustedTimeUs: 986135434231,
+    lastContinuityEpoch: 1
+  }),
+  metab: Object.freeze({
+    residencyId: 'resident:metab', coreId: 'METAB',
+    instanceId: R145_HOMEOS_SHADOW.metabInstanceId,
+    version: '0.3.0-p1r0-homeos-feed.1', stateSchema: 3,
+    status: 'RUNNING', checkpointGeneration: 325398,
+    checkpointHash: 'ec9a31171e5dd07fbe09479aaad9eb5e66de929668c1241914d28a85f9bbc0fe',
+    checkpointId: '88ef8550-d093-40d8-be3f-e187245e9ffd',
+    checkpointBytes: 5008, inputCursor: 4575518, consumerCursor: 4575520,
+    moduleRelativePath: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleRelativePath,
+    moduleHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleHash,
+    manifestHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabManifestHash,
+    packagePolicyHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabPackagePolicyHash,
+    topicsHash: '089945e41de20089fc1c06ae83c755470a49fe23e2ba8d00ac5a0ddcc64fef82'
+  }),
+  homeos: Object.freeze({
+    residencyId: 'resident:homeos', coreId: 'HOMEOS',
+    instanceId: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosInstanceId,
+    version: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosVersion, stateSchema: 2,
+    status: 'RESYNC_REQUIRED', checkpointGeneration: 75,
+    checkpointHash: '970a580617d3c298bd7ce3bee5a56791bbe9565d25df7a73cde204e7d41d7f76',
+    checkpointId: 'eed95af7-03f4-4349-89c5-32fafe52d2c3',
+    checkpointBytes: 47620, inputCursor: 4574287, consumerCursor: 4574290,
+    moduleRelativePath: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosModuleRelativePath,
+    moduleHash: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosModuleHash,
+    manifestHash: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosManifestHash,
+    packagePolicyHash: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPackagePolicyHash,
+    topicsHash: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosTopicsHash,
+    failureRecordId: 211, failureSequence: 4574291,
+    failureCode: 'P1_RESIDENT_PENDING_BOUND', pendingCount: 2,
+    firstPendingSequence: 4574291, lastPendingSequence: 4574292,
+    eligibleReplayCount: 492
+  }),
+  sntss: Object.freeze({
+    residencyId: 'resident:sntss', coreId: 'sntss',
+    instanceId: '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
+    version: '0.5.0-i4g1', stateSchema: 5,
+    status: 'RESYNC_REQUIRED', checkpointGeneration: 2891082,
+    checkpointHash: '16a0224ff3f8dbeac51ebb27c05ad6e5bef8a1d831f308367470f7cb639cd5a0',
+    checkpointId: '4ffc8006-ecbb-47cc-abcf-47f41aac33ae',
+    checkpointBytes: 4971, inputCursor: 4574207, consumerCursor: 4574211,
+    moduleRelativePath: 'cores/sntss/i4g/index.js',
+    moduleHash: 'sha256:4e96f1882ddbe35fc0e8f2afcdabae2b5e75812d8e9a392b09bcc8040b335ea7',
+    manifestHash: 'sha256:c1d0db3d4520556cb022864f4d1eb487a99628d61f3564942aa65cc0f204499a',
+    packagePolicyHash: 'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d',
+    topicsHash: 'b752d8eebb09ac925c4c193810d31f5527315e42e36fbedafa1f30ef25a97501',
+    failureRecordId: 210, failureSequence: 4574212,
+    failureCode: 'CORE_WORKER_TIMEOUT', pendingCount: 4,
+    firstPendingSequence: 4574212, lastPendingSequence: 4574228,
+    eligibleReplayCount: 261
+  }),
+  chronobiology: Object.freeze({
+    residencyId: 'resident:chronobiology', coreId: 'chronobiology',
+    instanceId: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
+    version: '1.0.0-c3rc.5', stateSchema: 2,
+    status: 'RUNNING', checkpointGeneration: 12385,
+    checkpointHash: 'd6374f44ba42dfa716cea7f291422f3c4684308fc73c95db1b2723d03639e022',
+    checkpointId: '7df51681-f3f3-440c-9f7d-4434001b2245',
+    checkpointBytes: 49187, inputCursor: 4575400, consumerCursor: 4575520,
+    moduleRelativePath: 'cores/chronobiology/c3r5/index.js',
+    moduleHash: 'sha256:ecac9b25bf5897d6344cbca702a6ce30ab76c5ff69af76ad17f1aea734e54867',
+    manifestHash: 'sha256:4f809b9fee2b4099d51250d339fbee15d226ed9aa0126c4a83d47ff580021012',
+    packagePolicyHash: 'sha256:887ff83909b360a75abc1ea6f755db597e613186acaa9b7b20d33b1d21d2232b',
+    topicsHash: 'a0897ae1c2f0bdf9f94e5491cf681820cda4a0126afcb47511cc4a538d5a281e'
+  })
+});
+
 const R150_INTERO_SHADOW = Object.freeze({
   birthAuthorization: 'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY',
   metabRouteAuthorization: 'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY',
@@ -770,6 +849,8 @@ class LivingKernel {
     this.fetusEmptyInputR146RecoveryActive = false;
     this.homeosFinalR147RecoveryActive = false;
     this.fetusEmptyInputR147RecoveryActive = false;
+    this.r147HomeosContinuationRecoveryActive = false;
+    this.r147DeferredResidentRecovery = false;
     this.p1ExpansionFetusInstallRevisionPreservation = null;
     this.p1ExpansionFetusInstallPreserved = false;
 
@@ -1145,6 +1226,7 @@ class LivingKernel {
     this.startedAt = new Date().toISOString();
     const preservedRecoveryRevision =
       await this.preserveExactR127MetabRecoveryRevision() ||
+      this.preserveExactR147HomeosContinuationRevision() ||
       this.preserveExactR147HomeosRecoveryRevision() ||
       this.preserveExactR145HomeosProgressRevision() ||
       this.preserveExactR150InteroProgressRevision();
@@ -1187,7 +1269,8 @@ class LivingKernel {
 
     if (
       !this.durableResidentsDisabled &&
-      durableResidents.length > 0
+      durableResidents.length > 0 &&
+      !this.r147DeferredResidentRecovery
     ) {
       this.ensureResidentManager();
 
@@ -1223,7 +1306,7 @@ class LivingKernel {
 
     await this.writeHeartbeat();
     await this.createSnapshot('kernel-start');
-    this.startMaintenance();
+    if (!this.r147DeferredResidentRecovery) this.startMaintenance();
     return this;
   }
 
@@ -1533,6 +1616,124 @@ class LivingKernel {
     this.homeosFinalR146RecoveryActive = true;
     this.homeosFinalR147RecoveryActive = true;
     this.fetusEmptyInputR147RecoveryActive = true;
+    return true;
+  }
+
+
+  preserveExactR147HomeosContinuationRevision() {
+    const expected = R147_HOMEOS_CONTINUATION_RECOVERY;
+    if (
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.homeosStrandedR147RecoveryAuthorization !== expected.authorization ||
+      this.homeosNeutralBirthAuthorization !== R145_HOMEOS_SHADOW.birthAuthorization ||
+      this.metabHomeosRouteAuthorization !== R145_HOMEOS_SHADOW.metabRouteAuthorization ||
+      this.homeosShadowPromotionAuthorization !== R145_HOMEOS_SHADOW.shadowAuthorization ||
+      this.stateStore.getResident('resident:intero')
+    ) return false;
+
+    const exactResident = fence => {
+      const resident = this.stateStore.getResident(fence.residencyId);
+      const consumer = this.stateStore.getBiologicalConsumer(fence.residencyId);
+      const checkpoint = this.stateStore.db.prepare(`
+        SELECT checkpoint_id,instance_id,version,state_schema,generation,blob_hash,
+          byte_length,input_cursor FROM resident_checkpoints
+        WHERE residency_id=? AND generation=?
+      `).get(fence.residencyId, fence.checkpointGeneration);
+      return resident?.coreId === fence.coreId && resident?.instanceId === fence.instanceId &&
+        resident?.version === fence.version && resident?.stateSchema === fence.stateSchema &&
+        resident?.status === fence.status &&
+        resident?.checkpointGeneration === fence.checkpointGeneration &&
+        resident?.checkpointHash === fence.checkpointHash &&
+        resident?.moduleRelativePath === fence.moduleRelativePath &&
+        resident?.moduleHash === fence.moduleHash && resident?.manifestHash === fence.manifestHash &&
+        resident?.packagePolicyHash === fence.packagePolicyHash &&
+        consumer?.coreId === fence.coreId && consumer?.required === false &&
+        consumer?.active === (fence.status === 'RUNNING') && consumer?.authorityEpoch === 0 &&
+        consumer?.cursor === fence.consumerCursor && consumer?.checkpointHash === fence.checkpointHash &&
+        consumer?.topicsHash === fence.topicsHash && checkpoint?.checkpoint_id === fence.checkpointId &&
+        checkpoint?.instance_id === fence.instanceId && checkpoint?.version === fence.version &&
+        Number(checkpoint?.state_schema) === fence.stateSchema &&
+        Number(checkpoint?.generation) === fence.checkpointGeneration &&
+        checkpoint?.blob_hash === fence.checkpointHash &&
+        Number(checkpoint?.byte_length) === fence.checkpointBytes &&
+        Number(checkpoint?.input_cursor) === fence.inputCursor;
+    };
+    if (![expected.metab, expected.homeos, expected.sntss, expected.chronobiology]
+      .every(exactResident)) return false;
+
+    const count = (sql, ...args) => Number(this.stateStore.db.prepare(sql).get(...args)?.count || 0);
+    if (
+      this.stateStore.listAuthority().some(entry =>
+        ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId)) ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status!='ACKED'") !== 6 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status!='PUBLISHED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE producer_core_id IN ('sntss','SNTSS','HOMEOS','INTERO')") !== 0 ||
+      Number(this.stateStore.db.prepare(
+        'SELECT COALESCE(MAX(sequence),0) value FROM biological_events'
+      ).get()?.value) !== expected.highWater
+    ) return false;
+
+    for (const fence of [expected.homeos, expected.sntss]) {
+      const pending = this.stateStore.db.prepare(`
+        SELECT COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum
+        FROM biological_deliveries WHERE consumer_id=? AND status='PENDING'
+      `).get(fence.residencyId);
+      const failure = this.stateStore.db.prepare(`
+        SELECT id,detail_json FROM recovery_records
+        WHERE type='resident.resync-required' AND core_id=? ORDER BY id DESC LIMIT 1
+      `).get(fence.coreId);
+      let detail = null;
+      try { detail = JSON.parse(failure?.detail_json || 'null'); } catch {}
+      if (Number(pending?.count) !== fence.pendingCount ||
+          Number(pending?.minimum) !== fence.firstPendingSequence ||
+          Number(pending?.maximum) !== fence.lastPendingSequence ||
+          Number(failure?.id) !== fence.failureRecordId ||
+          detail?.residencyId !== fence.residencyId ||
+          detail?.sequence !== fence.failureSequence || detail?.code !== fence.failureCode) return false;
+    }
+    const latest = this.stateStore.db.prepare(
+      'SELECT id,type,core_id FROM recovery_records ORDER BY id DESC LIMIT 1'
+    ).get();
+    const fetusResolution = this.stateStore.db.prepare(`
+      SELECT id,detail_json FROM recovery_records
+      WHERE type='biological.consumer-resynchronized' AND core_id='fetus-legacy'
+      ORDER BY id DESC LIMIT 1
+    `).get();
+    let fetusDetail = null;
+    try { fetusDetail = JSON.parse(fetusResolution?.detail_json || 'null'); } catch {}
+    if (Number(latest?.id) !== expected.latestRecoveryRecordId || latest?.core_id !== 'HOMEOS' ||
+        Number(fetusResolution?.id) !== expected.fetusResolutionRecordId ||
+        fetusDetail?.cohort !== 'r146-fetus-empty-input-continuity-v1' ||
+        fetusDetail?.toCursor !== 4574204 || fetusDetail?.abandonedCount !== 0 ||
+        fetusDetail?.inventedBiologicalTime !== false || fetusDetail?.authorityChanged !== false ||
+        !this.exactR146FetusContinuityCohort().resolved) return false;
+
+    const capacityRow = this.stateStore.db.prepare(`
+      SELECT json,sha256 FROM metadata WHERE key='life:p1-r0-metab-capacity-source'
+    `).get();
+    let source = null;
+    try {
+      if (capacityRow?.sha256 !== crypto.createHash('sha256').update(capacityRow?.json || '').digest('hex')) {
+        return false;
+      }
+      const { validateCapacitySourceState } = require('../p1-r0/metab-capacity-source');
+      source = validateCapacitySourceState(JSON.parse(capacityRow.json), {
+        instanceId: expected.metab.instanceId,
+        residentVersion: expected.metab.version
+      });
+    } catch { return false; }
+    if (source.runtimeRevision !== expected.capacitySource.runtimeRevision ||
+        source.lastCommittedFrame !== expected.capacitySource.lastCommittedFrame ||
+        source.lastTrustedTimeUs !== expected.capacitySource.lastTrustedTimeUs ||
+        source.lastContinuityEpoch !== expected.capacitySource.lastContinuityEpoch ||
+        source.pending !== null) return false;
+
+    this.homeosFinalR146RecoveryActive = true;
+    this.homeosFinalR147RecoveryActive = true;
+    this.fetusEmptyInputR147RecoveryActive = true;
+    this.r147HomeosContinuationRecoveryActive = true;
+    this.r147DeferredResidentRecovery = true;
+    this.p1ExpansionFetusInstallRevisionPreservation = this.runtimeRevision;
     return true;
   }
 
@@ -2066,7 +2267,10 @@ class LivingKernel {
     const authorizedR147 = this.fetusEmptyInputR147RecoveryActive === true &&
       this.homeosFinalR147RecoveryActive === true &&
       this.runtimeRevision === R147_HOMEOS_FORWARD_RECOVERY.runtimeRevision &&
-      this.homeosStrandedR147RecoveryAuthorization === R147_HOMEOS_FORWARD_RECOVERY.authorization;
+      [
+        R147_HOMEOS_FORWARD_RECOVERY.authorization,
+        R147_HOMEOS_CONTINUATION_RECOVERY.authorization
+      ].includes(this.homeosStrandedR147RecoveryAuthorization);
     if (!authorizedR146 && !authorizedR147) {
       throw Object.assign(
         new Error('R146 fetus empty-input continuity recovery is not authorized'),
@@ -6208,7 +6412,9 @@ class LivingKernel {
             allowColdQuarantine:
               false,
             exactR146HomeosBacklog:
-              true,
+              this.r147HomeosContinuationRecoveryActive !== true,
+            exactR147ContinuationBacklog:
+              this.r147HomeosContinuationRecoveryActive === true,
             requireZeroAbandonment:
               true
           }]
@@ -6221,7 +6427,9 @@ class LivingKernel {
         allowColdQuarantine:
           false,
         requireZeroAbandonment:
-          this.homeosFinalR147RecoveryActive === true
+          this.homeosFinalR147RecoveryActive === true,
+        exactR147ContinuationBacklog:
+          this.r147HomeosContinuationRecoveryActive === true
       },
       {
         residencyId:
@@ -6286,6 +6494,9 @@ class LivingKernel {
                   .allowColdQuarantine,
               ...(candidate.exactR146HomeosBacklog === true
                 ? { exactR146HomeosBacklog: true }
+                : {}),
+              ...(candidate.exactR147ContinuationBacklog === true
+                ? { exactR147ContinuationBacklog: true }
                 : {})
             }
           );
@@ -6360,6 +6571,48 @@ class LivingKernel {
       null;
 
     return results;
+  }
+
+
+  async completeExactR147DeferredResidentRecovery() {
+    if (
+      this.r147DeferredResidentRecovery !== true ||
+      this.r147HomeosContinuationRecoveryActive !== true ||
+      this.runtimeRevision !== R147_HOMEOS_CONTINUATION_RECOVERY.runtimeRevision ||
+      this.p1ExpansionFetusInstallPreserved !== true ||
+      this.heartbeatTimer !== null || this.snapshotTimer !== null
+    ) {
+      throw Object.assign(
+        new Error('R147 deferred resident recovery is not at its exact boundary'),
+        { code: 'P1_R147_CONTINUATION_BOUNDARY' }
+      );
+    }
+    const ordinaryRecovery = await this.recoverDurableResidents();
+    const coldRecovery = await this.recoverColdFailedResidents();
+    const ordinary = new Map(ordinaryRecovery.map(row => [row.residencyId, row]));
+    const cold = new Map(coldRecovery.map(row => [row.residencyId, row]));
+    if (
+      ordinary.size !== 4 || ordinary.get('resident:metab')?.recovered !== true ||
+      ordinary.get('resident:chronobiology')?.recovered !== true ||
+      ordinary.get('resident:homeos')?.skipped !== true ||
+      ordinary.get('resident:homeos')?.status !== 'RESYNC_REQUIRED' ||
+      ordinary.get('resident:sntss')?.skipped !== true ||
+      ordinary.get('resident:sntss')?.status !== 'RESYNC_REQUIRED' ||
+      cold.size !== 2 || cold.get('resident:homeos')?.recovered !== true ||
+      cold.get('resident:sntss')?.recovered !== true ||
+      cold.get('resident:homeos')?.abandonedCount !== 0 ||
+      cold.get('resident:sntss')?.abandonedCount !== 0
+    ) {
+      throw Object.assign(
+        new Error('R147 deferred resident recovery did not restore the exact cohort'),
+        { code: 'P1_R147_CONTINUATION_RESIDENTS' }
+      );
+    }
+    this.lastResidentRecovery = Object.freeze([...ordinaryRecovery, ...coldRecovery]);
+    this.r147DeferredResidentRecovery = false;
+    this.startMaintenance();
+    this.statusCache = null;
+    return this.lastResidentRecovery;
   }
 
   async publishTimePulse(clockStatus = 'trusted') {
@@ -7103,6 +7356,7 @@ module.exports = {
   R145_HOMEOS_SHADOW,
   R146_METAB_Q48_HOMEOS_RECOVERY,
   R147_HOMEOS_FORWARD_RECOVERY,
+  R147_HOMEOS_CONTINUATION_RECOVERY,
   R150_INTERO_SHADOW,
   isBoundedMetabPromotionTail,
   defaultMetabCapacitySampler,

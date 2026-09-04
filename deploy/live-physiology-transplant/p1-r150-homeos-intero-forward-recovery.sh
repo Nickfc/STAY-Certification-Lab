@@ -17,6 +17,7 @@ VERIFY='deploy/live-physiology-transplant/p1-r150-verify-birth-certificate.js'
 FREEZER='deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js'
 CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
 METAB_REPAIR='deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js'
+R147_CONTINUATION_PREFLIGHT='deploy/live-physiology-transplant/p1-r147-homeos-continuation-preflight.js'
 PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-8421f172c6f8'
 PREVIOUS_HOMEOS_TAG='r150-homeos-intero-shadow-v11'
 PREVIOUS_HOMEOS_COMMIT='10618886fb1cf20fb4a0b69171a8e0f191a2f7fe'
@@ -33,7 +34,7 @@ ORIGINAL_HOMEOS_FAILURE_MANIFEST_SHA256='sha256:418c80c33029f9e2e2920c999e262cf3
 ORIGINAL_HOMEOS_FAILURE_CONTROLLER_SHA256='sha256:f70cb15c890d396ba6013e3747e464d8a297bd3add5eb958b9c3d693a1a6d404'
 ORIGINAL_HOMEOS_FAILURE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R145-HOMEOS-20260903T201401Z.qIMbPE'
 ORIGINAL_HOMEOS_FAILURE_CERTIFICATE_SHA256='sha256:a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c'
-R147_HOMEOS_FAILURE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R146-HOMEOS-RECOVERY-20260904T181405Z.FyuzQM'
+R147_HOMEOS_FAILURE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R147-HOMEOS-R147-RECOVERY-20260904T190412Z.o7ctIx'
 R147_HOMEOS_FAILURE_BEFORE_SHA256='92b0aabcabb95c29f0a706f3ed7bbfa3f498d6a007af1cd6cce847a7327b8623'
 R147_HOMEOS_FAILURE_CERTIFICATE_SHA256='a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c'
 
@@ -107,6 +108,9 @@ cleanup() {
   trap - EXIT; set +e
   if [[ "$COMPLETED" -eq 0 ]]; then
     if [[ "$AUTHORIZATION_INSTALLED" -eq 1 ]]; then remove_authorization; fi
+    if [[ "$STAY_R150_STAGE" == homeos-r147 && "$RECOVERY_RESTART_COMMANDS" -eq 1 ]]; then
+      systemctl stop stay.service
+    fi
     if [[ -n "$WORK" && -d "$WORK" ]]; then
       failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R${TARGET_REVISION}-${STAY_R150_STAGE^^}-RECOVERY-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
       rmdir -- "$failed"; mv -T "$WORK" "$failed"; WORK=''; chmod -R a-w "$failed"
@@ -134,7 +138,7 @@ case "$STAY_R150_STAGE" in
     DROPIN="$DROPIN_DIR/r147-homeos-shadow-recovery-once.conf"
     ACTIVE_CERTIFICATE='/etc/stay/resident-promotions/resident-homeos-neutral-birth.json'
     RECOVERY_MARKER='/run/stay-r147-homeos-shadow-recovery.env'
-    AUTHORIZATION='AUTHORIZE_R147_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY'
+    AUTHORIZATION='AUTHORIZE_R147_HOMEOS_SEQUENTIAL_CONTINUATION_RECOVERY_ONLY'
     EVIDENCE_NAME='homeos'
     ;;
   intero)
@@ -165,6 +169,7 @@ for file in "$DATABASE" "$PARENT_FREEZE" "$RECOVERY_MARKER" "$ACTIVE_PUBLIC_KEY"
   "$STAY_R150_TARGET_RELEASE/$MANIFEST" "$STAY_R150_TARGET_RELEASE/$PROOF" \
   "$STAY_R150_TARGET_RELEASE/$VERIFY" "$STAY_R150_TARGET_RELEASE/$FREEZER" \
   "$STAY_R150_TARGET_RELEASE/$CLIENT" "$STAY_R150_TARGET_RELEASE/$METAB_REPAIR" \
+  "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_PREFLIGHT" \
   "$STAY_R150_TARGET_RELEASE/P1_R150_RELEASE.env"; do
   [[ -f "$file" && ! -L "$file" ]] || abort recovery-input-invalid 3607
 done
@@ -230,7 +235,18 @@ fi
 CURRENT_REVISION="$(durable_runtime_revision)"
 [[ "$CURRENT_REVISION" =~ ^[0-9]+$ && "$CURRENT_REVISION" -ge "$PARENT_REVISION" && "$CURRENT_REVISION" -le "$TARGET_REVISION" ]] || abort durable-revision-outside-recovery-fence 3613
 
+if [[ "$STAY_R150_STAGE" == homeos-r147 ]]; then
+  [[ "$(systemctl show stay.service -p ActiveState --value)" == inactive &&
+    "$(systemctl show stay.service -p SubState --value)" == dead &&
+    "$(systemctl show stay.service -p MainPID --value)" == 0 ]] ||
+    abort continuation-service-boundary-invalid 3613
+fi
+
 WORK="$(mktemp -d "$EVIDENCE_ROOT/.R${TARGET_REVISION}-${STAY_R150_STAGE^^}-RECOVERY-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+if [[ "$STAY_R150_STAGE" == homeos-r147 ]]; then
+  /usr/local/bin/node "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_PREFLIGHT" "$DATABASE" \
+    > "$WORK/continuation.preflight.json"
+fi
 install -o root -g root -m 0400 "$PARENT_FREEZE" "$WORK/parent.freeze.json"
 install -o root -g root -m 0400 "$CERTIFICATE" "$WORK/$EVIDENCE_NAME.birth-certificate.json"
 install -o root -g root -m 0444 "$ACTIVE_PUBLIC_KEY" "$WORK/expansion-birth-authority.pub"
@@ -280,7 +296,7 @@ DROPIN
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_AUTHORIZATION=AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY
 Environment=STAY_METAB_HOMEOS_ROUTE_AUTHORIZATION=AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY
 Environment=STAY_HOMEOS_SHADOW_PROMOTION_AUTHORIZATION=AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY
-Environment=STAY_HOMEOS_STRANDED_R147_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R147_HOMEOS_FORWARD_RECOVERY_ONLY
+Environment=STAY_HOMEOS_STRANDED_R147_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R147_HOMEOS_CONTINUATION_RECOVERY_ONLY
 Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=147
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_CERTIFICATE=$ACTIVE_CERTIFICATE
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_PUBLIC_KEY=$ACTIVE_PUBLIC_KEY

@@ -156,9 +156,9 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
   assert.match(recovery,
     /STAY_HOMEOS_STRANDED_R146_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R146_METAB_Q48_HOMEOS_FORWARD_RECOVERY_ONLY/);
   assert.match(recovery,
-    /STAY_HOMEOS_STRANDED_R147_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R147_HOMEOS_FORWARD_RECOVERY_ONLY/);
+    /STAY_HOMEOS_STRANDED_R147_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R147_HOMEOS_CONTINUATION_RECOVERY_ONLY/);
   assert.match(recovery,
-    /R147_HOMEOS_FAILURE_EVIDENCE='\/var\/lib\/stay\/evidence\/production-hardening\/FAILED-R146-HOMEOS-RECOVERY-20260904T181405Z\.FyuzQM'/);
+    /R147_HOMEOS_FAILURE_EVIDENCE='\/var\/lib\/stay\/evidence\/production-hardening\/FAILED-R147-HOMEOS-R147-RECOVERY-20260904T190412Z\.o7ctIx'/);
   assert.match(recovery,
     /METAB_REPAIR='deploy\/live-physiology-transplant\/p1-r146-metab-q48-implementation-repair\.js'/);
   for (const exact of [
@@ -226,7 +226,9 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
     /homeos-r146-route-boundary-continuity-v1/);
   assert.match(homeos, /repairExactR146RouteBoundaryState/);
   assert.match(store, /beginExactR146HomeosBacklogReplay/);
+  assert.match(store, /beginExactR147ContinuationBacklogReplay/);
   assert.match(manager, /exactR146HomeosBacklog/);
+  assert.match(manager, /exactR147ContinuationBacklog/);
   assert.match(kernel, /r146-fetus-empty-input-continuity-v1/);
   assert.match(repair, /pendingSequences: Object\.freeze\(\[4241117, 4241118\]\)/);
   assert.match(repair, /PRAGMA query_only=ON; BEGIN/);
@@ -270,7 +272,7 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     entries.set(match[2], match[1]);
   }
   assert.deepEqual([...entries.keys()], [...entries.keys()].toSorted());
-  assert.equal(entries.size, 79);
+  assert.equal(entries.size, 81);
   for (const required of [
     'runtime/kernel/hardened-living-kernel.js',
     'runtime/kernel/living-kernel.js', 'runtime/kernel/resident-manager.js',
@@ -282,10 +284,12 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     'runtime/p1-r0/intero-engine.js',
     'server.js', 'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh',
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh',
+    'deploy/live-physiology-transplant/p1-r147-homeos-continuation-preflight.js',
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js',
     'deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js',
     'test/biological-ledger.test.js', 'test/p1-r145-homeos-shadow.test.js',
     'test/p1-r146-metab-q48-implementation-repair.test.js',
+    'test/p1-r147-continuation-recovery.test.js',
     'test/p1-r150-production-gates.test.js'
   ]) assert.equal(entries.has(required), true, required);
   for (const [relative, expected] of entries) {

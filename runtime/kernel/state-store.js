@@ -7317,6 +7317,159 @@ class StateStore {
   }
 
 
+  beginExactR147ContinuationBacklogReplay({
+    residencyId,
+    coreId,
+    checkpointHash,
+    runtimeRevision,
+    maximumPending
+  }) {
+    const expectedByResidency = Object.freeze({
+      'resident:homeos': Object.freeze({
+        coreId: 'HOMEOS', instanceId: '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',
+        version: '0.2.0-p1r0-shadow.1', stateSchema: 2,
+        moduleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
+        moduleHash: 'sha256:28ce93b507a070fef823e40cce3e7368928466077fed943c98a1a88b5a84299a',
+        manifestHash: 'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
+        packagePolicyHash: 'sha256:1afd6096fed7727491847e702d2506aa9492f8ad7d1424300b99ca3645d8b161',
+        checkpointGeneration: 75,
+        checkpointHash: '970a580617d3c298bd7ce3bee5a56791bbe9565d25df7a73cde204e7d41d7f76',
+        checkpointId: 'eed95af7-03f4-4349-89c5-32fafe52d2c3', checkpointBytes: 47620,
+        inputCursor: 4574287, consumerCursor: 4574290,
+        topics: Object.freeze(['metab.energy.availability.v1', 'metab.energy.reserve.v1',
+          'runtime.homeos.shadow-activation', 'runtime.organism.binding']),
+        topicsHash: 'abea82189093d4bb54bee213ed9f9a7ebdd9b2b0b76f6f77dcc2762555e75231',
+        pending: Object.freeze([
+          Object.freeze({ sequence: 4574291, topic: 'metab.energy.availability.v1',
+            deduplicationKey: 'core-output:241118f896bf22f9e7fdc76ac282ab598b2223ea617c76635edbef2e6e125e58' }),
+          Object.freeze({ sequence: 4574292, topic: 'metab.energy.reserve.v1',
+            deduplicationKey: 'core-output:900f2c215b6e2d3d729f1e00857d46c8d92a2bee5960456ad43a995e22ba404e' })
+        ]),
+        eligibleReplayCount: 492, failureRecordId: 211,
+        failureSequence: 4574291, failureCode: 'P1_RESIDENT_PENDING_BOUND'
+      }),
+      'resident:sntss': Object.freeze({
+        coreId: 'sntss', instanceId: '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
+        version: '0.5.0-i4g1', stateSchema: 5,
+        moduleRelativePath: 'cores/sntss/i4g/index.js',
+        moduleHash: 'sha256:4e96f1882ddbe35fc0e8f2afcdabae2b5e75812d8e9a392b09bcc8040b335ea7',
+        manifestHash: 'sha256:c1d0db3d4520556cb022864f4d1eb487a99628d61f3564942aa65cc0f204499a',
+        packagePolicyHash: 'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d',
+        checkpointGeneration: 2891082,
+        checkpointHash: '16a0224ff3f8dbeac51ebb27c05ad6e5bef8a1d831f308367470f7cb639cd5a0',
+        checkpointId: '4ffc8006-ecbb-47cc-abcf-47f41aac33ae', checkpointBytes: 4971,
+        inputCursor: 4574207, consumerCursor: 4574211,
+        topics: Object.freeze(['runtime.organism.binding', 'runtime.sntss.continuity-genesis',
+          'runtime.time.pulse']),
+        topicsHash: 'b752d8eebb09ac925c4c193810d31f5527315e42e36fbedafa1f30ef25a97501',
+        pending: Object.freeze([
+          Object.freeze({ sequence: 4574212, topic: 'runtime.time.pulse', deduplicationKey: 'runtime.time.pulse:147:3' }),
+          Object.freeze({ sequence: 4574217, topic: 'runtime.time.pulse', deduplicationKey: 'runtime.time.pulse:147:4' }),
+          Object.freeze({ sequence: 4574223, topic: 'runtime.time.pulse', deduplicationKey: 'runtime.time.pulse:147:5' }),
+          Object.freeze({ sequence: 4574228, topic: 'runtime.time.pulse', deduplicationKey: 'runtime.time.pulse:147:6' })
+        ]),
+        eligibleReplayCount: 261, failureRecordId: 210,
+        failureSequence: 4574212, failureCode: 'CORE_WORKER_TIMEOUT'
+      })
+    });
+    const expected = expectedByResidency[residencyId];
+    if (!expected || coreId !== expected.coreId || checkpointHash !== expected.checkpointHash ||
+        runtimeRevision !== 147 || maximumPending !== 1023) {
+      throw Object.assign(new Error('R147 continuation replay contract is invalid'), {
+        code: 'P1_R147_CONTINUATION_REPLAY_CONTRACT'
+      });
+    }
+    const at = new Date().toISOString();
+    const replayId = crypto.randomUUID();
+    let result;
+    try {
+      result = this.withTransaction(() => {
+        const resident = this.db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
+          .get(residencyId);
+        const consumer = this.db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
+          .get(residencyId);
+        const checkpoint = this.db.prepare(`SELECT * FROM resident_checkpoints
+          WHERE residency_id=? AND generation=?`).get(residencyId, expected.checkpointGeneration);
+        const pending = this.db.prepare(`SELECT d.sequence,e.topic,e.deduplication_key
+          FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+          WHERE d.consumer_id=? AND d.status='PENDING' ORDER BY d.sequence`).all(residencyId);
+        const markers = expected.topics.map(() => '?').join(',');
+        const eligibleReplayCount = Number(this.db.prepare(`SELECT COUNT(*) count
+          FROM biological_events WHERE sequence>? AND topic IN (${markers})`)
+          .get(expected.consumerCursor, ...expected.topics)?.count || 0);
+        const highWater = Number(this.db.prepare(
+          'SELECT COALESCE(MAX(sequence),0) value FROM biological_events'
+        ).get()?.value || 0);
+        const failure = this.db.prepare(`SELECT id,detail_json FROM recovery_records
+          WHERE type='resident.resync-required' AND core_id=? ORDER BY id DESC LIMIT 1`).get(coreId);
+        let failureDetail = null;
+        try { failureDetail = JSON.parse(failure?.detail_json || 'null'); } catch {}
+        const authorityCount = Number(this.db.prepare(`SELECT COUNT(*) count FROM authority
+          WHERE core_id IN ('METAB','HOMEOS','INTERO','sntss','chronobiology')`).get()?.count || 0);
+        const pendingOutputCount = Number(this.db.prepare(`SELECT COUNT(*) count
+          FROM biological_outbox_intents WHERE producer_core_id=? AND status='PENDING'`)
+          .get(coreId)?.count || 0);
+        if (
+          resident?.core_id !== coreId || resident?.instance_id !== expected.instanceId ||
+          resident?.version !== expected.version || Number(resident?.state_schema) !== expected.stateSchema ||
+          resident?.module_relative_path !== expected.moduleRelativePath ||
+          resident?.module_hash !== expected.moduleHash || resident?.manifest_hash !== expected.manifestHash ||
+          resident?.package_policy_hash !== expected.packagePolicyHash ||
+          resident?.status !== 'RESYNC_REQUIRED' ||
+          Number(resident?.checkpoint_generation) !== expected.checkpointGeneration ||
+          resident?.checkpoint_hash !== expected.checkpointHash ||
+          checkpoint?.checkpoint_id !== expected.checkpointId || checkpoint?.instance_id !== expected.instanceId ||
+          checkpoint?.version !== expected.version || Number(checkpoint?.state_schema) !== expected.stateSchema ||
+          Number(checkpoint?.generation) !== expected.checkpointGeneration ||
+          checkpoint?.blob_hash !== expected.checkpointHash ||
+          Number(checkpoint?.byte_length) !== expected.checkpointBytes ||
+          Number(checkpoint?.input_cursor) !== expected.inputCursor ||
+          consumer?.core_id !== coreId || Number(consumer?.required) !== 0 ||
+          Number(consumer?.active) !== 0 || Number(consumer?.cursor) !== expected.consumerCursor ||
+          Number(consumer?.authority_epoch) !== 0 || consumer?.topics_sha256 !== expected.topicsHash ||
+          consumer?.checkpoint_hash !== expected.checkpointHash ||
+          pending.length !== expected.pending.length || pending.some((row, index) =>
+            Number(row.sequence) !== expected.pending[index].sequence ||
+            row.topic !== expected.pending[index].topic ||
+            row.deduplication_key !== expected.pending[index].deduplicationKey) ||
+          eligibleReplayCount !== expected.eligibleReplayCount || eligibleReplayCount > maximumPending ||
+          highWater !== 4575520 || Number(failure?.id) !== expected.failureRecordId ||
+          failureDetail?.residencyId !== residencyId ||
+          failureDetail?.sequence !== expected.failureSequence || failureDetail?.code !== expected.failureCode ||
+          authorityCount !== 0 || pendingOutputCount !== 0
+        ) {
+          throw Object.assign(new Error('R147 continuation replay state changed'), {
+            code: 'P1_R147_CONTINUATION_REPLAY_STATE'
+          });
+        }
+        const detail = {
+          cohort: 'r147-homeos-sntss-sequential-continuation-v1', replayId, residencyId,
+          checkpointHash, checkpointGeneration: expected.checkpointGeneration,
+          runtimeRevision, fromCursor: expected.consumerCursor, toCursor: highWater,
+          pendingCount: expected.pending.length, eligibleReplayCount, maximumPending,
+          abandonedCount: 0, inventedBiologicalTime: false, authorityChanged: false
+        };
+        const updated = this.db.prepare(`UPDATE resident_instances SET status='RECOVERING',updated_at=?
+          WHERE residency_id=? AND status='RESYNC_REQUIRED' AND checkpoint_hash=?`)
+          .run(at, residencyId, checkpointHash);
+        if (updated.changes !== 1) throw Object.assign(
+          new Error('R147 continuation replay lost the resident fence'),
+          { code: 'RESIDENT_IDENTITY_CONFLICT' }
+        );
+        this.db.prepare(`INSERT INTO recovery_records(type,core_id,detail_json,created_at)
+          VALUES('resident.r147-continuation-replay-begin',?,?,?)`)
+          .run(coreId, JSON.stringify(detail), at);
+        return detail;
+      });
+    } catch (error) {
+      this.markWriteFailure(error);
+      throw error;
+    }
+    this.markWriteSuccess();
+    return result;
+  }
+
+
   beginExactR146HomeosBacklogReplay({
     residencyId,
     coreId,
