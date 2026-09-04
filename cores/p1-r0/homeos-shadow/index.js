@@ -1,6 +1,6 @@
 'use strict';
 
-// Deterministic P1-R0 resident bundle. Source seal: sha256:c0411807fabf23edc6830c99a69d62234f5c61769e4f0cbfa163e2296212ca56
+// Deterministic P1-R0 resident bundle. Source seal: sha256:ad71e5ee9a08fc79246fdf09943440679e60dc991fdf5d72a73ba99b1659cc37
 const __bundleModules = {
 "runtime/kernel/biological-envelope.js": function(module, exports, __bundleRequire) {
 'use strict';
@@ -3244,6 +3244,7 @@ const {
   deepFreeze,
   exact,
   fail,
+  frameFromEvent,
   normalizeRuntimeBinding,
   sha256
 } = __bundleRequire("runtime/p1-r0/resident-support.js");
@@ -3376,7 +3377,9 @@ function validateState(input) {
  * causal frames already present in the checkpoint.  It invents no input,
  * emits no output, changes no authority, and cannot match a later generic
  * gap.  The privileged recovery entry path persists the returned state and
- * evidence atomically before replaying the two still-PENDING deliveries.
+ * evidence atomically before replaying the two retained deliveries.  If the
+ * old unclaimed-event pruner has already removed those optional delivery
+ * rows, the exact published producer intents remain the durable source.
  */
 function repairExactR146RouteBoundaryState(input) {
   const state = clone(validateState(input));
@@ -3482,6 +3485,71 @@ function repairExactR146RouteBoundaryState(input) {
   });
 }
 
+function applyExactR146PrunedOutboxPair(input, pair) {
+  const state = clone(validateState(input));
+  if (!Array.isArray(pair) || pair.length !== 2) {
+    fail('HOMEOS R146 pruned outbox pair changed', 'P1_HOMEOS_R146_PRUNED_PAIR');
+  }
+  const expected = [
+    { topic: neutral.AVAILABILITY_TOPIC, producerSequence: '39' },
+    { topic: neutral.RESERVE_TOPIC, producerSequence: '40' }
+  ];
+  const frames = pair.map((entry, index) => {
+    if (!entry || entry.topic !== expected[index].topic) {
+      fail('HOMEOS R146 pruned outbox topic changed', 'P1_HOMEOS_R146_PRUNED_PAIR');
+    }
+    const frame = frameFromEvent({ topic: entry.topic, payload: entry.payload }, CORE_ID);
+    if (frame?.committedFrame !== R146_ROUTE_BOUNDARY.lastRetainedSourceFrame + 1 ||
+        frame?.producerSequence !== expected[index].producerSequence) {
+      fail('HOMEOS R146 pruned outbox identity changed', 'P1_HOMEOS_R146_PRUNED_PAIR');
+    }
+    return frame;
+  });
+  const source = state.neutralState;
+  if (source.engineState?.frameIndex !== R146_ROUTE_BOUNDARY.lastRetainedSourceFrame + 1 ||
+      source.engineState?.outputSequence !== '0' ||
+      Object.keys(source.pendingAvailability).length !== 0 ||
+      Object.keys(source.pendingReserve).length !== 0) {
+    fail('HOMEOS R146 repaired boundary changed', 'P1_HOMEOS_R146_PRUNED_PAIR');
+  }
+  const engine = createHomeosEngine({
+    profile: source.founder.profile,
+    identity: {
+      organismId: source.founder.organismId,
+      founderLineageId: source.founder.lineageId,
+      residencyId: source.founder.residencyId,
+      coreVersion: neutral.VERSION,
+      authorityEpoch: '0',
+      mode: 'NEUTRAL'
+    }
+  });
+  engine.restore(source.engineState);
+  const advanced = engine.advance({
+    frameIndex: R146_ROUTE_BOUNDARY.lastRetainedSourceFrame + 2,
+    inputs: frames
+  });
+  if (advanced.outputs.length !== 0 || advanced.state.outputSequence !== '0') {
+    fail('HOMEOS R146 pruned outbox recovery emitted output', 'P1_HOMEOS_R146_PRUNED_PAIR');
+  }
+  source.engineState = clone(advanced.state);
+  source.handledEvents += 2;
+  const recovered = validateState(state);
+  return deepFreeze({
+    state: clone(recovered),
+    evidence: {
+      cohort: 'r146-homeos-pruned-delivery-recovery-v1',
+      sourceFrame: R146_ROUTE_BOUNDARY.lastRetainedSourceFrame + 1,
+      producerSequences: pair.map(entry => entry.payload.producerSequence),
+      handledEventsAdded: 2,
+      physiologyApplied: 1,
+      biologicalOutputs: 0,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    }
+  });
+}
+
 async function createCore({ manifest: activeManifest = manifest, initialState, emit = async () => null } = {}) {
   if (
     activeManifest.coreId !== CORE_ID || activeManifest.version !== VERSION ||
@@ -3561,6 +3629,7 @@ module.exports = Object.freeze({
   manifest,
   migrateState,
   normalizeActivationPayload,
+  applyExactR146PrunedOutboxPair,
   repairExactR146RouteBoundaryState,
   R146_ROUTE_BOUNDARY,
   validateState

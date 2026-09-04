@@ -270,11 +270,7 @@ class HardenedLivingKernel extends BaseLivingKernel {
     let unclaimedPrune = { removed: 0, throughSequence: 0 };
     const requiredCount = Number(this.stateStore.db.prepare('SELECT COUNT(*) AS count FROM biological_consumers WHERE active=1 AND required=1').get()?.count || 0);
     if (requiredCount === 0) {
-      const boundary = this.stateStore.db.prepare('SELECT sequence FROM biological_events ORDER BY sequence DESC LIMIT 1 OFFSET 4095').get()?.sequence;
-      if (boundary != null) {
-        const result = this.stateStore.withTransaction(() => this.stateStore.db.prepare('DELETE FROM biological_events WHERE sequence<?').run(Number(boundary)));
-        unclaimedPrune = { removed: Number(result.changes) || 0, throughSequence: Number(boundary) - 1 };
-      }
+      unclaimedPrune = this.stateStore.pruneUnclaimedBiologicalEvents({ retainCount: 4096 });
     }
     this.lastBiologicalRetention = { ...pruned, ...debt, unclaimedPrune };
     await this.stateStore.writeLife('event-sequence', { sequence: this.fabric.sequence, at: new Date().toISOString() });

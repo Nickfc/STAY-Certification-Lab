@@ -136,11 +136,11 @@ const R146_METAB_Q48_HOMEOS_RECOVERY = Object.freeze({
   finalHomeosStateSchema: 2,
   finalHomeosModuleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
   finalHomeosModuleHash:
-    'sha256:c27ae45c464b11c4c772260ad3c8517854b80dd08846ea7e602e7e2338b0a700',
+    'sha256:28ce93b507a070fef823e40cce3e7368928466077fed943c98a1a88b5a84299a',
   finalHomeosManifestHash:
     'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
   finalHomeosPackagePolicyHash:
-    'sha256:9ad9344c9c386eed8e9a1b61334fc96074bb5c69a2b34c136343228143bb05c9',
+    'sha256:1afd6096fed7727491847e702d2506aa9492f8ad7d1424300b99ca3645d8b161',
   finalHomeosCheckpointId: 'homeos-r146-route-boundary-repair-42',
   finalHomeosCheckpointGeneration: 42,
   finalHomeosCheckpointHash:
@@ -148,10 +148,19 @@ const R146_METAB_Q48_HOMEOS_RECOVERY = Object.freeze({
   finalHomeosCheckpointBytes: 3926,
   finalHomeosInputCursor: 4241113,
   finalHomeosConsumerCursor: 4241116,
+  finalHomeosPrunedConsumerCursor: 4241118,
   finalHomeosTopicsHash:
     'abea82189093d4bb54bee213ed9f9a7ebdd9b2b0b76f6f77dcc2762555e75231',
   finalHomeosFailureRecordId: 184,
   finalHomeosPendingSequences: Object.freeze([4241117, 4241118]),
+  finalHomeosPublishedIntentIds: Object.freeze([
+    'dd4f1feb2e23462bc77206e91d066aa9e88d41ba145228599d7e64ef0a0ed8dd',
+    '63fadd3d778d1132eed2ec1ff533a69825b2fd2524ec16d2b35d81d01e8aeef9'
+  ]),
+  finalHomeosPublishedIntentHashes: Object.freeze([
+    '3e2897f3a6dfc26d5ea0faea147d8dbd552cad7a10b9028cae5dc6f78e866e21',
+    'e004c64e4fa571ab00e0858dc4e1299ee4b7207f5b24555cf4be778509cad6bc'
+  ]),
   finalHomeosRepairId: 'homeos-r146-route-boundary-continuity-v1',
   fetus: Object.freeze({
     consumerId: 'core:fetus-legacy',
@@ -1646,6 +1655,46 @@ class LivingKernel {
       let homeosRepairDetail = null;
       try { homeosFailureDetail = JSON.parse(latestHomeosFailure?.detail_json || 'null'); } catch {}
       try { homeosRepairDetail = JSON.parse(latestHomeosRepair?.detail_json || 'null'); } catch {}
+      const deliveryMode = homeosRepairDetail?.deliveryMode === 'pruned' ? 'pruned' : 'retained';
+      const expectedHomeosCheckpointHash = deliveryMode === 'pruned'
+        ? homeosRepairDetail?.repairedCheckpointHash
+        : R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointHash;
+      const expectedHomeosCheckpointBytes = deliveryMode === 'pruned'
+        ? Number(homeosRepairDetail?.repairedCheckpointBytes)
+        : R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointBytes;
+      const expectedHomeosInputCursor = deliveryMode === 'pruned'
+        ? R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPrunedConsumerCursor
+        : R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosInputCursor;
+      const expectedHomeosConsumerCursor = deliveryMode === 'pruned'
+        ? R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPrunedConsumerCursor
+        : R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosConsumerCursor;
+      let exactPrunedIntents = false;
+      if (deliveryMode === 'pruned') {
+        const rows = this.stateStore.db.prepare(`SELECT * FROM biological_outbox_intents
+          WHERE producer_event_id IN (?,?) ORDER BY fabric_sequence`).all(
+          ...R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPublishedIntentIds);
+        exactPrunedIntents = rows.length === 2 && rows.every((row, index) => {
+          try { this.stateStore.biologicalOutboxIntentFromRow(row); } catch { return false; }
+          return row.producer_event_id ===
+              R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPublishedIntentIds[index] &&
+            row.intent_sha256 ===
+              R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPublishedIntentHashes[index] &&
+            row.producer_core_id === 'METAB' && row.status === 'PUBLISHED' &&
+            Number(row.fabric_sequence) ===
+              R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPendingSequences[index];
+        }) && Number(this.stateStore.db.prepare(`SELECT COUNT(*) count FROM biological_events
+          WHERE sequence IN (?,?)`).get(
+          ...R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPendingSequences)?.count || 0) === 0;
+      }
+      const exactDeliveryBoundary = deliveryMode === 'retained'
+        ? pendingHomeos.length === 2 && pendingHomeos.every((row, index) =>
+          Number(row.sequence) === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPendingSequences[index] &&
+          row.topic === ['metab.energy.availability.v1', 'metab.energy.reserve.v1'][index])
+        : pendingHomeos.length === 0 && exactPrunedIntents &&
+          homeosRepairDetail?.pendingDeliveriesPreserved === 0 &&
+          homeosRepairDetail?.prunedDeliveriesRecovered === 2 &&
+          JSON.stringify(homeosRepairDetail?.sourceIntentSha256) ===
+            JSON.stringify(R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPublishedIntentHashes);
       const fetus = this.exactR146FetusContinuityCohort();
       const finalR146 =
         !this.stateStore.getResident('resident:intero') &&
@@ -1667,32 +1716,29 @@ class LivingKernel {
         homeos?.packagePolicyHash === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPackagePolicyHash &&
         homeos?.status === 'RESYNC_REQUIRED' &&
         homeos?.checkpointGeneration === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointGeneration &&
-        homeos?.checkpointHash === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointHash &&
+        homeos?.checkpointHash === expectedHomeosCheckpointHash &&
         homeosCheckpoint?.checkpoint_id === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointId &&
         homeosCheckpoint?.instance_id === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosInstanceId &&
         homeosCheckpoint?.version === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosVersion &&
         Number(homeosCheckpoint?.state_schema) === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosStateSchema &&
         Number(homeosCheckpoint?.generation) ===
           R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointGeneration &&
-        homeosCheckpoint?.blob_hash ===
-          R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointHash &&
-        Number(homeosCheckpoint?.byte_length) === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointBytes &&
-        Number(homeosCheckpoint?.input_cursor) === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosInputCursor &&
+        homeosCheckpoint?.blob_hash === expectedHomeosCheckpointHash &&
+        Number(homeosCheckpoint?.byte_length) === expectedHomeosCheckpointBytes &&
+        Number(homeosCheckpoint?.input_cursor) === expectedHomeosInputCursor &&
         homeosConsumer?.coreId === 'HOMEOS' && homeosConsumer?.required === false &&
         homeosConsumer?.active === false && homeosConsumer?.authorityEpoch === 0 &&
-        homeosConsumer?.cursor === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosConsumerCursor &&
+        homeosConsumer?.cursor === expectedHomeosConsumerCursor &&
         homeosConsumer?.topicsHash === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosTopicsHash &&
-        homeosConsumer?.checkpointHash === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointHash &&
-        pendingHomeos.length === 2 && pendingHomeos.every((row, index) =>
-          Number(row.sequence) === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPendingSequences[index] &&
-          row.topic === ['metab.energy.availability.v1', 'metab.energy.reserve.v1'][index]) &&
+        homeosConsumer?.checkpointHash === expectedHomeosCheckpointHash &&
+        exactDeliveryBoundary &&
         Number(latestHomeosFailure?.id) === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosFailureRecordId &&
         homeosFailureDetail?.sequence === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPendingSequences[0] &&
         homeosFailureDetail?.code === 'P1_RESIDENT_PENDING_BOUND' &&
         homeosRepairDetail?.repairId === R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosRepairId &&
-        homeosRepairDetail?.repairedCheckpointHash ===
-          R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosCheckpointHash &&
-        homeosRepairDetail?.pendingDeliveriesPreserved === 2 &&
+        homeosRepairDetail?.repairedCheckpointHash === expectedHomeosCheckpointHash &&
+        homeosRepairDetail?.pendingDeliveriesPreserved ===
+          (deliveryMode === 'retained' ? 2 : 0) &&
         homeosRepairDetail?.abandonedCount === 0 &&
         homeosRepairDetail?.inventedBiologicalTime === false &&
         homeosRepairDetail?.authorityChanged === false &&
