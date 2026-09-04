@@ -11,6 +11,7 @@ const shadow = require('../runtime/p1-r0/residents/metab-shadow');
 const { sha256 } = require('../runtime/p1-r0/resident-support');
 const {
   PENDING_VERSION_MIGRATION_POLICY,
+  commitCapacitySample,
   createCapacitySourceState,
   migrateCapacitySourceResidentVersion,
   stageCapacitySample
@@ -22,6 +23,8 @@ const {
   BASELINE,
   REPAIR,
   repairIncompleteCheckpointState,
+  validateMovingCapacitySource,
+  validateMovingMetabRelease,
   validateRelease
 } = require('../deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair');
 
@@ -180,4 +183,54 @@ test('R146-METAB-REPAIR-04 preserves a complete unapplied sample only at the exa
   assert.equal(migrated.residentVersion, '0.3.0-p1r0-homeos-feed.1');
   assert.deepEqual(migrated.pending, staged.pending);
   assert.equal(migrated.lastCommittedFrame, 0);
+});
+
+test('R146-METAB-REPAIR-05 accepts only an intact settled or one-frame pending moving source', () => {
+  const first = commitCapacitySample(stageCapacitySample(createCapacitySourceState({
+    instanceId: BASELINE.instanceId,
+    residentVersion: '0.3.0-p1r0-homeos-feed.1'
+  }), {
+    trustedTimeUs: 1_000_000,
+    continuityEpoch: 1,
+    metrics: {
+      cpuCount: 4,
+      loadAverageMilli: 0,
+      freeMemoryBytes: 8_000,
+      totalMemoryBytes: 8_000
+    }
+  }));
+  const settled = {
+    ...first,
+    lastCommittedFrame: BASELINE.acceptedFrame,
+    lastTrustedTimeUs: 25_000_000_000,
+    pending: null
+  };
+  const pending = stageCapacitySample(settled, {
+    trustedTimeUs: settled.lastTrustedTimeUs + 250_000,
+    continuityEpoch: 1,
+    metrics: {
+      cpuCount: 4,
+      loadAverageMilli: 0,
+      freeMemoryBytes: 8_000,
+      totalMemoryBytes: 8_000
+    }
+  });
+  assert.equal(validateMovingCapacitySource(settled).pending, null);
+  assert.equal(validateMovingCapacitySource(pending).pending.sampleFrame,
+    BASELINE.acceptedFrame + 1);
+  assert.throws(() => validateMovingCapacitySource({
+    ...pending,
+    instanceId: 'not-the-production-instance'
+  }), { code: 'P1_METAB_CAPACITY_SOURCE_STATE' });
+});
+
+test('R146-METAB-REPAIR-06 moving METAB package remains shadow-only and non-production-eligible', () => {
+  const definition = validateMovingMetabRelease(ROOT);
+  assert.equal(definition.manifest.version, '0.3.0-p1r0-homeos-feed.1');
+  assert.equal(definition.manifest.stateSchema, 3);
+  assert.equal(definition.manifest.productionEligible, false);
+  assert.deepEqual(definition.manifest.outputs, [
+    'metab.energy.availability.v1',
+    'metab.energy.reserve.v1'
+  ]);
 });
