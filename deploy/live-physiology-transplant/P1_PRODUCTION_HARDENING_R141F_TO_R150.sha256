@@ -54,7 +54,7 @@ f973c71b6c2802f24d036f016707ed9cf12c2ec072607cb4f0c9fb92007ce71d  ./runtime/p1-r
 fabdaebd1d0bc918c9346c03bd5d9b4312af1780f53311b5ce45e41d4ec6e2dc  ./runtime/p1-r0/residents/intero-shadow.js
 55ce62c147e1fc8aecbd0fdee285521aef87016f41fa24f5eb9b313e5ffdea03  ./runtime/p1-r0/residents/metab-homeos.js
 c5436c0b05c91602176508d2666318faec61ef4965e76bcb438ee03b02e158e2  ./runtime/p1-r0/residents/metab-intero.js
-0b20af672a88270c7ef9c129cdcbf4dbddbab701f9c44d673cdaf1e2c337cd62  ./runtime/release/surgery-a-control.js
+9f69ef0a8d5787209ab84011fefd9ac39b3122869345e583c28dac9d1e6a9c34  ./runtime/release/surgery-a-control.js
 08ec328c40fa64be296e862d98e9dbcefed4913b49a598a479cc81e5589acf83  ./scripts/build-p1-r0-resident-packages.js
 4b39c74d5ef4ac8d5c6f4eee01a9c16db45b1eaf2110073fd3e9a087f4a45aba  ./server.js
 12a716ecff8a27e72495a6625763efb299037931b54bc13ed9327a2376650fbf  ./test/p1-r0-metab-red.test.js
@@ -72,6 +72,6 @@ de3425cfe0809a7db8c982fcf066a992cf51aec6b7e8e1e52f49885f9dff8d98  ./test/p1-r145
 3d3f961629e115466ed0a2d7c9ce6f99634f71fe5532e8d29b9fc8d97cd3aa77  ./test/p1-r146-metab-q48-implementation-repair.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
 401902ebdc4d62d237532f6a2c62b869fc05e97305c759836fcfc6df6eed03da  ./test/p1-r150-production-gates.test.js
-36d3746d72d0d3b7d0b4e0c385cbf6f0e7f6151feb117c59c726b51bbe31bdc0  ./test/p1-surgery-a-transplant.test.js
+9cd38bd4cce8e86df8557ec7fa54bebc6deccbb1eab92ceda75bacf0cb264cf5  ./test/p1-surgery-a-transplant.test.js
 b1e401c43d4a2b6cee8e3c67a1dd1a3b10bfb9e376926d361ac1a99da64b3cb1  ./test/production-hardening.test.js
 32d6f4ab1a9b6f162d757c673938f4c6b1464187667811cb5b440ee894053212  ./tools/sign-p1-r0-expansion-birth.js
