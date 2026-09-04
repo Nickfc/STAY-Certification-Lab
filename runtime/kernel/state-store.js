@@ -53,7 +53,21 @@ async function exists(filePath) {
 }
 
 function sha256(data) { return crypto.createHash('sha256').update(data).digest('hex'); }
-async function sha256File(filePath) { return sha256(await fs.readFile(filePath)); }
+async function sha256File(filePath) {
+  const handle = await fs.open(filePath, 'r');
+  const digest = crypto.createHash('sha256');
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  try {
+    while (true) {
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
+      if (bytesRead === 0) break;
+      digest.update(buffer.subarray(0, bytesRead));
+    }
+    return digest.digest('hex');
+  } finally {
+    await handle.close();
+  }
+}
 
 
 function biologicalProducerProposal(

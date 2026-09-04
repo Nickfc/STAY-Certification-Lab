@@ -29,7 +29,7 @@ ab46fe2cb418268a812fb82edf6cb2c6ae59dd8d4b55ae1288dfc07a1c335517  ./deploy/live-
 733abcec9162a7ab450492cb6e190d12ea9d4032dc7afc42b4da80da4cc3a03c  ./runtime/kernel/hardened-living-kernel.js
 d3c89e53dce1424542072f187c88ef4df54ef11ce3ca0ccf4f7cf78627e5e089  ./runtime/kernel/living-kernel.js
 e9a9b797caa95efba9ece154bd1e5824b0d8d1b3064f5543e5f3e79f79fa7a44  ./runtime/kernel/resident-manager.js
-c9112baf6743b02d59a66dd0168467ec9af68ca425a339d4b6519d6d4828e5e0  ./runtime/kernel/state-store.js
+c4356f3f212eadc2fec4fdbd2ea72fa63413e97199a0180b98c186f62f07fe73  ./runtime/kernel/state-store.js
 92f6d6c9e77202b3d66c325e6bf1151b5da6a8bb8228880b99fe2c6c05b13935  ./runtime/p1-r0/deterministic-noise.js
 32d64305cae7df37b8b762d6ae9ba906baafb6cb5663608c252aa0a4ede95f5f  ./runtime/p1-r0/homeos-contract.js
 a94f363afe81b7946fe4827fb527d2e6702d3149555024568a26729c07eaa74d  ./runtime/p1-r0/homeos-contract.json
@@ -74,7 +74,7 @@ f1615103adc03bfdb46aeffafb1afa302f398440eb62e1b0a834bf2a02e3f802  ./test/p1-r135
 ae96c03ab38750395a2f67e9eee1b80da23410f5bffc62e209421a3b924fe424  ./test/p1-r143-homeos-neutral-birth.test.js
 5912a20dc88219d3ae9feb065190eb0a914b5ec595c86c81faf95e3c970d1afd  ./test/p1-r145-homeos-shadow.test.js
 a0437ed81a84a1892c1ab6e963a7139239c48139487989253764b1b491693578  ./test/p1-r146-metab-q48-implementation-repair.test.js
-532515cb52fc1b4eb52723e9e16a11079c3905749e4e13187ca99f60d27c932d  ./test/p1-r147-continuation-recovery.test.js
+1e922973b8a120b2cc89b2be924fe5d8c4a77e4b776dede63875caf07c590f3e  ./test/p1-r147-continuation-recovery.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
 2f1e29b9d606c651227d5bdd12292d15205ebafc22e7525ddbb7dbf83bd84745  ./test/p1-r150-production-gates.test.js
 e173ef5d0583d448adf742170153b9de0ac30ccbad6219861516fc235e619c23  ./test/p1-surgery-a-transplant.test.js

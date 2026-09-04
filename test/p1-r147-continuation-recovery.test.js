@@ -14,7 +14,7 @@ const {
   R147_HOMEOS_CONTINUATION_RECOVERY
 } = require('../runtime/kernel/living-kernel');
 const { ResidentManager } = require('../runtime/kernel/resident-manager');
-const { StateStore } = require('../runtime/kernel/state-store');
+const { StateStore, sha256File } = require('../runtime/kernel/state-store');
 const { createCapacitySourceState } = require('../runtime/p1-r0/metab-capacity-source');
 
 const AT = '2026-09-04T19:20:00.000Z';
@@ -500,6 +500,27 @@ test('R147-CONTINUATION-06 real snapshot helper creates and verifies the standar
   } finally {
     reopened.close();
   }
+});
+
+test('R147-CONTINUATION-07 snapshot hashing is byte-exact and fixed-buffer streaming', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r147-hash-entry-'));
+  const file = path.join(root, 'snapshot.bin');
+  const body = Buffer.alloc((2 * 1024 * 1024) + 37, 0x5a);
+  await fs.writeFile(file, body);
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+
+  assert.equal(
+    await sha256File(file),
+    crypto.createHash('sha256').update(body).digest('hex')
+  );
+  const source = await fs.readFile(path.resolve(__dirname, '..', 'runtime', 'kernel',
+    'state-store.js'), 'utf8');
+  const implementation = source.slice(
+    source.indexOf('async function sha256File'),
+    source.indexOf('\n}\n', source.indexOf('async function sha256File')) + 3
+  );
+  assert.match(implementation, /Buffer\.allocUnsafe\(1024 \* 1024\)/);
+  assert.doesNotMatch(implementation, /readFile/);
 });
 
 test('R147-CONTINUATION-04 exact current-checkpoint recovery bypasses retained-history enumeration', async () => {
