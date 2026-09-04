@@ -2,10 +2,12 @@
 
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const { execFile } = require('node:child_process');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { promisify } = require('node:util');
 
 const {
   LivingKernel,
@@ -17,6 +19,7 @@ const { createCapacitySourceState } = require('../runtime/p1-r0/metab-capacity-s
 
 const AT = '2026-09-04T19:20:00.000Z';
 const IDENTITY_HASH = '9'.repeat(64);
+const execFileAsync = promisify(execFile);
 const PENDING = Object.freeze({
   'resident:homeos': Object.freeze([
     Object.freeze({ sequence: 4574291,
@@ -217,9 +220,9 @@ test('R147-CONTINUATION-01 preserves only the exact stopped six-delivery cohort'
     hash: expected.fetus.checkpointHash,
     bytes: expected.fetus.checkpointBytes
   }, {
-    generation: 205,
-    hash: '8803909172edc449006cf412e0a27ec38f4bd671385f02de93652f3cd762fd16',
-    bytes: 57678
+    generation: 206,
+    hash: 'a2d5c969616196220a578530c910239ecc1443a7b4dbef2bdf1c5e024ab7204b',
+    bytes: 58540
   });
   assert.equal(
     LivingKernel.prototype.preserveExactR147HomeosContinuationRevision.call(harness),
@@ -395,6 +398,10 @@ test('R147-CONTINUATION-03 fetus installs before sequential recovery and HTTP ex
   assert.match(recoveryScript, /AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_ONLY/);
   assert.match(recoveryScript, /AUTHORIZE_STRANDED_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_ONLY/);
   assert.match(recoveryScript, /p1-r147-homeos-continuation-preflight\.js/);
+  assert.match(recoveryScript, /p1-r147-create-continuation-snapshot\.js/);
+  assert.match(recoveryScript, /runuser -u staydeploy/);
+  assert.match(recoveryScript, /STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT=/);
+  assert.match(recoveryScript, /STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT_MANIFEST_SHA256=/);
   assert.match(recoveryScript, /systemctl stop stay\.service/);
   assert.doesNotMatch(`${recoveryScript}\n${preflight}`,
     /handlerTimeoutMs=|hardRamBytes=|hardCpuDuty=|TimeoutStartSec|TimeoutStopSec/);
@@ -411,6 +418,88 @@ test('R147-CONTINUATION-03 fetus installs before sequential recovery and HTTP ex
     await LivingKernel.prototype.repairExactR146FetusEmptyInputContinuity.call(fetusHarness),
     { ...resolved, idempotent: true }
   );
+});
+
+test('R147-CONTINUATION-05 accepts only a verified exact-cohort preflight snapshot', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r147-snapshot-'));
+  const snapshotsRoot = path.join(root, 'snapshots');
+  const snapshotPath = path.join(
+    snapshotsRoot,
+    '2026-09-04T22-36-30-000Z-r147-homeos-continuation-preflight-v1'
+  );
+  await fs.mkdir(snapshotPath, { recursive: true, mode: 0o700 });
+  const authority = [{ coreId: 'fetus-legacy', epoch: 1 }];
+  const residents = [{ residencyId: 'resident:homeos', status: 'RESYNC_REQUIRED' }];
+  const manifest = {
+    format: 'stay-runtime-snapshot-v2',
+    reason: 'r147-homeos-continuation-preflight-v1',
+    files: {}, authority, residents
+  };
+  const manifestBody = Buffer.from(`${JSON.stringify(manifest)}\n`);
+  await fs.writeFile(path.join(snapshotPath, 'SNAPSHOT_MANIFEST.json'), manifestBody, { mode: 0o600 });
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const manifestSha256 = `sha256:${crypto.createHash('sha256').update(manifestBody).digest('hex')}`;
+  const harness = {
+    r147DeferredResidentRecovery: true,
+    r147ContinuationPreflightSnapshot: snapshotPath,
+    r147ContinuationPreflightSnapshotManifestSha256: manifestSha256,
+    stateStore: {
+      rootDir: root,
+      verifySnapshot: async requested => {
+        assert.equal(requested, snapshotPath);
+        return manifest;
+      },
+      listAuthority: () => authority,
+      listResidents: () => residents
+    }
+  };
+  const evidence = await LivingKernel.prototype
+    .verifyExactR147ContinuationPreflightSnapshot.call(harness);
+  assert.deepEqual(evidence, {
+    name: path.basename(snapshotPath), path: snapshotPath, manifestSha256
+  });
+
+  harness.stateStore.listResidents = () => [];
+  await assert.rejects(
+    LivingKernel.prototype.verifyExactR147ContinuationPreflightSnapshot.call(harness),
+    { code: 'P1_R147_CONTINUATION_SNAPSHOT_COHORT' }
+  );
+
+  await assert.rejects(
+    LivingKernel.prototype.verifyExactR147ContinuationPreflightSnapshot.call({
+      ...harness,
+      r147DeferredResidentRecovery: false
+    }),
+    { code: 'P1_R147_CONTINUATION_SNAPSHOT_BOUNDARY' }
+  );
+});
+
+test('R147-CONTINUATION-06 real snapshot helper creates and verifies the standard format', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r147-snapshot-entry-'));
+  const database = path.join(root, 'continuity.sqlite3');
+  const store = new StateStore(root);
+  await store.init();
+  store.close();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+
+  const helper = path.resolve(__dirname, '..', 'deploy', 'live-physiology-transplant',
+    'p1-r147-create-continuation-snapshot.js');
+  const { stdout } = await execFileAsync(process.execPath, [helper, root, database]);
+  const evidence = JSON.parse(stdout);
+  assert.equal(evidence.format, 'stay-r147-continuation-preflight-snapshot-v1');
+  assert.equal(evidence.result, 'PASS');
+  assert.match(evidence.manifestSha256, /^sha256:[0-9a-f]{64}$/);
+  assert.equal(path.dirname(evidence.path), path.join(root, 'snapshots'));
+
+  const reopened = new StateStore(root);
+  await reopened.init();
+  try {
+    const manifest = await reopened.verifySnapshot(evidence.path);
+    assert.equal(manifest.format, 'stay-runtime-snapshot-v2');
+    assert.equal(manifest.reason, 'r147-homeos-continuation-preflight-v1');
+  } finally {
+    reopened.close();
+  }
 });
 
 test('R147-CONTINUATION-04 exact current-checkpoint recovery bypasses retained-history enumeration', async () => {

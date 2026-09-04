@@ -332,9 +332,9 @@ const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
     instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f', version: '0.6.0',
     authorityEpoch: 1, consumerCursor: 4574204,
     consumerCheckpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
-    checkpointGeneration: 205,
-    checkpointHash: '8803909172edc449006cf412e0a27ec38f4bd671385f02de93652f3cd762fd16',
-    checkpointBytes: 57678,
+    checkpointGeneration: 206,
+    checkpointHash: 'a2d5c969616196220a578530c910239ecc1443a7b4dbef2bdf1c5e024ab7204b',
+    checkpointBytes: 58540,
     topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
   })
 });
@@ -677,6 +677,12 @@ class LivingKernel {
     homeosStrandedR147RecoveryAuthorization =
       process.env.STAY_HOMEOS_STRANDED_R147_RECOVERY_AUTHORIZATION || '',
 
+    r147ContinuationPreflightSnapshot =
+      process.env.STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT || '',
+
+    r147ContinuationPreflightSnapshotManifestSha256 =
+      process.env.STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT_MANIFEST_SHA256 || '',
+
     interoNeutralBirthAuthorization =
       process.env.STAY_INTERO_NEUTRAL_BIRTH_AUTHORIZATION || '',
 
@@ -850,6 +856,12 @@ class LivingKernel {
 
     this.homeosStrandedR147RecoveryAuthorization =
       String(homeosStrandedR147RecoveryAuthorization);
+
+    this.r147ContinuationPreflightSnapshot =
+      String(r147ContinuationPreflightSnapshot);
+
+    this.r147ContinuationPreflightSnapshotManifestSha256 =
+      String(r147ContinuationPreflightSnapshotManifestSha256);
 
     this.homeosStrandedR145RecoveryActive = false;
     this.homeosStrandedRecoveryRevision = null;
@@ -1240,6 +1252,7 @@ class LivingKernel {
       this.preserveExactR147HomeosRecoveryRevision() ||
       this.preserveExactR145HomeosProgressRevision() ||
       this.preserveExactR150InteroProgressRevision();
+    await this.verifyExactR147ContinuationPreflightSnapshot();
     if (!preservedRecoveryRevision) {
       await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
     }
@@ -1315,9 +1328,98 @@ class LivingKernel {
     });
 
     await this.writeHeartbeat();
-    await this.createSnapshot('kernel-start');
+    if (this.r147DeferredResidentRecovery) {
+      await this.stateStore.appendJournal({
+        type: 'state.snapshot-reused',
+        at: new Date().toISOString(),
+        reason: 'r147-homeos-continuation-preflight-v1',
+        snapshot: this.r147ContinuationPreflightSnapshotEvidence.name,
+        manifestSha256:
+          this.r147ContinuationPreflightSnapshotEvidence.manifestSha256
+      });
+    } else {
+      await this.createSnapshot('kernel-start');
+    }
     if (!this.r147DeferredResidentRecovery) this.startMaintenance();
     return this;
+  }
+
+  async verifyExactR147ContinuationPreflightSnapshot() {
+    const snapshotPath = this.r147ContinuationPreflightSnapshot;
+    const manifestSha256 =
+      this.r147ContinuationPreflightSnapshotManifestSha256;
+    if (!this.r147DeferredResidentRecovery) {
+      if (snapshotPath || manifestSha256) {
+        throw Object.assign(
+          new Error('R147 continuation preflight snapshot is outside its exact recovery boundary'),
+          { code: 'P1_R147_CONTINUATION_SNAPSHOT_BOUNDARY' }
+        );
+      }
+      return null;
+    }
+    if (
+      !path.isAbsolute(snapshotPath) ||
+      !/^sha256:[0-9a-f]{64}$/.test(manifestSha256)
+    ) {
+      throw Object.assign(
+        new Error('R147 continuation preflight snapshot identity is invalid'),
+        { code: 'P1_R147_CONTINUATION_SNAPSHOT_IDENTITY' }
+      );
+    }
+
+    let snapshotsRoot;
+    let resolvedSnapshot;
+    let snapshotStat;
+    let manifestStat;
+    let manifestBody;
+    try {
+      snapshotsRoot = fs.realpathSync(path.join(this.stateStore.rootDir, 'snapshots'));
+      resolvedSnapshot = fs.realpathSync(snapshotPath);
+      snapshotStat = fs.lstatSync(snapshotPath);
+      const manifestPath = path.join(resolvedSnapshot, 'SNAPSHOT_MANIFEST.json');
+      manifestStat = fs.lstatSync(manifestPath);
+      manifestBody = fs.readFileSync(manifestPath);
+    } catch (error) {
+      throw Object.assign(
+        new Error(`R147 continuation preflight snapshot is unavailable: ${error.message}`),
+        { code: 'P1_R147_CONTINUATION_SNAPSHOT_PATH' }
+      );
+    }
+    if (
+      path.dirname(resolvedSnapshot) !== snapshotsRoot ||
+      resolvedSnapshot !== path.resolve(snapshotPath) ||
+      !snapshotStat.isDirectory() || snapshotStat.isSymbolicLink() ||
+      !manifestStat.isFile() || manifestStat.isSymbolicLink() ||
+      (process.platform !== 'win32' && (snapshotStat.mode & 0o022) !== 0) ||
+      (process.platform !== 'win32' && (manifestStat.mode & 0o022) !== 0) ||
+      sha256Bytes(manifestBody) !== manifestSha256
+    ) {
+      throw Object.assign(
+        new Error('R147 continuation preflight snapshot trust fence failed'),
+        { code: 'P1_R147_CONTINUATION_SNAPSHOT_TRUST' }
+      );
+    }
+
+    const manifest = await this.stateStore.verifySnapshot(resolvedSnapshot);
+    if (
+      manifest?.format !== 'stay-runtime-snapshot-v2' ||
+      manifest?.reason !== 'r147-homeos-continuation-preflight-v1' ||
+      stableStringify(manifest.authority) !==
+        stableStringify(this.stateStore.listAuthority()) ||
+      stableStringify(manifest.residents) !==
+        stableStringify(this.stateStore.listResidents())
+    ) {
+      throw Object.assign(
+        new Error('R147 continuation preflight snapshot durable cohort changed'),
+        { code: 'P1_R147_CONTINUATION_SNAPSHOT_COHORT' }
+      );
+    }
+    this.r147ContinuationPreflightSnapshotEvidence = Object.freeze({
+      name: path.basename(resolvedSnapshot),
+      path: resolvedSnapshot,
+      manifestSha256
+    });
+    return this.r147ContinuationPreflightSnapshotEvidence;
   }
 
   async bumpRuntimeRevision(reason, details = {}) {
