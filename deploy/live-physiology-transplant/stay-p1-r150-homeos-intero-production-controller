@@ -8,24 +8,24 @@ EXPECTED_PRIVATE_IPV4='172.26.9.207'
 SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'
 SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'
 SOURCE_MANIFEST_SHA256='6a1e6a9ffbfd484c3d0623bd5ec20e922b34bfe79fd74562c11cda59a0fa5107'
-PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-06c383cbdb2e'
-PREVIOUS_HOMEOS_MANIFEST_SHA256='06c383cbdb2e6758a94a72efd48f68fd093c74facb956e18896ff6766d37b9a5'
-PREVIOUS_HOMEOS_CONTROLLER_SHA256='753a048fe7879f662c5e5d66d79d008223d1ac55c7386c79bbfe5da607a66433'
-RELEASE_TAG='r150-homeos-intero-shadow-v8'
-RELEASE_TAG_OBJECT='a3af7d6eeb41f031ee7da6c9e187cc01ad706cf7'
-RELEASE_COMMIT='ee6fc256b9fb886a975f4a639957439ee42f3d95'
-RELEASE_TREE='a6e384e674a149296b0d7fc22a41d8ec02e9d913'
-ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V8_BUNDLE_20260904.tar.gz'
-ARCHIVE_SHA256='47e401d0adb0031ba4255455fdab289587ad9d5c9b2f7810df44816794b2f41c'
-SIDECAR_SHA256='4d9396d31e385efb4eb7eb88fa4c08d5ed1b9281aab50f97394be33a1432e0b5'
+PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-1badcd78bfa2'
+PREVIOUS_HOMEOS_MANIFEST_SHA256='1badcd78bfa266b1618ba2d393c0c19967a06e97d0f10fd32e6076e2202e2796'
+PREVIOUS_HOMEOS_CONTROLLER_SHA256='1ac4e43c314dc9b45cc6711888ac00af5da4abb80357782ddf9915bdb1ca11a3'
+RELEASE_TAG='r150-homeos-intero-shadow-v9'
+RELEASE_TAG_OBJECT='069f1396c92818b31fce5312da15e1bc4121b568'
+RELEASE_COMMIT='ebe06d11bc08860d5e42c67d552725c0bd9fa524'
+RELEASE_TREE='b086e35c546bdacb43022f515f31971e1e1ffe4b'
+ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V9_BUNDLE_20260904.tar.gz'
+ARCHIVE_SHA256='c17de9844827b383266d12574336a40e78575f79d892a7726dffaa7ad97bc784'
+SIDECAR_SHA256='1018e16625c661f8936a6dc802163c3eb1f958bbebe34f4a7c8f81e1aa74f02d'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-MANIFEST_SHA256='1badcd78bfa266b1618ba2d393c0c19967a06e97d0f10fd32e6076e2202e2796'
+MANIFEST_SHA256='a8be13e9bbd15a94d36d5371c075bc4c1c1d9a75ef00e1522f425bbf329a91e1'
 FORWARD='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh'
 FORWARD_SHA256='98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c'
 RECOVERY='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh'
 RECOVERY_SHA256='ea95e26d66474a4a0c2ad9b35cfbe651279e0e9c344ee3d4f51192f4f249f2fb'
 PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
-TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-1badcd78bfa2'
+TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-a8be13e9bbd1'
 PUBLIC_KEY='/etc/stay/p1-r0-expansion-birth-authority.pub'
 PUBLIC_KEY_SHA256='f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc'
 FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
@@ -46,7 +46,7 @@ finish_controller(){
   if [[ "$CLEANUP_ARMED" -eq 1 ]]; then
     if [[ -n "$CANDIDATE" && "$CANDIDATE" =~ ^/opt/stay/releases/\.p1r0-r150\.[A-Za-z0-9]+$ && -d "$CANDIDATE" && ! -L "$CANDIDATE" ]]; then rm -rf --one-file-system -- "$CANDIDATE"||cleanup=1; fi
     if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then rm -rf --one-file-system -- "$WORK_ROOT"||cleanup=1; fi
-    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v9-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then rm -rf --one-file-system -- "$RUN_ROOT"||cleanup=1; fi
+    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v10-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then rm -rf --one-file-system -- "$RUN_ROOT"||cleanup=1; fi
   fi
   printf 'R150_CONTROLLER_FAILURE_CLASS=%s\nR150_CONTROLLER_CLEANUP_STATUS=%s\n' "$FAILURE_CLASS" "$([[ "$cleanup" -eq 0 ]]&&echo PASS||echo FAIL)"
   [[ "$status" -ne 0 ]]&&exit "$status"; exit "$cleanup"
@@ -54,7 +54,7 @@ finish_controller(){
 
 validate_run_root(){
   local root="$1"
-  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v9-[0-9]+$ && -d "$root" && ! -L "$root" &&
+  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v10-[0-9]+$ && -d "$root" && ! -L "$root" &&
     "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 &&
     -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy -o -perm /077 \) -print -quit)" ]]
 }
@@ -140,14 +140,14 @@ SOURCE_RELEASE=$SOURCE_RELEASE
 SOURCE_RUNTIME_REVISION=R141F
 TARGET_RUNTIME_REVISION=R146F
 RELEASE_PATH=$PREVIOUS_HOMEOS_RELEASE
-RELEASE_TAG=r150-homeos-intero-shadow-v7
-RELEASE_COMMIT=7cd7dc347adff09856ef01a2b5b052be0c328f21
-RELEASE_TREE=fdf33a06553c5709ed01835ba8188f2d7698f018
-ARCHIVE_SHA256=sha256:8e2606fd8286288cfe9de0d3ea69f5e19bf97a09694d765fba1d3f04797c7413
+RELEASE_TAG=r150-homeos-intero-shadow-v8
+RELEASE_COMMIT=ee6fc256b9fb886a975f4a639957439ee42f3d95
+RELEASE_TREE=a6e384e674a149296b0d7fc22a41d8ec02e9d913
+ARCHIVE_SHA256=sha256:47e401d0adb0031ba4255455fdab289587ad9d5c9b2f7810df44816794b2f41c
 MANIFEST_SHA256=sha256:$PREVIOUS_HOMEOS_MANIFEST_SHA256
 CONTROLLER_SHA256=sha256:$PREVIOUS_HOMEOS_CONTROLLER_SHA256
 FORWARD_SHA256=sha256:98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
-RECOVERY_SHA256=sha256:d8727e38eee583654c9b0e0c2c43395cb08db66c6fe32b2ca50890f7250a7ece
+RECOVERY_SHA256=sha256:ea95e26d66474a4a0c2ad9b35cfbe651279e0e9c344ee3d4f51192f4f249f2fb
 EXPANSION_PUBLIC_KEY_SHA256=sha256:$PUBLIC_KEY_SHA256
 BENCHMARK_START_AUTHORIZED=NO
 EOF
@@ -262,7 +262,7 @@ main(){
     recover-r146-homeos:AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1) STAGE=homeos;FORWARD_OPERATION=0;target_revision=146;RECOVERY_SCRIPT_AUTH=AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_FORWARD_RECOVERY_ONLY;;
     *)abort_controller 74 AUTHORIZATION_FAILED authorization-missing;;esac
   if [[ "$FORWARD_OPERATION" -eq 1 ]];then CERTIFICATE_SHA256="$supplied_cert";DOSSIER_SHA256="$supplied_dossier";[[ "$CERTIFICATE_SHA256" =~ ^sha256:[0-9a-f]{64}$ && "$DOSSIER_SHA256" =~ ^sha256:[0-9a-f]{64}$ ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED birth-hash-invalid;else CERTIFICATE_SHA256='sha256:0000000000000000000000000000000000000000000000000000000000000000';DOSSIER_SHA256="$CERTIFICATE_SHA256";[[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED recovery-hash-must-be-none;fi
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v9-[0-9]+$ ]]||abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v10-[0-9]+$ ]]||abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
   validate_run_root "$requested_root"||abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
   RUN_ROOT="$requested_root";trap finish_controller EXIT;CLEANUP_ARMED=1
   verify_staged_release||abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
