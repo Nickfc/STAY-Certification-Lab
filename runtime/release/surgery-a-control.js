@@ -53,6 +53,10 @@ const IDENTITIES = Object.freeze({
     stateStore: Object.freeze([
       Object.freeze({
         revision: 147,
+        sha256: 'c4356f3f212eadc2fec4fdbd2ea72fa63413e97199a0180b98c186f62f07fe73'
+      }),
+      Object.freeze({
+        revision: 147,
         sha256: 'c9112baf6743b02d59a66dd0168467ec9af68ca425a339d4b6519d6d4828e5e0'
       }),
       Object.freeze({

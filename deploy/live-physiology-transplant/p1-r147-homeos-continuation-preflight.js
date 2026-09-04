@@ -24,9 +24,9 @@ const EXPECTED = Object.freeze({
     instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f', version: '0.6.0',
     authorityEpoch: 1,
     consumerCheckpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
-    checkpointGeneration: 205,
-    checkpointHash: '8803909172edc449006cf412e0a27ec38f4bd671385f02de93652f3cd762fd16',
-    checkpointBytes: 57678,
+    checkpointGeneration: 206,
+    checkpointHash: 'a2d5c969616196220a578530c910239ecc1443a7b4dbef2bdf1c5e024ab7204b',
+    checkpointBytes: 58540,
     cursor: 4574204,
     topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
   }),

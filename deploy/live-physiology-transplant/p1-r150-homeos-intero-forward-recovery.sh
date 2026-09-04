@@ -18,6 +18,7 @@ FREEZER='deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js'
 CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
 METAB_REPAIR='deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js'
 R147_CONTINUATION_PREFLIGHT='deploy/live-physiology-transplant/p1-r147-homeos-continuation-preflight.js'
+R147_CONTINUATION_SNAPSHOT='deploy/live-physiology-transplant/p1-r147-create-continuation-snapshot.js'
 PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-8421f172c6f8'
 PREVIOUS_HOMEOS_TAG='r150-homeos-intero-shadow-v11'
 PREVIOUS_HOMEOS_COMMIT='10618886fb1cf20fb4a0b69171a8e0f191a2f7fe'
@@ -170,6 +171,7 @@ for file in "$DATABASE" "$PARENT_FREEZE" "$RECOVERY_MARKER" "$ACTIVE_PUBLIC_KEY"
   "$STAY_R150_TARGET_RELEASE/$VERIFY" "$STAY_R150_TARGET_RELEASE/$FREEZER" \
   "$STAY_R150_TARGET_RELEASE/$CLIENT" "$STAY_R150_TARGET_RELEASE/$METAB_REPAIR" \
   "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_PREFLIGHT" \
+  "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_SNAPSHOT" \
   "$STAY_R150_TARGET_RELEASE/P1_R150_RELEASE.env"; do
   [[ -f "$file" && ! -L "$file" ]] || abort recovery-input-invalid 3607
 done
@@ -246,6 +248,16 @@ WORK="$(mktemp -d "$EVIDENCE_ROOT/.R${TARGET_REVISION}-${STAY_R150_STAGE^^}-RECO
 if [[ "$STAY_R150_STAGE" == homeos-r147 ]]; then
   /usr/local/bin/node "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_PREFLIGHT" "$DATABASE" \
     > "$WORK/continuation.preflight.json"
+  runuser -u staydeploy -- /usr/local/bin/node \
+    "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_SNAPSHOT" \
+    "$(dirname "$DATABASE")" "$DATABASE" > "$WORK/continuation.snapshot.json"
+  snapshot_path="$(/usr/local/bin/node -e \
+    "process.stdout.write(require(process.argv[1]).path)" "$WORK/continuation.snapshot.json")"
+  snapshot_manifest_sha256="$(/usr/local/bin/node -e \
+    "process.stdout.write(require(process.argv[1]).manifestSha256)" "$WORK/continuation.snapshot.json")"
+  [[ "$snapshot_path" =~ ^/var/lib/stay/data/snapshots/[0-9TZ-]+-r147-homeos-continuation-preflight-v1$ &&
+    "$snapshot_manifest_sha256" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+    abort continuation-snapshot-identity-invalid 3613
 fi
 install -o root -g root -m 0400 "$PARENT_FREEZE" "$WORK/parent.freeze.json"
 install -o root -g root -m 0400 "$CERTIFICATE" "$WORK/$EVIDENCE_NAME.birth-certificate.json"
@@ -300,6 +312,8 @@ Environment=STAY_HOMEOS_STRANDED_R147_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_
 Environment=STAY_RECOVER_COLD_RESIDENTS_AT_REVISION=147
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_CERTIFICATE=$ACTIVE_CERTIFICATE
 Environment=STAY_HOMEOS_NEUTRAL_BIRTH_PUBLIC_KEY=$ACTIVE_PUBLIC_KEY
+Environment=STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT=$snapshot_path
+Environment=STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT_MANIFEST_SHA256=$snapshot_manifest_sha256
 DROPIN
   else
     cat > "$dropin_tmp" <<DROPIN
