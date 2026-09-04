@@ -30,19 +30,19 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   const source = read(CONTROLLER);
   for (const exact of [
     "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'",
-    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-1badcd78bfa2'",
-    "PREVIOUS_HOMEOS_MANIFEST_SHA256='1badcd78bfa266b1618ba2d393c0c19967a06e97d0f10fd32e6076e2202e2796'",
-    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='1ac4e43c314dc9b45cc6711888ac00af5da4abb80357782ddf9915bdb1ca11a3'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v9'",
-    "RELEASE_TAG_OBJECT='069f1396c92818b31fce5312da15e1bc4121b568'",
-    "RELEASE_COMMIT='ebe06d11bc08860d5e42c67d552725c0bd9fa524'",
-    "RELEASE_TREE='b086e35c546bdacb43022f515f31971e1e1ffe4b'",
-    "ARCHIVE_SHA256='c17de9844827b383266d12574336a40e78575f79d892a7726dffaa7ad97bc784'",
-    "MANIFEST_SHA256='a8be13e9bbd15a94d36d5371c075bc4c1c1d9a75ef00e1522f425bbf329a91e1'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-a8be13e9bbd1'"
+    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-a8be13e9bbd1'",
+    "PREVIOUS_HOMEOS_MANIFEST_SHA256='a8be13e9bbd15a94d36d5371c075bc4c1c1d9a75ef00e1522f425bbf329a91e1'",
+    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='760927cc803b7319e2cb07312ed49d6f9aa66ec8758235bb9c038808ac65af67'",
+    "RELEASE_TAG='r150-homeos-intero-shadow-v11'",
+    "RELEASE_TAG_OBJECT='db347d934b935ecc62ffe134c4ae676610c18eba'",
+    "RELEASE_COMMIT='10618886fb1cf20fb4a0b69171a8e0f191a2f7fe'",
+    "RELEASE_TREE='ccd673eeecef8a7c95842129ce455120eeabbf9b'",
+    "ARCHIVE_SHA256='748c43093083f35c0ff91bf9199cb966486ecafa79d48c510fc28e6009d01d3b'",
+    "MANIFEST_SHA256='8421f172c6f84f69bd5ff9ad746cc931baa1d22c0866037e3ca5b89d52a956e0'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-8421f172c6f8'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
-  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 78/);
+  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 80/);
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
   assert.match(source, /expected_previous_homeos_release_env/);
   assert.match(source, /mv -Tf "\$pointer_tmp" \/opt\/stay\/current/);
@@ -121,7 +121,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V10_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V12_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
@@ -146,7 +146,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   for (const exact of [
     'recover-r146-homeos',
     'AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1',
-    'RELEASE_TAG_OBJECT: 069f1396c92818b31fce5312da15e1bc4121b568',
+    'RELEASE_TAG_OBJECT: db347d934b935ecc62ffe134c4ae676610c18eba',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
     'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',

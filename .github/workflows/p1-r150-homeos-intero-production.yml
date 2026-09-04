@@ -24,24 +24,24 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-homeos-intero-v9-production
+  group: stay-r150-homeos-intero-v11-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v9
-  RELEASE_TAG_OBJECT: 069f1396c92818b31fce5312da15e1bc4121b568
-  RELEASE_COMMIT: ebe06d11bc08860d5e42c67d552725c0bd9fa524
-  RELEASE_TREE: b086e35c546bdacb43022f515f31971e1e1ffe4b
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V9_BUNDLE_20260904.tar.gz
-  ARCHIVE_SHA256: c17de9844827b383266d12574336a40e78575f79d892a7726dffaa7ad97bc784
-  SIDECAR_SHA256: 1018e16625c661f8936a6dc802163c3eb1f958bbebe34f4a7c8f81e1aa74f02d
-  MANIFEST_SHA256: a8be13e9bbd15a94d36d5371c075bc4c1c1d9a75ef00e1522f425bbf329a91e1
+  RELEASE_TAG: r150-homeos-intero-shadow-v11
+  RELEASE_TAG_OBJECT: db347d934b935ecc62ffe134c4ae676610c18eba
+  RELEASE_COMMIT: 10618886fb1cf20fb4a0b69171a8e0f191a2f7fe
+  RELEASE_TREE: ccd673eeecef8a7c95842129ce455120eeabbf9b
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V11_BUNDLE_20260904.tar.gz
+  ARCHIVE_SHA256: 748c43093083f35c0ff91bf9199cb966486ecafa79d48c510fc28e6009d01d3b
+  SIDECAR_SHA256: 7c85413ce20788e126d344686373d1a2ee60cc025884139863aae42238d96c68
+  MANIFEST_SHA256: 8421f172c6f84f69bd5ff9ad746cc931baa1d22c0866037e3ca5b89d52a956e0
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
-  RECOVERY_SHA256: ea95e26d66474a4a0c2ad9b35cfbe651279e0e9c344ee3d4f51192f4f249f2fb
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-a8be13e9bbd1
+  RECOVERY_SHA256: 9cee154143198755b817364dc6fd272af8d5b5b9aeb93f1016c8477e77121e0a
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-8421f172c6f8
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
-  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-1badcd78bfa2
-  WRAPPER_SHA256: 760927cc803b7319e2cb07312ed49d6f9aa66ec8758235bb9c038808ac65af67
+  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-a8be13e9bbd1
+  WRAPPER_SHA256: de0bab3adc6f0cc37e10b7ac420570017b18959fac3f1bad40f7d6afbebff753
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -111,15 +111,15 @@ jobs:
           [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
           (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
           mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
-          [[ "${#entries[@]}" -gt 77 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq "${#entries[@]}" ]]
+          [[ "${#entries[@]}" -gt 79 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq "${#entries[@]}" ]]
           for entry in "${entries[@]}"; do
             [[ -n "$entry" && "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && "$entry" != *\\* && ! "$entry" =~ ^[A-Za-z]: ]]
           done
           tar -tvzf "$root/$ARCHIVE" | awk 'substr($1,1,1) !~ /[-d]/ {bad=1} END {exit bad}'
           tar -xzf "$root/$ARCHIVE" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" -eq 78 ]]
-          [[ "$(wc -l < "$extract/$manifest")" -eq 77 ]]
+          [[ "$(find "$extract" -type f | wc -l)" -eq 80 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 79 ]]
           [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
@@ -303,7 +303,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v10-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v12-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -322,7 +322,7 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
           set -euo pipefail
           root="$1"; stage="${2:-}"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v10-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v12-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]

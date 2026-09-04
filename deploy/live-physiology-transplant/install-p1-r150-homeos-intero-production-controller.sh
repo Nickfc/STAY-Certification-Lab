@@ -5,7 +5,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-EXPECTED_WRAPPER_SHA256='760927cc803b7319e2cb07312ed49d6f9aa66ec8758235bb9c038808ac65af67'
+EXPECTED_WRAPPER_SHA256='de0bab3adc6f0cc37e10b7ac420570017b18959fac3f1bad40f7d6afbebff753'
 EXPECTED_PUBLIC_KEY_SHA256='f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc'
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_WRAPPER="$SCRIPT_DIR/stay-p1-r150-homeos-intero-production-controller"
@@ -29,8 +29,8 @@ if [[ -e "$TARGET_PUBLIC_KEY" || -L "$TARGET_PUBLIC_KEY" ]]; then
     abort existing-expansion-public-key-conflict 67
 fi
 
-staging="$(mktemp -d /run/stay-r150-controller-v10-bootstrap.XXXXXX)"
-cleanup(){ local status=$?;trap - EXIT;[[ "$staging" =~ ^/run/stay-r150-controller-v10-bootstrap\.[A-Za-z0-9]+$ && -d "$staging" && ! -L "$staging" ]]||exit 66;rm -rf --one-file-system -- "$staging";exit "$status"; }
+staging="$(mktemp -d /run/stay-r150-controller-v12-bootstrap.XXXXXX)"
+cleanup(){ local status=$?;trap - EXIT;[[ "$staging" =~ ^/run/stay-r150-controller-v12-bootstrap\.[A-Za-z0-9]+$ && -d "$staging" && ! -L "$staging" ]]||exit 66;rm -rf --one-file-system -- "$staging";exit "$status"; }
 trap cleanup EXIT
 sudoers_staged="$staging/stay-p1-production-controller.sudoers"
 cat > "$sudoers_staged" <<'SUDOERS'
