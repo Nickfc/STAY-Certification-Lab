@@ -8,9 +8,9 @@ on:
         description: Fixed revision-fenced operation
         required: true
         type: choice
-        default: recover-r146-homeos
+        default: recover-r147-homeos
         options:
-          - recover-r146-homeos
+          - recover-r147-homeos
       authorization:
         description: Exact operation-specific authorization
         required: true
@@ -18,30 +18,30 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1
+          - AUTHORIZE_R147_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-homeos-intero-v12-production
+  group: stay-r150-homeos-intero-v13-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v12
-  RELEASE_TAG_OBJECT: 44dc5fd382e35d90f21341bfbb6c2559be3baee9
-  RELEASE_COMMIT: 443bd6edaa92fedcc22410b11d77506513121df2
-  RELEASE_TREE: adb8de5036acf922d8a98cb0f73561964984384c
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V12_BUNDLE_20260904.tar.gz
-  ARCHIVE_SHA256: 6b84794f3c94e5be79c471c3e05529398dfc93feafce225bbd907a41b900f163
-  SIDECAR_SHA256: 6b37b25304ca76a41534bfcc5453bc12d4e64fd83646a20524bcd4ad524892f5
-  MANIFEST_SHA256: 3b96c1da46bc68241fe81c5c877b3b9078f78292f293c17157ca713f5e0b4e01
+  RELEASE_TAG: r150-homeos-intero-shadow-v13
+  RELEASE_TAG_OBJECT: 9f6771bdeddee4c1fc226c5c112feb99be7da17a
+  RELEASE_COMMIT: bb2ffec80690481c858727f5ebcdfd712c257b00
+  RELEASE_TREE: db120db3520ecd4fb83fa4b1238578b6d9fb92c7
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V13_BUNDLE_20260904.tar.gz
+  ARCHIVE_SHA256: 08763b6fc0ab6918904a139dda07018f281acb7e245d847becfefb42af58ecee
+  SIDECAR_SHA256: f0364b42196e0edb45ef37e2505bff5b8512dbeda4e13f7f8d838b17ef31e681
+  MANIFEST_SHA256: d5d6926ffeeca269c135ff87dcc40ba165ca669a10c1e4d4e4e862685314eaa5
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
-  RECOVERY_SHA256: de245c990e710f67994ac68e30bccd147b6fe051fc556535d7bee6f1fd5c0965
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3b96c1da46bc
+  RECOVERY_SHA256: f45f13ecfa137cdb18ca670d1270b2081dafb448158d9ecb478017fb644dac58
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-d5d6926ffeec
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
-  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-8421f172c6f8
-  WRAPPER_SHA256: d36f0d19443284a61253cf51da60f2d1a3a5fbc485a3bca4d303a60904065bfd
+  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3b96c1da46bc
+  WRAPPER_SHA256: 771ca87fc8baab1b0dc34f010de071876e77219baaec9d8ae178a494933147e6
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]]
           case "$OPERATION:$AUTHORIZATION" in
-            recover-r146-homeos:AUTHORIZE_R146_METAB_Q48_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1) ;;
+            recover-r147-homeos:AUTHORIZE_R147_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1) ;;
             *) exit 64 ;;
           esac
       - name: Checkout exact certified release
@@ -166,7 +166,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r150-homeos-intero-v9-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v13-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}.sha256
@@ -184,7 +184,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r150-homeos-intero-v9-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v13-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -271,7 +271,7 @@ jobs:
           done
           [[ "$revision" =~ ^[0-9]+$ ]]
           case "$operation" in
-            recover-r146-homeos) [[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 146 ]] ;;
+            recover-r147-homeos) [[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 147 ]] ;;
             *) exit 64 ;;
           esac
           pid="$(systemctl show stay.service -p MainPID --value)"; restarts="$(systemctl show stay.service -p NRestarts --value)"
@@ -303,7 +303,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v13-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v14-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -322,7 +322,7 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
           set -euo pipefail
           root="$1"; stage="${2:-}"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v13-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v14-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
@@ -344,7 +344,7 @@ jobs:
           grep -Fx 'R150_CONTROLLER_CLEANUP_STATUS=PASS' controller.output
           grep -Fx 'P1_AUTHORITY=NONE' controller.output
           grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output
-          case "$OPERATION" in recover-r146-homeos) revision=146; stage=homeos ;; *) exit 64 ;; esac
+          case "$OPERATION" in recover-r147-homeos) revision=147; stage=homeos-r147 ;; *) exit 64 ;; esac
           grep -Fx "R150_CONTROLLER_STAGE=$stage" controller.output
           grep -Fx "R150_CONTROLLER_REVISION=R${revision}F" controller.output
           grep -Fx "RUNTIME_REVISION=$revision" controller.output

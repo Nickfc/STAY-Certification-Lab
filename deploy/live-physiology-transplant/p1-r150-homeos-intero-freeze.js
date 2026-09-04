@@ -12,6 +12,12 @@ const STAGES = Object.freeze({
     freezeType: 'R146_METAB_Q48_REPAIRED_HOMEOS_OUTPUT_FIREWALLED_SHADOW',
     progression: [141, 142, 143, 144, 145, 146]
   }),
+  'homeos-r147': Object.freeze({
+    revision: 147, label: 'R147F', parentRevision: 141,
+    freezeType: 'R147_RECOVERED_HOMEOS_OUTPUT_FIREWALLED_SHADOW',
+    progression: [141, 142, 143, 144, 145, 146, 147],
+    certificateName: 'homeos', coreId: 'HOMEOS'
+  }),
   intero: Object.freeze({
     revision: 150, label: 'R150F', parentRevision: 145,
     freezeType: 'R150_INTERO_PERCEPTION_ONLY_SHADOW',
@@ -43,13 +49,14 @@ function evidenceHashes(root) {
 
 function buildFreeze(stageName, root) {
   const stage = STAGES[stageName];
-  if (!stage) fail('stage must be homeos or intero');
+  if (!stage) fail('stage must be homeos, homeos-r147, or intero');
   const parent = readJson(path.join(root, 'parent.freeze.json'));
   const before = readJson(path.join(root, 'before.proof.json'));
   const after = readJson(path.join(root, 'after.proof.json'));
   const service = readJson(path.join(root, 'service.after.json'));
   const release = readReleaseIdentity(path.join(root, 'P1_R150_RELEASE.env'));
-  const certificate = readJson(path.join(root, `${stageName}.birth-certificate.json`));
+  const certificateName = stage.certificateName || stageName;
+  const certificate = readJson(path.join(root, `${certificateName}.birth-certificate.json`));
   if (!validateRevisionFreeze(parent, stage.parentRevision) || before?.result !== 'PASS' ||
     after?.result !== 'PASS' || after.revision !== stage.revision ||
     ![1, 2].includes(service.restartCommands) ||
@@ -73,8 +80,8 @@ function buildFreeze(stageName, root) {
       controllerSha256: release.CONTROLLER_SHA256
     },
     birth: {
-      coreId: stageName.toUpperCase(), certificateId: certificate.body.certificateId,
-      certificateSha256: fileHash(path.join(root, `${stageName}.birth-certificate.json`)),
+      coreId: stage.coreId || stageName.toUpperCase(), certificateId: certificate.body.certificateId,
+      certificateSha256: fileHash(path.join(root, `${certificateName}.birth-certificate.json`)),
       founderDossierSha256: certificate.body.founderDossierSha256,
       privateKeyPresent: false, entropyPresent: false
     },
@@ -98,7 +105,7 @@ function buildFreeze(stageName, root) {
 }
 
 function main(argv = process.argv.slice(2)) {
-  if (argv.length !== 2) fail('usage: p1-r150-homeos-intero-freeze.js <homeos|intero> <evidence-root>');
+  if (argv.length !== 2) fail('usage: p1-r150-homeos-intero-freeze.js <homeos|homeos-r147|intero> <evidence-root>');
   process.stdout.write(`${JSON.stringify(buildFreeze(argv[0], path.resolve(argv[1])))}\n`);
 }
 

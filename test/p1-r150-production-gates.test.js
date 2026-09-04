@@ -156,6 +156,10 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
   assert.match(recovery,
     /STAY_HOMEOS_STRANDED_R146_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R146_METAB_Q48_HOMEOS_FORWARD_RECOVERY_ONLY/);
   assert.match(recovery,
+    /STAY_HOMEOS_STRANDED_R147_RECOVERY_AUTHORIZATION=AUTHORIZE_STRANDED_R147_HOMEOS_FORWARD_RECOVERY_ONLY/);
+  assert.match(recovery,
+    /R147_HOMEOS_FAILURE_EVIDENCE='\/var\/lib\/stay\/evidence\/production-hardening\/FAILED-R146-HOMEOS-RECOVERY-20260904T181405Z\.FyuzQM'/);
+  assert.match(recovery,
     /METAB_REPAIR='deploy\/live-physiology-transplant\/p1-r146-metab-q48-implementation-repair\.js'/);
   for (const exact of [
     "PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-8421f172c6f8'",
@@ -185,12 +189,16 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
   for (const source of [forward, recovery]) {
     assert.match(source, /EXPECTED_PRIVATE_IPV4='172\.26\.9\.207'/);
     assert.match(source, /P1_PRODUCTION_HARDENING_R141F_TO_R150\.sha256/);
-    assert.match(source, /seq 1 20/);
-    assert.match(source, /sleep 0\.25/);
     assert.match(source, /handlerTimeoutMs|PROOF/);
     assert.match(source, /stay-physiology-benchmark-v3\.service/);
     assert.doesNotMatch(source, /benchmark-start|systemctl start stay-physiology-benchmark/);
   }
+  assert.match(forward, /seq 1 20/);
+  assert.match(forward, /sleep 0\.25/);
+  assert.match(recovery, /seq 1 100/);
+  assert.match(recovery, /sleep 0\.75/);
+  assert.match(recovery, /TARGET_REVISION=147/);
+  assert.doesNotMatch(recovery, /handlerTimeoutMs=|hardRamBytes=|hardCpuDuty=/);
   assert.match(forward, /RESTART_COMMITTED=1\s*\nsystemctl restart stay\.service/);
   assert.match(forward, /point_current "\$SOURCE_RELEASE"/);
   assert.match(recovery, /durable-revision-outside-recovery-fence/);
