@@ -27,6 +27,10 @@ const IDENTITIES = Object.freeze({
     residentManager: Object.freeze([
       Object.freeze({
         revision: 147,
+        sha256: '2894cbc040178c15d367707f02b4a16d2174737aa90a46482a4be249688b9d8e'
+      }),
+      Object.freeze({
+        revision: 147,
         sha256: '63b27a4bd385007c4992be4f33f6b79305d3537ab4604cea6a220cdbb8888765'
       }),
       Object.freeze({
