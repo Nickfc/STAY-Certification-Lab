@@ -33,13 +33,13 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
     "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-68c82d3e6f06'",
     "PREVIOUS_HOMEOS_MANIFEST_SHA256='68c82d3e6f062d907602a65dcbd6036a73f7433a9170bfb5d587c28b5c33147e'",
     "PREVIOUS_HOMEOS_CONTROLLER_SHA256='3ee2e6a02246ffaf2028d3fcb28028cdad4549fc9f31b758f83809eb1188ef54'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v15'",
-    "RELEASE_TAG_OBJECT='3da079574544f976dc9eaf5467a2835902d4021d'",
-    "RELEASE_COMMIT='b0b316205bac873795ce409760c12f78efe1f7c4'",
-    "RELEASE_TREE='21ccc2fb02e1a5fb9789d0a4cf7e4618c088b721'",
-    "ARCHIVE_SHA256='97b26499f4c4fd467229e2e9c6ec455ef2acea1e5884d13ac0b0038a615736f4'",
-    "MANIFEST_SHA256='533b3bb5cbb8b93466afc5aac1121b5c04bf2541a14fc41cd3366243cc6ad54a'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-533b3bb5cbb8'"
+    "RELEASE_TAG='r150-homeos-intero-shadow-v16'",
+    "RELEASE_TAG_OBJECT='070325fc91298d0579cb40e86906809facdd0ba0'",
+    "RELEASE_COMMIT='1bd304ebb231d62c8108ea6710a946c978170de1'",
+    "RELEASE_TREE='5ecbf487faec52d0f314d20a245b826ea2e2e068'",
+    "ARCHIVE_SHA256='21e22abe6a92f763b7071514ae552edb7d3d806e6f42b967bb4bedca4ab60e98'",
+    "MANIFEST_SHA256='16be06704ceb77d0b06c3687bf6e79c372c82c2e9f461cdc2e5cd235891285ba'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-16be06704ceb'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
   assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 82/);
@@ -121,7 +121,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V16_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V17_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
@@ -146,7 +146,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   for (const exact of [
     'continue-r147-homeos',
     'AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_V2',
-    'RELEASE_TAG_OBJECT: 3da079574544f976dc9eaf5467a2835902d4021d',
+    'RELEASE_TAG_OBJECT: 070325fc91298d0579cb40e86906809facdd0ba0',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
     'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
