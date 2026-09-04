@@ -1,6 +1,6 @@
 'use strict';
 
-// Deterministic P1-R0 resident bundle. Source seal: sha256:6ef544fef66a0817f2bd28af89ce506a8df308f6b8e3a2c3046431b7efcb006d
+// Deterministic P1-R0 resident bundle. Source seal: sha256:d9e1e0501df42101b5ae81420b3a58944511861c5a2c77c643f32f0f74e7f6f4
 const __bundleModules = {
 "runtime/kernel/biological-envelope.js": function(module, exports, __bundleRequire) {
 'use strict';
@@ -3521,6 +3521,7 @@ module.exports = Object.freeze({
 'use strict';
 
 const { stableStringify } = __bundleRequire("runtime/kernel/canonical-json.js");
+const { createHomeosEngine } = __bundleRequire("runtime/p1-r0/homeos-engine.js");
 const {
   RESOURCES,
   clone,
@@ -3549,6 +3550,22 @@ const ACTIVATION_PAYLOAD_FIELDS = new Set([
 ]);
 const ACTIVATION_FIELDS = new Set([...ACTIVATION_PAYLOAD_FIELDS, 'eventId', 'eventSequence']);
 const STATE_FIELDS = new Set(['schema', 'activation', 'neutralState']);
+const R146_ROUTE_BOUNDARY = Object.freeze({
+  activationEventId: 'evt-2iweb-70324b1e3d6eaba6',
+  activationEventSequence: 4241027,
+  activationSourceCheckpointGeneration: 7,
+  activationSourceCheckpointHash:
+    'sha256:2c816e7d10033049d81d55bacb07c049483f243e3f60816892ccc9e3db5d3744',
+  engineFrame: 98007,
+  missingSourceFrame: 98007,
+  firstRetainedSourceFrame: 98008,
+  lastRetainedSourceFrame: 98023,
+  availabilityProducerSequence: 3,
+  reserveProducerSequence: 4,
+  firstRetainedAvailabilitySequence: 7,
+  firstRetainedReserveSequence: 8,
+  handledEvents: 36
+});
 
 const manifest = Object.freeze({
   coreId: CORE_ID,
@@ -3631,6 +3648,124 @@ function validateState(input) {
   return deepFreeze({ schema: input.schema, activation: activation === null ? null : clone(activation), neutralState: clone(neutralState) });
 }
 
+/*
+ * The first R146 HOMEOS shadow route was interrupted after its neutral
+ * checkpoint had consumed source frame 98006 and before the newly opened
+ * route could publish source frame 98007.  The following sixteen complete,
+ * delayed METAB pairs were durably accepted into the HOMEOS checkpoint but
+ * could not advance because the engine correctly requires contiguous time.
+ *
+ * This repair is deliberately a pure, exact-cohort transform.  It advances
+ * the single absent source frame as UNKNOWN, then applies only the retained
+ * causal frames already present in the checkpoint.  It invents no input,
+ * emits no output, changes no authority, and cannot match a later generic
+ * gap.  The privileged recovery entry path persists the returned state and
+ * evidence atomically before replaying the two still-PENDING deliveries.
+ */
+function repairExactR146RouteBoundaryState(input) {
+  const state = clone(validateState(input));
+  const activation = state.activation;
+  const source = state.neutralState;
+  const engineState = source.engineState;
+  const availabilityKeys = Object.keys(source.pendingAvailability).map(Number).sort((a, b) => a - b);
+  const reserveKeys = Object.keys(source.pendingReserve).map(Number).sort((a, b) => a - b);
+  const expectedFrames = Array.from(
+    { length: R146_ROUTE_BOUNDARY.lastRetainedSourceFrame -
+        R146_ROUTE_BOUNDARY.firstRetainedSourceFrame + 1 },
+    (_value, index) => R146_ROUTE_BOUNDARY.firstRetainedSourceFrame + index
+  );
+  if (
+    activation?.eventId !== R146_ROUTE_BOUNDARY.activationEventId ||
+    activation?.eventSequence !== R146_ROUTE_BOUNDARY.activationEventSequence ||
+    activation?.sourceCheckpointGeneration !==
+      R146_ROUTE_BOUNDARY.activationSourceCheckpointGeneration ||
+    activation?.sourceCheckpointHash !== R146_ROUTE_BOUNDARY.activationSourceCheckpointHash ||
+    activation?.instanceId !== '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f' ||
+    engineState?.frameIndex !== R146_ROUTE_BOUNDARY.engineFrame ||
+    engineState?.outputSequence !== '0' ||
+    engineState?.inputCursors?.['p1r0.metab-availability.homeos'] !==
+      String(R146_ROUTE_BOUNDARY.availabilityProducerSequence) ||
+    engineState?.inputCursors?.['p1r0.metab-reserve.homeos'] !==
+      String(R146_ROUTE_BOUNDARY.reserveProducerSequence) ||
+    source.handledEvents !== R146_ROUTE_BOUNDARY.handledEvents ||
+    stableStringify(availabilityKeys) !== stableStringify(expectedFrames) ||
+    stableStringify(reserveKeys) !== stableStringify(expectedFrames)
+  ) {
+    fail('HOMEOS R146 route-boundary cohort changed', 'P1_HOMEOS_R146_ROUTE_BOUNDARY');
+  }
+
+  const engine = createHomeosEngine({
+    profile: source.founder.profile,
+    identity: {
+      organismId: source.founder.organismId,
+      founderLineageId: source.founder.lineageId,
+      residencyId: source.founder.residencyId,
+      coreVersion: neutral.VERSION,
+      authorityEpoch: '0',
+      mode: 'NEUTRAL'
+    }
+  });
+  engine.restore(engineState);
+  const absent = engine.advance({
+    frameIndex: R146_ROUTE_BOUNDARY.engineFrame + 1,
+    inputs: null
+  });
+  if (absent.outputs.length !== 0 || absent.state.outputSequence !== '0' ||
+      absent.state.lifecycle !== 'UNRESOLVED') {
+    fail('HOMEOS R146 absent frame was not contained', 'P1_HOMEOS_R146_ROUTE_BOUNDARY');
+  }
+
+  for (const [index, frame] of expectedFrames.entries()) {
+    const availability = source.pendingAvailability[String(frame)];
+    const reserve = source.pendingReserve[String(frame)];
+    if (
+      availability?.committedFrame !== frame || reserve?.committedFrame !== frame ||
+      availability?.producerSequence !==
+        String(R146_ROUTE_BOUNDARY.firstRetainedAvailabilitySequence + index * 2) ||
+      reserve?.producerSequence !==
+        String(R146_ROUTE_BOUNDARY.firstRetainedReserveSequence + index * 2)
+    ) {
+      fail('HOMEOS R146 retained frame identity changed', 'P1_HOMEOS_R146_ROUTE_BOUNDARY');
+    }
+    const advanced = engine.advance({ frameIndex: frame + 1, inputs: [availability, reserve] });
+    if (advanced.outputs.length !== 0 || advanced.state.outputSequence !== '0') {
+      fail('HOMEOS R146 route-boundary repair emitted output', 'P1_HOMEOS_R146_ROUTE_BOUNDARY');
+    }
+    delete source.pendingAvailability[String(frame)];
+    delete source.pendingReserve[String(frame)];
+  }
+  source.engineState = clone(engine.snapshot());
+  const repaired = validateState(state);
+  if (
+    repaired.neutralState.engineState.frameIndex !==
+      R146_ROUTE_BOUNDARY.lastRetainedSourceFrame + 1 ||
+    Object.keys(repaired.neutralState.pendingAvailability).length !== 0 ||
+    Object.keys(repaired.neutralState.pendingReserve).length !== 0
+  ) {
+    fail('HOMEOS R146 route-boundary repair is incomplete', 'P1_HOMEOS_R146_ROUTE_BOUNDARY');
+  }
+  return deepFreeze({
+    state: clone(repaired),
+    evidence: {
+      cohort: 'r146-homeos-route-boundary-v1',
+      missingSourceFrame: R146_ROUTE_BOUNDARY.missingSourceFrame,
+      absentFrameSemantics: 'UNKNOWN',
+      retainedPairCount: expectedFrames.length,
+      firstRetainedSourceFrame: expectedFrames[0],
+      lastRetainedSourceFrame: expectedFrames.at(-1),
+      fromEngineFrame: R146_ROUTE_BOUNDARY.engineFrame,
+      toEngineFrame: repaired.neutralState.engineState.frameIndex,
+      checkpointBytesChanged: true,
+      biologicalStateChanged: true,
+      physiologyApplied: expectedFrames.length,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false,
+      biologicalOutputs: 0
+    }
+  });
+}
+
 async function createCore({ manifest: activeManifest = manifest, initialState, emit = async () => null } = {}) {
   if (
     activeManifest.coreId !== CORE_ID || activeManifest.version !== VERSION ||
@@ -3710,6 +3845,8 @@ module.exports = Object.freeze({
   manifest,
   migrateState,
   normalizeActivationPayload,
+  repairExactR146RouteBoundaryState,
+  R146_ROUTE_BOUNDARY,
   validateState
 });
 }

@@ -34,17 +34,17 @@ test('P1-A-01 transplant identities and certified shared anchors are exact', () 
   assert.equal(result.files.biologicalSignallingFabric.sha256,
     '9838f5e37dc410e6ef959e2b614398ba42a33e87392f39c9a682cd032d85114a');
   assert.equal(result.files.residentManager.sha256,
-    'e1b889eb8a4879c71b863f44415bfbd6e3f4b39e0325f3ca100e5c905c483d52');
+    '70badfe4b58bb9ef31588b11c955807195ce134f6c63e615771c60fc19b99125');
   assert.equal(result.files.residentManager.certifiedAnchorSha256,
     surgery.IDENTITIES.anchors.residentManager);
-  assert.equal(result.files.residentManager.successorRevision, 150);
+  assert.equal(result.files.residentManager.successorRevision, 146);
   assert.equal(surgery.IDENTITIES.anchors.stateStore,
     '28dde80f852294e243ed7a70689a0626062f7f3efa6536d3682e770b4bb521a1');
   assert.equal(result.files.stateStore.sha256,
-    'a128b267375141b1a109217e50305aa7f8a15928fa41e9468efda8d843ba7ce7');
+    '6697216b0cbb7e0d2b8936f9d40ea60dddd04ed1a95e168aaccfde48b4627449');
   assert.equal(result.files.stateStore.certifiedAnchorSha256,
     surgery.IDENTITIES.anchors.stateStore);
-  assert.equal(result.files.stateStore.successorRevision, 150);
+  assert.equal(result.files.stateStore.successorRevision, 146);
 });
 
 test('P1-A-02 Surgery A source has no implicit SNTSS or Chronobiology attachment', () => {

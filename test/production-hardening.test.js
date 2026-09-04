@@ -592,6 +592,44 @@ test('exact R146 Q48 repair cold-starts only METAB and requires zero abandonment
   }]);
 });
 
+test('exact R146 HOMEOS boundary cold-starts only its retained pair', async () => {
+  const calls = [];
+  const kernel = Object.create(require('../runtime/kernel/living-kernel').LivingKernel.prototype);
+  kernel.runtimeRevision = 146;
+  kernel.metabQ48R146RecoveryActive = false;
+  kernel.homeosFinalR146RecoveryActive = true;
+  kernel.statusCache = {};
+  kernel.stateStore = {
+    getResident(residencyId) {
+      return residencyId === 'resident:homeos'
+        ? { residencyId, coreId: 'HOMEOS', status: 'RESYNC_REQUIRED' }
+        : null;
+    }
+  };
+  kernel.ensureOrganismBinding = async () => ({ identitySha256: `sha256:${'1'.repeat(64)}` });
+  kernel.ensureResidentManager = () => ({
+    async resynchronize(residencyId, _binding, revision, options) {
+      calls.push({ residencyId, revision, options });
+      return { record: { abandonedCount: 0, pendingCount: 2 } };
+    }
+  });
+  const previous = process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION;
+  process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION = '146';
+  try {
+    assert.deepEqual(await kernel.recoverColdFailedResidents(), [{
+      residencyId: 'resident:homeos', recovered: true, coldRecovery: true,
+      abandonedCount: 0, status: 'RUNNING'
+    }]);
+  } finally {
+    if (previous == null) delete process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION;
+    else process.env.STAY_RECOVER_COLD_RESIDENTS_AT_REVISION = previous;
+  }
+  assert.deepEqual(calls, [{
+    residencyId: 'resident:homeos', revision: 146,
+    options: { allowColdQuarantine: false, exactR146HomeosBacklog: true }
+  }]);
+});
+
 test('failed cold Chronobiology recovery restores quarantine without abandoning its consumer', async () => {
   const recoveryRecords = [];
   let status = 'QUARANTINED';
