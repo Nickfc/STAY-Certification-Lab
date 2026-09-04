@@ -8,9 +8,9 @@ on:
         description: Fixed revision-fenced operation
         required: true
         type: choice
-        default: recover-r147-homeos
+        default: continue-r147-homeos
         options:
-          - recover-r147-homeos
+          - continue-r147-homeos
       authorization:
         description: Exact operation-specific authorization
         required: true
@@ -18,30 +18,30 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R147_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1
+          - AUTHORIZE_R147_HOMEOS_SEQUENTIAL_CONTINUATION_RECOVERY_V1
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-homeos-intero-v13-production
+  group: stay-r150-homeos-intero-v14-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v13
-  RELEASE_TAG_OBJECT: 9f6771bdeddee4c1fc226c5c112feb99be7da17a
-  RELEASE_COMMIT: bb2ffec80690481c858727f5ebcdfd712c257b00
-  RELEASE_TREE: db120db3520ecd4fb83fa4b1238578b6d9fb92c7
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V13_BUNDLE_20260904.tar.gz
-  ARCHIVE_SHA256: 08763b6fc0ab6918904a139dda07018f281acb7e245d847becfefb42af58ecee
-  SIDECAR_SHA256: f0364b42196e0edb45ef37e2505bff5b8512dbeda4e13f7f8d838b17ef31e681
-  MANIFEST_SHA256: d5d6926ffeeca269c135ff87dcc40ba165ca669a10c1e4d4e4e862685314eaa5
+  RELEASE_TAG: r150-homeos-intero-shadow-v14
+  RELEASE_TAG_OBJECT: 7b530ec7d78d99481b902e80c15f248b5a25dbfd
+  RELEASE_COMMIT: d77160420f33c528c03c1660322e1e0ed0b1a563
+  RELEASE_TREE: 9c364bd94530a337202906ae1369a772cc4f8504
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V14_BUNDLE_20260904.tar.gz
+  ARCHIVE_SHA256: 8d2ad2bc0bf35f2967b4735e3b62cfcdc573f787c8f7ae065e196618e4d8b8c6
+  SIDECAR_SHA256: 0133cd821095103d56559778ed34e9b27801c3d4621de97756523ad993d672fb
+  MANIFEST_SHA256: 68c82d3e6f062d907602a65dcbd6036a73f7433a9170bfb5d587c28b5c33147e
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
-  RECOVERY_SHA256: f45f13ecfa137cdb18ca670d1270b2081dafb448158d9ecb478017fb644dac58
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-d5d6926ffeec
+  RECOVERY_SHA256: 7cdc3bb681a908b1d31759ad76f46737bddbbd2885cae94004f454e180d815c9
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-68c82d3e6f06
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
-  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3b96c1da46bc
-  WRAPPER_SHA256: 771ca87fc8baab1b0dc34f010de071876e77219baaec9d8ae178a494933147e6
+  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-d5d6926ffeec
+  WRAPPER_SHA256: 7ba2b0b60de7770b8ae62f02dea62a5a63c78d29d64ab880734d95910b51fa41
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]]
           case "$OPERATION:$AUTHORIZATION" in
-            recover-r147-homeos:AUTHORIZE_R147_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1) ;;
+            continue-r147-homeos:AUTHORIZE_R147_HOMEOS_SEQUENTIAL_CONTINUATION_RECOVERY_V1) ;;
             *) exit 64 ;;
           esac
       - name: Checkout exact certified release
@@ -111,15 +111,15 @@ jobs:
           [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
           (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
           mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
-          [[ "${#entries[@]}" -gt 79 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq "${#entries[@]}" ]]
+          [[ "${#entries[@]}" -gt 81 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq "${#entries[@]}" ]]
           for entry in "${entries[@]}"; do
             [[ -n "$entry" && "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && "$entry" != *\\* && ! "$entry" =~ ^[A-Za-z]: ]]
           done
           tar -tvzf "$root/$ARCHIVE" | awk 'substr($1,1,1) !~ /[-d]/ {bad=1} END {exit bad}'
           tar -xzf "$root/$ARCHIVE" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" -eq 80 ]]
-          [[ "$(wc -l < "$extract/$manifest")" -eq 79 ]]
+          [[ "$(find "$extract" -type f | wc -l)" -eq 82 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 81 ]]
           [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
@@ -162,11 +162,12 @@ jobs:
             node --disable-sigusr1 --test --test-isolation=none --test-concurrency=1 \
             test/p1-r0-metab-red.test.js test/p1-r146-metab-q48-implementation-repair.test.js \
             test/p1-r143-homeos-neutral-birth.test.js test/p1-r145-homeos-shadow.test.js \
+            test/p1-r147-continuation-recovery.test.js \
             test/p1-r150-intero-shadow.test.js test/p1-r150-production-gates.test.js
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r150-homeos-intero-v13-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v14-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}.sha256
@@ -184,7 +185,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r150-homeos-intero-v13-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v14-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -263,7 +264,7 @@ jobs:
           revision=''
           for attempt in $(seq 1 20); do
             if revision="$(node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
-          'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase(),r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get(),count=(t,w)=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value),ok=r&&crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256,pending=db.prepare("SELECT consumer_id consumerId,COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum FROM biological_deliveries WHERE status='PENDING' GROUP BY consumer_id ORDER BY consumer_id").all(),failed=db.prepare("SELECT consumer_id consumerId,sequence FROM biological_deliveries WHERE status='FAILED' ORDER BY consumer_id,sequence").all(),outbox=count('biological_outbox_intents',"status='PENDING'"),authority=count('authority',"core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')"),f=pending[0],exactPending=pending.length===0||(pending.length===1&&f.consumerId==='core:fetus-legacy'&&Number(f.minimum)===4194077&&Number.isSafeInteger(Number(f.count))&&Number(f.count)>0&&Number(f.maximum)-Number(f.minimum)+1===Number(f.count)),exactFailure=failed.length===0||(failed.length===1&&failed[0].consumerId==='resident:metab'&&Number(failed[0].sequence)===4179960);if(!(q==='ok'&&ok&&exactPending&&exactFailure&&outbox===0&&authority===0))process.exit(1);process.stdout.write(String(Number(JSON.parse(r.json).revision)));}finally{db.close();}
+          'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase(),r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get(),count=(t,w)=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value),ok=r&&crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256,pending=db.prepare("SELECT consumer_id consumerId,COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum FROM biological_deliveries WHERE status='PENDING' GROUP BY consumer_id ORDER BY consumer_id").all(),failed=db.prepare("SELECT consumer_id consumerId,sequence FROM biological_deliveries WHERE status='FAILED' ORDER BY consumer_id,sequence").all(),outbox=count('biological_outbox_intents',"status='PENDING'"),authority=count('authority',"core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')"),highWater=Number(db.prepare('SELECT COALESCE(MAX(sequence),0) value FROM biological_events').get().value),h=pending.find(v=>v.consumerId==='resident:homeos'),s=pending.find(v=>v.consumerId==='resident:sntss'),exactPending=pending.length===2&&Number(h?.count)===2&&Number(h?.minimum)===4574291&&Number(h?.maximum)===4574292&&Number(s?.count)===4&&Number(s?.minimum)===4574212&&Number(s?.maximum)===4574228,exactFailure=failed.length===0;if(!(q==='ok'&&ok&&exactPending&&exactFailure&&highWater===4575520&&outbox===0&&authority===0))process.exit(1);process.stdout.write(String(Number(JSON.parse(r.json).revision)));}finally{db.close();}
           NODE
             )"; then break; fi
             revision=''
@@ -271,7 +272,7 @@ jobs:
           done
           [[ "$revision" =~ ^[0-9]+$ ]]
           case "$operation" in
-            recover-r147-homeos) [[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 147 ]] ;;
+            continue-r147-homeos) [[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 147 ]] ;;
             *) exit 64 ;;
           esac
           pid="$(systemctl show stay.service -p MainPID --value)"; restarts="$(systemctl show stay.service -p NRestarts --value)"
@@ -287,10 +288,11 @@ jobs:
           NODE
               [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" && "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
               ;;
-            recover-*)
+            continue-*)
               # Recovery is cohort-fenced by the target pointer, durable revision,
               # immutable marker, and controller. HTTP may be unavailable because
               # restoring that failed service is the sole purpose of this path.
+              [[ "$active" == inactive && "$substate" == dead && "$pid" == 0 ]]
               ;;
           esac
           printf 'R150_READ_ONLY_PREFLIGHT=PASS\nRUNTIME_REVISION=%s\nSERVICE_PID=%s\nSERVICE_STATE=%s/%s\nBENCHMARK_ACTIVE=NO\n' \
@@ -303,7 +305,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v14-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v15-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -322,7 +324,7 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
           set -euo pipefail
           root="$1"; stage="${2:-}"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v14-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v15-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
@@ -344,7 +346,7 @@ jobs:
           grep -Fx 'R150_CONTROLLER_CLEANUP_STATUS=PASS' controller.output
           grep -Fx 'P1_AUTHORITY=NONE' controller.output
           grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output
-          case "$OPERATION" in recover-r147-homeos) revision=147; stage=homeos-r147 ;; *) exit 64 ;; esac
+          case "$OPERATION" in continue-r147-homeos) revision=147; stage=homeos-r147 ;; *) exit 64 ;; esac
           grep -Fx "R150_CONTROLLER_STAGE=$stage" controller.output
           grep -Fx "R150_CONTROLLER_REVISION=R${revision}F" controller.output
           grep -Fx "RUNTIME_REVISION=$revision" controller.output

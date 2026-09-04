@@ -4514,6 +4514,8 @@ class ResidentManager {
       allowColdQuarantine =
         false,
       exactR146HomeosBacklog =
+        false,
+      exactR147ContinuationBacklog =
         false
     } = {}
   ) {
@@ -4572,6 +4574,12 @@ class ResidentManager {
       resident.version === '0.2.0-p1r0-shadow.1' &&
       resident.status === 'RESYNC_REQUIRED' &&
       runtimeRevision === 146;
+
+    const containedR147ContinuationBacklog =
+      exactR147ContinuationBacklog === true &&
+      ['resident:homeos', 'resident:sntss'].includes(resident.residencyId) &&
+      ['HOMEOS', 'sntss'].includes(resident.coreId) &&
+      resident.status === 'RESYNC_REQUIRED' && runtimeRevision === 147;
 
     if (
       resident.status !==
@@ -4658,6 +4666,14 @@ class ResidentManager {
                 checkpointHash: checkpoint.blobHash,
                 runtimeRevision
               })
+          : containedR147ContinuationBacklog
+            ? this.stateStore.beginExactR147ContinuationBacklogReplay({
+                residencyId,
+                coreId: resident.coreId,
+                checkpointHash: checkpoint.blobHash,
+                runtimeRevision,
+                maximumPending: 1023
+              })
         : this.stateStore
             .resynchronizeResidentBiologicalConsumer({
               residencyId,
@@ -4686,7 +4702,8 @@ class ResidentManager {
       );
     }
 
-    if (!containedChronobiologyBacklog && !containedR146HomeosBacklog) {
+    if (!containedChronobiologyBacklog && !containedR146HomeosBacklog &&
+        !containedR147ContinuationBacklog) {
       this.stateStore
         .setResidentStatus(
           residencyId,
@@ -4713,7 +4730,8 @@ class ResidentManager {
               ? 2
               : 1023,
         preserveConsumerOnFailure:
-          containedChronobiologyBacklog || containedR146HomeosBacklog
+          containedChronobiologyBacklog || containedR146HomeosBacklog ||
+          containedR147ContinuationBacklog
       });
 
     this.stateStore
@@ -4722,6 +4740,8 @@ class ResidentManager {
           ? 'resident.cold-backlog-replayed'
           : containedR146HomeosBacklog
             ? 'resident.exact-backlog-replayed'
+          : containedR147ContinuationBacklog
+            ? 'resident.r147-continuation-replayed'
           : coldQuarantine
             ? 'resident.cold-quarantine-recovered'
           : 'resident.resynchronized',
@@ -4749,7 +4769,9 @@ class ResidentManager {
               ? record.pendingCount
               : containedR146HomeosBacklog
                 ? record.pendingCount
-                : 0
+                : containedR147ContinuationBacklog
+                  ? record.eligibleReplayCount
+                  : 0
         }
       );
 

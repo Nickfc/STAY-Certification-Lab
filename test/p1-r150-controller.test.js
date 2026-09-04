@@ -30,19 +30,19 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   const source = read(CONTROLLER);
   for (const exact of [
     "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'",
-    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3b96c1da46bc'",
-    "PREVIOUS_HOMEOS_MANIFEST_SHA256='3b96c1da46bc68241fe81c5c877b3b9078f78292f293c17157ca713f5e0b4e01'",
-    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='d36f0d19443284a61253cf51da60f2d1a3a5fbc485a3bca4d303a60904065bfd'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v13'",
-    "RELEASE_TAG_OBJECT='9f6771bdeddee4c1fc226c5c112feb99be7da17a'",
-    "RELEASE_COMMIT='bb2ffec80690481c858727f5ebcdfd712c257b00'",
-    "RELEASE_TREE='db120db3520ecd4fb83fa4b1238578b6d9fb92c7'",
-    "ARCHIVE_SHA256='08763b6fc0ab6918904a139dda07018f281acb7e245d847becfefb42af58ecee'",
-    "MANIFEST_SHA256='d5d6926ffeeca269c135ff87dcc40ba165ca669a10c1e4d4e4e862685314eaa5'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-d5d6926ffeec'"
+    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-d5d6926ffeec'",
+    "PREVIOUS_HOMEOS_MANIFEST_SHA256='d5d6926ffeeca269c135ff87dcc40ba165ca669a10c1e4d4e4e862685314eaa5'",
+    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='771ca87fc8baab1b0dc34f010de071876e77219baaec9d8ae178a494933147e6'",
+    "RELEASE_TAG='r150-homeos-intero-shadow-v14'",
+    "RELEASE_TAG_OBJECT='7b530ec7d78d99481b902e80c15f248b5a25dbfd'",
+    "RELEASE_COMMIT='d77160420f33c528c03c1660322e1e0ed0b1a563'",
+    "RELEASE_TREE='9c364bd94530a337202906ae1369a772cc4f8504'",
+    "ARCHIVE_SHA256='8d2ad2bc0bf35f2967b4735e3b62cfcdc573f787c8f7ae065e196618e4d8b8c6'",
+    "MANIFEST_SHA256='68c82d3e6f062d907602a65dcbd6036a73f7433a9170bfb5d587c28b5c33147e'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-68c82d3e6f06'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
-  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 80/);
+  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 82/);
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
   assert.match(source, /expected_previous_homeos_release_env/);
   assert.match(source, /mv -Tf "\$pointer_tmp" \/opt\/stay\/current/);
@@ -51,7 +51,7 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
 test('R150-CTRL-02 authority is one-operation exact and benchmark cannot start', () => {
   const source = read(CONTROLLER);
   assert.ok(source.includes(
-    'recover-r147-homeos:AUTHORIZE_R147_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1'));
+    'continue-r147-homeos:AUTHORIZE_R147_HOMEOS_SEQUENTIAL_CONTINUATION_RECOVERY_V1'));
   assert.doesNotMatch(source, /harden-r145-homeos:|recover-r145-homeos:|harden-r150-intero:|recover-r150-intero:/);
   assert.match(source, /RUNTIME_SECONDS=120/);
   assert.match(source, /BENCHMARK_ACTIVE=NO/);
@@ -121,7 +121,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V14_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V15_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
@@ -144,9 +144,9 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   ]) assert.ok(capture.includes(exact), exact);
   assert.doesNotMatch(capture, /\bsudo\b|\bscp\b|systemctl\s+(?:start|stop|restart)|benchmark-start/);
   for (const exact of [
-    'recover-r147-homeos',
-    'AUTHORIZE_R147_HOMEOS_OUTPUT_FIREWALLED_SHADOW_RECOVERY_V1',
-    'RELEASE_TAG_OBJECT: 9f6771bdeddee4c1fc226c5c112feb99be7da17a',
+    'continue-r147-homeos',
+    'AUTHORIZE_R147_HOMEOS_SEQUENTIAL_CONTINUATION_RECOVERY_V1',
+    'RELEASE_TAG_OBJECT: 7b530ec7d78d99481b902e80c15f248b5a25dbfd',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
     'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
@@ -160,14 +160,13 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     '-type f ! -perm 0400 -print -quit',
     'for attempt in $(seq 1 20); do',
     '[[ "$attempt" -eq 20 ]] || sleep 0.25',
-    'exactPending=pending.length===0||',
-    "f.consumerId==='core:fetus-legacy'",
-    'Number(f.minimum)===4194077',
-    'Number(f.maximum)-Number(f.minimum)+1===Number(f.count)',
-    "failed[0].consumerId==='resident:metab'",
-    'Number(failed[0].sequence)===4179960',
+    'exactPending=pending.length===2',
+    "h=pending.find(v=>v.consumerId==='resident:homeos')",
+    'Number(h?.minimum)===4574291',
+    'Number(s?.count)===4',
+    'highWater===4575520',
     '[[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 147 ]]',
-    'recover-*)',
+    'continue-*)',
     'restoring that failed service is the sole purpose of this path',
     'SERVICE_STATE=%s/%s',
     'root="$1"; stage="${2:-}"',

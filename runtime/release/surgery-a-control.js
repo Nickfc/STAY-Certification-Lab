@@ -26,6 +26,10 @@ const IDENTITIES = Object.freeze({
   revisionFencedSuccessorAnchors: Object.freeze({
     residentManager: Object.freeze([
       Object.freeze({
+        revision: 147,
+        sha256: '63b27a4bd385007c4992be4f33f6b79305d3537ab4604cea6a220cdbb8888765'
+      }),
+      Object.freeze({
         revision: 146,
         sha256: '2434100b5b5d8f4cd1aba3e7f0b2cdfc31f1fee6f8e8ef706edbebc3ae279729'
       }),
@@ -39,6 +43,10 @@ const IDENTITIES = Object.freeze({
       })
     ]),
     stateStore: Object.freeze([
+      Object.freeze({
+        revision: 147,
+        sha256: 'c9112baf6743b02d59a66dd0168467ec9af68ca425a339d4b6519d6d4828e5e0'
+      }),
       Object.freeze({
         revision: 146,
         sha256: '41d1799a063d15576b2d278332a023bb895e16851a28a6e97ecce22b32dca9c8'
