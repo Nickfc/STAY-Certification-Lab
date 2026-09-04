@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { stableStringify } = require('../../runtime/kernel/canonical-json');
+const { validateCapacitySourceState } = require('../../runtime/p1-r0/metab-capacity-source');
 const { enforcePackagePolicy, verifyManifestAgainstPackagePolicy } =
   require('../../runtime/kernel/package-policy');
 const { validateManifest } = require('../../runtime/kernel/manifest');
@@ -41,6 +42,22 @@ const REPAIR = Object.freeze({
   packagePolicyHash: 'sha256:7aa327005436f91310176753baf94d783661bb5c156be2d8ace0190456fd55c9',
   checkpointGeneration: 196025,
   checkpointId: 'metab-q48-r146-partial-frame-repair-196025'
+});
+
+const PARTIAL_ROUTE = Object.freeze({
+  metabVersion: '0.3.0-p1r0-homeos-feed.1',
+  metabStateSchema: 3,
+  metabModuleRelativePath: 'cores/p1-r0/metab-homeos/index.js',
+  metabModuleHash: 'sha256:eba96dd21bc225b9bed97261dc9d3648c9a63ed2b2ddbd2d76fb6d306e2a0622',
+  metabManifestHash: 'sha256:ae050626ce7d2e1e1e0d0a6c009a1818e094bfecb792c0bf868bcc14ddd791ac',
+  metabPackagePolicyHash: 'sha256:c97cd6f90c444bf1d496d45c7e64ee2547c86a477a76ca28c41ce528d454780e',
+  homeosInstanceId: '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',
+  homeosVersion: '0.1.0-p1r0-neutral.1',
+  homeosStateSchema: 1,
+  homeosModuleRelativePath: 'cores/p1-r0/homeos-neutral/index.js',
+  homeosModuleHash: 'sha256:2470be8ba7572296758638f72abbafd5f0e2f8b0effd4d6d7b9fd0dfed830d30',
+  homeosManifestHash: 'sha256:8604f0ea30cca02c1b1f2cf10aa902197389d2a8a508454ff221555c3cde6825',
+  homeosPackagePolicyHash: 'sha256:2f8cc1fd91f84bd1ee54ef9e38929a824f5768775fe849816185bcecd2843b8f'
 });
 
 function fail(message, code = 'R146_METAB_Q48_REPAIR') {
@@ -146,6 +163,121 @@ function assertBaseline(db, { repaired = false } = {}) {
   'METAB capacity source is not the exact partial-frame cohort', 'R146_METAB_Q48_SOURCE');
   return { ...value, source };
 }
+
+function assertPartialRouteCohort(db, databasePath) {
+  assert(db.prepare('PRAGMA quick_check').get()?.quick_check === 'ok' &&
+    metadataRevision(db) === BASELINE.runtimeRevision,
+  'database is not the exact partial R146 route boundary');
+  const metab = db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
+    .get(BASELINE.residencyId);
+  const homeos = db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
+    .get('resident:homeos');
+  const intero = db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
+    .get('resident:intero');
+  const metabCheckpoint = db.prepare(`SELECT * FROM resident_checkpoints
+    WHERE residency_id=? AND generation=?`).get(BASELINE.residencyId, metab?.checkpoint_generation);
+  const homeosCheckpoint = db.prepare(`SELECT * FROM resident_checkpoints
+    WHERE residency_id=? AND generation=?`).get('resident:homeos', homeos?.checkpoint_generation);
+  const metabConsumer = db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
+    .get(BASELINE.residencyId);
+  const homeosConsumer = db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
+    .get('resident:homeos');
+  const capacity = db.prepare('SELECT json,sha256 FROM metadata WHERE key=?')
+    .get(BASELINE.capacityMetadataKey);
+  const repair = db.prepare(`SELECT detail_json FROM recovery_records
+    WHERE type='resident.implementation-repaired' AND core_id=? ORDER BY id DESC LIMIT 1`)
+    .get(BASELINE.coreId);
+  const metabRecovery = db.prepare(`SELECT detail_json FROM recovery_records
+    WHERE type='resident.recovered' AND core_id=? ORDER BY id DESC LIMIT 1`)
+    .get(BASELINE.coreId);
+  const homeosBirth = db.prepare(`SELECT detail_json FROM recovery_records
+    WHERE type='resident.attached' AND core_id='HOMEOS' ORDER BY id DESC LIMIT 1`).get();
+  let repairDetail = null, metabRecoveryDetail = null, homeosBirthDetail = null, source = null;
+  try { repairDetail = JSON.parse(repair?.detail_json || 'null'); } catch {}
+  try { metabRecoveryDetail = JSON.parse(metabRecovery?.detail_json || 'null'); } catch {}
+  try { homeosBirthDetail = JSON.parse(homeosBirth?.detail_json || 'null'); } catch {}
+  try {
+    assert(capacity && sha256(capacity.json) === capacity.sha256,
+      'partial R146 capacity source metadata is corrupt');
+    source = validateCapacitySourceState(JSON.parse(capacity.json), {
+      instanceId: BASELINE.instanceId,
+      residentVersion: BASELINE.version
+    });
+  } catch (error) {
+    fail(`partial R146 capacity source is invalid: ${error.message}`, 'R146_METAB_Q48_PARTIAL_ROUTE');
+  }
+  const metabState = JSON.parse(readBlob(databasePath, metabCheckpoint));
+  const homeosState = JSON.parse(readBlob(databasePath, homeosCheckpoint));
+  assert(metab?.instance_id === BASELINE.instanceId &&
+    metab?.version === PARTIAL_ROUTE.metabVersion &&
+    Number(metab?.state_schema) === PARTIAL_ROUTE.metabStateSchema &&
+    metab?.module_relative_path === PARTIAL_ROUTE.metabModuleRelativePath &&
+    metab?.module_hash === PARTIAL_ROUTE.metabModuleHash &&
+    metab?.manifest_hash === PARTIAL_ROUTE.metabManifestHash &&
+    metab?.package_policy_hash === PARTIAL_ROUTE.metabPackagePolicyHash &&
+    metab?.status === 'RUNNING' &&
+    Number(metab?.checkpoint_generation) > REPAIR.checkpointGeneration &&
+    metab?.checkpoint_hash === metabCheckpoint?.blob_hash &&
+    metabCheckpoint?.instance_id === BASELINE.instanceId &&
+    metabCheckpoint?.version === PARTIAL_ROUTE.metabVersion &&
+    Number(metabCheckpoint?.state_schema) === PARTIAL_ROUTE.metabStateSchema &&
+    Number(metabCheckpoint?.generation) === Number(metab?.checkpoint_generation) &&
+    homeos?.instance_id === PARTIAL_ROUTE.homeosInstanceId &&
+    homeos?.version === PARTIAL_ROUTE.homeosVersion &&
+    Number(homeos?.state_schema) === PARTIAL_ROUTE.homeosStateSchema &&
+    homeos?.module_relative_path === PARTIAL_ROUTE.homeosModuleRelativePath &&
+    homeos?.module_hash === PARTIAL_ROUTE.homeosModuleHash &&
+    homeos?.manifest_hash === PARTIAL_ROUTE.homeosManifestHash &&
+    homeos?.package_policy_hash === PARTIAL_ROUTE.homeosPackagePolicyHash &&
+    homeos?.status === 'RUNNING' && Number(homeos?.checkpoint_generation) === 1 &&
+    homeos?.checkpoint_hash === homeosCheckpoint?.blob_hash &&
+    homeosCheckpoint?.instance_id === PARTIAL_ROUTE.homeosInstanceId &&
+    homeosCheckpoint?.version === PARTIAL_ROUTE.homeosVersion &&
+    Number(homeosCheckpoint?.state_schema) === PARTIAL_ROUTE.homeosStateSchema &&
+    Number(homeosCheckpoint?.generation) === 1 && !intero,
+  'resident generations are not the exact partial R146 route cohort', 'R146_METAB_Q48_PARTIAL_ROUTE');
+  assert(metabConsumer?.core_id === BASELINE.coreId && Number(metabConsumer?.required) === 0 &&
+    Number(metabConsumer?.active) === 1 && Number(metabConsumer?.authority_epoch) === 0 &&
+    metabConsumer?.checkpoint_hash === metab?.checkpoint_hash &&
+    homeosConsumer?.core_id === 'HOMEOS' && Number(homeosConsumer?.required) === 0 &&
+    Number(homeosConsumer?.active) === 1 && Number(homeosConsumer?.authority_epoch) === 0 &&
+    homeosConsumer?.checkpoint_hash === null,
+  'partial R146 consumers are not contained', 'R146_METAB_Q48_PARTIAL_ROUTE');
+  assert(source.runtimeRevision === 128 && source.lastCommittedFrame >= BASELINE.acceptedFrame &&
+    source.pending?.sampleFrame === source.lastCommittedFrame + 1 &&
+    metabState?.activation?.targetRevision === 144 &&
+    metabState?.activation?.fromVersion === BASELINE.version &&
+    metabState?.sourceState?.lastAcceptedFrame === source.lastCommittedFrame &&
+    metabState?.sourceState?.pendingEligible === null &&
+    metabState?.sourceState?.pendingQuality === null &&
+    metabState?.sourceState?.engineState?.outputSequence === '0' &&
+    metabState?.emittedOutputSequence === '0' &&
+    homeosState?.engineState?.frameIndex === 0 &&
+    homeosState?.engineState?.outputSequence === '0' &&
+    homeosState?.handledEvents === 0,
+  'partial R146 capacity or checkpoint boundary changed', 'R146_METAB_Q48_PARTIAL_ROUTE');
+  assert(repairDetail?.repairId === REPAIR.repairId &&
+    repairDetail?.abandonedCount === 0 && repairDetail?.inventedBiologicalTime === false &&
+    repairDetail?.authorityChanged === false &&
+    metabRecoveryDetail?.residencyId === BASELINE.residencyId &&
+    metabRecoveryDetail?.instanceId === BASELINE.instanceId &&
+    metabRecoveryDetail?.version === PARTIAL_ROUTE.metabVersion &&
+    metabRecoveryDetail?.checkpointHash === metab?.checkpoint_hash &&
+    homeosBirthDetail?.residencyId === 'resident:homeos' &&
+    homeosBirthDetail?.instanceId === PARTIAL_ROUTE.homeosInstanceId &&
+    homeosBirthDetail?.version === PARTIAL_ROUTE.homeosVersion &&
+    homeosBirthDetail?.checkpointHash === homeos?.checkpoint_hash,
+  'partial R146 recovery lineage changed', 'R146_METAB_Q48_PARTIAL_ROUTE');
+  assert(scalar(db, `SELECT COUNT(*) value FROM biological_deliveries
+      WHERE consumer_id IN ('resident:metab','resident:homeos') AND status='PENDING'`) === 0 &&
+    scalar(db, `SELECT COUNT(*) value FROM biological_outbox_intents
+      WHERE producer_core_id IN ('METAB','HOMEOS') AND status='PENDING'`) === 0 &&
+    scalar(db, `SELECT COUNT(*) value FROM authority
+      WHERE core_id IN ('METAB','HOMEOS','INTERO')`) === 0,
+  'partial R146 recovery has debt or authority', 'R146_METAB_Q48_PARTIAL_ROUTE');
+  return { metab, homeos, metabCheckpoint, homeosCheckpoint, source };
+}
+
 function repairIncompleteCheckpointState(state, definition, baseline = BASELINE) {
   definition.validateState(state);
   assert(state.lastAcceptedFrame === baseline.acceptedFrame &&
@@ -201,6 +333,14 @@ function preflightRepair({ databasePath, releaseRoot }) {
         biologicalAcceptedStateChanged: false, inventedBiologicalTime: false,
         authorityOwned: false });
     }
+    if (resident?.module_hash === PARTIAL_ROUTE.metabModuleHash) {
+      const current = assertPartialRouteCohort(probe, databasePath);
+      return Object.freeze({ result: 'PARTIAL_ROUTE_READY', repairId: REPAIR.repairId,
+        repairedCheckpointHash: current.metabCheckpoint.blob_hash,
+        acceptedFrame: current.source.lastCommittedFrame, pendingFrame: current.source.pending.sampleFrame,
+        abandonedCount: 0, biologicalAcceptedStateChanged: false,
+        inventedBiologicalTime: false, authorityOwned: false });
+    }
   } finally { probe.close(); }
   const { repairedState } = prepareRepair(databasePath, releaseRoot);
   return Object.freeze({ result: 'PASS', repairId: REPAIR.repairId,
@@ -219,6 +359,13 @@ function applyRepair({ databasePath, releaseRoot, now = () => new Date().toISOSt
       const current = assertBaseline(probe, { repaired: true });
       return Object.freeze({ result: 'ALREADY_APPLIED', repairId: REPAIR.repairId,
         repairedCheckpointHash: current.repairCheckpoint.blob_hash,
+        abandonedCount: 0, inventedBiologicalTime: false });
+    }
+    if (resident?.module_hash === PARTIAL_ROUTE.metabModuleHash) {
+      const current = assertPartialRouteCohort(probe, databasePath);
+      return Object.freeze({ result: 'PARTIAL_ROUTE_ALREADY_APPLIED', repairId: REPAIR.repairId,
+        repairedCheckpointHash: current.metabCheckpoint.blob_hash,
+        acceptedFrame: current.source.lastCommittedFrame, pendingFrame: current.source.pending.sampleFrame,
         abandonedCount: 0, inventedBiologicalTime: false });
     }
   } finally { probe.close(); }
@@ -340,5 +487,5 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
-module.exports = Object.freeze({ BASELINE, REPAIR, applyRepair, preflightRepair, rollbackRepair,
-  repairIncompleteCheckpointState, validateRelease });
+module.exports = Object.freeze({ BASELINE, REPAIR, PARTIAL_ROUTE, applyRepair, preflightRepair,
+  rollbackRepair, assertPartialRouteCohort, repairIncompleteCheckpointState, validateRelease });

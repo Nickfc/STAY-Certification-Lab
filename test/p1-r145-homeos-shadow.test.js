@@ -21,7 +21,11 @@ const { METAB_SHADOW_RESIDENT_CONTRACT } = require('../runtime/p1-r0/metab-shado
 const { METAB_HOMEOS_RESIDENT_CONTRACT } = require('../runtime/p1-r0/metab-homeos-contract');
 const { HOMEOS_NEUTRAL_RESIDENT_CONTRACT } = require('../runtime/p1-r0/homeos-neutral-contract');
 const { HOMEOS_SHADOW_RESIDENT_CONTRACT } = require('../runtime/p1-r0/homeos-shadow-contract');
-const { createCapacityPayloads } = require('../runtime/p1-r0/metab-capacity-source');
+const {
+  createCapacityPayloads,
+  createCapacitySourceState,
+  stageCapacitySample
+} = require('../runtime/p1-r0/metab-capacity-source');
 const {
   HOMEOS_NEUTRAL_AUTHORIZATION_CLASS,
   HOMEOS_NEUTRAL_BIRTH_FORMAT
@@ -1007,4 +1011,134 @@ test('R146-HOMEOS-RECOVERY-09 only the exact repaired zero-debt METAB cohort pre
     LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness),
     false
   );
+});
+
+test('R146-HOMEOS-RECOVERY-10 resumes only the exact neutral-birth route partial state', () => {
+  const metabCheckpointHash = 'a'.repeat(64);
+  const homeosCheckpointHash = 'b'.repeat(64);
+  const repairedCheckpointHash = 'c'.repeat(64);
+  const metab = {
+    instanceId: R146_METAB_Q48_HOMEOS_RECOVERY.metabInstanceId,
+    version: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabVersion,
+    stateSchema: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabStateSchema,
+    moduleRelativePath: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleRelativePath,
+    moduleHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleHash,
+    manifestHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabManifestHash,
+    packagePolicyHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabPackagePolicyHash,
+    status: 'RUNNING', checkpointGeneration: 196035, checkpointHash: metabCheckpointHash
+  };
+  const homeos = {
+    instanceId: R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosInstanceId,
+    version: R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosVersion,
+    stateSchema: R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosStateSchema,
+    moduleRelativePath: R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosModuleRelativePath,
+    moduleHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosModuleHash,
+    manifestHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosManifestHash,
+    packagePolicyHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosPackagePolicyHash,
+    status: 'RUNNING', checkpointGeneration: 1, checkpointHash: homeosCheckpointHash
+  };
+  const base = {
+    ...createCapacitySourceState({
+      instanceId: R146_METAB_Q48_HOMEOS_RECOVERY.metabInstanceId,
+      residentVersion: R146_METAB_Q48_HOMEOS_RECOVERY.metabVersion
+    }),
+    lastCommittedFrame: 98004,
+    lastTrustedTimeUs: 1_000_000,
+    lastContinuityEpoch: 1
+  };
+  const source = stageCapacitySample(base, {
+    trustedTimeUs: 1_250_000,
+    continuityEpoch: 1,
+    metrics: { cpuCount: 4, loadAverageMilli: 0, freeMemoryBytes: 8_000, totalMemoryBytes: 8_000 }
+  });
+  const capacityJson = JSON.stringify(source);
+  const repairDetail = JSON.stringify({
+    repairId: R146_METAB_Q48_HOMEOS_RECOVERY.repairId,
+    repairedCheckpointHash,
+    abandonedCount: 0,
+    inventedBiologicalTime: false,
+    authorityChanged: false
+  });
+  const harness = {
+    runtimeRevision: 146,
+    homeosNeutralBirthAuthorization: 'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY',
+    metabHomeosRouteAuthorization: 'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY',
+    homeosShadowPromotionAuthorization: 'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY',
+    homeosStrandedR145RecoveryAuthorization: '',
+    homeosStrandedR146RecoveryAuthorization: R146_METAB_Q48_HOMEOS_RECOVERY.authorization,
+    homeosStrandedR145RecoveryActive: false,
+    homeosStrandedRecoveryRevision: null,
+    metabQ48R146RecoveryActive: false,
+    homeosStrandedR146PartialRecoveryActive: false,
+    stateStore: {
+      getResident: id => id === 'resident:metab' ? metab : id === 'resident:homeos' ? homeos : null,
+      getBiologicalConsumer: id => id === 'resident:metab'
+        ? { coreId: 'METAB', required: false, active: true, authorityEpoch: 0, checkpointHash: metabCheckpointHash }
+        : id === 'resident:homeos'
+          ? { coreId: 'HOMEOS', required: false, active: true, authorityEpoch: 0, checkpointHash: null }
+          : null,
+      listAuthority: () => [],
+      db: {
+        prepare: sql => ({
+          get: (...args) => {
+            if (sql.includes('resident_checkpoints')) {
+              if (args[0] === 'resident:homeos') return {
+                instance_id: homeos.instanceId, version: homeos.version,
+                state_schema: homeos.stateSchema, generation: 1, blob_hash: homeosCheckpointHash
+              };
+              if (Number(args[1]) === R146_METAB_Q48_HOMEOS_RECOVERY.checkpointGeneration) return {
+                checkpoint_id: R146_METAB_Q48_HOMEOS_RECOVERY.checkpointId,
+                instance_id: metab.instanceId, version: R146_METAB_Q48_HOMEOS_RECOVERY.metabVersion,
+                state_schema: R146_METAB_Q48_HOMEOS_RECOVERY.metabStateSchema,
+                generation: R146_METAB_Q48_HOMEOS_RECOVERY.checkpointGeneration,
+                blob_hash: repairedCheckpointHash,
+                input_cursor: R146_METAB_Q48_HOMEOS_RECOVERY.inputCursor
+              };
+              return {
+                instance_id: metab.instanceId, version: metab.version,
+                state_schema: metab.stateSchema, generation: metab.checkpointGeneration,
+                blob_hash: metabCheckpointHash
+              };
+            }
+            if (sql.includes("type='resident.resync-required'")) return {
+              id: R146_METAB_Q48_HOMEOS_RECOVERY.failureRecordId,
+              detail_json: JSON.stringify({ sequence: R146_METAB_Q48_HOMEOS_RECOVERY.failureSequence,
+                topic: 'resource.capacity.quality.v1', code: 'P1_Q48_OVERFLOW' })
+            };
+            if (sql.includes("type='resident.implementation-repaired'")) return { detail_json: repairDetail };
+            if (sql.includes("type='resident.recovered'")) return { detail_json: JSON.stringify({
+              residencyId: 'resident:metab', instanceId: metab.instanceId,
+              version: metab.version, checkpointHash: metabCheckpointHash
+            }) };
+            if (sql.includes("type='resident.attached'")) return { detail_json: JSON.stringify({
+              residencyId: 'resident:homeos', instanceId: homeos.instanceId,
+              version: homeos.version, checkpointHash: homeosCheckpointHash
+            }) };
+            if (sql.includes("key='life:p1-r0-metab-capacity-source'")) return {
+              json: capacityJson,
+              sha256: crypto.createHash('sha256').update(capacityJson).digest('hex')
+            };
+            return { count: 0 };
+          }
+        })
+      }
+    }
+  };
+  assert.equal(LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness), true);
+  assert.equal(harness.homeosStrandedRecoveryRevision, 146);
+  assert.equal(harness.metabQ48R146RecoveryActive, true);
+  assert.equal(harness.homeosStrandedR146PartialRecoveryActive, true);
+  const badSource = clone(source);
+  badSource.pending.sampleFrame += 1;
+  const badJson = JSON.stringify(badSource);
+  harness.stateStore.db.prepare = sql => ({ get: (...args) => {
+    if (sql.includes("key='life:p1-r0-metab-capacity-source'")) return {
+      json: badJson, sha256: crypto.createHash('sha256').update(badJson).digest('hex')
+    };
+    return { count: 0 };
+  } });
+  harness.homeosStrandedR145RecoveryActive = false;
+  harness.metabQ48R146RecoveryActive = false;
+  harness.homeosStrandedR146PartialRecoveryActive = false;
+  assert.equal(LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness), false);
 });
