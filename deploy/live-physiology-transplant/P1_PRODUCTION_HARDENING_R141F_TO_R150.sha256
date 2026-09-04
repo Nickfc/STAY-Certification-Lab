@@ -27,7 +27,7 @@ ab46fe2cb418268a812fb82edf6cb2c6ae59dd8d4b55ae1288dfc07a1c335517  ./deploy/live-
 079885bc2a42225a9ddf688f6e19db01450aa5ae21b1e3769fb93d883c67b9f2  ./deploy/live-physiology-transplant/p1-r150-verify-birth-certificate.js
 733abcec9162a7ab450492cb6e190d12ea9d4032dc7afc42b4da80da4cc3a03c  ./runtime/kernel/hardened-living-kernel.js
 1acb90eeeb1f644e79e787832f0a3a0794c5cb72352846224569368b287d44cc  ./runtime/kernel/living-kernel.js
-2894cbc040178c15d367707f02b4a16d2174737aa90a46482a4be249688b9d8e  ./runtime/kernel/resident-manager.js
+e9a9b797caa95efba9ece154bd1e5824b0d8d1b3064f5543e5f3e79f79fa7a44  ./runtime/kernel/resident-manager.js
 c9112baf6743b02d59a66dd0168467ec9af68ca425a339d4b6519d6d4828e5e0  ./runtime/kernel/state-store.js
 92f6d6c9e77202b3d66c325e6bf1151b5da6a8bb8228880b99fe2c6c05b13935  ./runtime/p1-r0/deterministic-noise.js
 32d64305cae7df37b8b762d6ae9ba906baafb6cb5663608c252aa0a4ede95f5f  ./runtime/p1-r0/homeos-contract.js
@@ -56,7 +56,7 @@ e17b81c8befdf50c7eba645872ef4654b7b0b036cf0302ca718df025da803fd9  ./runtime/p1-r
 fabdaebd1d0bc918c9346c03bd5d9b4312af1780f53311b5ce45e41d4ec6e2dc  ./runtime/p1-r0/residents/intero-shadow.js
 55ce62c147e1fc8aecbd0fdee285521aef87016f41fa24f5eb9b313e5ffdea03  ./runtime/p1-r0/residents/metab-homeos.js
 c5436c0b05c91602176508d2666318faec61ef4965e76bcb438ee03b02e158e2  ./runtime/p1-r0/residents/metab-intero.js
-3ad04b373fb305ac78ecccf9d7f987ee18694836626d4f54f34a4052d801bb49  ./runtime/release/surgery-a-control.js
+52e5eb7441239db462674b475f9a3c8c80748a0c70e4f66cb19501699fbbb9d1  ./runtime/release/surgery-a-control.js
 08ec328c40fa64be296e862d98e9dbcefed4913b49a598a479cc81e5589acf83  ./scripts/build-p1-r0-resident-packages.js
 ae261d6a738ad5f30fcb04299a1db20045d95a4ffea528e8213a04dc8fd0325d  ./server.js
 27709f995c83ad7441bc15f19a10f3030b074f917d6387dc0f93fb28e044dd92  ./test/biological-ledger.test.js
@@ -73,9 +73,9 @@ f1615103adc03bfdb46aeffafb1afa302f398440eb62e1b0a834bf2a02e3f802  ./test/p1-r135
 ae96c03ab38750395a2f67e9eee1b80da23410f5bffc62e209421a3b924fe424  ./test/p1-r143-homeos-neutral-birth.test.js
 5912a20dc88219d3ae9feb065190eb0a914b5ec595c86c81faf95e3c970d1afd  ./test/p1-r145-homeos-shadow.test.js
 a0437ed81a84a1892c1ab6e963a7139239c48139487989253764b1b491693578  ./test/p1-r146-metab-q48-implementation-repair.test.js
-50401a51db75971b8f3c69f0c2860d642c582d6775e509df7b53b18e1543c706  ./test/p1-r147-continuation-recovery.test.js
+43b02c3a393f327917206ce509beef0a589bc4573b0824ebd5fc912cde6c068f  ./test/p1-r147-continuation-recovery.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
 19115f6b6a29f436fb473498f33067e805f5ff8120e3aafae2388ccef60a1c94  ./test/p1-r150-production-gates.test.js
-1363da5543c252b60fc198fbc67cdf0f313ca5e033518213ad6d84f65323fecd  ./test/p1-surgery-a-transplant.test.js
+e173ef5d0583d448adf742170153b9de0ac30ccbad6219861516fc235e619c23  ./test/p1-surgery-a-transplant.test.js
 b1e401c43d4a2b6cee8e3c67a1dd1a3b10bfb9e376926d361ac1a99da64b3cb1  ./test/production-hardening.test.js
 32d6f4ab1a9b6f162d757c673938f4c6b1464187667811cb5b440ee894053212  ./tools/sign-p1-r0-expansion-birth.js

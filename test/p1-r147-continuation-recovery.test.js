@@ -441,9 +441,8 @@ test('R147-CONTINUATION-04 exact current-checkpoint recovery bypasses retained-h
       definition: { manifest: {} }
     }),
     verifyExistingIdentity: () => {},
-    preflightResidentCheckpoint: async (_resident, _inspected, value) => {
-      calls.push(['preflight', value.checkpointId]);
-      return true;
+    preflightResidentCheckpoint: async () => {
+      assert.fail('exact current checkpoint recovery must not double-launch a preflight CoreHost');
     },
     startUnit: async options => {
       calls.push(['start', options]);
@@ -460,8 +459,7 @@ test('R147-CONTINUATION-04 exact current-checkpoint recovery bypasses retained-h
   assert.equal(recovered.checkpoint, checkpoint);
   assert.deepEqual(recovered.finalizedReplay, []);
   assert.equal(recovered.backfillInactiveGap, true);
-  assert.deepEqual(calls.slice(0, 2), [
-    ['preflight', expected.checkpointId],
+  assert.deepEqual(calls.slice(0, 1), [
     ['status', expected.residencyId, 'RECOVERING']
   ]);
 

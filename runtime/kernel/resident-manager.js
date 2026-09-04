@@ -2979,15 +2979,13 @@ class ResidentManager {
           'RESIDENT_EXACT_CURRENT_CHECKPOINT_MISMATCH'
         );
       }
-      if (
-        inspected.contract.priorCheckpointRecovery &&
-        !await this.preflightResidentCheckpoint(resident, inspected, checkpoint)
-      ) {
-        fail(
-          'exact current resident checkpoint does not validate',
-          'RESIDENT_EXACT_CURRENT_CHECKPOINT_INVALID'
-        );
-      }
+      /*
+       * The real startUnit launch below validates this exact checkpoint using
+       * the same CoreHost initialization path. Do not launch and tear down a
+       * second disposable CoreHost for a checkpoint whose complete durable
+       * identity is already revision-fenced here. Historical candidate
+       * selection still uses the independent preflight path below.
+       */
     } else if (inspected.contract.priorCheckpointRecovery) {
       const plan = await this.stateStore.buildResidentCheckpointRecoveryPlan(residencyId);
       if (plan) {
