@@ -18,13 +18,13 @@ c69ec1ed484b8cc79fef09ecb668677835d3656a7b5e77a3e3c204de2c22149b  ./cores/p1-r0/
 5e2f151fb840bbefdaec6a482c4511d8ebd75bf53a1a714b1cbfd6b9120219b4  ./cores/p1-r0/metab-shadow/package-policy.json
 130f79eb4fbd146deb47b418c1d09800eb704e36cbbd6d9c2c88f7edf664052d  ./cores/p1-r0/metab/index.js
 fb6fe87cffea7b6d13065d7107a37a203b218bf8c0f683b2ed49764d347539ae  ./cores/p1-r0/metab/package-policy.json
-334b1b028a24b8fa38b2012f24462e668a7d4ded4ada8eb159c62f559b877882  ./deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js
+a22315f219b30fa353e5d5196e8c736b9036eec4fc6a6f4e82cf40b037791500  ./deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js
 ea95e26d66474a4a0c2ad9b35cfbe651279e0e9c344ee3d4f51192f4f249f2fb  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh
 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh
 faaf9f5d1c2e48fba2d411a151784f3d782fdb55b7cbaacfcd642061c59d99a7  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js
 fe9362a0582a6239290a36874f53e054b50985f1c6edb9917129bff84a2c1ef5  ./deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js
 079885bc2a42225a9ddf688f6e19db01450aa5ae21b1e3769fb93d883c67b9f2  ./deploy/live-physiology-transplant/p1-r150-verify-birth-certificate.js
-bf56c941ff73723535185ee75e1f1b6d3c93e0af87c2eaeed91bb811261cd1f4  ./runtime/kernel/living-kernel.js
+c1d677464fb7b23f36ac3451c320af69fb82cf1b38f3ba5876f9b60793dad3bb  ./runtime/kernel/living-kernel.js
 e1b889eb8a4879c71b863f44415bfbd6e3f4b39e0325f3ca100e5c905c483d52  ./runtime/kernel/resident-manager.js
 a128b267375141b1a109217e50305aa7f8a15928fa41e9468efda8d843ba7ce7  ./runtime/kernel/state-store.js
 92f6d6c9e77202b3d66c325e6bf1151b5da6a8bb8228880b99fe2c6c05b13935  ./runtime/p1-r0/deterministic-noise.js
@@ -41,7 +41,7 @@ ea4892159ba8ee82e66b82bc537b511f7c09fa709621ecb875eb4d90ebb67252  ./runtime/p1-r
 675b230a7e4af6ca57093a06d52463de62aea4602f0e2be395e2237a6f062e73  ./runtime/p1-r0/intero-neutral-birth-authority.js
 6fda4074aeba86ef3e5577f9533b850fd8e4301f37e73f997f365fb5ab4691d2  ./runtime/p1-r0/intero-neutral-contract.js
 8df4b0e453e6f66287e50dc9e53d5164ae48203d2385b062a62a6bf78bb69ce0  ./runtime/p1-r0/intero-shadow-contract.js
-79748fcdd32a9449a9c99f7f2da431ecab795d11c662577d80a590953cac6b85  ./runtime/p1-r0/metab-capacity-source.js
+274d959c65c2076f3547462bf373956a090f408e1517994e5abbfc76477990c5  ./runtime/p1-r0/metab-capacity-source.js
 98c55aafaf7a08dcd2e82e42bc8605c2636176b4f8894b9daa7edb11e95607eb  ./runtime/p1-r0/metab-engine.js
 0035767a926a339ed9a42838d1433a85a761418c375e5e28fa571305059bddcb  ./runtime/p1-r0/metab-homeos-contract.js
 de1add523fe5eb4fcdf9b396c42b728a0609c68c72587a55a96d011896af5a96  ./runtime/p1-r0/metab-intero-contract.js
@@ -68,8 +68,8 @@ f1615103adc03bfdb46aeffafb1afa302f398440eb62e1b0a834bf2a02e3f802  ./test/p1-r135
 5c3566f3ce51c23919ebc397b80f164bdb533e1c3562f32dd18be18ad237a21c  ./test/p1-r139-metab-shadow-recovery.test.js
 18e0fc41d7ec5d1e8e8ec102202f49a37a6c843ba71c595ee1a62ba70994619b  ./test/p1-r141-metab-shadow-recovery.test.js
 ae96c03ab38750395a2f67e9eee1b80da23410f5bffc62e209421a3b924fe424  ./test/p1-r143-homeos-neutral-birth.test.js
-2f2eaaf35815de189d430dea042a72c58ee27cb2b432a9d92392e498d4641ce3  ./test/p1-r145-homeos-shadow.test.js
-e968da083fbb508dab2e9b65f49614087238bcf7bb3c1a83baefb254ccf42806  ./test/p1-r146-metab-q48-implementation-repair.test.js
+0e30c72af2c7fc750dfc7e7066f748d400c48a972faa6e04df509f04983f5a92  ./test/p1-r145-homeos-shadow.test.js
+3d3f961629e115466ed0a2d7c9ce6f99634f71fe5532e8d29b9fc8d97cd3aa77  ./test/p1-r146-metab-q48-implementation-repair.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
 0b6d8370a0d978d8e47ef15dca5226949c968b972f8a83d4b5544255a0679489  ./test/p1-r150-production-gates.test.js
 36d3746d72d0d3b7d0b4e0c385cbf6f0e7f6151feb117c59c726b51bbe31bdc0  ./test/p1-surgery-a-transplant.test.js

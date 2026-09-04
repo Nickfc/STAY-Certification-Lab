@@ -14,6 +14,8 @@ const {
 
 const SOURCE_PROTOCOL =
   'stay-p1-r0-metab-capacity-source-v1';
+const PENDING_VERSION_MIGRATION_POLICY =
+  'PRESERVE_COMPLETE_UNAPPLIED_CAPACITY_SAMPLE_V1';
 const SOURCE_VERSION = '1.0.0';
 const SOURCE_CORE_ID = 'kernel-resource';
 const SOURCE_STATE_KEY = 'p1-r0-metab-capacity-source';
@@ -438,14 +440,24 @@ function validateCapacitySourceState(input, {
 function migrateCapacitySourceResidentVersion(stateInput, {
   instanceId,
   fromVersion,
-  toVersion
+  toVersion,
+  pendingMigrationPolicy = null,
+  checkpointFrame = null,
+  checkpointPairComplete = false
 } = {}) {
   const state = validateCapacitySourceState(stateInput, {
     instanceId,
     residentVersion: fromVersion
   });
+  const pendingBoundaryIsExact =
+    state.pending !== null &&
+    pendingMigrationPolicy === PENDING_VERSION_MIGRATION_POLICY &&
+    checkpointPairComplete === true &&
+    Number.isSafeInteger(checkpointFrame) &&
+    checkpointFrame === state.lastCommittedFrame &&
+    state.pending.sampleFrame === state.lastCommittedFrame + 1;
   if (
-    state.pending !== null ||
+    (state.pending !== null && !pendingBoundaryIsExact) ||
     !(
       (
         fromVersion === '0.2.0-p1r0-shadow.1' &&
@@ -583,6 +595,7 @@ module.exports = Object.freeze({
   QUALITY_TOPIC,
   RUNTIME_REVISION,
   SOURCE_CORE_ID,
+  PENDING_VERSION_MIGRATION_POLICY,
   SOURCE_PROTOCOL,
   SOURCE_STATE_KEY,
   SOURCE_VERSION,

@@ -111,7 +111,26 @@ const R146_METAB_Q48_HOMEOS_RECOVERY = Object.freeze({
   checkpointGeneration: 196025,
   inputCursor: 4179959,
   failureRecordId: 164,
-  failureSequence: 4179960
+  failureSequence: 4179960,
+  partialMetabVersion: '0.3.0-p1r0-homeos-feed.1',
+  partialMetabStateSchema: 3,
+  partialMetabModuleRelativePath: 'cores/p1-r0/metab-homeos/index.js',
+  partialMetabModuleHash:
+    'sha256:eba96dd21bc225b9bed97261dc9d3648c9a63ed2b2ddbd2d76fb6d306e2a0622',
+  partialMetabManifestHash:
+    'sha256:ae050626ce7d2e1e1e0d0a6c009a1818e094bfecb792c0bf868bcc14ddd791ac',
+  partialMetabPackagePolicyHash:
+    'sha256:c97cd6f90c444bf1d496d45c7e64ee2547c86a477a76ca28c41ce528d454780e',
+  partialHomeosInstanceId: '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',
+  partialHomeosVersion: '0.1.0-p1r0-neutral.1',
+  partialHomeosStateSchema: 1,
+  partialHomeosModuleRelativePath: 'cores/p1-r0/homeos-neutral/index.js',
+  partialHomeosModuleHash:
+    'sha256:2470be8ba7572296758638f72abbafd5f0e2f8b0effd4d6d7b9fd0dfed830d30',
+  partialHomeosManifestHash:
+    'sha256:8604f0ea30cca02c1b1f2cf10aa902197389d2a8a508454ff221555c3cde6825',
+  partialHomeosPackagePolicyHash:
+    'sha256:2f8cc1fd91f84bd1ee54ef9e38929a824f5768775fe849816185bcecd2843b8f'
 });
 
 const R150_INTERO_SHADOW = Object.freeze({
@@ -623,6 +642,7 @@ class LivingKernel {
     this.homeosStrandedR145RecoveryActive = false;
     this.homeosStrandedRecoveryRevision = null;
     this.metabQ48R146RecoveryActive = false;
+    this.homeosStrandedR146PartialRecoveryActive = false;
     this.p1ExpansionFetusInstallRevisionPreservation = null;
     this.p1ExpansionFetusInstallPreserved = false;
 
@@ -1324,6 +1344,142 @@ class LivingKernel {
       this.homeosStrandedRecoveryRevision = 146;
       this.metabQ48R146RecoveryActive = true;
       return true;
+    }
+
+    /*
+     * A killed recovery may already have committed the neutral HOMEOS birth
+     * and the METAB HOMEOS-route generation while leaving one complete
+     * capacity sample staged under the source generation.  Admit only that
+     * exact, contained state.  The staged sample is not discarded: startup
+     * carries it across the resident-version boundary and commits it before
+     * HOMEOS is promoted.
+     */
+    if (
+      homeos &&
+      metab?.version === R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabVersion
+    ) {
+      const currentMetabCheckpoint = this.stateStore.db.prepare(`
+        SELECT checkpoint_id,instance_id,version,state_schema,generation,blob_hash,
+          byte_length,input_cursor
+        FROM resident_checkpoints
+        WHERE residency_id=? AND generation=?
+      `).get('resident:metab', metab.checkpointGeneration);
+      const currentHomeosCheckpoint = this.stateStore.db.prepare(`
+        SELECT checkpoint_id,instance_id,version,state_schema,generation,blob_hash,
+          byte_length,input_cursor
+        FROM resident_checkpoints
+        WHERE residency_id=? AND generation=?
+      `).get('resident:homeos', homeos.checkpointGeneration);
+      const homeosConsumer =
+        this.stateStore.getBiologicalConsumer('resident:homeos');
+      const latestMetabRecovery = this.stateStore.db.prepare(`
+        SELECT detail_json FROM recovery_records
+        WHERE type='resident.recovered' AND core_id='METAB'
+        ORDER BY id DESC LIMIT 1
+      `).get();
+      const latestHomeosBirth = this.stateStore.db.prepare(`
+        SELECT detail_json FROM recovery_records
+        WHERE type='resident.attached' AND core_id='HOMEOS'
+        ORDER BY id DESC LIMIT 1
+      `).get();
+      let metabRecoveryDetail = null;
+      let homeosBirthDetail = null;
+      let exactCapacitySource = null;
+      try { metabRecoveryDetail = JSON.parse(latestMetabRecovery?.detail_json || 'null'); } catch {}
+      try { homeosBirthDetail = JSON.parse(latestHomeosBirth?.detail_json || 'null'); } catch {}
+      try {
+        const { validateCapacitySourceState } = require('../p1-r0/metab-capacity-source');
+        exactCapacitySource = validateCapacitySourceState(capacitySource, {
+          instanceId: R146_METAB_Q48_HOMEOS_RECOVERY.metabInstanceId,
+          residentVersion: R146_METAB_Q48_HOMEOS_RECOVERY.metabVersion
+        });
+      } catch {}
+      const pendingHomeos = Number(this.stateStore.db.prepare(`
+        SELECT COUNT(*) AS count FROM biological_deliveries
+        WHERE consumer_id='resident:homeos' AND status='PENDING'
+      `).get().count);
+      const pendingHomeosOutbox = Number(this.stateStore.db.prepare(`
+        SELECT COUNT(*) AS count FROM biological_outbox_intents
+        WHERE producer_core_id='HOMEOS' AND status='PENDING'
+      `).get().count);
+      const partialR146 =
+        this.homeosStrandedR146RecoveryAuthorization ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.authorization &&
+        this.runtimeRevision === R146_METAB_Q48_HOMEOS_RECOVERY.runtimeRevision &&
+        !this.stateStore.getResident('resident:intero') &&
+        metab?.instanceId === R146_METAB_Q48_HOMEOS_RECOVERY.metabInstanceId &&
+        metab?.stateSchema === R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabStateSchema &&
+        metab?.moduleRelativePath ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleRelativePath &&
+        metab?.moduleHash === R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleHash &&
+        metab?.manifestHash === R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabManifestHash &&
+        metab?.packagePolicyHash ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabPackagePolicyHash &&
+        metab?.status === 'RUNNING' &&
+        Number(metab?.checkpointGeneration) >
+          R146_METAB_Q48_HOMEOS_RECOVERY.checkpointGeneration &&
+        currentMetabCheckpoint?.instance_id ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.metabInstanceId &&
+        currentMetabCheckpoint?.version ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabVersion &&
+        Number(currentMetabCheckpoint?.state_schema) ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabStateSchema &&
+        Number(currentMetabCheckpoint?.generation) ===
+          Number(metab?.checkpointGeneration) &&
+        currentMetabCheckpoint?.blob_hash === metab?.checkpointHash &&
+        homeos?.instanceId === R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosInstanceId &&
+        homeos?.version === R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosVersion &&
+        homeos?.stateSchema === R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosStateSchema &&
+        homeos?.moduleRelativePath ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosModuleRelativePath &&
+        homeos?.moduleHash === R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosModuleHash &&
+        homeos?.manifestHash === R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosManifestHash &&
+        homeos?.packagePolicyHash ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosPackagePolicyHash &&
+        homeos?.status === 'RUNNING' && Number(homeos?.checkpointGeneration) === 1 &&
+        currentHomeosCheckpoint?.instance_id ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosInstanceId &&
+        currentHomeosCheckpoint?.version ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosVersion &&
+        Number(currentHomeosCheckpoint?.state_schema) ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosStateSchema &&
+        Number(currentHomeosCheckpoint?.generation) === 1 &&
+        currentHomeosCheckpoint?.blob_hash === homeos?.checkpointHash &&
+        metabConsumer?.coreId === 'METAB' && metabConsumer?.required === false &&
+        metabConsumer?.active === true && metabConsumer?.authorityEpoch === 0 &&
+        metabConsumer?.checkpointHash === metab?.checkpointHash &&
+        homeosConsumer?.coreId === 'HOMEOS' && homeosConsumer?.required === false &&
+        homeosConsumer?.active === true && homeosConsumer?.authorityEpoch === 0 &&
+        homeosConsumer?.checkpointHash === null &&
+        repairDetail?.repairId === R146_METAB_Q48_HOMEOS_RECOVERY.repairId &&
+        repairDetail?.abandonedCount === 0 &&
+        repairDetail?.inventedBiologicalTime === false &&
+        repairDetail?.authorityChanged === false &&
+        metabRecoveryDetail?.residencyId === 'resident:metab' &&
+        metabRecoveryDetail?.instanceId === R146_METAB_Q48_HOMEOS_RECOVERY.metabInstanceId &&
+        metabRecoveryDetail?.version ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabVersion &&
+        metabRecoveryDetail?.checkpointHash === metab?.checkpointHash &&
+        homeosBirthDetail?.residencyId === 'resident:homeos' &&
+        homeosBirthDetail?.instanceId ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosInstanceId &&
+        homeosBirthDetail?.version ===
+          R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosVersion &&
+        homeosBirthDetail?.checkpointHash === homeos?.checkpointHash &&
+        exactCapacitySource?.runtimeRevision === 128 &&
+        Number.isSafeInteger(exactCapacitySource?.lastCommittedFrame) &&
+        exactCapacitySource.lastCommittedFrame >= 98001 &&
+        exactCapacitySource?.pending?.sampleFrame ===
+          exactCapacitySource.lastCommittedFrame + 1 &&
+        pendingMetab === 0 && pendingHomeos === 0 &&
+        pendingMetabOutbox === 0 && pendingHomeosOutbox === 0;
+      if (partialR146) {
+        this.homeosStrandedR145RecoveryActive = true;
+        this.homeosStrandedRecoveryRevision = 146;
+        this.metabQ48R146RecoveryActive = true;
+        this.homeosStrandedR146PartialRecoveryActive = true;
+        return true;
+      }
     }
     }
     if (!homeos || homeos.status === 'QUARANTINED') return false;
@@ -3506,15 +3662,48 @@ class LivingKernel {
 
   async recoverStrandedR145Homeos() {
     const preservedRevision = this.homeosStrandedRecoveryRevision;
+    const partialR146 =
+      this.homeosStrandedR146PartialRecoveryActive === true;
     if (!this.isExactStrandedHomeosRecovery(true) ||
-        this.stateStore.getResident('resident:homeos') ||
+        (!partialR146 && this.stateStore.getResident('resident:homeos')) ||
         this.stateStore.getResident('resident:intero')) {
       throw Object.assign(new Error('stranded HOMEOS recovery cohort is not exact'), {
         code: 'P1_HOMEOS_STRANDED_R145_RECOVERY_FENCE'
       });
     }
-    await this.birthHomeosNeutral({ preserveRevision: true });
-    await this.promoteMetabHomeosRoute({ preserveRevision: true });
+    if (!partialR146) {
+      await this.birthHomeosNeutral({ preserveRevision: true });
+      await this.promoteMetabHomeosRoute({ preserveRevision: true });
+    } else {
+      const manager = this.ensureResidentManager();
+      let sample = await this.publishMetabCapacitySample();
+      if (sample === false) sample = await this.publishMetabCapacitySample();
+      await manager.drain('resident:homeos');
+      const metabStatus = await manager.status('resident:metab');
+      const homeosStatus = await manager.status('resident:homeos');
+      const resumedFromCommittedSample =
+        sample === false &&
+        metabStatus?.observedOutputs >= 2 &&
+        homeosStatus?.health?.physiologicalInputs >= 2;
+      if (
+        (sample !== true && !resumedFromCommittedSample) ||
+        metabStatus?.version !== R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabVersion ||
+        metabStatus?.running !== true || metabStatus?.health?.mode !== 'SHADOW' ||
+        metabStatus?.health?.outputPolicy !== R145_HOMEOS_SHADOW.metabOutputPolicy ||
+        metabStatus?.authorityOwned !== false || metabStatus?.declaredOutputs !== 2 ||
+        metabStatus?.observedOutputs < 2 ||
+        homeosStatus?.version !== R146_METAB_Q48_HOMEOS_RECOVERY.partialHomeosVersion ||
+        homeosStatus?.running !== true || homeosStatus?.health?.mode !== 'NEUTRAL' ||
+        homeosStatus?.health?.physiologicalInputs < 2 ||
+        homeosStatus?.observedOutputs !== 0 ||
+        this.stateStore.getAuthority('METAB') !== null ||
+        this.stateStore.getAuthority('HOMEOS') !== null
+      ) {
+        throw Object.assign(new Error('partial R146 METAB HOMEOS route recovery is incomplete'), {
+          code: 'P1_HOMEOS_STRANDED_R146_PARTIAL_ROUTE'
+        });
+      }
+    }
     await this.promoteHomeosShadow({ preserveRevision: true });
     if (this.runtimeRevision !== preservedRevision) {
       throw Object.assign(new Error('stranded HOMEOS recovery changed durable revision'), {
@@ -5792,6 +5981,7 @@ class LivingKernel {
 
     const {
       SOURCE_CORE_ID,
+      PENDING_VERSION_MIGRATION_POLICY,
       SOURCE_STATE_KEY,
       SOURCE_VERSION,
       commitCapacitySample,
@@ -5845,7 +6035,15 @@ class LivingKernel {
         sourceState = migrateCapacitySourceResidentVersion(sourceState, {
           instanceId: resident.instanceId,
           fromVersion: sourceState.residentVersion,
-          toVersion: resident.version
+          toVersion: resident.version,
+          pendingMigrationPolicy:
+            PENDING_VERSION_MIGRATION_POLICY,
+          checkpointFrame:
+            Number(checkpointResidentState?.lastAcceptedFrame),
+          checkpointPairComplete:
+            checkpointResidentState?.pendingEligible === null &&
+            checkpointResidentState?.pendingQuality === null &&
+            checkpointResidentState?.engineState?.outputSequence === '0'
         });
         await this.stateStore.writeLife(SOURCE_STATE_KEY, sourceState);
       } else {

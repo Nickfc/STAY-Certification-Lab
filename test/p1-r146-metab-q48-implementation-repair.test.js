@@ -9,6 +9,12 @@ const { createNeutralMetabInitialState } = require(
 );
 const shadow = require('../runtime/p1-r0/residents/metab-shadow');
 const { sha256 } = require('../runtime/p1-r0/resident-support');
+const {
+  PENDING_VERSION_MIGRATION_POLICY,
+  createCapacitySourceState,
+  migrateCapacitySourceResidentVersion,
+  stageCapacitySample
+} = require('../runtime/p1-r0/metab-capacity-source');
 const profiles = require(
   '../runtime/p1-r0/c0-source-contracts/contracts/founder_profile_templates.json'
 ).profiles;
@@ -133,4 +139,45 @@ test('R146-METAB-REPAIR-03 mismatched partial-frame identity fails closed', asyn
     () => repairIncompleteCheckpointState(state, definition),
     { code: 'P1_METAB_SHADOW_STATE' }
   );
+});
+
+test('R146-METAB-REPAIR-04 preserves a complete unapplied sample only at the exact version boundary', () => {
+  const staged = stageCapacitySample(createCapacitySourceState({
+    instanceId: BASELINE.instanceId,
+    residentVersion: BASELINE.version
+  }), {
+    trustedTimeUs: 1_000_000,
+    continuityEpoch: 1,
+    metrics: {
+      cpuCount: 4,
+      loadAverageMilli: 0,
+      freeMemoryBytes: 8_000,
+      totalMemoryBytes: 8_000
+    }
+  });
+  const migrate = overrides => migrateCapacitySourceResidentVersion(staged, {
+    instanceId: BASELINE.instanceId,
+    fromVersion: BASELINE.version,
+    toVersion: '0.3.0-p1r0-homeos-feed.1',
+    ...overrides
+  });
+  assert.throws(() => migrate(), { code: 'P1_METAB_CAPACITY_SOURCE_MIGRATION' });
+  assert.throws(() => migrate({
+    pendingMigrationPolicy: PENDING_VERSION_MIGRATION_POLICY,
+    checkpointFrame: 1,
+    checkpointPairComplete: true
+  }), { code: 'P1_METAB_CAPACITY_SOURCE_MIGRATION' });
+  assert.throws(() => migrate({
+    pendingMigrationPolicy: PENDING_VERSION_MIGRATION_POLICY,
+    checkpointFrame: 0,
+    checkpointPairComplete: false
+  }), { code: 'P1_METAB_CAPACITY_SOURCE_MIGRATION' });
+  const migrated = migrate({
+    pendingMigrationPolicy: PENDING_VERSION_MIGRATION_POLICY,
+    checkpointFrame: 0,
+    checkpointPairComplete: true
+  });
+  assert.equal(migrated.residentVersion, '0.3.0-p1r0-homeos-feed.1');
+  assert.deepEqual(migrated.pending, staged.pending);
+  assert.equal(migrated.lastCommittedFrame, 0);
 });
