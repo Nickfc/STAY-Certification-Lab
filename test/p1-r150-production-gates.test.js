@@ -158,13 +158,13 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
   assert.match(recovery,
     /METAB_REPAIR='deploy\/live-physiology-transplant\/p1-r146-metab-q48-implementation-repair\.js'/);
   for (const exact of [
-    "PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-a8be13e9bbd1'",
-    "PREVIOUS_HOMEOS_TAG='r150-homeos-intero-shadow-v9'",
-    "PREVIOUS_HOMEOS_COMMIT='ebe06d11bc08860d5e42c67d552725c0bd9fa524'",
-    "PREVIOUS_HOMEOS_TREE='b086e35c546bdacb43022f515f31971e1e1ffe4b'",
-    "PREVIOUS_HOMEOS_ARCHIVE_SHA256='sha256:c17de9844827b383266d12574336a40e78575f79d892a7726dffaa7ad97bc784'",
-    "PREVIOUS_HOMEOS_MANIFEST_SHA256='sha256:a8be13e9bbd15a94d36d5371c075bc4c1c1d9a75ef00e1522f425bbf329a91e1'",
-    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='sha256:760927cc803b7319e2cb07312ed49d6f9aa66ec8758235bb9c038808ac65af67'",
+    "PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-8421f172c6f8'",
+    "PREVIOUS_HOMEOS_TAG='r150-homeos-intero-shadow-v11'",
+    "PREVIOUS_HOMEOS_COMMIT='10618886fb1cf20fb4a0b69171a8e0f191a2f7fe'",
+    "PREVIOUS_HOMEOS_TREE='ccd673eeecef8a7c95842129ce455120eeabbf9b'",
+    "PREVIOUS_HOMEOS_ARCHIVE_SHA256='sha256:748c43093083f35c0ff91bf9199cb966486ecafa79d48c510fc28e6009d01d3b'",
+    "PREVIOUS_HOMEOS_MANIFEST_SHA256='sha256:8421f172c6f84f69bd5ff9ad746cc931baa1d22c0866037e3ca5b89d52a956e0'",
+    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='sha256:de0bab3adc6f0cc37e10b7ac420570017b18959fac3f1bad40f7d6afbebff753'",
     "marker_cohort='EXACT_PREVIOUS_HOMEOS_FAILURE'"
   ]) assert.ok(recovery.includes(exact), exact);
   for (const exact of [
@@ -221,6 +221,7 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
   assert.match(manager, /exactR146HomeosBacklog/);
   assert.match(kernel, /r146-fetus-empty-input-continuity-v1/);
   assert.match(repair, /pendingSequences: Object\.freeze\(\[4241117, 4241118\]\)/);
+  assert.match(repair, /PRAGMA query_only=ON; BEGIN/);
 });
 
 test('R150-PRODUCTION-05 every new production generation passes the real Bubblewrap entry path', {
