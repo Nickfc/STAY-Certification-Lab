@@ -4512,6 +4512,8 @@ class ResidentManager {
     runtimeRevision,
     {
       allowColdQuarantine =
+        false,
+      exactR146HomeosBacklog =
         false
     } = {}
   ) {
@@ -4562,6 +4564,14 @@ class ResidentManager {
         'resident:chronobiology' &&
       resident.coreId ===
         'chronobiology';
+
+    const containedR146HomeosBacklog =
+      exactR146HomeosBacklog === true &&
+      resident.residencyId === 'resident:homeos' &&
+      resident.coreId === 'HOMEOS' &&
+      resident.version === '0.2.0-p1r0-shadow.1' &&
+      resident.status === 'RESYNC_REQUIRED' &&
+      runtimeRevision === 146;
 
     if (
       resident.status !==
@@ -4640,6 +4650,14 @@ class ResidentManager {
               maximumPending:
                 8192
             })
+        : containedR146HomeosBacklog
+          ? this.stateStore
+              .beginExactR146HomeosBacklogReplay({
+                residencyId,
+                coreId: resident.coreId,
+                checkpointHash: checkpoint.blobHash,
+                runtimeRevision
+              })
         : this.stateStore
             .resynchronizeResidentBiologicalConsumer({
               residencyId,
@@ -4668,7 +4686,7 @@ class ResidentManager {
       );
     }
 
-    if (!containedChronobiologyBacklog) {
+    if (!containedChronobiologyBacklog && !containedR146HomeosBacklog) {
       this.stateStore
         .setResidentStatus(
           residencyId,
@@ -4687,11 +4705,13 @@ class ResidentManager {
         binding,
         checkpoint,
         backfillInactiveGap:
-          !containedChronobiologyBacklog,
+          !containedChronobiologyBacklog && !containedR146HomeosBacklog,
         replayDebtLimit:
           containedChronobiologyBacklog
             ? 8192
-            : 1023,
+            : containedR146HomeosBacklog
+              ? 2
+              : 1023,
         preserveConsumerOnFailure:
           containedChronobiologyBacklog
       });
@@ -4700,6 +4720,8 @@ class ResidentManager {
       .recordRecovery(
         containedChronobiologyBacklog
           ? 'resident.cold-backlog-replayed'
+          : containedR146HomeosBacklog
+            ? 'resident.exact-backlog-replayed'
           : coldQuarantine
             ? 'resident.cold-quarantine-recovered'
           : 'resident.resynchronized',
@@ -4725,7 +4747,9 @@ class ResidentManager {
           replayedPendingCount:
             containedChronobiologyBacklog
               ? record.pendingCount
-              : 0
+              : containedR146HomeosBacklog
+                ? record.pendingCount
+                : 0
         }
       );
 

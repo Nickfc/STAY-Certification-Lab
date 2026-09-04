@@ -1142,3 +1142,496 @@ test('R146-HOMEOS-RECOVERY-10 resumes only the exact neutral-birth route partial
   harness.homeosStrandedR146PartialRecoveryActive = false;
   assert.equal(LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness), false);
 });
+
+test('R146-HOMEOS-RECOVERY-11 repairs only the exact route-boundary checkpoint', async () => {
+  const sourceState = await currentMetabShadowState();
+  const routedState = await metabHomeos.migrateState({
+    state: sourceState,
+    fromSchema: 2,
+    toSchema: 3
+  });
+  const frames = [];
+  const metab = await metabHomeos.createCore({
+    initialState: routedState,
+    emit: async (_topic, payload) => frames.push(clone(payload))
+  });
+  await metab.start();
+  await metab.handle(activationEvent(
+    metabHomeos.ACTIVATION_TOPIC,
+    metabHomeosActivation(),
+    3,
+    144
+  ));
+  const signals = capacitySignals(1);
+  await metab.handle(eventFromSignal(signals.eligible, 4, { sourceVersion: '1.0.0' }));
+  await metab.handle(eventFromSignal(signals.quality, 5, { sourceVersion: '1.0.0' }));
+  assert.equal(frames.length, 2);
+
+  function retainedFrame(template, committedFrame, producerSequence) {
+    const frame = clone(template);
+    delete frame.frameId;
+    frame.committedFrame = committedFrame;
+    frame.visibleFromFrame = committedFrame + 1;
+    frame.producerSequence = String(producerSequence);
+    return { frameId: sha256(frame), ...frame };
+  }
+
+  const neutralState = clone(neutralHomeos.createNeutralHomeosInitialState({
+    binding: binding(143),
+    founder: founder('HOMEOS')
+  }));
+  neutralState.engineState.frameIndex = shadowHomeos.R146_ROUTE_BOUNDARY.engineFrame;
+  neutralState.engineState.lifecycle = 'STABLE';
+  neutralState.engineState.inputCursors = {
+    'p1r0.metab-availability.homeos': String(
+      shadowHomeos.R146_ROUTE_BOUNDARY.availabilityProducerSequence
+    ),
+    'p1r0.metab-reserve.homeos': String(
+      shadowHomeos.R146_ROUTE_BOUNDARY.reserveProducerSequence
+    )
+  };
+  neutralState.engineState.dimensions[0].sourceSequence = String(
+    shadowHomeos.R146_ROUTE_BOUNDARY.availabilityProducerSequence
+  );
+  neutralState.engineState.dimensions[1].sourceSequence = String(
+    shadowHomeos.R146_ROUTE_BOUNDARY.reserveProducerSequence
+  );
+  neutralState.handledEvents = shadowHomeos.R146_ROUTE_BOUNDARY.handledEvents;
+  for (
+    let frame = shadowHomeos.R146_ROUTE_BOUNDARY.firstRetainedSourceFrame;
+    frame <= shadowHomeos.R146_ROUTE_BOUNDARY.lastRetainedSourceFrame;
+    frame += 1
+  ) {
+    const offset = frame - shadowHomeos.R146_ROUTE_BOUNDARY.firstRetainedSourceFrame;
+    neutralState.pendingAvailability[String(frame)] = retainedFrame(
+      frames.find(value => value.topic.name === neutralHomeos.AVAILABILITY_TOPIC),
+      frame,
+      shadowHomeos.R146_ROUTE_BOUNDARY.firstRetainedAvailabilitySequence + offset * 2
+    );
+    neutralState.pendingReserve[String(frame)] = retainedFrame(
+      frames.find(value => value.topic.name === neutralHomeos.RESERVE_TOPIC),
+      frame,
+      shadowHomeos.R146_ROUTE_BOUNDARY.firstRetainedReserveSequence + offset * 2
+    );
+  }
+  const activation = homeosActivation(
+    shadowHomeos.R146_ROUTE_BOUNDARY.activationSourceCheckpointHash,
+    shadowHomeos.R146_ROUTE_BOUNDARY.activationSourceCheckpointGeneration
+  );
+  activation.instanceId = '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f';
+  const exactState = {
+    schema: 'stay-p1-r0-resident/homeos-shadow-state-v2',
+    activation: {
+      ...activation,
+      eventId: shadowHomeos.R146_ROUTE_BOUNDARY.activationEventId,
+      eventSequence: shadowHomeos.R146_ROUTE_BOUNDARY.activationEventSequence
+    },
+    neutralState
+  };
+  const before = stableStringify(exactState);
+  const repaired = shadowHomeos.repairExactR146RouteBoundaryState(exactState);
+  assert.equal(stableStringify(exactState), before);
+  assert.deepEqual(repaired.evidence, {
+    cohort: 'r146-homeos-route-boundary-v1',
+    missingSourceFrame: 98007,
+    absentFrameSemantics: 'UNKNOWN',
+    retainedPairCount: 16,
+    firstRetainedSourceFrame: 98008,
+    lastRetainedSourceFrame: 98023,
+    fromEngineFrame: 98007,
+    toEngineFrame: 98024,
+    checkpointBytesChanged: true,
+    biologicalStateChanged: true,
+    physiologyApplied: 16,
+    abandonedCount: 0,
+    inventedBiologicalTime: false,
+    authorityChanged: false,
+    biologicalOutputs: 0
+  });
+  assert.equal(repaired.state.neutralState.engineState.frameIndex, 98024);
+  assert.equal(repaired.state.neutralState.engineState.outputSequence, '0');
+  assert.equal(repaired.state.neutralState.engineState.lifecycle, 'STABLE');
+  assert.deepEqual(repaired.state.neutralState.pendingAvailability, {});
+  assert.deepEqual(repaired.state.neutralState.pendingReserve, {});
+
+  const drifted = clone(exactState);
+  drifted.neutralState.pendingReserve['98023'].producerSequence = '999';
+  await assert.rejects(
+    async () => shadowHomeos.repairExactR146RouteBoundaryState(drifted),
+    { code: 'P1_HOMEOS_R146_ROUTE_BOUNDARY' }
+  );
+});
+
+test('R146-HOMEOS-RECOVERY-12 begins only the exact two-delivery replay atomically', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r146-homeos-replay-'));
+  const stateStore = new StateStore(root);
+  await stateStore.init();
+  t.after(async () => {
+    try { stateStore.close(); } catch {}
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const expected = R146_METAB_Q48_HOMEOS_RECOVERY;
+  const at = '2026-09-04T01:00:00.000Z';
+  stateStore.db.prepare(`INSERT INTO resident_instances(
+    residency_id,core_id,role,instance_id,version,state_schema,module_relative_path,
+    module_hash,manifest_hash,package_policy_hash,organism_identity_hash,
+    checkpoint_hash,checkpoint_generation,status,attached_at,updated_at
+  ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    'resident:homeos', 'HOMEOS', 'optional', expected.finalHomeosInstanceId,
+    expected.finalHomeosVersion, expected.finalHomeosStateSchema,
+    expected.finalHomeosModuleRelativePath, expected.finalHomeosModuleHash,
+    expected.finalHomeosManifestHash, expected.finalHomeosPackagePolicyHash,
+    IDENTITY_HASH, expected.finalHomeosCheckpointHash,
+    expected.finalHomeosCheckpointGeneration, 'RESYNC_REQUIRED', at, at
+  );
+  stateStore.db.prepare(`INSERT INTO resident_checkpoints(
+    checkpoint_id,residency_id,instance_id,version,state_schema,generation,
+    blob_hash,byte_length,input_cursor,created_at
+  ) VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
+    expected.finalHomeosCheckpointId, 'resident:homeos', expected.finalHomeosInstanceId,
+    expected.finalHomeosVersion, expected.finalHomeosStateSchema,
+    expected.finalHomeosCheckpointGeneration, expected.finalHomeosCheckpointHash,
+    expected.finalHomeosCheckpointBytes, expected.finalHomeosInputCursor, at
+  );
+  stateStore.db.prepare(`INSERT INTO biological_consumers(
+    consumer_id,core_id,required,active,topics_json,topics_sha256,cursor,
+    authority_epoch,checkpoint_hash,registered_at,updated_at
+  ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(
+    'resident:homeos', 'HOMEOS', 0, 0,
+    JSON.stringify(shadowHomeos.manifest.inputs), expected.finalHomeosTopicsHash,
+    expected.finalHomeosConsumerCursor, 0, expected.finalHomeosCheckpointHash, at, at
+  );
+  const pending = [
+    [4241117, 'metab.energy.availability.v1',
+      'core-output:dd4f1feb2e23462bc77206e91d066aa9e88d41ba145228599d7e64ef0a0ed8dd'],
+    [4241118, 'metab.energy.reserve.v1',
+      'core-output:63fadd3d778d1132eed2ec1ff533a69825b2fd2524ec16d2b35d81d01e8aeef9']
+  ];
+  for (const [sequence, topic, deduplicationKey] of pending) {
+    stateStore.db.prepare(`INSERT INTO biological_events(
+      sequence,event_id,topic,event_class,at_ms,deadline_at_ms,envelope_json,
+      envelope_sha256,payload_sha256,provenance_sha256,deduplication_key,
+      deduplication_sha256,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      sequence, `evt-r146-homeos-${sequence}`, topic, 'durable', sequence, null,
+      '{}', 'a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64), deduplicationKey,
+      'd'.repeat(64), at
+    );
+    stateStore.db.prepare(`INSERT INTO biological_deliveries(
+      sequence,consumer_id,status
+    ) VALUES(?,?,'PENDING')`).run(sequence, 'resident:homeos');
+  }
+  stateStore.db.prepare(`INSERT INTO recovery_records(
+    type,core_id,detail_json,created_at
+  ) VALUES('resident.implementation-repaired','HOMEOS',?,?)`).run(
+    JSON.stringify({
+      repairId: expected.finalHomeosRepairId,
+      repairedCheckpointHash: expected.finalHomeosCheckpointHash,
+      pendingDeliveriesPreserved: 2,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    }),
+    at
+  );
+
+  assert.throws(() => stateStore.beginExactR146HomeosBacklogReplay({
+    residencyId: 'resident:homeos',
+    coreId: 'HOMEOS',
+    checkpointHash: `f${expected.finalHomeosCheckpointHash.slice(1)}`,
+    runtimeRevision: 146
+  }), { code: 'P1_HOMEOS_R146_REPLAY_CONTRACT' });
+  assert.equal(stateStore.getResident('resident:homeos').status, 'RESYNC_REQUIRED');
+
+  const record = stateStore.beginExactR146HomeosBacklogReplay({
+    residencyId: 'resident:homeos',
+    coreId: 'HOMEOS',
+    checkpointHash: expected.finalHomeosCheckpointHash,
+    runtimeRevision: 146
+  });
+  assert.equal(record.pendingCount, 2);
+  assert.equal(record.maximumPending, 2);
+  assert.equal(record.abandonedCount, 0);
+  assert.equal(record.inventedBiologicalTime, false);
+  assert.equal(record.authorityChanged, false);
+  assert.equal(stateStore.getResident('resident:homeos').status, 'RECOVERING');
+  assert.deepEqual(
+    stateStore.db.prepare(`SELECT sequence FROM biological_deliveries
+      WHERE consumer_id='resident:homeos' AND status='PENDING' ORDER BY sequence`)
+      .all().map(row => Number(row.sequence)),
+    pending.map(value => value[0])
+  );
+  assert.equal(stateStore.db.prepare(`SELECT COUNT(*) count FROM biological_deliveries
+    WHERE consumer_id='resident:homeos' AND status='ACKED'`).get().count, 0);
+});
+
+test('R146-HOMEOS-RECOVERY-13 fences unresolved and sealed fetus continuity exactly', () => {
+  const expected = R146_METAB_Q48_HOMEOS_RECOVERY.fetus;
+  const consumer = {
+    coreId: expected.coreId,
+    required: false,
+    active: false,
+    authorityEpoch: expected.authorityEpoch,
+    topics: [],
+    topicsHash: expected.topicsHash,
+    cursor: expected.consumerCursor,
+    checkpointHash: expected.priorConsumerCheckpointHash
+  };
+  const rows = {
+    authority: {
+      instance_id: expected.instanceId,
+      version: expected.version,
+      epoch: expected.authorityEpoch,
+      checkpoint_hash: expected.checkpointHash
+    },
+    checkpoint: {
+      instance_id: expected.instanceId,
+      version: expected.version,
+      authority_epoch: expected.authorityEpoch,
+      generation: expected.checkpointGeneration,
+      blob_hash: expected.checkpointHash,
+      byte_length: expected.checkpointBytes
+    },
+    demotion: {
+      id: expected.demotionId,
+      detail_json: JSON.stringify({
+        consumerId: expected.consumerId,
+        cursor: expected.consumerCursor,
+        pending: expected.pendingAtDemotion,
+        maximumDebt: expected.maximumDebt,
+        resynchronizationRequired: true
+      })
+    },
+    resolution: {
+      id: expected.priorResolutionId,
+      detail_json: JSON.stringify({ demotionId: expected.priorDemotionId })
+    }
+  };
+  const harness = {
+    stateStore: {
+      getBiologicalConsumer: () => consumer,
+      db: {
+        prepare: sql => ({
+          get: () => {
+            if (sql.includes('FROM authority')) return rows.authority;
+            if (sql.includes('FROM checkpoints')) return rows.checkpoint;
+            if (sql.includes("type='biological.consumer-demoted'")) return rows.demotion;
+            if (sql.includes("type='biological.consumer-resynchronized'")) return rows.resolution;
+            return { count: 0 };
+          }
+        })
+      }
+    }
+  };
+  const unresolved = LivingKernel.prototype.exactR146FetusContinuityCohort.call(harness);
+  assert.equal(unresolved.valid, true);
+  assert.equal(unresolved.unresolved, true);
+  assert.equal(unresolved.resolved, false);
+
+  const highWater = expected.consumerCursor + 1000;
+  consumer.cursor = highWater;
+  consumer.checkpointHash = expected.checkpointHash;
+  rows.resolution = {
+    id: expected.demotionId + 1,
+    detail_json: JSON.stringify({
+      cohort: 'r146-fetus-empty-input-continuity-v1',
+      demotionId: expected.demotionId,
+      consumerId: expected.consumerId,
+      fromCursor: expected.consumerCursor,
+      toCursor: highWater,
+      inputs: [],
+      checkpointHash: expected.checkpointHash,
+      checkpointGeneration: expected.checkpointGeneration,
+      checkpointBytesChanged: false,
+      biologicalStateChanged: false,
+      physiologyApplied: 0,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false,
+      runtimeRevision: 146
+    })
+  };
+  const resolved = LivingKernel.prototype.exactR146FetusContinuityCohort.call(harness);
+  assert.equal(resolved.valid, true);
+  assert.equal(resolved.unresolved, false);
+  assert.equal(resolved.resolved, true);
+
+  rows.resolution.detail_json = JSON.stringify({
+    ...JSON.parse(rows.resolution.detail_json),
+    physiologyApplied: 1
+  });
+  assert.equal(
+    LivingKernel.prototype.exactR146FetusContinuityCohort.call(harness).valid,
+    false
+  );
+});
+
+test('R146-HOMEOS-RECOVERY-14 preserves revision only for repaired HOMEOS plus fetus cohort', () => {
+  const expected = R146_METAB_Q48_HOMEOS_RECOVERY;
+  const capacityJson = JSON.stringify({ pending: null });
+  const metab = {
+    instanceId: expected.metabInstanceId,
+    version: expected.partialMetabVersion,
+    stateSchema: expected.partialMetabStateSchema,
+    moduleRelativePath: expected.partialMetabModuleRelativePath,
+    moduleHash: expected.partialMetabModuleHash,
+    manifestHash: expected.partialMetabManifestHash,
+    packagePolicyHash: expected.partialMetabPackagePolicyHash,
+    status: 'RUNNING',
+    checkpointGeneration: 200000,
+    checkpointHash: 'metab-current'
+  };
+  const homeos = {
+    instanceId: expected.finalHomeosInstanceId,
+    version: expected.finalHomeosVersion,
+    stateSchema: expected.finalHomeosStateSchema,
+    moduleRelativePath: expected.finalHomeosModuleRelativePath,
+    moduleHash: expected.finalHomeosModuleHash,
+    manifestHash: expected.finalHomeosManifestHash,
+    packagePolicyHash: expected.finalHomeosPackagePolicyHash,
+    status: 'RESYNC_REQUIRED',
+    checkpointGeneration: expected.finalHomeosCheckpointGeneration,
+    checkpointHash: expected.finalHomeosCheckpointHash
+  };
+  const fetusConsumer = {
+    coreId: expected.fetus.coreId,
+    required: false,
+    active: false,
+    authorityEpoch: expected.fetus.authorityEpoch,
+    topics: [],
+    topicsHash: expected.fetus.topicsHash,
+    cursor: expected.fetus.consumerCursor,
+    checkpointHash: expected.fetus.priorConsumerCheckpointHash
+  };
+  const consumers = {
+    'resident:metab': {
+      coreId: 'METAB', required: false, active: true, authorityEpoch: 0,
+      checkpointHash: metab.checkpointHash
+    },
+    'resident:homeos': {
+      coreId: 'HOMEOS', required: false, active: false, authorityEpoch: 0,
+      cursor: expected.finalHomeosConsumerCursor,
+      topicsHash: expected.finalHomeosTopicsHash,
+      checkpointHash: expected.finalHomeosCheckpointHash
+    },
+    [expected.fetus.consumerId]: fetusConsumer
+  };
+  const harness = {
+    runtimeRevision: 146,
+    homeosNeutralBirthAuthorization: 'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY',
+    metabHomeosRouteAuthorization: 'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY',
+    homeosShadowPromotionAuthorization: 'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY',
+    homeosStrandedR145RecoveryAuthorization: '',
+    homeosStrandedR146RecoveryAuthorization: expected.authorization,
+    homeosStrandedR145RecoveryActive: false,
+    homeosStrandedRecoveryRevision: null,
+    metabQ48R146RecoveryActive: false,
+    homeosStrandedR146PartialRecoveryActive: false,
+    homeosFinalR146RecoveryActive: false,
+    fetusEmptyInputR146RecoveryActive: false,
+    exactR146FetusContinuityCohort:
+      LivingKernel.prototype.exactR146FetusContinuityCohort,
+    stateStore: {
+      getResident: id => id === 'resident:metab' ? metab
+        : id === 'resident:homeos' ? homeos : null,
+      getBiologicalConsumer: id => consumers[id] || null,
+      listAuthority: () => [],
+      db: {
+        prepare: sql => ({
+          get: (...args) => {
+            if (sql.includes('FROM authority')) return {
+              instance_id: expected.fetus.instanceId,
+              version: expected.fetus.version,
+              epoch: expected.fetus.authorityEpoch,
+              checkpoint_hash: expected.fetus.checkpointHash
+            };
+            if (sql.includes('FROM checkpoints')) return {
+              instance_id: expected.fetus.instanceId,
+              version: expected.fetus.version,
+              authority_epoch: expected.fetus.authorityEpoch,
+              generation: expected.fetus.checkpointGeneration,
+              blob_hash: expected.fetus.checkpointHash,
+              byte_length: expected.fetus.checkpointBytes
+            };
+            if (sql.includes("type='biological.consumer-demoted'")) return {
+              id: expected.fetus.demotionId,
+              detail_json: JSON.stringify({
+                consumerId: expected.fetus.consumerId,
+                cursor: expected.fetus.consumerCursor,
+                pending: expected.fetus.pendingAtDemotion,
+                maximumDebt: expected.fetus.maximumDebt,
+                resynchronizationRequired: true
+              })
+            };
+            if (sql.includes("type='biological.consumer-resynchronized'")) return {
+              id: expected.fetus.priorResolutionId,
+              detail_json: JSON.stringify({ demotionId: expected.fetus.priorDemotionId })
+            };
+            if (sql.includes("type='resident.resync-required'") && sql.includes("core_id='HOMEOS'")) {
+              return {
+                id: expected.finalHomeosFailureRecordId,
+                detail_json: JSON.stringify({
+                  sequence: expected.finalHomeosPendingSequences[0],
+                  code: 'P1_RESIDENT_PENDING_BOUND'
+                })
+              };
+            }
+            if (sql.includes("type='resident.implementation-repaired'") &&
+                sql.includes("core_id='HOMEOS'")) {
+              return { detail_json: JSON.stringify({
+                repairId: expected.finalHomeosRepairId,
+                repairedCheckpointHash: expected.finalHomeosCheckpointHash,
+                pendingDeliveriesPreserved: 2,
+                abandonedCount: 0,
+                inventedBiologicalTime: false,
+                authorityChanged: false
+              }) };
+            }
+            if (sql.includes("key='life:p1-r0-metab-capacity-source'")) return {
+              json: capacityJson,
+              sha256: crypto.createHash('sha256').update(capacityJson).digest('hex')
+            };
+            if (sql.includes('FROM resident_checkpoints') &&
+                (args[0] === 'resident:homeos' || sql.includes("residency_id='resident:homeos'"))) {
+              return {
+                checkpoint_id: expected.finalHomeosCheckpointId,
+                instance_id: expected.finalHomeosInstanceId,
+                version: expected.finalHomeosVersion,
+                state_schema: expected.finalHomeosStateSchema,
+                generation: expected.finalHomeosCheckpointGeneration,
+                blob_hash: expected.finalHomeosCheckpointHash,
+                byte_length: expected.finalHomeosCheckpointBytes,
+                input_cursor: expected.finalHomeosInputCursor
+              };
+            }
+            if (sql.includes('COUNT(*)')) return {
+              count: sql.includes("consumer_id='resident:homeos'") ? 2 : 0
+            };
+            return null;
+          },
+          all: () => sql.includes("d.consumer_id='resident:homeos'")
+            ? expected.finalHomeosPendingSequences.map((sequence, index) => ({
+                sequence,
+                topic: ['metab.energy.availability.v1', 'metab.energy.reserve.v1'][index]
+              }))
+            : []
+        })
+      }
+    }
+  };
+
+  assert.equal(harness.exactR146FetusContinuityCohort.call(harness).valid, true);
+  assert.equal(
+    LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness),
+    true
+  );
+  assert.equal(harness.homeosFinalR146RecoveryActive, true);
+  assert.equal(harness.fetusEmptyInputR146RecoveryActive, true);
+  homeos.checkpointHash = `f${expected.finalHomeosCheckpointHash.slice(1)}`;
+  harness.homeosFinalR146RecoveryActive = false;
+  harness.fetusEmptyInputR146RecoveryActive = false;
+  assert.equal(
+    LivingKernel.prototype.preserveExactR145HomeosProgressRevision.call(harness),
+    false
+  );
+});

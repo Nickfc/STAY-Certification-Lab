@@ -158,6 +158,16 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
   assert.match(recovery,
     /METAB_REPAIR='deploy\/live-physiology-transplant\/p1-r146-metab-q48-implementation-repair\.js'/);
   for (const exact of [
+    "PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-a8be13e9bbd1'",
+    "PREVIOUS_HOMEOS_TAG='r150-homeos-intero-shadow-v9'",
+    "PREVIOUS_HOMEOS_COMMIT='ebe06d11bc08860d5e42c67d552725c0bd9fa524'",
+    "PREVIOUS_HOMEOS_TREE='b086e35c546bdacb43022f515f31971e1e1ffe4b'",
+    "PREVIOUS_HOMEOS_ARCHIVE_SHA256='sha256:c17de9844827b383266d12574336a40e78575f79d892a7726dffaa7ad97bc784'",
+    "PREVIOUS_HOMEOS_MANIFEST_SHA256='sha256:a8be13e9bbd15a94d36d5371c075bc4c1c1d9a75ef00e1522f425bbf329a91e1'",
+    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='sha256:760927cc803b7319e2cb07312ed49d6f9aa66ec8758235bb9c038808ac65af67'",
+    "marker_cohort='EXACT_PREVIOUS_HOMEOS_FAILURE'"
+  ]) assert.ok(recovery.includes(exact), exact);
+  for (const exact of [
     "ORIGINAL_HOMEOS_FAILURE_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-418c80c33029'",
     "ORIGINAL_HOMEOS_FAILURE_TAG='r150-homeos-intero-shadow-v3'",
     "ORIGINAL_HOMEOS_FAILURE_COMMIT='b21e56776be8a0954ef1af34bd28c13d6e03dd5d'",
@@ -196,6 +206,21 @@ test('R150-PRODUCTION-04 forward and recovery entry paths retain exact hard gate
     'AUTHORIZE_R149_HOMEOS_INTERO_ROUTE_ONLY',
     'AUTHORIZE_R150_INTERO_PERCEPTION_ONLY_SHADOW_ONLY'
   ]) assert.match(forward, new RegExp(token));
+
+  const repair = await fs.readFile(path.join(ROOT,
+    'deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js'), 'utf8');
+  const kernel = await fs.readFile(path.join(ROOT, 'runtime/kernel/living-kernel.js'), 'utf8');
+  const manager = await fs.readFile(path.join(ROOT, 'runtime/kernel/resident-manager.js'), 'utf8');
+  const store = await fs.readFile(path.join(ROOT, 'runtime/kernel/state-store.js'), 'utf8');
+  const homeos = await fs.readFile(path.join(ROOT,
+    'runtime/p1-r0/residents/homeos-shadow.js'), 'utf8');
+  assert.match(`${repair}\n${kernel}\n${store}\n${homeos}`,
+    /homeos-r146-route-boundary-continuity-v1/);
+  assert.match(homeos, /repairExactR146RouteBoundaryState/);
+  assert.match(store, /beginExactR146HomeosBacklogReplay/);
+  assert.match(manager, /exactR146HomeosBacklog/);
+  assert.match(kernel, /r146-fetus-empty-input-continuity-v1/);
+  assert.match(repair, /pendingSequences: Object\.freeze\(\[4241117, 4241118\]\)/);
 });
 
 test('R150-PRODUCTION-05 every new production generation passes the real Bubblewrap entry path', {
@@ -249,7 +274,9 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh',
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js',
     'deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js',
-    'test/p1-r146-metab-q48-implementation-repair.test.js'
+    'test/p1-r145-homeos-shadow.test.js',
+    'test/p1-r146-metab-q48-implementation-repair.test.js',
+    'test/p1-r150-production-gates.test.js'
   ]) assert.equal(entries.has(required), true, required);
   for (const [relative, expected] of entries) {
     assert.equal(sha256(fsSync.readFileSync(path.join(ROOT, relative))), expected, relative);

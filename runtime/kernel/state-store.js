@@ -7317,6 +7317,179 @@ class StateStore {
   }
 
 
+  beginExactR146HomeosBacklogReplay({
+    residencyId,
+    coreId,
+    checkpointHash,
+    runtimeRevision
+  }) {
+    const expected = Object.freeze({
+      residencyId: 'resident:homeos',
+      coreId: 'HOMEOS',
+      instanceId: '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',
+      version: '0.2.0-p1r0-shadow.1',
+      stateSchema: 2,
+      moduleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
+      moduleHash: 'sha256:c27ae45c464b11c4c772260ad3c8517854b80dd08846ea7e602e7e2338b0a700',
+      manifestHash: 'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
+      packagePolicyHash: 'sha256:9ad9344c9c386eed8e9a1b61334fc96074bb5c69a2b34c136343228143bb05c9',
+      checkpointGeneration: 42,
+      checkpointHash: '562d336fcf6f7184acaf826d29fe0d890d5705b40c3b49aa4a70a41fa3328046',
+      inputCursor: 4241113,
+      consumerCursor: 4241116,
+      topicsHash: 'abea82189093d4bb54bee213ed9f9a7ebdd9b2b0b76f6f77dcc2762555e75231',
+      pending: Object.freeze([
+        Object.freeze({
+          sequence: 4241117,
+          topic: 'metab.energy.availability.v1',
+          deduplicationKey:
+            'core-output:dd4f1feb2e23462bc77206e91d066aa9e88d41ba145228599d7e64ef0a0ed8dd'
+        }),
+        Object.freeze({
+          sequence: 4241118,
+          topic: 'metab.energy.reserve.v1',
+          deduplicationKey:
+            'core-output:63fadd3d778d1132eed2ec1ff533a69825b2fd2524ec16d2b35d81d01e8aeef9'
+        })
+      ]),
+      repairId: 'homeos-r146-route-boundary-continuity-v1'
+    });
+    if (
+      residencyId !== expected.residencyId ||
+      coreId !== expected.coreId ||
+      checkpointHash !== expected.checkpointHash ||
+      runtimeRevision !== 146
+    ) {
+      throw Object.assign(
+        new Error('R146 HOMEOS retained replay contract is invalid'),
+        { code: 'P1_HOMEOS_R146_REPLAY_CONTRACT' }
+      );
+    }
+
+    const at = new Date().toISOString();
+    const replayId = crypto.randomUUID();
+    let result;
+    try {
+      result = this.withTransaction(() => {
+        const resident = this.db.prepare(`
+          SELECT * FROM resident_instances WHERE residency_id=?
+        `).get(residencyId);
+        const checkpoint = this.db.prepare(`
+          SELECT * FROM resident_checkpoints
+          WHERE residency_id=? AND generation=?
+        `).get(residencyId, expected.checkpointGeneration);
+        const consumer = this.db.prepare(`
+          SELECT * FROM biological_consumers WHERE consumer_id=?
+        `).get(residencyId);
+        const pending = this.db.prepare(`
+          SELECT d.sequence,d.status,e.topic,e.deduplication_key
+          FROM biological_deliveries d
+          JOIN biological_events e ON e.sequence=d.sequence
+          WHERE d.consumer_id=? AND d.status='PENDING'
+          ORDER BY d.sequence
+        `).all(residencyId);
+        const repair = this.db.prepare(`
+          SELECT detail_json FROM recovery_records
+          WHERE type='resident.implementation-repaired' AND core_id=?
+          ORDER BY id DESC LIMIT 1
+        `).get(coreId);
+        let repairDetail = null;
+        try { repairDetail = JSON.parse(repair?.detail_json || 'null'); } catch {}
+        const authorityCount = Number(this.db.prepare(`
+          SELECT COUNT(*) count FROM authority
+          WHERE core_id IN ('METAB','HOMEOS','INTERO')
+        `).get()?.count || 0);
+        const pendingOutputCount = Number(this.db.prepare(`
+          SELECT COUNT(*) count FROM biological_outbox_intents
+          WHERE producer_core_id=? AND status='PENDING'
+        `).get(coreId)?.count || 0);
+        if (
+          resident?.core_id !== coreId ||
+          resident?.instance_id !== expected.instanceId ||
+          resident?.version !== expected.version ||
+          Number(resident?.state_schema) !== expected.stateSchema ||
+          resident?.module_relative_path !== expected.moduleRelativePath ||
+          resident?.module_hash !== expected.moduleHash ||
+          resident?.manifest_hash !== expected.manifestHash ||
+          resident?.package_policy_hash !== expected.packagePolicyHash ||
+          resident?.status !== 'RESYNC_REQUIRED' ||
+          Number(resident?.checkpoint_generation) !== expected.checkpointGeneration ||
+          resident?.checkpoint_hash !== expected.checkpointHash ||
+          checkpoint?.instance_id !== expected.instanceId ||
+          checkpoint?.version !== expected.version ||
+          Number(checkpoint?.state_schema) !== expected.stateSchema ||
+          checkpoint?.blob_hash !== expected.checkpointHash ||
+          Number(checkpoint?.input_cursor) !== expected.inputCursor ||
+          consumer?.core_id !== coreId ||
+          Number(consumer?.required) !== 0 ||
+          Number(consumer?.active) !== 0 ||
+          Number(consumer?.cursor) !== expected.consumerCursor ||
+          Number(consumer?.authority_epoch) !== 0 ||
+          consumer?.topics_sha256 !== expected.topicsHash ||
+          consumer?.checkpoint_hash !== expected.checkpointHash ||
+          pending.length !== expected.pending.length ||
+          pending.some((row, index) =>
+            Number(row.sequence) !== expected.pending[index].sequence ||
+            row.status !== 'PENDING' ||
+            row.topic !== expected.pending[index].topic ||
+            row.deduplication_key !== expected.pending[index].deduplicationKey) ||
+          repairDetail?.repairId !== expected.repairId ||
+          repairDetail?.repairedCheckpointHash !== expected.checkpointHash ||
+          repairDetail?.pendingDeliveriesPreserved !== expected.pending.length ||
+          repairDetail?.abandonedCount !== 0 ||
+          repairDetail?.inventedBiologicalTime !== false ||
+          repairDetail?.authorityChanged !== false ||
+          authorityCount !== 0 ||
+          pendingOutputCount !== 0
+        ) {
+          throw Object.assign(
+            new Error('R146 HOMEOS retained replay state changed'),
+            { code: 'P1_HOMEOS_R146_REPLAY_STATE' }
+          );
+        }
+        const detail = {
+          cohort: 'r146-homeos-route-boundary-v1',
+          replayId,
+          residencyId,
+          checkpointHash,
+          checkpointGeneration: expected.checkpointGeneration,
+          runtimeRevision,
+          pendingCount: expected.pending.length,
+          firstPendingSequence: expected.pending[0].sequence,
+          lastPendingSequence: expected.pending.at(-1).sequence,
+          fromCursor: expected.consumerCursor,
+          toCursor: expected.consumerCursor,
+          maximumPending: expected.pending.length,
+          abandonedCount: 0,
+          inventedBiologicalTime: false,
+          authorityChanged: false
+        };
+        const changed = this.db.prepare(`
+          UPDATE resident_instances SET status='RECOVERING',updated_at=?
+          WHERE residency_id=? AND status='RESYNC_REQUIRED'
+            AND checkpoint_generation=? AND checkpoint_hash=?
+        `).run(at, residencyId, expected.checkpointGeneration, checkpointHash);
+        if (changed.changes !== 1) {
+          throw Object.assign(
+            new Error('R146 HOMEOS retained replay lost its resident fence'),
+            { code: 'P1_HOMEOS_R146_REPLAY_ATOMIC' }
+          );
+        }
+        this.db.prepare(`
+          INSERT INTO recovery_records(type,core_id,detail_json,created_at)
+          VALUES('resident.exact-backlog-replay-begin',?,?,?)
+        `).run(coreId, JSON.stringify(detail), at);
+        return detail;
+      });
+    } catch (error) {
+      this.markWriteFailure(error);
+      throw error;
+    }
+    this.markWriteSuccess();
+    return result;
+  }
+
+
   listResidentResynchronizations(
     residencyId
   ) {

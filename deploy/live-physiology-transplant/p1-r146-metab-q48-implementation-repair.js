@@ -60,6 +60,60 @@ const PARTIAL_ROUTE = Object.freeze({
   homeosPackagePolicyHash: 'sha256:2f8cc1fd91f84bd1ee54ef9e38929a824f5768775fe849816185bcecd2843b8f'
 });
 
+const FINAL_HOMEOS = Object.freeze({
+  repairId: 'homeos-r146-route-boundary-continuity-v1',
+  residencyId: 'resident:homeos',
+  coreId: 'HOMEOS',
+  instanceId: '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',
+  version: '0.2.0-p1r0-shadow.1',
+  stateSchema: 2,
+  moduleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
+  sourceModuleHash: 'sha256:851f3b9dd7351f056011cc183fbda99fd310c05b102d1ec3f28687947160dac8',
+  targetModuleHash: 'sha256:c27ae45c464b11c4c772260ad3c8517854b80dd08846ea7e602e7e2338b0a700',
+  manifestHash: 'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
+  sourcePackagePolicyHash: 'sha256:5f250142eafc5ad5d13463c5752ee3e8f205b5a2e609bfe6c7c59ab151316636',
+  targetPackagePolicyHash: 'sha256:9ad9344c9c386eed8e9a1b61334fc96074bb5c69a2b34c136343228143bb05c9',
+  sourceCheckpointId: '0078dfa1-607d-4452-80ea-c310f29feeb0',
+  sourceCheckpointGeneration: 41,
+  sourceCheckpointHash: 'ed9143e79dcfee9025926c07bf48a6ab9a5bd70a0646ca16458cb789662423fd',
+  sourceCheckpointBytes: 47261,
+  sourceInputCursor: 4241113,
+  repairedCheckpointId: 'homeos-r146-route-boundary-repair-42',
+  repairedCheckpointGeneration: 42,
+  repairedCheckpointHash: '562d336fcf6f7184acaf826d29fe0d890d5705b40c3b49aa4a70a41fa3328046',
+  repairedCheckpointBytes: 3926,
+  consumerCursor: 4241116,
+  consumerTopicsHash: 'abea82189093d4bb54bee213ed9f9a7ebdd9b2b0b76f6f77dcc2762555e75231',
+  failureRecordId: 184,
+  pendingSequences: Object.freeze([4241117, 4241118]),
+  pendingTopics: Object.freeze([
+    'metab.energy.availability.v1',
+    'metab.energy.reserve.v1'
+  ]),
+  pendingDeduplicationKeys: Object.freeze([
+    'core-output:dd4f1feb2e23462bc77206e91d066aa9e88d41ba145228599d7e64ef0a0ed8dd',
+    'core-output:63fadd3d778d1132eed2ec1ff533a69825b2fd2524ec16d2b35d81d01e8aeef9'
+  ]),
+  fetus: Object.freeze({
+    consumerId: 'core:fetus-legacy',
+    instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f',
+    version: '0.6.0',
+    authorityEpoch: 1,
+    consumerCursor: 4194076,
+    consumerCheckpointHash: 'dc65f0fff624e08df092620697f230ea28521e8db34614c455f7473e6ed91b7b',
+    checkpointGeneration: 203,
+    checkpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
+    checkpointBytes: 55962,
+    demotionId: 167,
+    priorConsumerCheckpointHash: 'dc65f0fff624e08df092620697f230ea28521e8db34614c455f7473e6ed91b7b',
+    priorResolutionId: 124,
+    priorDemotionId: 116,
+    pendingAtDemotion: 16464,
+    maximumDebt: 16384,
+    topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
+  })
+});
+
 function fail(message, code = 'R146_METAB_Q48_REPAIR') {
   throw Object.assign(new Error(message), { code });
 }
@@ -93,6 +147,23 @@ function validateRelease(releaseRoot) {
     definition.manifest.productionEligible === false &&
     definition.manifest.outputs.length === 0,
   'repaired METAB package identity or containment changed', 'R146_METAB_Q48_RELEASE');
+  return definition;
+}
+function validateFinalHomeosRelease(releaseRoot) {
+  const entry = path.resolve(releaseRoot, FINAL_HOMEOS.moduleRelativePath);
+  const policy = enforcePackagePolicy(entry);
+  const definition = require(entry);
+  const durable = validateManifest(definition.manifest);
+  verifyManifestAgainstPackagePolicy(policy, definition.manifest);
+  assert(`sha256:${sha256(fs.readFileSync(entry))}` === FINAL_HOMEOS.targetModuleHash &&
+    `sha256:${sha256(stableStringify(durable))}` === FINAL_HOMEOS.manifestHash &&
+    policy.policy.policyHash === FINAL_HOMEOS.targetPackagePolicyHash &&
+    definition.manifest.version === FINAL_HOMEOS.version &&
+    definition.manifest.stateSchema === FINAL_HOMEOS.stateSchema &&
+    definition.manifest.productionEligible === false &&
+    definition.manifest.outputs.length === 0 &&
+    typeof definition.repairExactR146RouteBoundaryState === 'function',
+  'repaired HOMEOS package identity or containment changed', 'R146_HOMEOS_ROUTE_RELEASE');
   return definition;
 }
 function snapshot(db) {
@@ -278,6 +349,195 @@ function assertPartialRouteCohort(db, databasePath) {
   return { metab, homeos, metabCheckpoint, homeosCheckpoint, source };
 }
 
+function assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired = false } = {}) {
+  assert(db.prepare('PRAGMA quick_check').get()?.quick_check === 'ok' &&
+    metadataRevision(db) === BASELINE.runtimeRevision,
+  'database is not the final R146 HOMEOS recovery boundary');
+  const definition = validateFinalHomeosRelease(releaseRoot);
+  const metab = db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
+    .get(BASELINE.residencyId);
+  const homeos = db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
+    .get(FINAL_HOMEOS.residencyId);
+  const intero = db.prepare("SELECT * FROM resident_instances WHERE residency_id='resident:intero'").get();
+  const sourceCheckpoint = db.prepare(`SELECT * FROM resident_checkpoints
+    WHERE residency_id=? AND generation=?`).get(
+    FINAL_HOMEOS.residencyId, FINAL_HOMEOS.sourceCheckpointGeneration);
+  const repairedCheckpoint = db.prepare(`SELECT * FROM resident_checkpoints
+    WHERE residency_id=? AND generation=?`).get(
+    FINAL_HOMEOS.residencyId, FINAL_HOMEOS.repairedCheckpointGeneration);
+  const checkpoint = repaired ? repairedCheckpoint : sourceCheckpoint;
+  const consumer = db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
+    .get(FINAL_HOMEOS.residencyId);
+  const failure = db.prepare(`SELECT id,detail_json FROM recovery_records
+    WHERE type='resident.resync-required' AND core_id=? ORDER BY id DESC LIMIT 1`)
+    .get(FINAL_HOMEOS.coreId);
+  const repair = db.prepare(`SELECT detail_json FROM recovery_records
+    WHERE type='resident.implementation-repaired' AND core_id=? ORDER BY id DESC LIMIT 1`)
+    .get(FINAL_HOMEOS.coreId);
+  const pending = db.prepare(`SELECT d.sequence,d.status,e.topic,e.deduplication_key
+    FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+    WHERE d.consumer_id=? AND d.status='PENDING' ORDER BY d.sequence`)
+    .all(FINAL_HOMEOS.residencyId);
+  const capacity = db.prepare('SELECT json,sha256 FROM metadata WHERE key=?')
+    .get(BASELINE.capacityMetadataKey);
+  const fetusConsumer = db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
+    .get(FINAL_HOMEOS.fetus.consumerId);
+  const fetusAuthority = db.prepare("SELECT * FROM authority WHERE core_id='fetus-legacy'").get();
+  const fetusCheckpoint = db.prepare(`SELECT * FROM checkpoints WHERE core_id='fetus-legacy'
+    ORDER BY generation DESC LIMIT 1`).get();
+  const fetusDemotion = db.prepare(`SELECT id,detail_json FROM recovery_records
+    WHERE type='biological.consumer-demoted' AND core_id='fetus-legacy'
+    ORDER BY id DESC LIMIT 1`).get();
+  const fetusResolution = db.prepare(`SELECT id,detail_json FROM recovery_records
+    WHERE type='biological.consumer-resynchronized' AND core_id='fetus-legacy'
+    ORDER BY id DESC LIMIT 1`).get();
+  let failureDetail = null, repairDetail = null, fetusDemotionDetail = null;
+  let fetusResolutionDetail = null, source = null;
+  try { failureDetail = JSON.parse(failure?.detail_json || 'null'); } catch {}
+  try { repairDetail = JSON.parse(repair?.detail_json || 'null'); } catch {}
+  try { fetusDemotionDetail = JSON.parse(fetusDemotion?.detail_json || 'null'); } catch {}
+  try { fetusResolutionDetail = JSON.parse(fetusResolution?.detail_json || 'null'); } catch {}
+  try { source = JSON.parse(capacity?.json || 'null'); } catch {}
+  const expectedModuleHash = repaired
+    ? FINAL_HOMEOS.targetModuleHash : FINAL_HOMEOS.sourceModuleHash;
+  const expectedPolicyHash = repaired
+    ? FINAL_HOMEOS.targetPackagePolicyHash : FINAL_HOMEOS.sourcePackagePolicyHash;
+  const expectedGeneration = repaired
+    ? FINAL_HOMEOS.repairedCheckpointGeneration : FINAL_HOMEOS.sourceCheckpointGeneration;
+  assert(metab?.instance_id === BASELINE.instanceId &&
+    metab?.version === PARTIAL_ROUTE.metabVersion &&
+    Number(metab?.state_schema) === PARTIAL_ROUTE.metabStateSchema &&
+    metab?.module_relative_path === PARTIAL_ROUTE.metabModuleRelativePath &&
+    metab?.module_hash === PARTIAL_ROUTE.metabModuleHash &&
+    metab?.manifest_hash === PARTIAL_ROUTE.metabManifestHash &&
+    metab?.package_policy_hash === PARTIAL_ROUTE.metabPackagePolicyHash &&
+    metab?.status === 'RUNNING' && !intero,
+  'final R146 METAB/HOMEOS cohort changed', 'R146_HOMEOS_ROUTE_RESIDENT');
+  assert(homeos?.core_id === FINAL_HOMEOS.coreId &&
+    homeos?.instance_id === FINAL_HOMEOS.instanceId &&
+    homeos?.version === FINAL_HOMEOS.version &&
+    Number(homeos?.state_schema) === FINAL_HOMEOS.stateSchema &&
+    homeos?.module_relative_path === FINAL_HOMEOS.moduleRelativePath &&
+    homeos?.module_hash === expectedModuleHash &&
+    homeos?.manifest_hash === FINAL_HOMEOS.manifestHash &&
+    homeos?.package_policy_hash === expectedPolicyHash &&
+    homeos?.status === 'RESYNC_REQUIRED' &&
+    Number(homeos?.checkpoint_generation) === expectedGeneration &&
+    homeos?.checkpoint_hash === checkpoint?.blob_hash,
+  'HOMEOS resident is not the exact final R146 repair cohort', 'R146_HOMEOS_ROUTE_RESIDENT');
+  assert(sourceCheckpoint?.checkpoint_id === FINAL_HOMEOS.sourceCheckpointId &&
+    sourceCheckpoint?.instance_id === FINAL_HOMEOS.instanceId &&
+    sourceCheckpoint?.version === FINAL_HOMEOS.version &&
+    Number(sourceCheckpoint?.state_schema) === FINAL_HOMEOS.stateSchema &&
+    sourceCheckpoint?.blob_hash === FINAL_HOMEOS.sourceCheckpointHash &&
+    Number(sourceCheckpoint?.byte_length) === FINAL_HOMEOS.sourceCheckpointBytes &&
+    Number(sourceCheckpoint?.input_cursor) === FINAL_HOMEOS.sourceInputCursor,
+  'HOMEOS source checkpoint changed', 'R146_HOMEOS_ROUTE_CHECKPOINT');
+  if (repaired) {
+    assert(repairedCheckpoint?.checkpoint_id === FINAL_HOMEOS.repairedCheckpointId &&
+      repairedCheckpoint?.instance_id === FINAL_HOMEOS.instanceId &&
+      repairedCheckpoint?.version === FINAL_HOMEOS.version &&
+      Number(repairedCheckpoint?.state_schema) === FINAL_HOMEOS.stateSchema &&
+      Number(repairedCheckpoint?.generation) === FINAL_HOMEOS.repairedCheckpointGeneration &&
+      repairedCheckpoint?.blob_hash === FINAL_HOMEOS.repairedCheckpointHash &&
+      Number(repairedCheckpoint?.byte_length) === FINAL_HOMEOS.repairedCheckpointBytes &&
+      Number(repairedCheckpoint?.input_cursor) === FINAL_HOMEOS.sourceInputCursor &&
+      repairDetail?.repairId === FINAL_HOMEOS.repairId &&
+      repairDetail?.sourceCheckpointHash === FINAL_HOMEOS.sourceCheckpointHash &&
+      repairDetail?.repairedCheckpointHash === repairedCheckpoint.blob_hash &&
+      repairDetail?.abandonedCount === 0 &&
+      repairDetail?.inventedBiologicalTime === false &&
+      repairDetail?.authorityChanged === false,
+    'HOMEOS repaired checkpoint evidence changed', 'R146_HOMEOS_ROUTE_CHECKPOINT');
+  }
+  assert(consumer?.core_id === FINAL_HOMEOS.coreId && Number(consumer?.required) === 0 &&
+    Number(consumer?.active) === 0 && Number(consumer?.cursor) === FINAL_HOMEOS.consumerCursor &&
+    Number(consumer?.authority_epoch) === 0 && consumer?.topics_sha256 === FINAL_HOMEOS.consumerTopicsHash &&
+    consumer?.checkpoint_hash === checkpoint?.blob_hash,
+  'HOMEOS consumer is not contained', 'R146_HOMEOS_ROUTE_CONSUMER');
+  assert(pending.length === 2 && pending.every((row, index) =>
+    Number(row.sequence) === FINAL_HOMEOS.pendingSequences[index] && row.status === 'PENDING' &&
+    row.topic === FINAL_HOMEOS.pendingTopics[index] &&
+    row.deduplication_key === FINAL_HOMEOS.pendingDeduplicationKeys[index]),
+  'HOMEOS retained delivery pair changed', 'R146_HOMEOS_ROUTE_PENDING');
+  assert(Number(failure?.id) === FINAL_HOMEOS.failureRecordId &&
+    failureDetail?.residencyId === FINAL_HOMEOS.residencyId &&
+    failureDetail?.sequence === FINAL_HOMEOS.pendingSequences[0] &&
+    failureDetail?.topic === FINAL_HOMEOS.pendingTopics[0] &&
+    failureDetail?.code === 'P1_RESIDENT_PENDING_BOUND',
+  'HOMEOS route-boundary failure identity changed', 'R146_HOMEOS_ROUTE_FAILURE');
+  assert(capacity && sha256(capacity.json) === capacity.sha256 && source?.pending === null &&
+    scalar(db, `SELECT COUNT(*) value FROM biological_outbox_intents
+      WHERE producer_core_id IN ('METAB','HOMEOS') AND status='PENDING'`) === 0 &&
+    scalar(db, `SELECT COUNT(*) value FROM authority
+      WHERE core_id IN ('METAB','HOMEOS','INTERO')`) === 0,
+  'final R146 source or authority containment changed', 'R146_HOMEOS_ROUTE_CONTAINMENT');
+  const fetusAssignedAfterCursor = scalar(db, `SELECT COUNT(*) value FROM biological_deliveries
+    WHERE consumer_id=? AND sequence>?`, FINAL_HOMEOS.fetus.consumerId,
+  FINAL_HOMEOS.fetus.consumerCursor);
+  const fetusCommon = fetusConsumer?.core_id === 'fetus-legacy' &&
+    Number(fetusConsumer?.required) === 0 && Number(fetusConsumer?.active) === 0 &&
+    fetusConsumer?.topics_json === '[]' &&
+    fetusConsumer?.topics_sha256 === FINAL_HOMEOS.fetus.topicsHash &&
+    Number(fetusConsumer?.authority_epoch) === FINAL_HOMEOS.fetus.authorityEpoch &&
+    fetusAuthority?.instance_id === FINAL_HOMEOS.fetus.instanceId &&
+    fetusAuthority?.version === FINAL_HOMEOS.fetus.version &&
+    Number(fetusAuthority?.epoch) === FINAL_HOMEOS.fetus.authorityEpoch &&
+    fetusAuthority?.checkpoint_hash === FINAL_HOMEOS.fetus.checkpointHash &&
+    fetusCheckpoint?.instance_id === FINAL_HOMEOS.fetus.instanceId &&
+    fetusCheckpoint?.version === FINAL_HOMEOS.fetus.version &&
+    Number(fetusCheckpoint?.generation) === FINAL_HOMEOS.fetus.checkpointGeneration &&
+    fetusCheckpoint?.blob_hash === FINAL_HOMEOS.fetus.checkpointHash &&
+    Number(fetusCheckpoint?.byte_length) === FINAL_HOMEOS.fetus.checkpointBytes &&
+    Number(fetusDemotion?.id) === FINAL_HOMEOS.fetus.demotionId &&
+    fetusDemotionDetail?.consumerId === FINAL_HOMEOS.fetus.consumerId &&
+    fetusDemotionDetail?.pending === FINAL_HOMEOS.fetus.pendingAtDemotion &&
+    fetusDemotionDetail?.maximumDebt === FINAL_HOMEOS.fetus.maximumDebt &&
+    fetusDemotionDetail?.resynchronizationRequired === true &&
+    scalar(db, `SELECT COUNT(*) value FROM biological_deliveries
+      WHERE consumer_id=? AND status='PENDING'`, FINAL_HOMEOS.fetus.consumerId) === 0 &&
+    fetusAssignedAfterCursor === 0;
+  const fetusUnresolved = fetusCommon &&
+    Number(fetusConsumer?.cursor) === FINAL_HOMEOS.fetus.consumerCursor &&
+    fetusConsumer?.checkpoint_hash === FINAL_HOMEOS.fetus.priorConsumerCheckpointHash &&
+    Number(fetusResolution?.id) === FINAL_HOMEOS.fetus.priorResolutionId &&
+    fetusResolutionDetail?.demotionId === FINAL_HOMEOS.fetus.priorDemotionId;
+  const fetusResolved = fetusCommon &&
+    Number(fetusResolution?.id) > FINAL_HOMEOS.fetus.demotionId &&
+    fetusResolutionDetail?.cohort === 'r146-fetus-empty-input-continuity-v1' &&
+    fetusResolutionDetail?.demotionId === FINAL_HOMEOS.fetus.demotionId &&
+    fetusResolutionDetail?.consumerId === FINAL_HOMEOS.fetus.consumerId &&
+    fetusResolutionDetail?.fromCursor === FINAL_HOMEOS.fetus.consumerCursor &&
+    Number.isSafeInteger(fetusResolutionDetail?.toCursor) &&
+    fetusResolutionDetail.toCursor >= FINAL_HOMEOS.fetus.consumerCursor &&
+    Number(fetusConsumer?.cursor) === fetusResolutionDetail.toCursor &&
+    fetusConsumer?.checkpoint_hash === FINAL_HOMEOS.fetus.checkpointHash &&
+    Array.isArray(fetusResolutionDetail?.inputs) && fetusResolutionDetail.inputs.length === 0 &&
+    fetusResolutionDetail?.checkpointHash === FINAL_HOMEOS.fetus.checkpointHash &&
+    fetusResolutionDetail?.checkpointGeneration === FINAL_HOMEOS.fetus.checkpointGeneration &&
+    fetusResolutionDetail?.checkpointBytesChanged === false &&
+    fetusResolutionDetail?.biologicalStateChanged === false &&
+    fetusResolutionDetail?.physiologyApplied === 0 &&
+    fetusResolutionDetail?.abandonedCount === 0 &&
+    fetusResolutionDetail?.inventedBiologicalTime === false &&
+    fetusResolutionDetail?.authorityChanged === false &&
+    fetusResolutionDetail?.runtimeRevision === BASELINE.runtimeRevision;
+  assert(fetusUnresolved || fetusResolved,
+  'fetus empty-input continuity cohort changed', 'R146_HOMEOS_FETUS_CONTINUITY');
+  const state = JSON.parse(readBlob(databasePath, checkpoint));
+  if (repaired) {
+    definition.validateState(state);
+    assert(state.neutralState?.engineState?.frameIndex === 98024 &&
+      state.neutralState?.engineState?.outputSequence === '0' &&
+      Object.keys(state.neutralState?.pendingAvailability || {}).length === 0 &&
+      Object.keys(state.neutralState?.pendingReserve || {}).length === 0,
+    'HOMEOS repaired route-boundary state changed', 'R146_HOMEOS_ROUTE_CHECKPOINT');
+  } else {
+    definition.repairExactR146RouteBoundaryState(state);
+  }
+  return { metab, homeos, checkpoint, sourceCheckpoint, repairedCheckpoint, consumer, state, definition };
+}
+
 function repairIncompleteCheckpointState(state, definition, baseline = BASELINE) {
   definition.validateState(state);
   assert(state.lastAcceptedFrame === baseline.acceptedFrame &&
@@ -316,6 +576,15 @@ function ensureBlob(databasePath, state) {
   assert(sha256(fs.readFileSync(target)) === hash, 'repaired checkpoint blob verification failed');
   return { hash, bytes: bytes.length };
 }
+function prepareFinalHomeosRepair(databasePath, releaseRoot) {
+  const db = new DatabaseSync(databasePath, { readOnly: true });
+  db.exec('PRAGMA query_only=ON');
+  try {
+    const current = assertFinalHomeosCohort(db, databasePath, releaseRoot);
+    const repaired = current.definition.repairExactR146RouteBoundaryState(current.state);
+    return { current, repaired };
+  } finally { db.close(); }
+}
 function preflightRepair({ databasePath, releaseRoot }) {
   validateRelease(releaseRoot);
   const probe = new DatabaseSync(databasePath, { readOnly: true });
@@ -323,6 +592,31 @@ function preflightRepair({ databasePath, releaseRoot }) {
   try {
     const resident = probe.prepare('SELECT module_hash FROM resident_instances WHERE residency_id=?')
       .get(BASELINE.residencyId);
+    const homeos = probe.prepare('SELECT module_hash,version,status FROM resident_instances WHERE residency_id=?')
+      .get(FINAL_HOMEOS.residencyId);
+    if (homeos?.version === FINAL_HOMEOS.version &&
+        [FINAL_HOMEOS.sourceModuleHash, FINAL_HOMEOS.targetModuleHash].includes(homeos.module_hash)) {
+      const repaired = homeos.module_hash === FINAL_HOMEOS.targetModuleHash;
+      const current = assertFinalHomeosCohort(
+        probe, databasePath, releaseRoot, { repaired });
+      const projected = repaired
+        ? null : current.definition.repairExactR146RouteBoundaryState(current.state);
+      return Object.freeze({
+        result: repaired ? 'FINAL_HOMEOS_ALREADY_REPAIRED' : 'FINAL_HOMEOS_RECOVERY_READY',
+        repairId: FINAL_HOMEOS.repairId,
+        sourceCheckpointHash: FINAL_HOMEOS.sourceCheckpointHash,
+        repairedCheckpointHash: repaired
+          ? current.repairedCheckpoint.blob_hash
+          : sha256(Buffer.from(JSON.stringify(projected.state))),
+        pendingDeliveries: FINAL_HOMEOS.pendingSequences.length,
+        retainedPairCount: repaired
+          ? 16 : projected.evidence.retainedPairCount,
+        abandonedCount: 0,
+        inventedBiologicalTime: false,
+        authorityOwned: false,
+        fetusEmptyInputContinuityReady: true
+      });
+    }
     if (resident?.module_hash === REPAIR.moduleHash) {
       const current = assertBaseline(probe, { repaired: true });
       const state = JSON.parse(readBlob(databasePath, current.repairCheckpoint));
@@ -348,8 +642,99 @@ function preflightRepair({ databasePath, releaseRoot }) {
     acceptedFrame: BASELINE.acceptedFrame, abandonedCount: 0,
     biologicalAcceptedStateChanged: false, inventedBiologicalTime: false, authorityOwned: false });
 }
+function applyFinalHomeosRepair({ databasePath, releaseRoot, now = () => new Date().toISOString() }) {
+  const prepared = prepareFinalHomeosRepair(databasePath, releaseRoot);
+  const blob = ensureBlob(databasePath, prepared.repaired.state);
+  assert(blob.hash === FINAL_HOMEOS.repairedCheckpointHash &&
+    blob.bytes === FINAL_HOMEOS.repairedCheckpointBytes,
+  'HOMEOS repaired checkpoint projection changed', 'R146_HOMEOS_ROUTE_CHECKPOINT');
+  const at = now();
+  const db = new DatabaseSync(databasePath);
+  db.exec('PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA busy_timeout=0; BEGIN EXCLUSIVE');
+  try {
+    assertFinalHomeosCohort(db, databasePath, releaseRoot);
+    db.prepare(`INSERT INTO resident_checkpoints(checkpoint_id,residency_id,instance_id,version,state_schema,
+      generation,blob_hash,byte_length,input_cursor,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
+      FINAL_HOMEOS.repairedCheckpointId, FINAL_HOMEOS.residencyId, FINAL_HOMEOS.instanceId,
+      FINAL_HOMEOS.version, FINAL_HOMEOS.stateSchema, FINAL_HOMEOS.repairedCheckpointGeneration,
+      blob.hash, blob.bytes, FINAL_HOMEOS.sourceInputCursor, at);
+    const residentChanged = db.prepare(`UPDATE resident_instances SET module_hash=?,package_policy_hash=?,
+      checkpoint_generation=?,checkpoint_hash=?,updated_at=? WHERE residency_id=? AND instance_id=? AND
+      version=? AND state_schema=? AND module_relative_path=? AND module_hash=? AND manifest_hash=? AND
+      package_policy_hash=? AND checkpoint_generation=? AND checkpoint_hash=? AND status='RESYNC_REQUIRED'`)
+      .run(FINAL_HOMEOS.targetModuleHash, FINAL_HOMEOS.targetPackagePolicyHash,
+        FINAL_HOMEOS.repairedCheckpointGeneration, blob.hash, at, FINAL_HOMEOS.residencyId,
+        FINAL_HOMEOS.instanceId, FINAL_HOMEOS.version, FINAL_HOMEOS.stateSchema,
+        FINAL_HOMEOS.moduleRelativePath, FINAL_HOMEOS.sourceModuleHash, FINAL_HOMEOS.manifestHash,
+        FINAL_HOMEOS.sourcePackagePolicyHash, FINAL_HOMEOS.sourceCheckpointGeneration,
+        FINAL_HOMEOS.sourceCheckpointHash);
+    assert(residentChanged.changes === 1,
+      'HOMEOS implementation repair lost its resident fence', 'R146_HOMEOS_ROUTE_ATOMIC');
+    const consumerChanged = db.prepare(`UPDATE biological_consumers SET checkpoint_hash=?,updated_at=?
+      WHERE consumer_id=? AND core_id=? AND active=0 AND required=0 AND cursor=? AND authority_epoch=0 AND
+      topics_sha256=? AND checkpoint_hash=?`).run(blob.hash, at, FINAL_HOMEOS.residencyId,
+        FINAL_HOMEOS.coreId, FINAL_HOMEOS.consumerCursor, FINAL_HOMEOS.consumerTopicsHash,
+        FINAL_HOMEOS.sourceCheckpointHash);
+    assert(consumerChanged.changes === 1,
+      'HOMEOS implementation repair lost its consumer fence', 'R146_HOMEOS_ROUTE_ATOMIC');
+    db.prepare(`INSERT INTO recovery_records(type,core_id,detail_json,created_at) VALUES(?,?,?,?)`).run(
+      'resident.implementation-repaired', FINAL_HOMEOS.coreId, stableStringify({
+        repairId: FINAL_HOMEOS.repairId,
+        residencyId: FINAL_HOMEOS.residencyId,
+        instanceId: FINAL_HOMEOS.instanceId,
+        fromModuleHash: FINAL_HOMEOS.sourceModuleHash,
+        toModuleHash: FINAL_HOMEOS.targetModuleHash,
+        fromPackagePolicyHash: FINAL_HOMEOS.sourcePackagePolicyHash,
+        toPackagePolicyHash: FINAL_HOMEOS.targetPackagePolicyHash,
+        sourceCheckpointHash: FINAL_HOMEOS.sourceCheckpointHash,
+        repairedCheckpointHash: blob.hash,
+        fromCheckpointGeneration: FINAL_HOMEOS.sourceCheckpointGeneration,
+        toCheckpointGeneration: FINAL_HOMEOS.repairedCheckpointGeneration,
+        pendingSequences: [...FINAL_HOMEOS.pendingSequences],
+        ...prepared.repaired.evidence,
+        pendingDeliveriesPreserved: FINAL_HOMEOS.pendingSequences.length,
+        resourceLimitsChanged: false,
+        runtimeRevision: BASELINE.runtimeRevision
+      }), at);
+    assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired: true });
+    db.exec('COMMIT');
+    return Object.freeze({
+      result: 'FINAL_HOMEOS_REPAIRED',
+      repairId: FINAL_HOMEOS.repairId,
+      repairedCheckpointHash: blob.hash,
+      retainedPairCount: prepared.repaired.evidence.retainedPairCount,
+      pendingDeliveriesPreserved: FINAL_HOMEOS.pendingSequences.length,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    });
+  } catch (error) { try { db.exec('ROLLBACK'); } catch {} throw error; }
+  finally { db.close(); }
+}
 function applyRepair({ databasePath, releaseRoot, now = () => new Date().toISOString() }) {
   validateRelease(releaseRoot);
+  const modeProbe = new DatabaseSync(databasePath, { readOnly: true });
+  modeProbe.exec('PRAGMA query_only=ON');
+  const homeosMode = modeProbe.prepare(
+    'SELECT module_hash,version FROM resident_instances WHERE residency_id=?'
+  ).get(FINAL_HOMEOS.residencyId);
+  modeProbe.close();
+  if (homeosMode?.version === FINAL_HOMEOS.version &&
+      homeosMode?.module_hash === FINAL_HOMEOS.targetModuleHash) {
+    const verified = new DatabaseSync(databasePath, { readOnly: true });
+    verified.exec('PRAGMA query_only=ON');
+    try {
+      const current = assertFinalHomeosCohort(
+        verified, databasePath, releaseRoot, { repaired: true });
+      return Object.freeze({ result: 'FINAL_HOMEOS_ALREADY_REPAIRED', repairId: FINAL_HOMEOS.repairId,
+        repairedCheckpointHash: current.repairedCheckpoint.blob_hash,
+        abandonedCount: 0, inventedBiologicalTime: false });
+    } finally { verified.close(); }
+  }
+  if (homeosMode?.version === FINAL_HOMEOS.version &&
+      homeosMode?.module_hash === FINAL_HOMEOS.sourceModuleHash) {
+    return applyFinalHomeosRepair({ databasePath, releaseRoot, now });
+  }
   const probe = new DatabaseSync(databasePath, { readOnly: true });
   probe.exec('PRAGMA query_only=ON');
   try {
@@ -421,8 +806,55 @@ function applyRepair({ databasePath, releaseRoot, now = () => new Date().toISOSt
   } catch (error) { try { db.exec('ROLLBACK'); } catch {} throw error; }
   finally { db.close(); }
 }
+function rollbackFinalHomeosRepair({ databasePath, releaseRoot, now = () => new Date().toISOString() }) {
+  validateFinalHomeosRelease(releaseRoot);
+  const db = new DatabaseSync(databasePath);
+  db.exec('PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA busy_timeout=0; BEGIN EXCLUSIVE');
+  try {
+    const current = assertFinalHomeosCohort(db, databasePath, releaseRoot, { repaired: true });
+    assert(scalar(db, `SELECT COUNT(*) value FROM resident_checkpoints
+      WHERE residency_id=? AND generation>?`, FINAL_HOMEOS.residencyId,
+    FINAL_HOMEOS.repairedCheckpointGeneration) === 0,
+    'HOMEOS advanced beyond rollback fence', 'R146_HOMEOS_ROUTE_ROLLBACK');
+    const at = now();
+    assert(db.prepare(`UPDATE resident_instances SET module_hash=?,package_policy_hash=?,
+      checkpoint_generation=?,checkpoint_hash=?,updated_at=? WHERE residency_id=? AND instance_id=? AND
+      module_hash=? AND package_policy_hash=? AND checkpoint_generation=? AND checkpoint_hash=? AND
+      status='RESYNC_REQUIRED'`).run(FINAL_HOMEOS.sourceModuleHash,
+      FINAL_HOMEOS.sourcePackagePolicyHash, FINAL_HOMEOS.sourceCheckpointGeneration,
+      FINAL_HOMEOS.sourceCheckpointHash, at, FINAL_HOMEOS.residencyId, FINAL_HOMEOS.instanceId,
+      FINAL_HOMEOS.targetModuleHash, FINAL_HOMEOS.targetPackagePolicyHash,
+      FINAL_HOMEOS.repairedCheckpointGeneration, current.repairedCheckpoint.blob_hash).changes === 1,
+    'HOMEOS rollback lost its resident fence', 'R146_HOMEOS_ROUTE_ROLLBACK');
+    assert(db.prepare(`UPDATE biological_consumers SET checkpoint_hash=?,updated_at=?
+      WHERE consumer_id=? AND active=0 AND required=0 AND cursor=? AND authority_epoch=0 AND
+      checkpoint_hash=?`).run(FINAL_HOMEOS.sourceCheckpointHash, at, FINAL_HOMEOS.residencyId,
+      FINAL_HOMEOS.consumerCursor, current.repairedCheckpoint.blob_hash).changes === 1,
+    'HOMEOS rollback lost its consumer fence', 'R146_HOMEOS_ROUTE_ROLLBACK');
+    db.prepare('DELETE FROM resident_checkpoints WHERE residency_id=? AND generation=?')
+      .run(FINAL_HOMEOS.residencyId, FINAL_HOMEOS.repairedCheckpointGeneration);
+    db.prepare(`INSERT INTO recovery_records(type,core_id,detail_json,created_at) VALUES(?,?,?,?)`).run(
+      'resident.implementation-repair-rolled-back', FINAL_HOMEOS.coreId,
+      stableStringify({ repairId: FINAL_HOMEOS.repairId, pendingDeliveriesPreserved: 2,
+        abandonedCount: 0, inventedBiologicalTime: false, authorityChanged: false }), at);
+    assertFinalHomeosCohort(db, databasePath, releaseRoot);
+    db.exec('COMMIT');
+    return Object.freeze({ result: 'FINAL_HOMEOS_ROLLED_BACK', repairId: FINAL_HOMEOS.repairId });
+  } catch (error) { try { db.exec('ROLLBACK'); } catch {} throw error; }
+  finally { db.close(); }
+}
 function rollbackRepair({ databasePath, releaseRoot, now = () => new Date().toISOString() }) {
   validateRelease(releaseRoot);
+  const modeProbe = new DatabaseSync(databasePath, { readOnly: true });
+  modeProbe.exec('PRAGMA query_only=ON');
+  const homeosMode = modeProbe.prepare(
+    'SELECT module_hash,version FROM resident_instances WHERE residency_id=?'
+  ).get(FINAL_HOMEOS.residencyId);
+  modeProbe.close();
+  if (homeosMode?.version === FINAL_HOMEOS.version &&
+      homeosMode?.module_hash === FINAL_HOMEOS.targetModuleHash) {
+    return rollbackFinalHomeosRepair({ databasePath, releaseRoot, now });
+  }
   const db = new DatabaseSync(databasePath);
   db.exec('PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA busy_timeout=0; BEGIN EXCLUSIVE');
   try {
@@ -487,5 +919,6 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
-module.exports = Object.freeze({ BASELINE, REPAIR, PARTIAL_ROUTE, applyRepair, preflightRepair,
-  rollbackRepair, assertPartialRouteCohort, repairIncompleteCheckpointState, validateRelease });
+module.exports = Object.freeze({ BASELINE, REPAIR, PARTIAL_ROUTE, FINAL_HOMEOS, applyRepair,
+  preflightRepair, rollbackRepair, assertPartialRouteCohort, assertFinalHomeosCohort,
+  repairIncompleteCheckpointState, validateRelease, validateFinalHomeosRelease });
