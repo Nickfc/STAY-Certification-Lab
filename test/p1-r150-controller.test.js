@@ -20,34 +20,34 @@ const PRODUCTION = path.join(ROOT, '.github', 'workflows', 'p1-r150-homeos-inter
 const read = file => fs.readFileSync(file, 'utf8');
 const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
-test('R150-CTRL-01 controller pins exact V21 source and immutable V22 overlay', () => {
+test('R150-CTRL-01 controller pins exact V22 source and immutable V23 overlay', () => {
   const source = read(CONTROLLER);
   for (const exact of [
-    "PREVIOUS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3aa588159412'",
-    "PREVIOUS_MANIFEST_SHA256='3aa5881594126012fe090a99df84e55378ff5a39e09ba5480c6d33cf4d96d6a8'",
-    "PREVIOUS_BOUND_CONTROLLER_SHA256='e4680f56afdb60138e78217b602b0cc018e522e6a764c7980c015a28bd453b72'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v22'",
-    "RELEASE_TAG_OBJECT='c6570c7f37acb495a92095729ac56c895a514f1c'",
-    "RELEASE_COMMIT='1a2ff66909dd5eb065e08ca807a13e8ec5951c51'",
-    "RELEASE_TREE='f05af36c697a4c0f48892e51d83ff4139369e088'",
-    "ARCHIVE_SHA256='56942c3982d99aee293c09f882ba4d15c58a249fe81f4159d588eea2a2d7a031'",
-    "SIDECAR_SHA256='f7eb8d227106d60aac3d9c637d175eab06ec748031720dca8662a400c572db67'",
-    "MANIFEST_SHA256='c1651b9150bc5c14d254d86caa60cb267317301c01c95282929fc696f4c6160b'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc'"
+    "PREVIOUS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc'",
+    "PREVIOUS_MANIFEST_SHA256='c1651b9150bc5c14d254d86caa60cb267317301c01c95282929fc696f4c6160b'",
+    "PREVIOUS_BOUND_CONTROLLER_SHA256='6f948c132325352469a51b1248d53292d98f7cdaad32c6a26d31aabbebcc1f64'",
+    "RELEASE_TAG='r150-homeos-intero-shadow-v23'",
+    "RELEASE_TAG_OBJECT='4742a729fb5b1824f1f07df6b75f159b6ac9411b'",
+    "RELEASE_COMMIT='a8890e594e7f7240c8b26cc53d9d1feeedaea65f'",
+    "RELEASE_TREE='a54a4816c617cd2e078e5dd2ec40a5f98fbcac5b'",
+    "ARCHIVE_SHA256='0dbf9c243eb486735a9b2b76927e64bb77c16eef007a38f5881b5fb645e36af1'",
+    "SIDECAR_SHA256='be63923352a1c8f45e6ff0c35f752975ac4f8cbf9ac2c081dcc47791764e0c75'",
+    "MANIFEST_SHA256='3ca9c07e23c65ce33c76b968915513bd6e4245c654b2eb5dc429beb21efbe006'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3ca9c07e23c6'"
   ]) assert.ok(source.includes(exact), exact);
-  assert.match(source, /\$\{#entries\[@\]\}" -eq 109/);
-  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f \| wc -l\)" -eq 87/);
-  assert.match(source, /wc -l < "\$WORK_ROOT\/overlay\/\$MANIFEST"\)" -eq 86/);
+  assert.match(source, /\$\{#entries\[@\]\}" -eq 110/);
+  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f \| wc -l\)" -eq 88/);
+  assert.match(source, /wc -l < "\$WORK_ROOT\/overlay\/\$MANIFEST"\)" -eq 87/);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
   assert.match(source, /cp -a --reflink=auto "\$PREVIOUS_RELEASE\/\."/);
 });
 
-test('R150-CTRL-02 recovery authority is exact, one-operation, and benchmark remains off', () => {
+test('R150-CTRL-02 finalization authority is exact, one-operation, and benchmark remains off', () => {
   const source = read(CONTROLLER);
-  assert.match(source, /recover-r148-homeos-init && "\$authorization" == AUTHORIZE_R148_HOMEOS_INIT_FORWARD_RECOVERY_V1/);
-  assert.match(source, /STAY_HOMEOS_STRANDED_R148_INIT_RECOVERY_AUTHORIZATION=\$RECOVERY_AUTHORIZATION/);
-  assert.match(source, /RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_INIT_FORWARD_RECOVERY_ONLY'/);
+  assert.match(source, /finalize-r148-homeos-init && "\$authorization" == AUTHORIZE_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_V1/);
+  assert.match(source, /STAY_HOMEOS_R148_INIT_POST_DURABLE_FINALIZATION_AUTHORIZATION=\$RECOVERY_AUTHORIZATION/);
+  assert.match(source, /RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_ONLY'/);
   assert.match(source, /BENCHMARK_ACTIVE=NO/);
   assert.match(source, /INTERO=ABSENT/);
   assert.doesNotMatch(source, /harden-r145-homeos|harden-r150-intero|systemctl start stay-physiology-benchmark/);
@@ -58,8 +58,9 @@ test('R150-CTRL-03 controller is revision-fenced, rollback-capable, and starts e
   const source = read(CONTROLLER);
   assert.match(source, /SOURCE_RUNTIME_REVISION=R148/);
   assert.match(source, /TARGET_RUNTIME_REVISION=R148F/);
-  assert.match(source, /p1-r148-homeos-init-forward-preflight\.js/);
-  assert.match(source, /p1-r148-create-init-recovery-snapshot\.js/);
+  assert.match(source, /stay-r148-homeos-init-post-durable-preflight-v1/);
+  assert.match(source, /R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION/);
+  assert.doesNotMatch(source, /p1-r148-create-init-recovery-snapshot\.js|STAY_R148_INIT_RECOVERY_PREFLIGHT_SNAPSHOT/);
   assert.match(source, /validateR148After/);
   assert.match(source, /\$FREEZER" homeos-r148-recovery/);
   assert.match(source, /POINTER_ADVANCED[\s\S]*SERVICE_STARTED[\s\S]*TARGET_RELEASE/);
@@ -87,29 +88,29 @@ test('R150-CTRL-05 bootstrap pins wrapper, key, host, and narrow sudo scope', ()
   assert.ok(source.includes(`EXPECTED_PUBLIC_KEY_SHA256='${digest(PUBLIC_KEY)}'`));
   assert.match(source, /EXPECTED_PRIVATE_IPV4='172\.26\.9\.207'/);
   assert.match(source, /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
-  assert.match(source, /R148_HOMEOS_INIT_FORWARD_RECOVERY_AUTHORIZED=NO/);
+  assert.match(source, /R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_AUTHORIZED=NO/);
   assert.match(source, /BENCHMARK_START_AUTHORIZED=NO/);
 });
 
-test('R150-CTRL-06 workflows pin V25, V22, immutable validation, and stopped R148', () => {
+test('R150-CTRL-06 workflows pin V26, V23, immutable validation, and stopped R148', () => {
   const bootstrap = read(BOOTSTRAP);
   const capture = read(CAPTURE);
   const production = read(PRODUCTION);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V25_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V26_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
-    'r150-controller-v25-${GITHUB_RUN_ID}',
+    'r150-controller-v26-${GITHUB_RUN_ID}',
     'MANUAL_ROOT_BRIDGE_COMMAND='
   ]) assert.ok(bootstrap.includes(exact), exact);
   assert.ok(capture.includes(`WRAPPER_SHA256: ${digest(CONTROLLER)}`));
   for (const exact of [
-    'recover-r148-homeos-init', 'AUTHORIZE_R148_HOMEOS_INIT_FORWARD_RECOVERY_V1',
-    'RELEASE_TAG_OBJECT: c6570c7f37acb495a92095729ac56c895a514f1c',
+    'finalize-r148-homeos-init', 'AUTHORIZE_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_V1',
+    'RELEASE_TAG_OBJECT: 4742a729fb5b1824f1f07df6b75f159b6ac9411b',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
-    'R148_STOPPED_DB_PREFLIGHT=PASS', 'pending===160', 'outbox===2',
-    'highWater===4575680', 'R148_HOMEOS_INIT_FORWARD_RECOVERY=PASS',
+    'R148_POST_DURABLE_DB_PREFLIGHT=PASS', 'pending===0', 'outbox===0',
+    'highWater===4575682', 'R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION=PASS',
     'FETUS_CONTINUITY=PASS', 'INTERO=ABSENT', "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);
   for (const source of [bootstrap, capture, production]) {
