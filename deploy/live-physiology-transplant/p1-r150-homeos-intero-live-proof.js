@@ -344,6 +344,7 @@ function validateHomeosAfter({ before, database, statuses, meta, service, target
 function validateR145After(args) { return validateHomeosAfter(args, 145); }
 function validateR146After(args) { return validateHomeosAfter(args, 146); }
 function validateR147After(args) { return validateHomeosAfter(args, 147); }
+function validateR148After(args) { return validateHomeosAfter(args, 148); }
 
 function validateR145Current({ database, statuses, meta, freeze, service, currentRelease }) {
   assertCommon({ database, statuses, meta });
@@ -473,6 +474,6 @@ if (require.main === module) {
 
 module.exports = Object.freeze({
   EXPECTED, captureDatabase, validateR141Before, validateR145After, validateR146After,
-  validateR147After,
+  validateR147After, validateR148After,
   validateR145Current, validateR150After
 });

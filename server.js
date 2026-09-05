@@ -686,6 +686,10 @@ async function main() {
     await kernel.completeExactR147DeferredResidentRecovery();
   }
 
+  if (kernel.r148DeferredResidentRecovery === true) {
+    await kernel.completeExactR148DeferredResidentRecovery();
+  }
+
   const badgeSource = await fs.readFile(badgePath, 'utf8');
   const gpuEngineSource = await fs.readFile(gpuEnginePath, 'utf8');
   const computeGovernorSource = await fs.readFile(computeGovernorPath, 'utf8');

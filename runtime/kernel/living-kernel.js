@@ -404,6 +404,117 @@ const R147_HOMEOS_FRAME_BOUNDARY_RECOVERY = Object.freeze({
   })
 });
 
+/*
+ * A normal post-durable service start after the completed R147 HOMEOS replay
+ * advanced the Kernel start generation to R148 before the fetus CoreHost could
+ * finish initializing.  The optional residents were already reconstructed and
+ * their transitions were durably committed.  Recovery must therefore preserve
+ * R148, awaken the fetus before rebuilding optional resident CoreHosts, and
+ * drain only the exact retained obligations below.  It must never reinterpret
+ * this boundary as the separately-authorized INTERO R148 route tranche.
+ */
+const R148_HOMEOS_INIT_FORWARD_RECOVERY = Object.freeze({
+  authorization: 'AUTHORIZE_STRANDED_R148_HOMEOS_INIT_FORWARD_RECOVERY_ONLY',
+  runtimeRevision: 148,
+  highWater: 4575680,
+  latestRecoveryRecordId: 242,
+  runtimeRevisionMetadataHash:
+    '95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0',
+  capacitySourceMetadataHash:
+    'e9a6efb7deff7c43d2adffe10b90f85a3327a3b9ffe5a7f9df0da4067f75b0b4',
+  pendingFetusDeliveries: 160,
+  pendingFetusFirstSequence: 4575521,
+  pendingFetusLastSequence: 4575680,
+  pendingOutbox: Object.freeze([
+    Object.freeze({
+      producerEventId: '3e1a8eac1c292fc9153d721ff5a01423a0134bf359cdcd11c6b1354b23d70c76',
+      intentHash: 'ec9a0aa818f7c92c3c0736e4833d9032c75b5fb562f08c856cc71a7a08d963a3',
+      checkpointHash: 'b526325e704c1aee7d2f8a373e16d9470345f782c83fc6f306b78e6d858c44b6',
+      checkpointGeneration: 325468,
+      streamSequence: 129423,
+      causeSequence: 4575680,
+      topic: 'metab.energy.availability.v1'
+    }),
+    Object.freeze({
+      producerEventId: '75cec9456437f48238b6fd9b12313a8d9820ca68ceacee56083df5f8766561bd',
+      intentHash: '47615230deb7a726fbeac54807d5b7f584e422cf043eb5030e0c1e23b82bc12d',
+      checkpointHash: 'b526325e704c1aee7d2f8a373e16d9470345f782c83fc6f306b78e6d858c44b6',
+      checkpointGeneration: 325468,
+      streamSequence: 129424,
+      causeSequence: 4575680,
+      topic: 'metab.energy.reserve.v1'
+    })
+  ]),
+  residents: Object.freeze({
+    'resident:chronobiology': Object.freeze({
+      residencyId: 'resident:chronobiology', coreId: 'chronobiology',
+      instanceId: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
+      version: '1.0.0-c3rc.5', stateSchema: 2, status: 'RUNNING',
+      checkpointGeneration: 12392,
+      checkpointHash: 'd353fb25a6d4e353869bd1756b6ca910d1177786151f0d72f9555e31250e1540',
+      checkpointId: 'a66d62f5-f41a-4a09-8666-41ec51af87fe',
+      checkpointBytes: 49191, inputCursor: 4575521, consumerCursor: 4575680,
+      moduleRelativePath: 'cores/chronobiology/c3r5/index.js',
+      moduleHash: 'sha256:ecac9b25bf5897d6344cbca702a6ce30ab76c5ff69af76ad17f1aea734e54867',
+      manifestHash: 'sha256:4f809b9fee2b4099d51250d339fbee15d226ed9aa0126c4a83d47ff580021012',
+      packagePolicyHash: 'sha256:887ff83909b360a75abc1ea6f755db597e613186acaa9b7b20d33b1d21d2232b',
+      topicsHash: 'a0897ae1c2f0bdf9f94e5491cf681820cda4a0126afcb47511cc4a538d5a281e'
+    }),
+    'resident:homeos': Object.freeze({
+      residencyId: 'resident:homeos', coreId: 'HOMEOS',
+      instanceId: '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',
+      version: '0.2.0-p1r0-shadow.1', stateSchema: 2, status: 'RUNNING',
+      checkpointGeneration: 635,
+      checkpointHash: '7a0fb44dcfa5650d8a30f03b287054bef13ae212869aa6821324fe9aa1226c9b',
+      checkpointId: '804a33d3-5ecd-45b7-9706-752d1608c5db',
+      checkpointBytes: 3944, inputCursor: 4575677, consumerCursor: 4575680,
+      moduleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
+      moduleHash: 'sha256:28ce93b507a070fef823e40cce3e7368928466077fed943c98a1a88b5a84299a',
+      manifestHash: 'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
+      packagePolicyHash: 'sha256:1afd6096fed7727491847e702d2506aa9492f8ad7d1424300b99ca3645d8b161',
+      topicsHash: 'abea82189093d4bb54bee213ed9f9a7ebdd9b2b0b76f6f77dcc2762555e75231'
+    }),
+    'resident:metab': Object.freeze({
+      residencyId: 'resident:metab', coreId: 'METAB',
+      instanceId: 'd424c722-ef31-44b0-8201-ba68c418d14a',
+      version: '0.3.0-p1r0-homeos-feed.1', stateSchema: 3, status: 'RUNNING',
+      checkpointGeneration: 325468,
+      checkpointHash: 'b526325e704c1aee7d2f8a373e16d9470345f782c83fc6f306b78e6d858c44b6',
+      checkpointId: 'ad8d6e0c-36d7-46af-994d-543359131580',
+      checkpointBytes: 5009, inputCursor: 4575680, consumerCursor: 4575680,
+      moduleRelativePath: 'cores/p1-r0/metab-homeos/index.js',
+      moduleHash: 'sha256:eba96dd21bc225b9bed97261dc9d3648c9a63ed2b2ddbd2d76fb6d306e2a0622',
+      manifestHash: 'sha256:ae050626ce7d2e1e1e0d0a6c009a1818e094bfecb792c0bf868bcc14ddd791ac',
+      packagePolicyHash: 'sha256:c97cd6f90c444bf1d496d45c7e64ee2547c86a477a76ca28c41ce528d454780e',
+      topicsHash: '089945e41de20089fc1c06ae83c755470a49fe23e2ba8d00ac5a0ddcc64fef82'
+    }),
+    'resident:sntss': Object.freeze({
+      residencyId: 'resident:sntss', coreId: 'sntss',
+      instanceId: '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
+      version: '0.5.0-i4g1', stateSchema: 5, status: 'RUNNING',
+      checkpointGeneration: 2891380,
+      checkpointHash: 'cbd9ab3546e38c810523c54d63d0d3984327bef0dc4bf815691902dd8007af57',
+      checkpointId: '829da15e-f664-4966-bab4-f7882d5ac520',
+      checkpointBytes: 4972, inputCursor: 4575678, consumerCursor: 4575680,
+      moduleRelativePath: 'cores/sntss/i4g/index.js',
+      moduleHash: 'sha256:4e96f1882ddbe35fc0e8f2afcdabae2b5e75812d8e9a392b09bcc8040b335ea7',
+      manifestHash: 'sha256:c1d0db3d4520556cb022864f4d1eb487a99628d61f3564942aa65cc0f204499a',
+      packagePolicyHash: 'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d',
+      topicsHash: 'b752d8eebb09ac925c4c193810d31f5527315e42e36fbedafa1f30ef25a97501'
+    })
+  }),
+  fetus: Object.freeze({
+    consumerId: 'core:fetus-legacy', coreId: 'fetus-legacy',
+    instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f', version: '0.6.0',
+    authorityEpoch: 1, consumerCursor: 4574204,
+    consumerCheckpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
+    checkpointGeneration: 211,
+    checkpointHash: 'b98888fa5beb39c3fdf909d38eceb522b96ac59134072074a8ae417b5c145280',
+    checkpointBytes: 61126,
+    topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
+  })
+});
+
 const R150_INTERO_SHADOW = Object.freeze({
   birthAuthorization: 'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY',
   metabRouteAuthorization: 'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY',
@@ -748,6 +859,15 @@ class LivingKernel {
     r147ContinuationPreflightSnapshotManifestSha256 =
       process.env.STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT_MANIFEST_SHA256 || '',
 
+    homeosStrandedR148InitRecoveryAuthorization =
+      process.env.STAY_HOMEOS_STRANDED_R148_INIT_RECOVERY_AUTHORIZATION || '',
+
+    r148InitRecoveryPreflightSnapshot =
+      process.env.STAY_R148_INIT_RECOVERY_PREFLIGHT_SNAPSHOT || '',
+
+    r148InitRecoveryPreflightSnapshotManifestSha256 =
+      process.env.STAY_R148_INIT_RECOVERY_PREFLIGHT_SNAPSHOT_MANIFEST_SHA256 || '',
+
     interoNeutralBirthAuthorization =
       process.env.STAY_INTERO_NEUTRAL_BIRTH_AUTHORIZATION || '',
 
@@ -928,6 +1048,15 @@ class LivingKernel {
     this.r147ContinuationPreflightSnapshotManifestSha256 =
       String(r147ContinuationPreflightSnapshotManifestSha256);
 
+    this.homeosStrandedR148InitRecoveryAuthorization =
+      String(homeosStrandedR148InitRecoveryAuthorization);
+
+    this.r148InitRecoveryPreflightSnapshot =
+      String(r148InitRecoveryPreflightSnapshot);
+
+    this.r148InitRecoveryPreflightSnapshotManifestSha256 =
+      String(r148InitRecoveryPreflightSnapshotManifestSha256);
+
     this.homeosStrandedR145RecoveryActive = false;
     this.homeosStrandedRecoveryRevision = null;
     this.metabQ48R146RecoveryActive = false;
@@ -939,6 +1068,8 @@ class LivingKernel {
     this.r147HomeosContinuationRecoveryActive = false;
     this.r147HomeosFrameBoundaryRecoveryActive = false;
     this.r147DeferredResidentRecovery = false;
+    this.r148HomeosInitForwardRecoveryActive = false;
+    this.r148DeferredResidentRecovery = false;
     this.p1ExpansionFetusInstallRevisionPreservation = null;
     this.p1ExpansionFetusInstallPreserved = false;
 
@@ -1314,11 +1445,13 @@ class LivingKernel {
     this.startedAt = new Date().toISOString();
     const preservedRecoveryRevision =
       await this.preserveExactR127MetabRecoveryRevision() ||
+      this.preserveExactR148HomeosInitForwardRecoveryRevision() ||
       this.preserveExactR147HomeosFrameBoundaryRevision() ||
       this.preserveExactR147HomeosContinuationRevision() ||
       this.preserveExactR147HomeosRecoveryRevision() ||
       this.preserveExactR145HomeosProgressRevision() ||
       this.preserveExactR150InteroProgressRevision();
+    await this.verifyExactR148InitRecoveryPreflightSnapshot();
     await this.verifyExactR147ContinuationPreflightSnapshot();
     if (!preservedRecoveryRevision) {
       await this.bumpRuntimeRevision('kernel.start', { version: KERNEL_VERSION, pid: process.pid });
@@ -1360,7 +1493,8 @@ class LivingKernel {
     if (
       !this.durableResidentsDisabled &&
       durableResidents.length > 0 &&
-      !this.r147DeferredResidentRecovery
+      !this.r147DeferredResidentRecovery &&
+      !this.r148DeferredResidentRecovery
     ) {
       this.ensureResidentManager();
 
@@ -1395,7 +1529,16 @@ class LivingKernel {
     });
 
     await this.writeHeartbeat();
-    if (this.r147DeferredResidentRecovery) {
+    if (this.r148DeferredResidentRecovery) {
+      await this.stateStore.appendJournal({
+        type: 'state.snapshot-reused',
+        at: new Date().toISOString(),
+        reason: 'r148-homeos-init-forward-preflight-v1',
+        snapshot: this.r148InitRecoveryPreflightSnapshotEvidence.name,
+        manifestSha256:
+          this.r148InitRecoveryPreflightSnapshotEvidence.manifestSha256
+      });
+    } else if (this.r147DeferredResidentRecovery) {
       await this.stateStore.appendJournal({
         type: 'state.snapshot-reused',
         at: new Date().toISOString(),
@@ -1407,8 +1550,82 @@ class LivingKernel {
     } else {
       await this.createSnapshot('kernel-start');
     }
-    if (!this.r147DeferredResidentRecovery) this.startMaintenance();
+    if (!this.r147DeferredResidentRecovery && !this.r148DeferredResidentRecovery) {
+      this.startMaintenance();
+    }
     return this;
+  }
+
+  async verifyExactR148InitRecoveryPreflightSnapshot() {
+    const snapshotPath = this.r148InitRecoveryPreflightSnapshot;
+    const manifestSha256 = this.r148InitRecoveryPreflightSnapshotManifestSha256;
+    if (!this.r148DeferredResidentRecovery) {
+      if (snapshotPath || manifestSha256) {
+        throw Object.assign(
+          new Error('R148 init-forward snapshot is outside its exact recovery boundary'),
+          { code: 'P1_R148_INIT_SNAPSHOT_BOUNDARY' }
+        );
+      }
+      return null;
+    }
+    if (!path.isAbsolute(snapshotPath) || !/^sha256:[0-9a-f]{64}$/.test(manifestSha256)) {
+      throw Object.assign(
+        new Error('R148 init-forward snapshot identity is invalid'),
+        { code: 'P1_R148_INIT_SNAPSHOT_IDENTITY' }
+      );
+    }
+
+    let snapshotsRoot;
+    let resolvedSnapshot;
+    let snapshotStat;
+    let manifestStat;
+    let manifestBody;
+    try {
+      snapshotsRoot = fs.realpathSync(path.join(this.stateStore.rootDir, 'snapshots'));
+      resolvedSnapshot = fs.realpathSync(snapshotPath);
+      snapshotStat = fs.lstatSync(snapshotPath);
+      const manifestPath = path.join(resolvedSnapshot, 'SNAPSHOT_MANIFEST.json');
+      manifestStat = fs.lstatSync(manifestPath);
+      manifestBody = fs.readFileSync(manifestPath);
+    } catch (error) {
+      throw Object.assign(
+        new Error(`R148 init-forward snapshot is unavailable: ${error.message}`),
+        { code: 'P1_R148_INIT_SNAPSHOT_PATH' }
+      );
+    }
+    if (
+      path.dirname(resolvedSnapshot) !== snapshotsRoot ||
+      resolvedSnapshot !== path.resolve(snapshotPath) ||
+      !snapshotStat.isDirectory() || snapshotStat.isSymbolicLink() ||
+      !manifestStat.isFile() || manifestStat.isSymbolicLink() ||
+      (process.platform !== 'win32' && (snapshotStat.mode & 0o022) !== 0) ||
+      (process.platform !== 'win32' && (manifestStat.mode & 0o022) !== 0) ||
+      sha256Bytes(manifestBody) !== manifestSha256
+    ) {
+      throw Object.assign(
+        new Error('R148 init-forward snapshot trust fence failed'),
+        { code: 'P1_R148_INIT_SNAPSHOT_TRUST' }
+      );
+    }
+
+    const manifest = await this.stateStore.verifySnapshot(resolvedSnapshot);
+    if (
+      manifest?.format !== 'stay-runtime-snapshot-v2' ||
+      manifest?.reason !== 'r148-homeos-init-forward-preflight-v1' ||
+      stableStringify(manifest.authority) !== stableStringify(this.stateStore.listAuthority()) ||
+      stableStringify(manifest.residents) !== stableStringify(this.stateStore.listResidents())
+    ) {
+      throw Object.assign(
+        new Error('R148 init-forward snapshot durable cohort changed'),
+        { code: 'P1_R148_INIT_SNAPSHOT_COHORT' }
+      );
+    }
+    this.r148InitRecoveryPreflightSnapshotEvidence = Object.freeze({
+      name: path.basename(resolvedSnapshot),
+      path: resolvedSnapshot,
+      manifestSha256
+    });
+    return this.r148InitRecoveryPreflightSnapshotEvidence;
   }
 
   async verifyExactR147ContinuationPreflightSnapshot() {
@@ -1685,6 +1902,155 @@ class LivingKernel {
       consumer, authority, checkpoint, demotion, demotionDetail, resolution, resolutionDetail });
   }
 
+
+  preserveExactR148HomeosInitForwardRecoveryRevision() {
+    const expected = R148_HOMEOS_INIT_FORWARD_RECOVERY;
+    if (this.homeosStrandedR148InitRecoveryAuthorization !== expected.authorization) {
+      return false;
+    }
+    const reject = () => {
+      throw Object.assign(
+        new Error('authorized R148 init-forward recovery cohort changed'),
+        { code: 'P1_R148_INIT_RECOVERY_IDENTITY' }
+      );
+    };
+    if (
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.homeosStrandedR147RecoveryAuthorization ||
+      this.homeosNeutralBirthAuthorization || this.metabHomeosRouteAuthorization ||
+      this.homeosShadowPromotionAuthorization || this.interoNeutralBirthAuthorization ||
+      this.metabInteroRouteAuthorization || this.homeosInteroRouteAuthorization ||
+      this.interoShadowPromotionAuthorization ||
+      this.stateStore.getResident('resident:intero') ||
+      this.stateStore.listResidents().length !== Object.keys(expected.residents).length
+    ) return reject();
+
+    const exactResident = fence => {
+      const resident = this.stateStore.getResident(fence.residencyId);
+      const consumer = this.stateStore.getBiologicalConsumer(fence.residencyId);
+      const checkpoint = this.stateStore.db.prepare(`
+        SELECT checkpoint_id,instance_id,version,state_schema,generation,blob_hash,
+          byte_length,input_cursor FROM resident_checkpoints
+        WHERE residency_id=? AND generation=?
+      `).get(fence.residencyId, fence.checkpointGeneration);
+      return resident?.residencyId === fence.residencyId && resident?.coreId === fence.coreId &&
+        resident?.instanceId === fence.instanceId && resident?.version === fence.version &&
+        resident?.stateSchema === fence.stateSchema && resident?.status === fence.status &&
+        resident?.checkpointGeneration === fence.checkpointGeneration &&
+        resident?.checkpointHash === fence.checkpointHash &&
+        resident?.moduleRelativePath === fence.moduleRelativePath &&
+        resident?.moduleHash === fence.moduleHash && resident?.manifestHash === fence.manifestHash &&
+        resident?.packagePolicyHash === fence.packagePolicyHash &&
+        consumer?.coreId === fence.coreId && consumer?.required === false &&
+        consumer?.active === true && consumer?.authorityEpoch === 0 &&
+        consumer?.cursor === fence.consumerCursor && consumer?.checkpointHash === fence.checkpointHash &&
+        consumer?.topicsHash === fence.topicsHash &&
+        checkpoint?.checkpoint_id === fence.checkpointId &&
+        checkpoint?.instance_id === fence.instanceId && checkpoint?.version === fence.version &&
+        Number(checkpoint?.state_schema) === fence.stateSchema &&
+        Number(checkpoint?.generation) === fence.checkpointGeneration &&
+        checkpoint?.blob_hash === fence.checkpointHash &&
+        Number(checkpoint?.byte_length) === fence.checkpointBytes &&
+        Number(checkpoint?.input_cursor) === fence.inputCursor;
+    };
+    if (!Object.values(expected.residents).every(exactResident)) return reject();
+
+    const count = (sql, ...args) =>
+      Number(this.stateStore.db.prepare(sql).get(...args)?.count || 0);
+    const highWater = Number(this.stateStore.db.prepare(
+      'SELECT COALESCE(MAX(sequence),0) value FROM biological_events'
+    ).get()?.value || 0);
+    const fetusPending = this.stateStore.db.prepare(`
+      SELECT COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum
+      FROM biological_deliveries WHERE consumer_id=? AND status='PENDING'
+    `).get(expected.fetus.consumerId);
+    if (
+      highWater !== expected.highWater ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") !==
+        expected.pendingFetusDeliveries ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING' AND consumer_id!=?",
+        expected.fetus.consumerId) !== 0 ||
+      Number(fetusPending?.count) !== expected.pendingFetusDeliveries ||
+      Number(fetusPending?.minimum) !== expected.pendingFetusFirstSequence ||
+      Number(fetusPending?.maximum) !== expected.pendingFetusLastSequence ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='FAILED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='ABANDONED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !==
+        expected.pendingOutbox.length ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status!='PUBLISHED' AND producer_core_id!='METAB'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE producer_core_id IN ('sntss','SNTSS','HOMEOS','INTERO')") !== 0
+    ) return reject();
+
+    const outbox = this.stateStore.db.prepare(`
+      SELECT * FROM biological_outbox_intents WHERE status='PENDING'
+      ORDER BY stream_sequence,producer_event_id
+    `).all();
+    if (outbox.length !== expected.pendingOutbox.length || !outbox.every((row, index) => {
+      const fence = expected.pendingOutbox[index];
+      try { this.stateStore.biologicalOutboxIntentFromRow(row); } catch { return false; }
+      return row.producer_event_id === fence.producerEventId &&
+        row.intent_sha256 === fence.intentHash && row.producer_core_id === 'METAB' &&
+        Number(row.stream_sequence) === fence.streamSequence &&
+        Number(row.cause_sequence) === fence.causeSequence && row.topic === fence.topic &&
+        row.checkpoint_hash === fence.checkpointHash &&
+        Number(row.checkpoint_generation) === fence.checkpointGeneration;
+    })) return reject();
+
+    const exactMetadataHash = (key, hash) => {
+      const row = this.stateStore.db.prepare(
+        'SELECT json,sha256 FROM metadata WHERE key=?'
+      ).get(key);
+      return row?.sha256 === hash &&
+        crypto.createHash('sha256').update(row?.json || '').digest('hex') === hash;
+    };
+    if (!exactMetadataHash('life:runtime-revision', expected.runtimeRevisionMetadataHash) ||
+        !exactMetadataHash('life:p1-r0-metab-capacity-source', expected.capacitySourceMetadataHash)) {
+      return reject();
+    }
+
+    const latest = this.stateStore.db.prepare(
+      'SELECT id,type,core_id,detail_json FROM recovery_records ORDER BY id DESC LIMIT 1'
+    ).get();
+    let retry = null;
+    try { retry = JSON.parse(latest?.detail_json || 'null'); } catch {}
+    if (Number(latest?.id) !== expected.latestRecoveryRecordId ||
+        latest?.type !== 'resident.delivery-retry' || latest?.core_id !== 'sntss' ||
+        retry?.residencyId !== 'resident:sntss' || retry?.sequence !== 4575528 ||
+        retry?.attempt !== 1 || retry?.code !== 'CORE_WORKER_TIMEOUT' ||
+        retry?.operation !== 'event' || retry?.failedGeneration !== 1 ||
+        retry?.recoveredGeneration !== 2) return reject();
+
+    const fetus = expected.fetus;
+    const fetusConsumer = this.stateStore.getBiologicalConsumer(fetus.consumerId);
+    const fetusAuthority = this.stateStore.db.prepare(
+      'SELECT * FROM authority WHERE core_id=?'
+    ).get(fetus.coreId);
+    const fetusCheckpoint = this.stateStore.db.prepare(`
+      SELECT * FROM checkpoints WHERE core_id=? ORDER BY generation DESC LIMIT 1
+    `).get(fetus.coreId);
+    const p1Authority = this.stateStore.listAuthority().filter(entry =>
+      ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId)
+    );
+    if (p1Authority.length !== 0 ||
+        fetusConsumer?.coreId !== fetus.coreId || fetusConsumer?.required !== true ||
+        fetusConsumer?.active !== true || fetusConsumer?.cursor !== fetus.consumerCursor ||
+        fetusConsumer?.authorityEpoch !== fetus.authorityEpoch ||
+        fetusConsumer?.checkpointHash !== fetus.consumerCheckpointHash ||
+        fetusConsumer?.topicsHash !== fetus.topicsHash ||
+        fetusAuthority?.instance_id !== fetus.instanceId || fetusAuthority?.version !== fetus.version ||
+        Number(fetusAuthority?.epoch) !== fetus.authorityEpoch ||
+        fetusAuthority?.checkpoint_hash !== fetus.checkpointHash ||
+        fetusCheckpoint?.instance_id !== fetus.instanceId || fetusCheckpoint?.version !== fetus.version ||
+        Number(fetusCheckpoint?.authority_epoch) !== fetus.authorityEpoch ||
+        Number(fetusCheckpoint?.generation) !== fetus.checkpointGeneration ||
+        fetusCheckpoint?.blob_hash !== fetus.checkpointHash ||
+        Number(fetusCheckpoint?.byte_length) !== fetus.checkpointBytes) return reject();
+
+    this.r148HomeosInitForwardRecoveryActive = true;
+    this.r148DeferredResidentRecovery = true;
+    this.p1ExpansionFetusInstallRevisionPreservation = this.runtimeRevision;
+    return true;
+  }
 
   preserveExactR147HomeosRecoveryRevision() {
     const expected = R147_HOMEOS_FORWARD_RECOVERY;
@@ -7021,6 +7387,58 @@ class LivingKernel {
     return this.lastResidentRecovery;
   }
 
+  async completeExactR148DeferredResidentRecovery() {
+    const expected = R148_HOMEOS_INIT_FORWARD_RECOVERY;
+    if (
+      this.r148DeferredResidentRecovery !== true ||
+      this.r148HomeosInitForwardRecoveryActive !== true ||
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.p1ExpansionFetusInstallPreserved !== true ||
+      this.heartbeatTimer !== null || this.snapshotTimer !== null
+    ) {
+      throw Object.assign(
+        new Error('R148 init-forward recovery is not at its exact boundary'),
+        { code: 'P1_R148_INIT_RECOVERY_BOUNDARY' }
+      );
+    }
+
+    const ordinaryRecovery = await this.recoverDurableResidents({
+      exactCurrentCheckpointFences: new Map(
+        Object.values(expected.residents).map(fence => [fence.residencyId, fence])
+      )
+    });
+    const recovery = new Map(ordinaryRecovery.map(row => [row.residencyId, row]));
+    const count = (sql, ...args) =>
+      Number(this.stateStore.db.prepare(sql).get(...args)?.count || 0);
+    if (
+      ordinaryRecovery.length !== Object.keys(expected.residents).length ||
+      recovery.size !== Object.keys(expected.residents).length ||
+      !Object.keys(expected.residents).every(id => recovery.get(id)?.recovered === true) ||
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.stateStore.getResident('resident:intero') ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='FAILED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='ABANDONED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE producer_core_id IN ('sntss','SNTSS','HOMEOS','INTERO')") !== 0 ||
+      this.stateStore.listAuthority().some(entry =>
+        ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId)
+      )
+    ) {
+      throw Object.assign(
+        new Error('R148 init-forward recovery did not restore the exact contained cohort'),
+        { code: 'P1_R148_INIT_RECOVERY_COHORT' }
+      );
+    }
+
+    this.lastResidentRecovery = Object.freeze(ordinaryRecovery);
+    this.r148DeferredResidentRecovery = false;
+    this.r148HomeosInitForwardRecoveryActive = false;
+    this.startMaintenance();
+    this.statusCache = null;
+    return this.lastResidentRecovery;
+  }
+
   async publishTimePulse(clockStatus = 'trusted') {
     if (!['trusted', 'degraded', 'uncertain'].includes(clockStatus)) throw Object.assign(new Error('invalid runtime clock status'), { code: 'RUNTIME_CLOCK_STATUS' });
 
@@ -7764,6 +8182,7 @@ module.exports = {
   R147_HOMEOS_FORWARD_RECOVERY,
   R147_HOMEOS_CONTINUATION_RECOVERY,
   R147_HOMEOS_FRAME_BOUNDARY_RECOVERY,
+  R148_HOMEOS_INIT_FORWARD_RECOVERY,
   R150_INTERO_SHADOW,
   isBoundedMetabPromotionTail,
   defaultMetabCapacitySampler,
