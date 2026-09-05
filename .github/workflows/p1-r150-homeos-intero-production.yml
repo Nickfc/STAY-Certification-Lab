@@ -1,5 +1,5 @@
-name: R150 R148 HOMEOS post-finalization restart
-run-name: R150 R148 HOMEOS restart · ${{ github.actor }}
+name: R150 R148 HOMEOS capacity source finalization
+run-name: R150 R148 HOMEOS capacity finalization · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -8,9 +8,9 @@ on:
         description: Fixed revision-fenced operation
         required: true
         type: choice
-        default: restart-r148-homeos-finalized
+        default: finalize-r148-homeos-capacity-source
         options:
-          - restart-r148-homeos-finalized
+          - finalize-r148-homeos-capacity-source
       authorization:
         description: Exact operation-specific authorization
         required: true
@@ -18,29 +18,29 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R148_HOMEOS_POST_FINALIZATION_RESTART_V1
+          - AUTHORIZE_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_V1
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-r148-homeos-post-finalization-restart-v27
+  group: stay-r150-r148-homeos-capacity-source-finalization-v28
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v24
-  RELEASE_TAG_OBJECT: bc88ce9baab29bfc59c1ea21fa10006e72b9ea68
-  RELEASE_COMMIT: 579ee569eca02e8e1c6241d3dfda9996f3675132
-  RELEASE_TREE: fc3019f7aeb2b0b95d0f1bdf817c5850c7c6d951
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V24_BUNDLE_20260905.tar.gz
-  ARCHIVE_SHA256: d518444b3ae07749528f24932af2eac04e2733285dcd4cb90a922efa08d642db
-  SIDECAR_SHA256: 90324d0ec58a289081e4a1769cf8c1f5a43c8b0095d5ca79c6cb1ebc153a9c4d
-  MANIFEST_SHA256: 292ef3caf1923acb8c0a2a0883862f1b0b87ec546e872785736a926214a87046
+  RELEASE_TAG: r150-homeos-intero-shadow-v25
+  RELEASE_TAG_OBJECT: 7b1fdc0ed92aff76a27875faba302d9b3b72487a
+  RELEASE_COMMIT: b6225e45e09622348cbd553e383e3fe32766d231
+  RELEASE_TREE: e3a97304ede8a0f13bc9c914e1ffb33e2a9738b3
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V25_BUNDLE_20260905.tar.gz
+  ARCHIVE_SHA256: 4649ef16a0dd4c517577509d960cdbf55b17537cd70dd2fdd8c525caeafcfdbe
+  SIDECAR_SHA256: 878fe8306b4281fed6b59ed6e576745568364aacceef1fc630f713a0bf5798ef
+  MANIFEST_SHA256: 75922efb166e68476fdf0f54893689809f6e5d22562270a119cd3eff3a8cf8be
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
   RECOVERY_SHA256: 1cd30b887134a6b4ad6257ce630cd57a763b49527e4f92ec3152cfd41c18c369
   PREVIOUS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-292ef3caf192
-  WRAPPER_SHA256: 671f2c4b2b949ef979e6d97aa2af75e310fa879a7129088bfb880042fcc788fc
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-75922efb166e
+  WRAPPER_SHA256: 7d8a486483c797c2dfecfcc485c3909c5b02a9b43bc0abf85f16951505ffefe9
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -61,8 +61,8 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]]
-          [[ "$OPERATION" == restart-r148-homeos-finalized ]]
-          [[ "$AUTHORIZATION" == AUTHORIZE_R148_HOMEOS_POST_FINALIZATION_RESTART_V1 ]]
+          [[ "$OPERATION" == finalize-r148-homeos-capacity-source ]]
+          [[ "$AUTHORIZATION" == AUTHORIZE_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_V1 ]]
       - name: Checkout exact certified release
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -93,7 +93,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          root="$RUNNER_TEMP/r150-v24-release"; extract="$root/extract"
+          root="$RUNNER_TEMP/r150-v25-release"; extract="$root/extract"
           install -d -m 0700 "$root" "$extract"
           [[ "$(git -C release-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
           [[ "$(git -C release-source rev-parse HEAD^{tree})" == "$RELEASE_TREE" ]]
@@ -148,11 +148,11 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r150-v24-validated-release-${{ github.run_id }}
+          name: r150-v25-validated-release-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/r150-v24-release/${{ env.ARCHIVE }}
-            ${{ runner.temp }}/r150-v24-release/${{ env.ARCHIVE }}.sha256
-            ${{ runner.temp }}/r150-v24-release/P1_R150_RELEASE.identity
+            ${{ runner.temp }}/r150-v25-release/${{ env.ARCHIVE }}
+            ${{ runner.temp }}/r150-v25-release/${{ env.ARCHIVE }}.sha256
+            ${{ runner.temp }}/r150-v25-release/P1_R150_RELEASE.identity
           if-no-files-found: error
           retention-days: 7
 
@@ -166,7 +166,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r150-v24-validated-release-${{ github.run_id }}
+          name: r150-v25-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -211,6 +211,8 @@ jobs:
             const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase();
             const r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get();
             const rev=JSON.parse(r.json),valid=crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256;
+            const capacity=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:p1-r0-metab-capacity-source'").get();
+            const capacityValid=crypto.createHash('sha256').update(capacity.json).digest('hex')===capacity.sha256;
             const count=(t,w='1=1')=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value);
             const pending=count('biological_deliveries',"status='PENDING'");
             const failed=count('biological_deliveries',"status='FAILED'");
@@ -220,10 +222,10 @@ jobs:
             const highWater=Number(db.prepare('SELECT COALESCE(MAX(sequence),0) value FROM biological_events').get().value);
             const latest=db.prepare('SELECT id,type,core_id FROM recovery_records ORDER BY id DESC LIMIT 1').get();
             const fences={
-              'resident:chronobiology':[12396,'508c0ce9-bd8c-46d0-8dc2-5332f409d6e1',4575682],
-              'resident:homeos':[641,'cd5ac03d-8f56-4dc5-92b1-ba531ded973e',4575682],
-              'resident:metab':[325472,'2796adc0-92a4-415d-9d2f-3f628f6c8483',4575682],
-              'resident:sntss':[2891384,'3eee91b2-07cb-4e20-b222-3d7c32279e9e',4575682]
+              'resident:chronobiology':[12398,'7a944b2c-81c7-4039-be84-580392946918',4575682],
+              'resident:homeos':[643,'41040104-f61f-4c0a-8dcd-30b9a98a74a4',4575682],
+              'resident:metab':[325474,'a844ee26-489b-4729-987b-44b8f4b6ca63',4575682],
+              'resident:sntss':[2891386,'929a3875-d7df-476e-b1d0-de5c1a1fe691',4575682]
             };
             const exact=Object.entries(fences).every(([id,[generation,checkpointId,cursor]])=>{
               const resident=db.prepare('SELECT checkpoint_generation FROM resident_instances WHERE residency_id=?').get(id);
@@ -231,11 +233,12 @@ jobs:
               const consumer=db.prepare('SELECT cursor FROM biological_consumers WHERE consumer_id=?').get(id);
               return Number(resident?.checkpoint_generation)===generation&&checkpoint?.checkpoint_id===checkpointId&&Number(consumer?.cursor)===cursor;
             });
-            if(!(q==='ok'&&valid&&rev.revision===148&&r.sha256==='95006d1bb78a323e580b6596fa6c91a955f079b72068662b5f47c3a6d0158c9c'&&
+            if(!(q==='ok'&&valid&&rev.revision===148&&r.sha256==='95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0'&&
+              capacityValid&&capacity.sha256==='e9a6efb7deff7c43d2adffe10b90f85a3327a3b9ffe5a7f9df0da4067f75b0b4'&&
               pending===0&&failed===0&&abandoned===0&&outbox===0&&authority===0&&highWater===4575682&&
               count('resident_instances')===4&&count('authority')===1&&exact&&
-              latest?.id===250&&latest?.type==='resident.recovered'&&latest?.core_id==='sntss'))process.exit(1);
-            process.stdout.write('R148_POST_FINALIZATION_DB_PREFLIGHT=PASS\n');
+              latest?.id===254&&latest?.type==='resident.recovered'&&latest?.core_id==='sntss'))process.exit(1);
+            process.stdout.write('R148_CAPACITY_SOURCE_FINALIZATION_DB_PREFLIGHT=PASS\n');
           }finally{db.close();}
           NODE
           printf 'R150_READ_ONLY_PREFLIGHT=PASS\nRUNTIME_REVISION=148\nSERVICE_STATE=inactive/dead\nBENCHMARK_ACTIVE=NO\n'
@@ -247,14 +250,14 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v27-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v28-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" "set -euo pipefail; test ! -e '$run_root'; install -d -m 0700 '$run_root'; chmod u-s,g-s '$run_root'; chmod 0700 '$run_root'"
           scp "${ssh_options[@]}" release-assets/"$ARCHIVE" release-assets/"$ARCHIVE.sha256" release-assets/P1_R150_RELEASE.identity staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" <<'REMOTE'
           set -euo pipefail
           root="$1"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v27-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v28-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"; chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
           [[ "$(find "$root" -maxdepth 1 -type f | wc -l)" -eq 3 ]]
@@ -266,8 +269,8 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" sudo -n /usr/local/sbin/stay-p1-production-controller "$OPERATION" "$run_root" "$AUTHORIZATION" NONE NONE 2>&1 | tee controller.output
           statuses=("${PIPESTATUS[@]}"); set -e
           [[ "${statuses[0]}" -eq 0 && "${statuses[1]}" -eq 0 ]]
-          grep -Fx 'R148_HOMEOS_POST_FINALIZATION_RESTART=PASS' controller.output
-          grep -Fx 'R150_CONTROLLER_STAGE=homeos-r148-finalized-restart' controller.output
+          grep -Fx 'R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION=PASS' controller.output
+          grep -Fx 'R150_CONTROLLER_STAGE=homeos-r148-capacity-source-finalization' controller.output
           grep -Fx 'R150_CONTROLLER_REVISION=R148F' controller.output
           grep -Fx 'R150_CONTROLLER_RESULT=PASS' controller.output
           grep -Fx 'R150_CONTROLLER_FAILURE_CLASS=NONE' controller.output

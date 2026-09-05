@@ -8,18 +8,18 @@ EXPECTED_PRIVATE_IPV4='172.26.9.207'
 PREVIOUS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc'
 PREVIOUS_MANIFEST_SHA256='c1651b9150bc5c14d254d86caa60cb267317301c01c95282929fc696f4c6160b'
 PREVIOUS_BOUND_CONTROLLER_SHA256='6f948c132325352469a51b1248d53292d98f7cdaad32c6a26d31aabbebcc1f64'
-RELEASE_TAG='r150-homeos-intero-shadow-v24'
-RELEASE_TAG_OBJECT='bc88ce9baab29bfc59c1ea21fa10006e72b9ea68'
-RELEASE_COMMIT='579ee569eca02e8e1c6241d3dfda9996f3675132'
-RELEASE_TREE='fc3019f7aeb2b0b95d0f1bdf817c5850c7c6d951'
-ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V24_BUNDLE_20260905.tar.gz'
-ARCHIVE_SHA256='d518444b3ae07749528f24932af2eac04e2733285dcd4cb90a922efa08d642db'
-SIDECAR_SHA256='90324d0ec58a289081e4a1769cf8c1f5a43c8b0095d5ca79c6cb1ebc153a9c4d'
+RELEASE_TAG='r150-homeos-intero-shadow-v25'
+RELEASE_TAG_OBJECT='7b1fdc0ed92aff76a27875faba302d9b3b72487a'
+RELEASE_COMMIT='b6225e45e09622348cbd553e383e3fe32766d231'
+RELEASE_TREE='e3a97304ede8a0f13bc9c914e1ffb33e2a9738b3'
+ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V25_BUNDLE_20260905.tar.gz'
+ARCHIVE_SHA256='4649ef16a0dd4c517577509d960cdbf55b17537cd70dd2fdd8c525caeafcfdbe'
+SIDECAR_SHA256='878fe8306b4281fed6b59ed6e576745568364aacceef1fc630f713a0bf5798ef'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-MANIFEST_SHA256='292ef3caf1923acb8c0a2a0883862f1b0b87ec546e872785736a926214a87046'
+MANIFEST_SHA256='75922efb166e68476fdf0f54893689809f6e5d22562270a119cd3eff3a8cf8be'
 FORWARD_SHA256='98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c'
 RECOVERY_SHA256='1cd30b887134a6b4ad6257ce630cd57a763b49527e4f92ec3152cfd41c18c369'
-TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-292ef3caf192'
+TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-75922efb166e'
 PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
 FREEZER='deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js'
 CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
@@ -30,13 +30,13 @@ FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
 EVIDENCE_ROOT='/var/lib/stay/evidence/production-hardening'
 SOURCE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R147-HOMEOS-POST-DURABLE-FINALIZE-20260905T021824Z.MDlt6q'
 R147_MARKER='/run/stay-r147-homeos-shadow-recovery.env'
-RECOVERY_DROPIN='/etc/systemd/system/stay.service.d/r148-homeos-post-finalization-restart-once.conf'
-RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_POST_FINALIZATION_RESTART_ONLY'
+RECOVERY_DROPIN='/etc/systemd/system/stay.service.d/r148-homeos-capacity-source-finalization-once.conf'
+RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_ONLY'
 
 WORK_ROOT=''; CANDIDATE=''; RUN_ROOT=''; RECOVERY_WORK=''; SERVICE_STARTED=0; POINTER_ADVANCED=0
 CLEANUP_ARMED=0; DROPIN_INSTALLED=0; FREEZE_INSTALLED=0; FAILURE_CLASS='UNCLASSIFIED'
 
-abort_controller(){ printf 'R150_CONTROLLER_ABORT=%s\nR150_CONTROLLER_FAILURE_CLASS=%s\n' "$3" "$2" >&2; exit "$1"; }
+abort_controller(){ FAILURE_CLASS="$2"; printf 'R150_CONTROLLER_ABORT=%s\nR150_CONTROLLER_FAILURE_CLASS=%s\n' "$3" "$2" >&2; exit "$1"; }
 sha256_file(){ sha256sum "$1" | awk '{print $1}'; }
 observed_private_ipv4(){ ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u; }
 trusted_root_file(){ [[ -f "$1" && ! -L "$1" && "$(stat -Lc '%U:%G' "$1")" == root:root && -z "$(find -P "$1" -maxdepth 0 -perm /022 -print -quit)" ]]; }
@@ -67,8 +67,8 @@ finish_controller(){
         cleanup=1
       fi
     fi
-    if [[ -n "$RECOVERY_WORK" && "$RECOVERY_WORK" =~ ^$EVIDENCE_ROOT/\.R148-HOMEOS-POST-FINALIZATION-RESTART-[0-9TZ]+\.[A-Za-z0-9]+$ && -d "$RECOVERY_WORK" && ! -L "$RECOVERY_WORK" ]]; then
-      failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R148-HOMEOS-POST-FINALIZATION-RESTART-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+    if [[ -n "$RECOVERY_WORK" && "$RECOVERY_WORK" =~ ^$EVIDENCE_ROOT/\.R148-HOMEOS-CAPACITY-SOURCE-FINALIZATION-[0-9TZ]+\.[A-Za-z0-9]+$ && -d "$RECOVERY_WORK" && ! -L "$RECOVERY_WORK" ]]; then
+      failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R148-HOMEOS-CAPACITY-SOURCE-FINALIZATION-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
       rmdir -- "$failed" && mv -T "$RECOVERY_WORK" "$failed" && chmod -R a-w "$failed" || cleanup=1
       RECOVERY_WORK=''
     fi
@@ -78,7 +78,7 @@ finish_controller(){
     if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-r148-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then
       rm -rf --one-file-system -- "$WORK_ROOT" || cleanup=1
     fi
-    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v27-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then
+    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v28-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then
       rm -rf --one-file-system -- "$RUN_ROOT" || cleanup=1
     fi
   fi
@@ -90,7 +90,7 @@ finish_controller(){
 
 validate_run_root(){
   local root="$1"
-  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v27-[0-9]+$ && -d "$root" && ! -L "$root" &&
+  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v28-[0-9]+$ && -d "$root" && ! -L "$root" &&
     "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 &&
     -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy -o -perm /077 \) -print -quit)" ]]
 }
@@ -289,14 +289,14 @@ validate_stopped_r148(){
     "$(sha256_file "$SOURCE_EVIDENCE/homeos.birth-certificate.json")" == a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c &&
     "$(sha256_file "$SOURCE_EVIDENCE/parent.freeze.json")" == 352e34b1842777b42be99af710ca5256adec561c83e55666a2560db41d9e309d ]] || return 1
   runuser -u staydeploy -- /usr/bin/timeout --signal=TERM --kill-after=5s 35s \
-    /usr/local/bin/node - "$TARGET_RELEASE" "$DATABASE" >"$WORK_ROOT/r148.post-finalization-restart-preflight.json" <<'NODE'
+    /usr/local/bin/node - "$TARGET_RELEASE" "$DATABASE" >"$WORK_ROOT/r148.capacity-source-finalization-preflight.json" <<'NODE'
 'use strict';
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const [release, databasePath] = process.argv.slice(2);
-const { R148_HOMEOS_POST_FINALIZATION_RESTART: expected } =
+const { R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION: expected } =
   require(path.join(release, 'runtime/kernel/living-kernel'));
 const fail = message => { throw new Error(message); };
 const assert = (value, message) => { if (!value) fail(message); };
@@ -406,7 +406,7 @@ try {
   'latest recovery identity changed');
   database.exec('COMMIT');
   process.stdout.write(`${JSON.stringify({
-    format: 'stay-r148-homeos-post-finalization-restart-preflight-v1', result: 'PASS',
+    format: 'stay-r148-homeos-capacity-source-finalization-preflight-v1', result: 'PASS',
     runtimeRevision: expected.runtimeRevision, highWater: expected.highWater,
     pendingDeliveries: 0, failedDeliveries: 0, abandonedDeliveries: 0,
     pendingOutboxIntents: 0, authorityOwned: false, fetusAuthority: true,
@@ -426,15 +426,15 @@ install_atomic(){
   mv -fT "$temporary" "$target"
 }
 
-restart_finalized_r148(){
-  local controller_sha="$1" ready=0 attempt after_pid after_restarts final_evidence
-  RECOVERY_WORK="$(mktemp -d "$EVIDENCE_ROOT/.R148-HOMEOS-POST-FINALIZATION-RESTART-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+finalize_capacity_source_r148(){
+  local controller_sha="$1" ready=0 proof_ready=0 attempt after_pid after_restarts final_evidence
+  RECOVERY_WORK="$(mktemp -d "$EVIDENCE_ROOT/.R148-HOMEOS-CAPACITY-SOURCE-FINALIZATION-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/parent.freeze.json" "$RECOVERY_WORK/parent.freeze.json"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/before.proof.json" "$RECOVERY_WORK/before.proof.json"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/homeos.birth-certificate.json" "$RECOVERY_WORK/homeos.birth-certificate.json"
   install -o root -g root -m 0444 "$PUBLIC_KEY" "$RECOVERY_WORK/expansion-birth-authority.pub"
-  install -o root -g root -m 0400 "$WORK_ROOT/r148.post-finalization-restart-preflight.json" \
-    "$RECOVERY_WORK/r148.post-finalization-restart-preflight.json"
+  install -o root -g root -m 0400 "$WORK_ROOT/r148.capacity-source-finalization-preflight.json" \
+    "$RECOVERY_WORK/r148.capacity-source-finalization-preflight.json"
   install -o root -g root -m 0400 "$WORK_ROOT/focused-tests.tap" "$RECOVERY_WORK/focused-tests.tap"
   install -o root -g root -m 0400 "$WORK_ROOT/real-entry.tap" "$RECOVERY_WORK/real-entry.tap"
   expected_release_env "$controller_sha" >"$RECOVERY_WORK/P1_R150_RELEASE.env"
@@ -444,11 +444,11 @@ restart_finalized_r148(){
 NODE
 
   install -d -o root -g root -m 0755 "$(dirname "$RECOVERY_DROPIN")"
-  cat >"$WORK_ROOT/r148-homeos-post-finalization-restart-once.conf" <<EOF
+  cat >"$WORK_ROOT/r148-homeos-capacity-source-finalization-once.conf" <<EOF
 [Service]
 Environment=STAY_HOMEOS_R148_INIT_POST_DURABLE_FINALIZATION_AUTHORIZATION=$RECOVERY_AUTHORIZATION
 EOF
-  install_atomic "$WORK_ROOT/r148-homeos-post-finalization-restart-once.conf" "$RECOVERY_DROPIN" 0444
+  install_atomic "$WORK_ROOT/r148-homeos-capacity-source-finalization-once.conf" "$RECOVERY_DROPIN" 0444
   DROPIN_INSTALLED=1
   systemctl daemon-reload
   systemctl reset-failed stay.service
@@ -473,21 +473,32 @@ EOF
   DROPIN_INSTALLED=0
   [[ ! -e "$RECOVERY_DROPIN" && ! -L "$RECOVERY_DROPIN" ]] || return 1
 
-  /usr/bin/timeout --signal=TERM --kill-after=5s 35s /usr/local/bin/node \
-    "$TARGET_RELEASE/$PROOF" capture "$DATABASE" >"$RECOVERY_WORK/database.after.json" || return 1
-  for id in sntss chronobiology metab homeos; do
-    /usr/local/bin/node "$TARGET_RELEASE/$CLIENT" status "resident:$id" >"$RECOVERY_WORK/$id.after.json" || return 1
-  done
-  curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta >"$RECOVERY_WORK/meta.after.json" || return 1
-  after_pid="$(systemctl show stay.service -p MainPID --value)"
-  after_restarts="$(systemctl show stay.service -p NRestarts --value)"
-  /usr/local/bin/node - "$RECOVERY_WORK/before.proof.json" "$after_pid" "$after_restarts" \
-    "$TARGET_RELEASE" >"$RECOVERY_WORK/service.after.json" <<'NODE'
-'use strict';const fs=require('node:fs'),[beforeFile,afterPid,afterRestarts,currentRelease]=process.argv.slice(2),before=JSON.parse(fs.readFileSync(beforeFile,'utf8'));process.stdout.write(JSON.stringify({recovery:true,originalBeforePid:Number(before.servicePid),originalBeforeRestarts:Number(before.serviceRestarts),recoveryBeforePid:0,afterPid:Number(afterPid),recoveryBeforeRestarts:Number(afterRestarts),afterRestarts:Number(afterRestarts),recoveryRestartCommands:1,restartCommands:2,currentRelease,r148HomeosPostFinalizationRestart:true})+'\n');
+  for attempt in $(seq 1 40); do
+    /usr/bin/timeout --signal=TERM --kill-after=5s 35s /usr/local/bin/node \
+      "$TARGET_RELEASE/$PROOF" capture "$DATABASE" >"$RECOVERY_WORK/database.after.json" || return 1
+    for id in sntss chronobiology metab homeos; do
+      /usr/local/bin/node "$TARGET_RELEASE/$CLIENT" status "resident:$id" >"$RECOVERY_WORK/$id.after.json" || return 1
+    done
+    curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta >"$RECOVERY_WORK/meta.after.json" || return 1
+    after_pid="$(systemctl show stay.service -p MainPID --value)"
+    after_restarts="$(systemctl show stay.service -p NRestarts --value)"
+    /usr/local/bin/node - "$RECOVERY_WORK/before.proof.json" "$after_pid" "$after_restarts" \
+      "$TARGET_RELEASE" >"$RECOVERY_WORK/service.after.json" <<'NODE'
+'use strict';const fs=require('node:fs'),[beforeFile,afterPid,afterRestarts,currentRelease]=process.argv.slice(2),before=JSON.parse(fs.readFileSync(beforeFile,'utf8'));process.stdout.write(JSON.stringify({recovery:true,originalBeforePid:Number(before.servicePid),originalBeforeRestarts:Number(before.serviceRestarts),recoveryBeforePid:0,afterPid:Number(afterPid),recoveryBeforeRestarts:Number(afterRestarts),afterRestarts:Number(afterRestarts),recoveryRestartCommands:1,restartCommands:2,currentRelease,r148HomeosCapacitySourceFinalization:true})+'\n');
 NODE
-  /usr/local/bin/node - "$TARGET_RELEASE/$PROOF" "$RECOVERY_WORK" "$TARGET_RELEASE" >"$RECOVERY_WORK/after.proof.json" <<'NODE'
+    if /usr/local/bin/node - "$TARGET_RELEASE/$PROOF" "$RECOVERY_WORK" "$TARGET_RELEASE" \
+      >"$RECOVERY_WORK/after.proof.json" 2>"$RECOVERY_WORK/after.proof.error" <<'NODE'
 'use strict';const fs=require('node:fs'),path=require('node:path'),[helper,root,targetRelease]=process.argv.slice(2),read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8')),statuses={sntss:read('sntss.after.json'),chronobiology:read('chronobiology.after.json'),metab:read('metab.after.json'),homeos:read('homeos.after.json')},{validateR148After}=require(helper);process.stdout.write(JSON.stringify(validateR148After({before:read('before.proof.json'),database:read('database.after.json'),statuses,meta:read('meta.after.json'),service:read('service.after.json'),targetRelease}))+'\n');
 NODE
+    then
+      proof_ready=1
+      printf '%s\n' "$attempt" >"$RECOVERY_WORK/acceptance.attempts"
+      rm -f -- "$RECOVERY_WORK/after.proof.error"
+      break
+    fi
+    sleep 0.25
+  done
+  [[ "$proof_ready" -eq 1 ]] || { cat "$RECOVERY_WORK/after.proof.error" >&2; return 1; }
   /usr/local/bin/node "$TARGET_RELEASE/$FREEZER" homeos-r148-recovery "$RECOVERY_WORK" >"$RECOVERY_WORK/target.freeze.json" || return 1
   install_atomic "$RECOVERY_WORK/target.freeze.json" "$FREEZE_DIR/R148.json" 0444
   FREEZE_INSTALLED=1
@@ -497,10 +508,10 @@ NODE
 NODE
   trusted_root_file "$R147_MARKER" && [[ "$(<"$R147_MARKER")" == "$(expected_r147_marker)" ]] || return 1
   rm -f -- "$R147_MARKER"
-  final_evidence="$EVIDENCE_ROOT/R148F-HOMEOS-POST-FINALIZATION-RESTARTED-$(date -u +'%Y%m%dT%H%M%SZ')"
+  final_evidence="$EVIDENCE_ROOT/R148F-HOMEOS-CAPACITY-SOURCE-FINALIZED-$(date -u +'%Y%m%dT%H%M%SZ')"
   [[ ! -e "$final_evidence" && ! -L "$final_evidence" ]]
   mv -T "$RECOVERY_WORK" "$final_evidence"; RECOVERY_WORK=''; chmod -R a-w "$final_evidence"
-  printf '%s\n' 'R148_HOMEOS_POST_FINALIZATION_RESTART=PASS' 'RUNTIME_REVISION=148' \
+  printf '%s\n' 'R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION=PASS' 'RUNTIME_REVISION=148' \
     'REVISION_LABEL=R148F' "CURRENT_RELEASE=$TARGET_RELEASE" 'RESTART_COMMANDS=1' \
     'P1_AUTHORITY=NONE' 'FETUS_CONTINUITY=PASS' 'PROMOTION_AUTHORITY_ACTIVE=NO' \
     'INTERO=ABSENT' 'BENCHMARK_ACTIVE=NO' "FREEZE_FILE=$FREEZE_DIR/R148.json" \
@@ -527,11 +538,11 @@ main(){
   [[ "$EUID" -eq 0 ]] || abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
   trusted_root_file "$0" && [[ -x "$0" ]] || abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
   [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]] || abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
-  [[ "$operation" == restart-r148-homeos-finalized && "$authorization" == AUTHORIZE_R148_HOMEOS_POST_FINALIZATION_RESTART_V1 ]] ||
+  [[ "$operation" == finalize-r148-homeos-capacity-source && "$authorization" == AUTHORIZE_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_V1 ]] ||
     abort_controller 74 AUTHORIZATION_FAILED authorization-missing
   [[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]] ||
     abort_controller 75 ARGUMENT_VALIDATION_FAILED recovery-hashes-must-be-none
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v27-[0-9]+$ ]] ||
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v28-[0-9]+$ ]] ||
     abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
   validate_run_root "$requested_root" || abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
   RUN_ROOT="$requested_root"; trap finish_controller EXIT; CLEANUP_ARMED=1
@@ -543,13 +554,13 @@ main(){
   verify_previous_release || abort_controller 83 CANDIDATE_FAILED previous-release-invalid
   prepare_target "$controller_sha" || abort_controller 84 CANDIDATE_FAILED candidate-validation-failed
   validate_stopped_r148 || abort_controller 85 CANDIDATE_FAILED stopped-r148-cohort-changed
-  restart_finalized_r148 "$controller_sha" || abort_controller 86 EXECUTION_FAILED r148-post-finalization-restart-failed
+  finalize_capacity_source_r148 "$controller_sha" || abort_controller 86 EXECUTION_FAILED r148-capacity-source-finalization-failed
   validate_live "$controller_sha" || abort_controller 87 LIVE_ACCEPTANCE_FAILED independent-live-proof-failed
   SERVICE_STARTED=0
   POINTER_ADVANCED=0
   FREEZE_INSTALLED=0
   FAILURE_CLASS='NONE'
-  printf '%s\n' 'R150_CONTROLLER_STAGE=homeos-r148-finalized-restart' \
+  printf '%s\n' 'R150_CONTROLLER_STAGE=homeos-r148-capacity-source-finalization' \
     'R150_CONTROLLER_REVISION=R148F' 'R150_CONTROLLER_RESULT=PASS'
 }
 

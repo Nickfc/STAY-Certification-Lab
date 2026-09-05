@@ -20,20 +20,20 @@ const PRODUCTION = path.join(ROOT, '.github', 'workflows', 'p1-r150-homeos-inter
 const read = file => fs.readFileSync(file, 'utf8');
 const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
-test('R150-CTRL-01 controller pins exact V22 source and immutable V24 overlay', () => {
+test('R150-CTRL-01 controller pins exact V22 source and immutable V25 overlay', () => {
   const source = read(CONTROLLER);
   for (const exact of [
     "PREVIOUS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc'",
     "PREVIOUS_MANIFEST_SHA256='c1651b9150bc5c14d254d86caa60cb267317301c01c95282929fc696f4c6160b'",
     "PREVIOUS_BOUND_CONTROLLER_SHA256='6f948c132325352469a51b1248d53292d98f7cdaad32c6a26d31aabbebcc1f64'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v24'",
-    "RELEASE_TAG_OBJECT='bc88ce9baab29bfc59c1ea21fa10006e72b9ea68'",
-    "RELEASE_COMMIT='579ee569eca02e8e1c6241d3dfda9996f3675132'",
-    "RELEASE_TREE='fc3019f7aeb2b0b95d0f1bdf817c5850c7c6d951'",
-    "ARCHIVE_SHA256='d518444b3ae07749528f24932af2eac04e2733285dcd4cb90a922efa08d642db'",
-    "SIDECAR_SHA256='90324d0ec58a289081e4a1769cf8c1f5a43c8b0095d5ca79c6cb1ebc153a9c4d'",
-    "MANIFEST_SHA256='292ef3caf1923acb8c0a2a0883862f1b0b87ec546e872785736a926214a87046'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-292ef3caf192'"
+    "RELEASE_TAG='r150-homeos-intero-shadow-v25'",
+    "RELEASE_TAG_OBJECT='7b1fdc0ed92aff76a27875faba302d9b3b72487a'",
+    "RELEASE_COMMIT='b6225e45e09622348cbd553e383e3fe32766d231'",
+    "RELEASE_TREE='e3a97304ede8a0f13bc9c914e1ffb33e2a9738b3'",
+    "ARCHIVE_SHA256='4649ef16a0dd4c517577509d960cdbf55b17537cd70dd2fdd8c525caeafcfdbe'",
+    "SIDECAR_SHA256='878fe8306b4281fed6b59ed6e576745568364aacceef1fc630f713a0bf5798ef'",
+    "MANIFEST_SHA256='75922efb166e68476fdf0f54893689809f6e5d22562270a119cd3eff3a8cf8be'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-75922efb166e'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /\$\{#entries\[@\]\}" -eq 111/);
   assert.match(source, /find "\$WORK_ROOT\/overlay" -type f \| wc -l\)" -eq 89/);
@@ -43,11 +43,11 @@ test('R150-CTRL-01 controller pins exact V22 source and immutable V24 overlay', 
   assert.match(source, /cp -a --reflink=auto "\$PREVIOUS_RELEASE\/\."/);
 });
 
-test('R150-CTRL-02 post-finalization restart authority is exact and benchmark remains off', () => {
+test('R150-CTRL-02 capacity source finalization authority is exact and benchmark remains off', () => {
   const source = read(CONTROLLER);
-  assert.match(source, /restart-r148-homeos-finalized && "\$authorization" == AUTHORIZE_R148_HOMEOS_POST_FINALIZATION_RESTART_V1/);
+  assert.match(source, /finalize-r148-homeos-capacity-source && "\$authorization" == AUTHORIZE_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_V1/);
   assert.match(source, /STAY_HOMEOS_R148_INIT_POST_DURABLE_FINALIZATION_AUTHORIZATION=\$RECOVERY_AUTHORIZATION/);
-  assert.match(source, /RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_POST_FINALIZATION_RESTART_ONLY'/);
+  assert.match(source, /RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_ONLY'/);
   assert.match(source, /BENCHMARK_ACTIVE=NO/);
   assert.match(source, /INTERO=ABSENT/);
   assert.doesNotMatch(source, /harden-r145-homeos|harden-r150-intero|systemctl start stay-physiology-benchmark/);
@@ -58,8 +58,8 @@ test('R150-CTRL-03 controller is revision-fenced, rollback-capable, and starts e
   const source = read(CONTROLLER);
   assert.match(source, /SOURCE_RUNTIME_REVISION=R148/);
   assert.match(source, /TARGET_RUNTIME_REVISION=R148F/);
-  assert.match(source, /stay-r148-homeos-post-finalization-restart-preflight-v1/);
-  assert.match(source, /R148_HOMEOS_POST_FINALIZATION_RESTART/);
+  assert.match(source, /stay-r148-homeos-capacity-source-finalization-preflight-v1/);
+  assert.match(source, /R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION/);
   assert.doesNotMatch(source, /p1-r148-create-init-recovery-snapshot\.js|STAY_R148_INIT_RECOVERY_PREFLIGHT_SNAPSHOT/);
   assert.match(source, /validateR148After/);
   assert.match(source, /\$FREEZER" homeos-r148-recovery/);
@@ -67,6 +67,9 @@ test('R150-CTRL-03 controller is revision-fenced, rollback-capable, and starts e
   assert.equal((source.match(/^\s*systemctl start stay\.service\s*$/gm) || []).length, 1);
   assert.match(source, /rm -f -- "\$RECOVERY_DROPIN"/);
   assert.match(source, /rm -f -- "\$FREEZE_DIR\/R148\.json"/);
+  assert.match(source, /for attempt in \$\(seq 1 40\)/);
+  assert.match(source, /proof_ready=1/);
+  assert.match(source, /after\.proof\.error/);
 });
 
 test('R150-CTRL-04 fetus continuity and all contained shadows are independently accepted', () => {
@@ -88,29 +91,29 @@ test('R150-CTRL-05 bootstrap pins wrapper, key, host, and narrow sudo scope', ()
   assert.ok(source.includes(`EXPECTED_PUBLIC_KEY_SHA256='${digest(PUBLIC_KEY)}'`));
   assert.match(source, /EXPECTED_PRIVATE_IPV4='172\.26\.9\.207'/);
   assert.match(source, /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
-  assert.match(source, /R148_HOMEOS_POST_FINALIZATION_RESTART_AUTHORIZED=NO/);
+  assert.match(source, /R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_AUTHORIZED=NO/);
   assert.match(source, /BENCHMARK_START_AUTHORIZED=NO/);
 });
 
-test('R150-CTRL-06 workflows pin V27, V24, immutable validation, and stopped R148', () => {
+test('R150-CTRL-06 workflows pin V28, V25, immutable validation, and stopped R148', () => {
   const bootstrap = read(BOOTSTRAP);
   const capture = read(CAPTURE);
   const production = read(PRODUCTION);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V27_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V28_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
-    'r150-controller-v27-${GITHUB_RUN_ID}',
+    'r150-controller-v28-${GITHUB_RUN_ID}',
     'MANUAL_ROOT_BRIDGE_COMMAND='
   ]) assert.ok(bootstrap.includes(exact), exact);
   assert.ok(capture.includes(`WRAPPER_SHA256: ${digest(CONTROLLER)}`));
   for (const exact of [
-    'restart-r148-homeos-finalized', 'AUTHORIZE_R148_HOMEOS_POST_FINALIZATION_RESTART_V1',
-    'RELEASE_TAG_OBJECT: bc88ce9baab29bfc59c1ea21fa10006e72b9ea68',
+    'finalize-r148-homeos-capacity-source', 'AUTHORIZE_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_V1',
+    'RELEASE_TAG_OBJECT: 7b1fdc0ed92aff76a27875faba302d9b3b72487a',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
-    'R148_POST_FINALIZATION_DB_PREFLIGHT=PASS', 'pending===0', 'outbox===0',
-    'highWater===4575682', 'R148_HOMEOS_POST_FINALIZATION_RESTART=PASS',
+    'R148_CAPACITY_SOURCE_FINALIZATION_DB_PREFLIGHT=PASS', 'pending===0', 'outbox===0',
+    'highWater===4575682', 'R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION=PASS',
     'FETUS_CONTINUITY=PASS', 'INTERO=ABSENT', "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);
   for (const source of [bootstrap, capture, production]) {
