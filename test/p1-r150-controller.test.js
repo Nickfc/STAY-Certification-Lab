@@ -33,6 +33,7 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
     "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-9a94dba608c5'",
     "PREVIOUS_HOMEOS_MANIFEST_SHA256='9a94dba608c506d38788d6498d3f1a92388420b6093acc6e9cf4a27e482b9a30'",
     "PREVIOUS_HOMEOS_CONTROLLER_SHA256='f09e7c1e28369af56b37af69e2727c2222226d8445904294563a39f413de4d31'",
+    "TARGET_RELEASE_BOUND_CONTROLLER_SHA256='e4680f56afdb60138e78217b602b0cc018e522e6a764c7980c015a28bd453b72'",
     "RELEASE_TAG='r150-homeos-intero-shadow-v21'",
     "RELEASE_TAG_OBJECT='b703d1030fe19c77e6b00cde7cd3a908cc0e7086'",
     "RELEASE_COMMIT='08cbc4a8db10868cd751ae3fe208d4a4467ae4d0'",
@@ -49,14 +50,19 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   assert.match(source, /\$R147_FRAME_BOUNDARY_REPAIR" preflight/);
   assert.match(source, /cp -a --reflink=auto "\$PREVIOUS_HOMEOS_RELEASE\/\."/);
   assert.match(source, /"\$DATABASE" "\$preflight_root"/);
-  assert.match(source, /mv -fT "\$marker_tmp" \/run\/stay-r147-homeos-shadow-recovery\.env/);
+  assert.match(source, /rm -f -- \/run\/stay-r147-homeos-shadow-recovery\.env/);
   assert.match(source, /mv -Tf "\$pointer_tmp" \/opt\/stay\/current/);
+  assert.match(source, /validate_r147_post_durable_cohort/);
+  assert.match(source, /resident\.r147-frame-boundary-replayed/);
+  assert.match(source, /pendingDeliveries===0/);
+  assert.match(source, /replayedPendingCount===492/);
+  assert.match(source, /prior-recovery-attempts\.txt/);
 });
 
 test('R150-CTRL-02 authority is one-operation exact and benchmark cannot start', () => {
   const source = read(CONTROLLER);
   assert.ok(source.includes(
-    'continue-r147-homeos:AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_V4'));
+    'finalize-r147-homeos:AUTHORIZE_R147_HOMEOS_POST_DURABLE_FINALIZATION_V1'));
   assert.doesNotMatch(source, /harden-r145-homeos:|recover-r145-homeos:|harden-r150-intero:|recover-r150-intero:/);
   assert.match(source, /RUNTIME_SECONDS=120/);
   assert.match(source, /BENCHMARK_ACTIVE=NO/);
@@ -126,7 +132,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V23_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V24_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
@@ -149,8 +155,8 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   ]) assert.ok(capture.includes(exact), exact);
   assert.doesNotMatch(capture, /\bsudo\b|\bscp\b|systemctl\s+(?:start|stop|restart)|benchmark-start/);
   for (const exact of [
-    'continue-r147-homeos',
-    'AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_V4',
+    'finalize-r147-homeos',
+    'AUTHORIZE_R147_HOMEOS_POST_DURABLE_FINALIZATION_V1',
     'RELEASE_TAG_OBJECT: b703d1030fe19c77e6b00cde7cd3a908cc0e7086',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
@@ -165,15 +171,14 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     '-type f ! -perm 0400 -print -quit',
     'for attempt in $(seq 1 20); do',
     '[[ "$attempt" -eq 20 ]] || sleep 0.25',
-    'exactPending=pending.length===1',
-    "h=pending.find(v=>v.consumerId==='resident:homeos')",
-    'Number(h?.minimum)===4574291',
-    'Number(h?.count)===492',
-    'Number(h?.maximum)===4575520',
+    'pending===0',
+    "homeos?.status==='RUNNING'",
+    'homeos.checkpoint_generation===572',
+    "latest.type==='resident.r147-frame-boundary-replayed'",
     'highWater===4575520',
-    '[[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 147 ]]',
-    'continue-*)',
-    'restoring that failed service is the sole purpose of this path',
+    '[[ "$current" == "$target_release" && "$revision" == 147 ]]',
+    'finalize-*)',
+    'exact post-durable timeout state',
     'SERVICE_STATE=%s/%s',
     'root="$1"; stage="${2:-}"',
     "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",

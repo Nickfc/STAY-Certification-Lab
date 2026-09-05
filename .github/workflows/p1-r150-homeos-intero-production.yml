@@ -8,9 +8,9 @@ on:
         description: Fixed revision-fenced operation
         required: true
         type: choice
-        default: continue-r147-homeos
+        default: finalize-r147-homeos
         options:
-          - continue-r147-homeos
+          - finalize-r147-homeos
       authorization:
         description: Exact operation-specific authorization
         required: true
@@ -18,7 +18,7 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_V4
+          - AUTHORIZE_R147_HOMEOS_POST_DURABLE_FINALIZATION_V1
 
 permissions:
   contents: read
@@ -41,7 +41,7 @@ env:
   TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3aa588159412
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
   PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-9a94dba608c5
-  WRAPPER_SHA256: e4680f56afdb60138e78217b602b0cc018e522e6a764c7980c015a28bd453b72
+  WRAPPER_SHA256: b291dac116b08ca0c8a1828bd9f882f5533415af79edcf044b6d4ca42d3f1457
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]]
           case "$OPERATION:$AUTHORIZATION" in
-            continue-r147-homeos:AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_V4) ;;
+            finalize-r147-homeos:AUTHORIZE_R147_HOMEOS_POST_DURABLE_FINALIZATION_V1) ;;
             *) exit 64 ;;
           esac
       - name: Checkout exact certified release
@@ -264,7 +264,7 @@ jobs:
           revision=''
           for attempt in $(seq 1 20); do
             if revision="$(node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
-          'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase(),r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get(),count=(t,w)=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value),ok=r&&crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256,pending=db.prepare("SELECT consumer_id consumerId,COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum FROM biological_deliveries WHERE status='PENDING' GROUP BY consumer_id ORDER BY consumer_id").all(),failed=db.prepare("SELECT consumer_id consumerId,sequence FROM biological_deliveries WHERE status='FAILED' ORDER BY consumer_id,sequence").all(),outbox=count('biological_outbox_intents',"status='PENDING'"),authority=count('authority',"core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')"),highWater=Number(db.prepare('SELECT COALESCE(MAX(sequence),0) value FROM biological_events').get().value),h=pending.find(v=>v.consumerId==='resident:homeos'),exactPending=pending.length===1&&Number(h?.count)===492&&Number(h?.minimum)===4574291&&Number(h?.maximum)===4575520,exactFailure=failed.length===0;if(!(q==='ok'&&ok&&exactPending&&exactFailure&&highWater===4575520&&outbox===0&&authority===0))process.exit(1);process.stdout.write(String(Number(JSON.parse(r.json).revision)));}finally{db.close();}
+          'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase(),r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get(),count=(t,w)=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value),ok=r&&crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256,pending=count('biological_deliveries',"status='PENDING'"),failed=count('biological_deliveries',"status='FAILED'"),abandoned=count('biological_deliveries',"status='ABANDONED'"),outbox=count('biological_outbox_intents',"status='PENDING'"),authority=count('authority',"core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')"),highWater=Number(db.prepare('SELECT COALESCE(MAX(sequence),0) value FROM biological_events').get().value),homeos=db.prepare("SELECT status,checkpoint_generation,checkpoint_hash FROM resident_instances WHERE residency_id='resident:homeos'").get(),consumer=db.prepare("SELECT active,cursor,checkpoint_hash FROM biological_consumers WHERE consumer_id='resident:homeos'").get(),latest=db.prepare('SELECT id,type,core_id FROM recovery_records ORDER BY id DESC LIMIT 1').get();if(!(q==='ok'&&ok&&pending===0&&failed===0&&abandoned===0&&highWater===4575520&&outbox===0&&authority===0&&homeos?.status==='RUNNING'&&homeos.checkpoint_generation===572&&homeos.checkpoint_hash==='fd002974ab74be5bfd3307de723768d70d561ac412ea591f538529357605b441'&&consumer?.active===1&&consumer.cursor===4575520&&consumer.checkpoint_hash===homeos.checkpoint_hash&&latest?.id===237&&latest.type==='resident.r147-frame-boundary-replayed'&&latest.core_id==='HOMEOS'))process.exit(1);process.stdout.write(String(Number(JSON.parse(r.json).revision)));}finally{db.close();}
           NODE
             )"; then break; fi
             revision=''
@@ -272,7 +272,7 @@ jobs:
           done
           [[ "$revision" =~ ^[0-9]+$ ]]
           case "$operation" in
-            continue-r147-homeos) [[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 147 ]] ;;
+            finalize-r147-homeos) [[ "$current" == "$target_release" && "$revision" == 147 ]] ;;
             *) exit 64 ;;
           esac
           pid="$(systemctl show stay.service -p MainPID --value)"; restarts="$(systemctl show stay.service -p NRestarts --value)"
@@ -288,11 +288,10 @@ jobs:
           NODE
               [[ "$(systemctl show stay.service -p MainPID --value)" == "$pid" && "$(systemctl show stay.service -p NRestarts --value)" == "$restarts" ]]
               ;;
-            continue-*)
-              # Recovery is cohort-fenced by the target pointer, durable revision,
-              # immutable marker, and controller. HTTP may be unavailable because
-              # restoring that failed service is the sole purpose of this path.
-              [[ "$active" == inactive && "$substate" == dead && "$pid" == 0 ]]
+            finalize-*)
+              # Finalization is fenced to the exact post-durable timeout state.
+              # HTTP is unavailable because the prior controller stopped the service.
+              [[ "$active" == failed && "$substate" == failed && "$pid" == 0 ]]
               ;;
           esac
           printf 'R150_READ_ONLY_PREFLIGHT=PASS\nRUNTIME_REVISION=%s\nSERVICE_PID=%s\nSERVICE_STATE=%s/%s\nBENCHMARK_ACTIVE=NO\n' \
@@ -305,7 +304,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v23-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v24-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -324,7 +323,7 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
           set -euo pipefail
           root="$1"; stage="${2:-}"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v23-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v24-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
@@ -346,7 +345,7 @@ jobs:
           grep -Fx 'R150_CONTROLLER_CLEANUP_STATUS=PASS' controller.output
           grep -Fx 'P1_AUTHORITY=NONE' controller.output
           grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output
-          case "$OPERATION" in continue-r147-homeos) revision=147; stage=homeos-r147 ;; *) exit 64 ;; esac
+          case "$OPERATION" in finalize-r147-homeos) revision=147; stage=homeos-r147-finalize ;; *) exit 64 ;; esac
           grep -Fx "R150_CONTROLLER_STAGE=$stage" controller.output
           grep -Fx "R150_CONTROLLER_REVISION=R${revision}F" controller.output
           grep -Fx "RUNTIME_REVISION=$revision" controller.output
