@@ -31,7 +31,8 @@ eefe47106879190a2467095fcebc2536b07a0f8b68c9e9071d5e43d351feaadc  ./deploy/live-
 079885bc2a42225a9ddf688f6e19db01450aa5ae21b1e3769fb93d883c67b9f2  ./deploy/live-physiology-transplant/p1-r150-verify-birth-certificate.js
 8ff74048872fb1933ce439ff7124426ba37f719ff377aa8893af9def96f85ec5  ./deploy/live-physiology-transplant/p1-resident-control-client.js
 733abcec9162a7ab450492cb6e190d12ea9d4032dc7afc42b4da80da4cc3a03c  ./runtime/kernel/hardened-living-kernel.js
-813806376d7c287d931fb5a8e70ee7ab8f9ffa8e6a839b98e18a73ea5b6ab48c  ./runtime/kernel/living-kernel.js
+52074dc7e878d70bafa2cf9b8fa00f7aba1331a66832c3978350beafe65ea6d1  ./runtime/kernel/living-kernel.js
+db5a4a38205b142e4ca51db7f3f617b285e715747b1dc3fd9b8de8c340aecb00  ./runtime/kernel/resident-control-socket.js
 cf07937227667170de1db72f7a1ea355b7e8ca11f26218a05c4ca15a48eae8e4  ./runtime/kernel/resident-manager.js
 09bd18fa3e329a74ae3f3adce338164d6d6a191c0b98b781860cfc7d92becbcd  ./runtime/kernel/state-store.js
 92f6d6c9e77202b3d66c325e6bf1151b5da6a8bb8228880b99fe2c6c05b13935  ./runtime/p1-r0/deterministic-noise.js
@@ -79,9 +80,9 @@ ae96c03ab38750395a2f67e9eee1b80da23410f5bffc62e209421a3b924fe424  ./test/p1-r143
 5912a20dc88219d3ae9feb065190eb0a914b5ec595c86c81faf95e3c970d1afd  ./test/p1-r145-homeos-shadow.test.js
 a0437ed81a84a1892c1ab6e963a7139239c48139487989253764b1b491693578  ./test/p1-r146-metab-q48-implementation-repair.test.js
 b9aab93f03fb83c76488977410bee7b6dc60e698f22625581a687bb4c80b993c  ./test/p1-r147-continuation-recovery.test.js
-182f47ccb05a3c3974086ad7934c0c55d9b7617ab16b0730254ac5062d81967c  ./test/p1-r148-homeos-init-forward-recovery.test.js
+4658b9cfced97ae1b5c051fa2c483fe2bb3d128fad27521293f5564bf255813c  ./test/p1-r148-homeos-init-forward-recovery.test.js
 a4e5fbd0995ea71c618ad4af6d4c90b56b5b8ef25800d22090eb7e8fe6ef63ca  ./test/p1-r150-intero-shadow.test.js
-42a96dcbbec9cdacfb288fa27c549d2f682d53fee30e51a683efb23026853dfb  ./test/p1-r150-production-gates.test.js
+813196ce3dd7c85f273a3b112b8e337ada4cda2ec0fcad8966372bcfed17fcdc  ./test/p1-r150-production-gates.test.js
 612889fd85b1f565b687a210f449608d25f19632ca86cb38a8182afe0a15bac4  ./test/p1-surgery-a-transplant.test.js
 b1e401c43d4a2b6cee8e3c67a1dd1a3b10bfb9e376926d361ac1a99da64b3cb1  ./test/production-hardening.test.js
 32d6f4ab1a9b6f162d757c673938f4c6b1464187667811cb5b440ee894053212  ./tools/sign-p1-r0-expansion-birth.js

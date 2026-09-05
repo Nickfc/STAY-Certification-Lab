@@ -33,7 +33,10 @@ function validateRequest(value) {
   if (value.format !== FORMAT || !OPERATIONS.has(value.operation)) {
     fail('resident-control operation is invalid', 'RESIDENT_CONTROL_OPERATION');
   }
-  if (!Object.prototype.hasOwnProperty.call(RESIDENT_MODULES, value.residencyId)) {
+  const homeosStatusOnly = value.operation === 'status' &&
+    value.residencyId === 'resident:homeos';
+  if (!Object.prototype.hasOwnProperty.call(RESIDENT_MODULES, value.residencyId) &&
+      !homeosStatusOnly) {
     fail('resident-control residency is not allowlisted', 'RESIDENT_CONTROL_RESIDENCY');
   }
   if (value.operation === 'birth' && value.residencyId !== 'resident:metab') {

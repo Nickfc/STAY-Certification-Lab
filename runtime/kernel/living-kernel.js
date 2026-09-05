@@ -560,6 +560,52 @@ const R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION = Object.freeze({
   })
 });
 
+/*
+ * The first exact post-durable finalization reconstructed all four residents,
+ * but its external acceptance client reached a server-side status allowlist
+ * that still excluded HOMEOS.  Fail-closed cleanup stopped the service after
+ * the reconstruction was committed.  This fence permits only that resulting
+ * R148 cohort to restart without replaying events or advancing to R149.
+ */
+const R148_HOMEOS_POST_FINALIZATION_RESTART = Object.freeze({
+  authorization: 'AUTHORIZE_STRANDED_R148_HOMEOS_POST_FINALIZATION_RESTART_ONLY',
+  runtimeRevision: 148,
+  highWater: 4575682,
+  latestRecoveryRecordId: 250,
+  runtimeRevisionMetadataHash:
+    '95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0',
+  capacitySourceMetadataHash:
+    'e9a6efb7deff7c43d2adffe10b90f85a3327a3b9ffe5a7f9df0da4067f75b0b4',
+  residents: Object.freeze({
+    'resident:chronobiology': Object.freeze({
+      ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.residents['resident:chronobiology'],
+      checkpointGeneration: 12396,
+      checkpointId: '508c0ce9-bd8c-46d0-8dc2-5332f409d6e1'
+    }),
+    'resident:homeos': Object.freeze({
+      ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.residents['resident:homeos'],
+      checkpointGeneration: 641,
+      checkpointId: 'cd5ac03d-8f56-4dc5-92b1-ba531ded973e'
+    }),
+    'resident:metab': Object.freeze({
+      ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.residents['resident:metab'],
+      checkpointGeneration: 325472,
+      checkpointId: '2796adc0-92a4-415d-9d2f-3f628f6c8483'
+    }),
+    'resident:sntss': Object.freeze({
+      ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.residents['resident:sntss'],
+      checkpointGeneration: 2891384,
+      checkpointId: '3eee91b2-07cb-4e20-b222-3d7c32279e9e'
+    })
+  }),
+  fetus: Object.freeze({
+    ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.fetus,
+    checkpointGeneration: 217,
+    checkpointHash: 'dcfd5507220929e87bf28ec222170fc7bc537ff764d2056ba911be3ec2ab128e',
+    checkpointBytes: 62848
+  })
+});
+
 const R150_INTERO_SHADOW = Object.freeze({
   birthAuthorization: 'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY',
   metabRouteAuthorization: 'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY',
@@ -1121,6 +1167,7 @@ class LivingKernel {
     this.r147DeferredResidentRecovery = false;
     this.r148HomeosInitForwardRecoveryActive = false;
     this.r148HomeosInitPostDurableFinalizationActive = false;
+    this.r148HomeosInitPostDurableFinalizationExpected = null;
     this.r148DeferredResidentRecovery = false;
     this.p1ExpansionFetusInstallRevisionPreservation = null;
     this.p1ExpansionFetusInstallPreserved = false;
@@ -2106,10 +2153,12 @@ class LivingKernel {
   }
 
   preserveExactR148HomeosInitPostDurableFinalizationRevision() {
-    const expected = R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
-    if (this.homeosR148InitPostDurableFinalizationAuthorization !== expected.authorization) {
-      return false;
-    }
+    const expected = [
+      R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
+      R148_HOMEOS_POST_FINALIZATION_RESTART
+    ].find(fence =>
+      this.homeosR148InitPostDurableFinalizationAuthorization === fence.authorization);
+    if (!expected) return false;
     const reject = () => {
       throw Object.assign(new Error('authorized R148 post-durable cohort changed'), {
         code: 'P1_R148_INIT_FINALIZATION_IDENTITY'
@@ -2215,6 +2264,7 @@ class LivingKernel {
     ) return reject();
 
     this.r148HomeosInitPostDurableFinalizationActive = true;
+    this.r148HomeosInitPostDurableFinalizationExpected = expected;
     this.r148DeferredResidentRecovery = true;
     this.p1ExpansionFetusInstallRevisionPreservation = this.runtimeRevision;
     return true;
@@ -7607,8 +7657,11 @@ class LivingKernel {
   }
 
   async completeExactR148PostDurableResidentFinalization() {
-    const expected = R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
+    const expected = this.r148HomeosInitPostDurableFinalizationExpected ||
+      R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
     if (
+      ![R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
+        R148_HOMEOS_POST_FINALIZATION_RESTART].includes(expected) ||
       this.r148DeferredResidentRecovery !== true ||
       this.r148HomeosInitPostDurableFinalizationActive !== true ||
       this.runtimeRevision !== expected.runtimeRevision ||
@@ -7643,6 +7696,7 @@ class LivingKernel {
     this.lastResidentRecovery = Object.freeze(ordinaryRecovery);
     this.r148DeferredResidentRecovery = false;
     this.r148HomeosInitPostDurableFinalizationActive = false;
+    this.r148HomeosInitPostDurableFinalizationExpected = null;
     this.startMaintenance();
     this.statusCache = null;
     return this.lastResidentRecovery;
@@ -8393,6 +8447,7 @@ module.exports = {
   R147_HOMEOS_FRAME_BOUNDARY_RECOVERY,
   R148_HOMEOS_INIT_FORWARD_RECOVERY,
   R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
+  R148_HOMEOS_POST_FINALIZATION_RESTART,
   R150_INTERO_SHADOW,
   isBoundedMetabPromotionTail,
   defaultMetabCapacitySampler,

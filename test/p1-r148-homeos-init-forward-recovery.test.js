@@ -10,9 +10,11 @@ const test = require('node:test');
 const {
   LivingKernel,
   R148_HOMEOS_INIT_FORWARD_RECOVERY,
-  R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION
+  R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
+  R148_HOMEOS_POST_FINALIZATION_RESTART
 } = require('../runtime/kernel/living-kernel');
 const { StateStore } = require('../runtime/kernel/state-store');
+const { FORMAT, validateRequest } = require('../runtime/kernel/resident-control-socket');
 
 const REVISION_JSON =
   '{"revision":148,"reason":"kernel.start","at":"2026-09-05T02:17:05.453Z","kernelVersion":"0.8.11.3","version":"0.8.11.3","pid":595505}';
@@ -307,4 +309,28 @@ test('R148-FINAL-02 reconstructs the same four residents only after fetus instal
   const source = await fs.readFile(path.join(__dirname, '..', 'server.js'), 'utf8');
   assert.ok(source.indexOf('await kernel.installCore(process.env.STAY_BOOT_CORE)') <
     source.indexOf('await kernel.completeExactR148PostDurableResidentFinalization()'));
+});
+
+test('R148-FINAL-03 exact post-finalization restart is revision-preserving and HOMEOS status-only', () => {
+  const expected = R148_HOMEOS_POST_FINALIZATION_RESTART;
+  const { harness, residents } = r148Harness(expected, { postDurable: true });
+  assert.equal(
+    LivingKernel.prototype.preserveExactR148HomeosInitPostDurableFinalizationRevision
+      .call(harness),
+    true
+  );
+  assert.equal(harness.r148HomeosInitPostDurableFinalizationExpected, expected);
+  assert.equal(harness.r148DeferredResidentRecovery, true);
+  assert.deepEqual(validateRequest({
+    format: FORMAT, operation: 'status', residencyId: 'resident:homeos'
+  }), { operation: 'status', residencyId: 'resident:homeos' });
+  assert.throws(() => validateRequest({
+    format: FORMAT, operation: 'detach', residencyId: 'resident:homeos'
+  }), { code: 'RESIDENT_CONTROL_RESIDENCY' });
+  residents['resident:sntss'].checkpointGeneration--;
+  assert.throws(
+    () => LivingKernel.prototype.preserveExactR148HomeosInitPostDurableFinalizationRevision
+      .call(harness),
+    { code: 'P1_R148_INIT_FINALIZATION_IDENTITY' }
+  );
 });
