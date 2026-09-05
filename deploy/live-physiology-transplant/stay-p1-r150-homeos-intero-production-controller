@@ -5,71 +5,93 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH LC_ALL=C
 
 EXPECTED_PRIVATE_IPV4='172.26.9.207'
-SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'
-SOURCE_MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R139_TO_R141.sha256'
-SOURCE_MANIFEST_SHA256='6a1e6a9ffbfd484c3d0623bd5ec20e922b34bfe79fd74562c11cda59a0fa5107'
-PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-9a94dba608c5'
-PREVIOUS_HOMEOS_MANIFEST_SHA256='9a94dba608c506d38788d6498d3f1a92388420b6093acc6e9cf4a27e482b9a30'
-PREVIOUS_HOMEOS_CONTROLLER_SHA256='f09e7c1e28369af56b37af69e2727c2222226d8445904294563a39f413de4d31'
-TARGET_RELEASE_BOUND_CONTROLLER_SHA256='e4680f56afdb60138e78217b602b0cc018e522e6a764c7980c015a28bd453b72'
-RELEASE_TAG='r150-homeos-intero-shadow-v21'
-RELEASE_TAG_OBJECT='b703d1030fe19c77e6b00cde7cd3a908cc0e7086'
-RELEASE_COMMIT='08cbc4a8db10868cd751ae3fe208d4a4467ae4d0'
-RELEASE_TREE='455dde13ccd63a0f0be32ee2b59af2055c055369'
-ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V21_BUNDLE_20260905.tar.gz'
-ARCHIVE_SHA256='9cb72d077e1497ccfe5037d3ff6994b0471f0489019f3a99aa5341b5adb953e2'
-SIDECAR_SHA256='05e6bc1c155a09029f42bb1e199905c7361abc6dfb5c2698864d771c784defcc'
+PREVIOUS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3aa588159412'
+PREVIOUS_MANIFEST_SHA256='3aa5881594126012fe090a99df84e55378ff5a39e09ba5480c6d33cf4d96d6a8'
+PREVIOUS_BOUND_CONTROLLER_SHA256='e4680f56afdb60138e78217b602b0cc018e522e6a764c7980c015a28bd453b72'
+RELEASE_TAG='r150-homeos-intero-shadow-v22'
+RELEASE_TAG_OBJECT='c6570c7f37acb495a92095729ac56c895a514f1c'
+RELEASE_COMMIT='1a2ff66909dd5eb065e08ca807a13e8ec5951c51'
+RELEASE_TREE='f05af36c697a4c0f48892e51d83ff4139369e088'
+ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V22_BUNDLE_20260905.tar.gz'
+ARCHIVE_SHA256='56942c3982d99aee293c09f882ba4d15c58a249fe81f4159d588eea2a2d7a031'
+SIDECAR_SHA256='f7eb8d227106d60aac3d9c637d175eab06ec748031720dca8662a400c572db67'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-MANIFEST_SHA256='3aa5881594126012fe090a99df84e55378ff5a39e09ba5480c6d33cf4d96d6a8'
-FORWARD='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh'
+MANIFEST_SHA256='c1651b9150bc5c14d254d86caa60cb267317301c01c95282929fc696f4c6160b'
 FORWARD_SHA256='98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c'
-RECOVERY='deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh'
 RECOVERY_SHA256='1cd30b887134a6b4ad6257ce630cd57a763b49527e4f92ec3152cfd41c18c369'
+TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc'
 PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
 FREEZER='deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js'
 CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
-R147_CONTINUATION_PREFLIGHT='deploy/live-physiology-transplant/p1-r147-homeos-continuation-preflight.js'
-R147_FRAME_BOUNDARY_REPAIR='deploy/live-physiology-transplant/p1-r147-homeos-frame-boundary-repair.js'
-TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3aa588159412'
+PREFLIGHT='deploy/live-physiology-transplant/p1-r148-homeos-init-forward-preflight.js'
+SNAPSHOT_HELPER='deploy/live-physiology-transplant/p1-r148-create-init-recovery-snapshot.js'
 PUBLIC_KEY='/etc/stay/p1-r0-expansion-birth-authority.pub'
 PUBLIC_KEY_SHA256='f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc'
-FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
 DATABASE='/var/lib/stay/data/continuity.sqlite3'
+DATA_ROOT='/var/lib/stay/data'
+FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
 EVIDENCE_ROOT='/var/lib/stay/evidence/production-hardening'
-R147_HOMEOS_FAILURE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R147-HOMEOS-R147-RECOVERY-20260904T190412Z.o7ctIx'
-R147_HOMEOS_FAILURE_BEFORE_SHA256='92b0aabcabb95c29f0a706f3ed7bbfa3f498d6a007af1cd6cce847a7327b8623'
-R147_HOMEOS_CERTIFICATE_SHA256='a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c'
-RUNTIME_SECONDS=120
+SOURCE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R147-HOMEOS-POST-DURABLE-FINALIZE-20260905T021824Z.MDlt6q'
+R147_MARKER='/run/stay-r147-homeos-shadow-recovery.env'
+RECOVERY_DROPIN='/etc/systemd/system/stay.service.d/r148-homeos-init-recovery-once.conf'
+RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_INIT_FORWARD_RECOVERY_ONLY'
 
-WORK_ROOT=''; CANDIDATE=''; RUN_ROOT=''; FINALIZE_WORK=''; SERVICE_STARTED=0
-CLEANUP_ARMED=0; FAILURE_CLASS='UNCLASSIFIED'
+WORK_ROOT=''; CANDIDATE=''; RUN_ROOT=''; RECOVERY_WORK=''; SERVICE_STARTED=0; POINTER_ADVANCED=0
+CLEANUP_ARMED=0; DROPIN_INSTALLED=0; FREEZE_INSTALLED=0; FAILURE_CLASS='UNCLASSIFIED'
+
 abort_controller(){ printf 'R150_CONTROLLER_ABORT=%s\nR150_CONTROLLER_FAILURE_CLASS=%s\n' "$3" "$2" >&2; exit "$1"; }
-sha256_file(){ sha256sum "$1"|awk '{print $1}'; }
-observed_private_ipv4(){ ip -o -4 addr show scope global|awk '{a=$4;sub(/\/.*/,"",a);print a}'|sort -u; }
+sha256_file(){ sha256sum "$1" | awk '{print $1}'; }
+observed_private_ipv4(){ ip -o -4 addr show scope global | awk '{a=$4;sub(/\/.*/,"",a);print a}' | sort -u; }
 trusted_root_file(){ [[ -f "$1" && ! -L "$1" && "$(stat -Lc '%U:%G' "$1")" == root:root && -z "$(find -P "$1" -maxdepth 0 -perm /022 -print -quit)" ]]; }
 safe_relative(){ [[ "$1" =~ ^[A-Za-z0-9._/-]+$ && "$1" != /* && ! "$1" =~ (^|/)\.\.(/|$) && "$1" != *\\* ]]; }
 validate_root_tree(){ [[ -z "$(find -P "$1" -xdev \( -type l -o ! -type d ! -type f -o ! -user root -o ! -group root -o -perm /022 \) -print -quit)" ]]; }
 
 finish_controller(){
-  local status=$? cleanup=0
+  local status=$? cleanup=0 failed
   trap - EXIT; set +e
   if [[ "$CLEANUP_ARMED" -eq 1 ]]; then
-    if [[ "$SERVICE_STARTED" -eq 1 ]]; then systemctl stop stay.service >/dev/null 2>&1||cleanup=1; fi
-    if [[ -n "$FINALIZE_WORK" && "$FINALIZE_WORK" =~ ^$EVIDENCE_ROOT/\.R147-HOMEOS-POST-DURABLE-FINALIZE-[0-9TZ]+\.[A-Za-z0-9]+$ && -d "$FINALIZE_WORK" && ! -L "$FINALIZE_WORK" ]]; then
-      failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R147-HOMEOS-POST-DURABLE-FINALIZE-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
-      rmdir -- "$failed"&&mv -T "$FINALIZE_WORK" "$failed"&&chmod -R a-w "$failed"||cleanup=1; FINALIZE_WORK=''
+    if [[ "$SERVICE_STARTED" -eq 1 ]]; then systemctl stop stay.service >/dev/null 2>&1 || cleanup=1; fi
+    if [[ "$DROPIN_INSTALLED" -eq 1 ]]; then
+      rm -f -- "$RECOVERY_DROPIN" || cleanup=1
+      systemctl daemon-reload >/dev/null 2>&1 || cleanup=1
     fi
-    if [[ -n "$CANDIDATE" && "$CANDIDATE" =~ ^/opt/stay/releases/\.p1r0-r150\.[A-Za-z0-9]+$ && -d "$CANDIDATE" && ! -L "$CANDIDATE" ]]; then rm -rf --one-file-system -- "$CANDIDATE"||cleanup=1; fi
-    if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then rm -rf --one-file-system -- "$WORK_ROOT"||cleanup=1; fi
-    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v24-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then rm -rf --one-file-system -- "$RUN_ROOT"||cleanup=1; fi
+    if [[ "$FREEZE_INSTALLED" -eq 1 && -f "$FREEZE_DIR/R148.json" && ! -L "$FREEZE_DIR/R148.json" ]]; then
+      rm -f -- "$FREEZE_DIR/R148.json" || cleanup=1
+    fi
+    if [[ "$POINTER_ADVANCED" -eq 1 && "$SERVICE_STARTED" -eq 0 &&
+      "$(readlink -f /opt/stay/current 2>/dev/null)" == "$TARGET_RELEASE" ]]; then
+      pointer_rollback="/opt/stay/.current-r150-r148-rollback.$$"
+      if [[ ! -e "$pointer_rollback" && ! -L "$pointer_rollback" ]]; then
+        ln -s "$PREVIOUS_RELEASE" "$pointer_rollback" &&
+          mv -Tf "$pointer_rollback" /opt/stay/current || cleanup=1
+      else
+        cleanup=1
+      fi
+    fi
+    if [[ -n "$RECOVERY_WORK" && "$RECOVERY_WORK" =~ ^$EVIDENCE_ROOT/\.R148-HOMEOS-INIT-FORWARD-[0-9TZ]+\.[A-Za-z0-9]+$ && -d "$RECOVERY_WORK" && ! -L "$RECOVERY_WORK" ]]; then
+      failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R148-HOMEOS-INIT-FORWARD-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+      rmdir -- "$failed" && mv -T "$RECOVERY_WORK" "$failed" && chmod -R a-w "$failed" || cleanup=1
+      RECOVERY_WORK=''
+    fi
+    if [[ -n "$CANDIDATE" && "$CANDIDATE" =~ ^/opt/stay/releases/\.p1r0-r150-r148\.[A-Za-z0-9]+$ && -d "$CANDIDATE" && ! -L "$CANDIDATE" ]]; then
+      rm -rf --one-file-system -- "$CANDIDATE" || cleanup=1
+    fi
+    if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-r148-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then
+      rm -rf --one-file-system -- "$WORK_ROOT" || cleanup=1
+    fi
+    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v25-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then
+      rm -rf --one-file-system -- "$RUN_ROOT" || cleanup=1
+    fi
   fi
-  printf 'R150_CONTROLLER_FAILURE_CLASS=%s\nR150_CONTROLLER_CLEANUP_STATUS=%s\n' "$FAILURE_CLASS" "$([[ "$cleanup" -eq 0 ]]&&echo PASS||echo FAIL)"
-  [[ "$status" -ne 0 ]]&&exit "$status"; exit "$cleanup"
+  printf 'R150_CONTROLLER_FAILURE_CLASS=%s\nR150_CONTROLLER_CLEANUP_STATUS=%s\n' \
+    "$FAILURE_CLASS" "$([[ "$cleanup" -eq 0 ]] && echo PASS || echo FAIL)"
+  [[ "$status" -ne 0 ]] && exit "$status"
+  exit "$cleanup"
 }
 
 validate_run_root(){
   local root="$1"
-  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v24-[0-9]+$ && -d "$root" && ! -L "$root" &&
+  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v25-[0-9]+$ && -d "$root" && ! -L "$root" &&
     "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 &&
     -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy -o -perm /077 \) -print -quit)" ]]
 }
@@ -89,52 +111,30 @@ TARGET_RELEASE=$TARGET_RELEASE
 EOF
 }
 
-verify_staged_release(){
-  local expected actual line entry
-  expected="$(printf '%s\n' P1_R150_RELEASE.identity "$ARCHIVE" "$ARCHIVE.sha256"|sort)"
-  actual="$(find "$RUN_ROOT" -maxdepth 1 -type f -printf '%f\n'|sort)"
-  if [[ "$FORWARD_OPERATION" -eq 1 ]]; then
-    expected="$(printf '%s\n' P1_R150_RELEASE.identity "$ARCHIVE" "$ARCHIVE.sha256" "$STAGE.birth-certificate.json" "$STAGE.founder-dossier.json"|sort)"
-  fi
-  [[ "$actual" == "$expected" && "$(<"$RUN_ROOT/P1_R150_RELEASE.identity")" == "$(expected_identity)" &&
-    "$(sha256_file "$RUN_ROOT/$ARCHIVE")" == "$ARCHIVE_SHA256" &&
-    "$(sha256_file "$RUN_ROOT/$ARCHIVE.sha256")" == "$SIDECAR_SHA256" ]]||return 1
-  (cd "$RUN_ROOT"&&sha256sum -c "$ARCHIVE.sha256" >/dev/null)||return 1
-  mapfile -t entries < <(tar -tzf "$RUN_ROOT/$ARCHIVE")
-  [[ "${#entries[@]}" -gt 81 && "$(printf '%s\n' "${entries[@]}"|sort -u|wc -l)" -eq "${#entries[@]}" ]]||return 1
-  for entry in "${entries[@]}";do [[ -n "$entry" ]]&&safe_relative "${entry%/}"||return 1;done
-  tar -tvzf "$RUN_ROOT/$ARCHIVE"|awk 'substr($1,1,1)!~/[-d]/{bad=1}END{exit bad}'||return 1
-}
-
-prepare_overlay(){
-  WORK_ROOT="$(mktemp -d /run/stay-r150-controller.XXXXXX)"||return 1
-  install -d -o root -g root -m 0700 "$WORK_ROOT/overlay"
-  tar -xzf "$RUN_ROOT/$ARCHIVE" -C "$WORK_ROOT/overlay"||return 1
-  [[ "$(find "$WORK_ROOT/overlay" -type f|wc -l)" -eq 84 &&
-    "$(sha256_file "$WORK_ROOT/overlay/$MANIFEST")" == "$MANIFEST_SHA256" &&
-    "$(sha256_file "$WORK_ROOT/overlay/$FORWARD")" == "$FORWARD_SHA256" &&
-    "$(sha256_file "$WORK_ROOT/overlay/$RECOVERY")" == "$RECOVERY_SHA256" ]]||return 1
-  (cd "$WORK_ROOT/overlay"&&sha256sum -c "$MANIFEST" >/dev/null)||return 1
-  { awk '{sub(/^\.\//,"",$2);print $2}' "$WORK_ROOT/overlay/$MANIFEST";echo "$MANIFEST";}|sort > "$WORK_ROOT/expected"
-  (cd "$WORK_ROOT/overlay"&&find . -type f -printf '%P\n'|sort)>"$WORK_ROOT/actual"
-  cmp "$WORK_ROOT/expected" "$WORK_ROOT/actual" >/dev/null||return 1
-  while IFS= read -r line;do case "$line" in *.js)/usr/local/bin/node --check "$WORK_ROOT/overlay/$line" >/dev/null||return 1;;*.sh)/bin/bash -n "$WORK_ROOT/overlay/$line"||return 1;;esac;done < "$WORK_ROOT/actual"
-  if [[ "$FORWARD_OPERATION" -eq 1 ]]; then
-    install -o root -g root -m 0400 "$RUN_ROOT/$STAGE.birth-certificate.json" "$WORK_ROOT/$STAGE.birth-certificate.json"
-    install -o root -g root -m 0400 "$RUN_ROOT/$STAGE.founder-dossier.json" "$WORK_ROOT/$STAGE.founder-dossier.json"
-    [[ "$(sha256_file "$WORK_ROOT/$STAGE.birth-certificate.json")" == "${CERTIFICATE_SHA256#sha256:}" ]]||return 1
-    STAY_DOSSIER="$WORK_ROOT/$STAGE.founder-dossier.json" STAY_CERT="$WORK_ROOT/$STAGE.birth-certificate.json" \
-      STAY_DOSSIER_SHA="$DOSSIER_SHA256" /usr/local/bin/node <<'NODE'
-'use strict';const fs=require('node:fs'),crypto=require('node:crypto');const stable=v=>Array.isArray(v)?`[${v.map(stable).join(',')}]`:v&&typeof v==='object'?`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`:JSON.stringify(v);const d=JSON.parse(fs.readFileSync(process.env.STAY_DOSSIER,'utf8')),c=JSON.parse(fs.readFileSync(process.env.STAY_CERT,'utf8')),h=`sha256:${crypto.createHash('sha256').update(stable(d)).digest('hex')}`;if(!(h===process.env.STAY_DOSSIER_SHA&&c?.body?.founderDossierSha256===h))process.exit(1);
-NODE
-  fi
-}
-
-expected_release_env(){ local controller_sha="$1";cat <<EOF
+expected_previous_release_env(){ cat <<EOF
 P1_R150_HOMEOS_INTERO_SHADOW=PASS
-SOURCE_RELEASE=$SOURCE_RELEASE
+SOURCE_RELEASE=/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
 SOURCE_RUNTIME_REVISION=R141F
 TARGET_RUNTIME_REVISION=R147F
+RELEASE_PATH=$PREVIOUS_RELEASE
+RELEASE_TAG=r150-homeos-intero-shadow-v21
+RELEASE_COMMIT=08cbc4a8db10868cd751ae3fe208d4a4467ae4d0
+RELEASE_TREE=455dde13ccd63a0f0be32ee2b59af2055c055369
+ARCHIVE_SHA256=sha256:9cb72d077e1497ccfe5037d3ff6994b0471f0489019f3a99aa5341b5adb953e2
+MANIFEST_SHA256=sha256:$PREVIOUS_MANIFEST_SHA256
+CONTROLLER_SHA256=sha256:$PREVIOUS_BOUND_CONTROLLER_SHA256
+FORWARD_SHA256=sha256:$FORWARD_SHA256
+RECOVERY_SHA256=sha256:$RECOVERY_SHA256
+EXPANSION_PUBLIC_KEY_SHA256=sha256:$PUBLIC_KEY_SHA256
+BENCHMARK_START_AUTHORIZED=NO
+EOF
+}
+
+expected_release_env(){ local controller_sha="$1"; cat <<EOF
+P1_R150_HOMEOS_INTERO_SHADOW=PASS
+SOURCE_RELEASE=$PREVIOUS_RELEASE
+SOURCE_RUNTIME_REVISION=R148
+TARGET_RUNTIME_REVISION=R148F
 RELEASE_PATH=$TARGET_RELEASE
 RELEASE_TAG=$RELEASE_TAG
 RELEASE_COMMIT=$RELEASE_COMMIT
@@ -149,322 +149,293 @@ BENCHMARK_START_AUTHORIZED=NO
 EOF
 }
 
-expected_previous_homeos_release_env(){ cat <<EOF
-P1_R150_HOMEOS_INTERO_SHADOW=PASS
-SOURCE_RELEASE=$SOURCE_RELEASE
-SOURCE_RUNTIME_REVISION=R141F
-TARGET_RUNTIME_REVISION=R147F
-RELEASE_PATH=$PREVIOUS_HOMEOS_RELEASE
-RELEASE_TAG=r150-homeos-intero-shadow-v20
-RELEASE_COMMIT=12687127c1bc60e6036f4d2c8bf2831c3ce0fa9e
-RELEASE_TREE=e277f6e2f31481346e9a52deedbc51d8d9633fd0
-ARCHIVE_SHA256=sha256:2132f84d7f01dc1400a1bdfa3c8d628f99f5ebe7048b38e21935592eee10813b
-MANIFEST_SHA256=sha256:$PREVIOUS_HOMEOS_MANIFEST_SHA256
-CONTROLLER_SHA256=sha256:$PREVIOUS_HOMEOS_CONTROLLER_SHA256
-FORWARD_SHA256=sha256:98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
-RECOVERY_SHA256=sha256:63e74c3e991eb998b0081a31f54aff602e3fbc09ed7d6ffdd3586e1df0a3a4d7
-EXPANSION_PUBLIC_KEY_SHA256=sha256:$PUBLIC_KEY_SHA256
-BENCHMARK_START_AUTHORIZED=NO
-EOF
-}
-
-expected_previous_r147_marker(){ cat <<EOF
+expected_r147_marker(){ cat <<EOF
 R150_STAGE=homeos-r147
-R150_TARGET_RELEASE=$PREVIOUS_HOMEOS_RELEASE
-R150_RELEASE_TAG=r150-homeos-intero-shadow-v20
-R150_RELEASE_COMMIT=12687127c1bc60e6036f4d2c8bf2831c3ce0fa9e
-R150_RELEASE_TREE=e277f6e2f31481346e9a52deedbc51d8d9633fd0
-R150_ARCHIVE_SHA256=sha256:2132f84d7f01dc1400a1bdfa3c8d628f99f5ebe7048b38e21935592eee10813b
-R150_MANIFEST_SHA256=sha256:$PREVIOUS_HOMEOS_MANIFEST_SHA256
-R150_CONTROLLER_SHA256=sha256:$PREVIOUS_HOMEOS_CONTROLLER_SHA256
+R150_TARGET_RELEASE=$PREVIOUS_RELEASE
+R150_RELEASE_TAG=r150-homeos-intero-shadow-v21
+R150_RELEASE_COMMIT=08cbc4a8db10868cd751ae3fe208d4a4467ae4d0
+R150_RELEASE_TREE=455dde13ccd63a0f0be32ee2b59af2055c055369
+R150_ARCHIVE_SHA256=sha256:9cb72d077e1497ccfe5037d3ff6994b0471f0489019f3a99aa5341b5adb953e2
+R150_MANIFEST_SHA256=sha256:$PREVIOUS_MANIFEST_SHA256
+R150_CONTROLLER_SHA256=sha256:$PREVIOUS_BOUND_CONTROLLER_SHA256
 R150_FAILURE_EVIDENCE=/var/lib/stay/evidence/production-hardening/FAILED-R147-HOMEOS-R147-RECOVERY-20260904T190412Z.o7ctIx
 R150_CERTIFICATE_SHA256=sha256:a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c
 EOF
 }
 
-expected_current_r147_marker(){ cat <<EOF
-R150_STAGE=homeos-r147
-R150_TARGET_RELEASE=$TARGET_RELEASE
-R150_RELEASE_TAG=$RELEASE_TAG
-R150_RELEASE_COMMIT=$RELEASE_COMMIT
-R150_RELEASE_TREE=$RELEASE_TREE
-R150_ARCHIVE_SHA256=sha256:$ARCHIVE_SHA256
-R150_MANIFEST_SHA256=sha256:$MANIFEST_SHA256
-R150_CONTROLLER_SHA256=sha256:$TARGET_RELEASE_BOUND_CONTROLLER_SHA256
-R150_FAILURE_EVIDENCE=$R147_HOMEOS_FAILURE_EVIDENCE
-R150_CERTIFICATE_SHA256=sha256:$R147_HOMEOS_CERTIFICATE_SHA256
-EOF
+verify_staged_release(){
+  local expected actual entry
+  expected="$(printf '%s\n' P1_R150_RELEASE.identity "$ARCHIVE" "$ARCHIVE.sha256" | sort)"
+  actual="$(find "$RUN_ROOT" -maxdepth 1 -type f -printf '%f\n' | sort)"
+  [[ "$actual" == "$expected" && "$(<"$RUN_ROOT/P1_R150_RELEASE.identity")" == "$(expected_identity)" &&
+    "$(sha256_file "$RUN_ROOT/$ARCHIVE")" == "$ARCHIVE_SHA256" &&
+    "$(sha256_file "$RUN_ROOT/$ARCHIVE.sha256")" == "$SIDECAR_SHA256" ]] || return 1
+  (cd "$RUN_ROOT" && sha256sum -c "$ARCHIVE.sha256" >/dev/null) || return 1
+  mapfile -t entries < <(tar -tzf "$RUN_ROOT/$ARCHIVE")
+  [[ "${#entries[@]}" -eq 109 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq 109 ]] || return 1
+  for entry in "${entries[@]}"; do [[ -n "$entry" ]] && safe_relative "${entry%/}" || return 1; done
+  tar -tvzf "$RUN_ROOT/$ARCHIVE" | awk 'substr($1,1,1)!~/[-d]/{bad=1}END{exit bad}'
+}
+
+prepare_overlay(){
+  WORK_ROOT="$(mktemp -d /run/stay-r150-r148-controller.XXXXXX)" || return 1
+  install -d -o root -g root -m 0700 "$WORK_ROOT/overlay"
+  tar -xzf "$RUN_ROOT/$ARCHIVE" -C "$WORK_ROOT/overlay" || return 1
+  [[ "$(find "$WORK_ROOT/overlay" -type f | wc -l)" -eq 87 &&
+    "$(wc -l < "$WORK_ROOT/overlay/$MANIFEST")" -eq 86 &&
+    "$(sha256_file "$WORK_ROOT/overlay/$MANIFEST")" == "$MANIFEST_SHA256" ]] || return 1
+  (cd "$WORK_ROOT/overlay" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
+  { awk '{sub(/^\.\//,"",$2);print $2}' "$WORK_ROOT/overlay/$MANIFEST"; printf '%s\n' "$MANIFEST"; } | sort >"$WORK_ROOT/expected"
+  (cd "$WORK_ROOT/overlay" && find . -type f -printf '%P\n' | sort) >"$WORK_ROOT/actual"
+  cmp "$WORK_ROOT/expected" "$WORK_ROOT/actual" >/dev/null || return 1
+  while IFS= read -r file; do
+    case "$file" in
+      *.js) /usr/local/bin/node --check "$WORK_ROOT/overlay/$file" >/dev/null || return 1 ;;
+      *.sh) /bin/bash -n "$WORK_ROOT/overlay/$file" || return 1 ;;
+    esac
+  done <"$WORK_ROOT/actual"
+}
+
+verify_previous_release(){
+  [[ -d "$PREVIOUS_RELEASE" && ! -L "$PREVIOUS_RELEASE" &&
+    "$(sha256_file "$PREVIOUS_RELEASE/$MANIFEST")" == "$PREVIOUS_MANIFEST_SHA256" &&
+    "$(<"$PREVIOUS_RELEASE/P1_R150_RELEASE.env")" == "$(expected_previous_release_env)" ]] || return 1
+  validate_root_tree "$PREVIOUS_RELEASE" &&
+    (cd "$PREVIOUS_RELEASE" && sha256sum -c "$MANIFEST" >/dev/null)
 }
 
 verify_target(){
-  local root="$1" controller_sha="$2"
-  [[ -d "$root" && ! -L "$root" && "$(sha256_file "$root/$MANIFEST")" == "$MANIFEST_SHA256" &&
-    "$(sha256_file "$root/$FORWARD")" == "$FORWARD_SHA256" && "$(sha256_file "$root/$RECOVERY")" == "$RECOVERY_SHA256" &&
-    "$(<"$root/P1_R150_RELEASE.env")" == "$(expected_release_env "$controller_sha")" ]]||return 1
-  validate_root_tree "$root"&&(cd "$root"&&sha256sum -c "$MANIFEST" >/dev/null)
+  local controller_sha="$1"
+  [[ -d "$TARGET_RELEASE" && ! -L "$TARGET_RELEASE" &&
+    "$(sha256_file "$TARGET_RELEASE/$MANIFEST")" == "$MANIFEST_SHA256" &&
+    "$(<"$TARGET_RELEASE/P1_R150_RELEASE.env")" == "$(expected_release_env "$controller_sha")" ]] || return 1
+  validate_root_tree "$TARGET_RELEASE" &&
+    (cd "$TARGET_RELEASE" && sha256sum -c "$MANIFEST" >/dev/null)
 }
 
-verify_bound_target(){ verify_target "$TARGET_RELEASE" "$TARGET_RELEASE_BOUND_CONTROLLER_SHA256"; }
-
 run_candidate_preflight(){
-  local root="$1" before_pid before_restarts
-  before_pid="$(systemctl show stay.service -p MainPID --value)";before_restarts="$(systemctl show stay.service -p NRestarts --value)"
-  STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox STAY_REQUIRE_OS_CORE_SANDBOX=1 \
-    /usr/local/bin/node --test --test-isolation=none --test-concurrency=1 \
-    "$root/test/p1-r0-metab-red.test.js" "$root/test/p1-r146-metab-q48-implementation-repair.test.js" \
-    "$root/test/p1-r143-homeos-neutral-birth.test.js" "$root/test/p1-r145-homeos-shadow.test.js" \
-    "$root/test/p1-r147-continuation-recovery.test.js" \
-    "$root/test/p1-r150-intero-shadow.test.js" "$root/test/p1-r150-production-gates.test.js" \
-    >"$WORK_ROOT/focused-tests.tap" 2>&1||{ cat "$WORK_ROOT/focused-tests.tap" >&2;return 1; }
+  local before_pid before_restarts before_state before_substate
+  before_pid="$(systemctl show stay.service -p MainPID --value)"
+  before_restarts="$(systemctl show stay.service -p NRestarts --value)"
+  before_state="$(systemctl show stay.service -p ActiveState --value)"
+  before_substate="$(systemctl show stay.service -p SubState --value)"
   systemd-run --wait --pipe --collect --quiet --property=User=staydeploy --property=Delegate=yes \
     --property=CPUAccounting=yes --property=MemoryAccounting=yes /usr/bin/env -i PATH="$PATH" LC_ALL=C \
     NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox \
-    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 /usr/local/bin/node --test --test-isolation=none --test-concurrency=1 \
-    --test-name-pattern='^R150-PRODUCTION-05' "$root/test/p1-r150-production-gates.test.js" \
-    >"$WORK_ROOT/real-r150-entry.tap" 2>&1||{ cat "$WORK_ROOT/real-r150-entry.tap" >&2;return 1; }
+    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 \
+    /usr/local/bin/node --test --test-isolation=none --test-concurrency=1 \
+    "$TARGET_RELEASE/test/p1-r147-continuation-recovery.test.js" \
+    "$TARGET_RELEASE/test/p1-r148-homeos-init-forward-recovery.test.js" \
+    "$TARGET_RELEASE/test/p1-r150-production-gates.test.js" \
+    >"$WORK_ROOT/focused-tests.tap" 2>&1 || { cat "$WORK_ROOT/focused-tests.tap" >&2; return 1; }
+  systemd-run --wait --pipe --collect --quiet --property=User=staydeploy --property=Delegate=yes \
+    --property=CPUAccounting=yes --property=MemoryAccounting=yes /usr/bin/env -i PATH="$PATH" LC_ALL=C \
+    NODE_ENV=production STAY_REQUIRE_OS_CORE_SANDBOX=1 STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox \
+    STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1 \
+    /usr/local/bin/node --test --test-isolation=none --test-concurrency=1 \
+    --test-name-pattern='^R150-PRODUCTION-05' "$TARGET_RELEASE/test/p1-r150-production-gates.test.js" \
+    >"$WORK_ROOT/real-entry.tap" 2>&1 || { cat "$WORK_ROOT/real-entry.tap" >&2; return 1; }
   [[ "$(systemctl show stay.service -p MainPID --value)" == "$before_pid" &&
-    "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" ]]
+    "$(systemctl show stay.service -p NRestarts --value)" == "$before_restarts" &&
+    "$(systemctl show stay.service -p ActiveState --value)" == "$before_state" &&
+    "$(systemctl show stay.service -p SubState --value)" == "$before_substate" ]]
 }
 
-validate_prior_r147_live_cohort(){
-  local capture="$WORK_ROOT/r147-live-cohort.json"
-  /usr/local/bin/node "$PREVIOUS_HOMEOS_RELEASE/$PROOF" capture "$DATABASE" >"$capture" || return 1
-  /usr/local/bin/node - "$capture" <<'NODE'
-'use strict';const fs=require('node:fs'),v=JSON.parse(fs.readFileSync(process.argv[2],'utf8')),resident=id=>v.residents.find(x=>x.residency_id===id),consumer=id=>v.consumers.find(x=>x.consumer_id===id),exact=(id,x)=>{const r=resident(id);return r?.core_id===x.core&&r.instance_id===x.instance&&r.version===x.version&&Number(r.state_schema)===x.schema&&r.status===x.status&&Number(r.checkpoint_generation)===x.generation&&r.checkpoint_hash===x.hash&&r.module_relative_path===x.module;},expected={metab:{core:'METAB',instance:'d424c722-ef31-44b0-8201-ba68c418d14a',version:'0.3.0-p1r0-homeos-feed.1',schema:3,status:'RUNNING',generation:324873,hash:'722ea9378801bb36b6b6b23ccd1f2fbe0ef70c5a85f165a2cddc97c824e219f9',module:'cores/p1-r0/metab-homeos/index.js'},homeos:{core:'HOMEOS',instance:'3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',version:'0.2.0-p1r0-shadow.1',schema:2,status:'RESYNC_REQUIRED',generation:42,hash:'923be976d0ddcd7609d159e312b429c89e8704b85ef9757cf6e16010be8a5e1f',module:'cores/p1-r0/homeos-shadow/index.js'},sntss:{core:'sntss',instance:'8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',version:'0.5.0-i4g1',schema:5,status:'RESYNC_REQUIRED',generation:2891079,hash:'d4d83ab89d3d155e97502d008dc23a118c8de73bcdf6215abef8f991ccf43cc1',module:'cores/sntss/i4g/index.js'},chrono:{core:'chronobiology',instance:'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',version:'1.0.0-c3rc.5',schema:2,status:'RESYNC_REQUIRED',generation:12380,hash:'9c8643f66af8dd4beb056895370e8b23a5a97a0b6df8207dabbbfd51d7f7fa7c',module:'cores/chronobiology/c3r5/index.js'}},mc=consumer('resident:metab'),hc=consumer('resident:homeos'),sc=consumer('resident:sntss'),cc=consumer('resident:chronobiology'),fc=consumer('core:fetus-legacy'),a=v.authorities;if(!(v.quickCheck==='ok'&&v.queryOnly===true&&v.runtimeRevision===147&&v.pendingDeliveries===0&&v.failedDeliveries===0&&v.abandonedDeliveries===0&&v.pendingOutboxIntents===0&&v.p1Authority===0&&v.outputs.sntss===0&&v.outputs.homeos===0&&v.outputs.intero===0&&!resident('resident:intero')&&exact('resident:metab',expected.metab)&&exact('resident:homeos',expected.homeos)&&exact('resident:sntss',expected.sntss)&&exact('resident:chronobiology',expected.chrono)&&mc?.active===1&&mc.checkpoint_hash===expected.metab.hash&&hc?.active===0&&hc.cursor===4241118&&hc.checkpoint_hash===expected.homeos.hash&&sc?.active===0&&sc.cursor===4460340&&sc.checkpoint_hash===expected.sntss.hash&&cc?.active===0&&cc.cursor===4522718&&cc.checkpoint_hash===expected.chrono.hash&&fc?.active===0&&fc.cursor===4194076&&fc.checkpoint_hash==='dc65f0fff624e08df092620697f230ea28521e8db34614c455f7473e6ed91b7b'&&a.length===1&&a[0].core_id==='fetus-legacy'&&a[0].instance_id==='82202211-8dd6-44d4-a4ec-8f2553d8dc6f'&&a[0].version==='0.6.0'&&a[0].checkpoint_hash==='4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf'&&v.capacitySource?.runtimeRevision===128&&v.capacitySource.residentVersion===expected.metab.version&&Number.isSafeInteger(v.capacitySource.lastCommittedFrame)&&v.capacitySource.lastCommittedFrame>=162421&&(v.capacitySource.pending===null||v.capacitySource.pending.sampleFrame===v.capacitySource.lastCommittedFrame+1)))process.exit(1);
-NODE
-  STAY_DATABASE="$DATABASE" /usr/local/bin/node <<'NODE'
-'use strict';const{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.env.STAY_DATABASE,{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const row=(type,core)=>db.prepare('SELECT id,detail_json FROM recovery_records WHERE type=? AND core_id=? ORDER BY id DESC LIMIT 1').get(type,core),detail=r=>{try{return JSON.parse(r?.detail_json||'null')}catch{return null}},h=row('resident.resync-required','HOMEOS'),s=row('resident.resync-required','sntss'),c=row('resident.resync-required','chronobiology'),repair=row('resident.implementation-repaired','HOMEOS'),latest=db.prepare('SELECT id,type,core_id,detail_json FROM recovery_records ORDER BY id DESC LIMIT 1').get(),hd=detail(h),sd=detail(s),cd=detail(c),rd=detail(repair),ld=detail(latest);if(!(h.id===184&&hd.sequence===4241117&&hd.code==='P1_RESIDENT_PENDING_BOUND'&&s.id===187&&sd.sequence===4460341&&sd.code==='COREHOST_PAYLOAD_ATTACH_TIMEOUT'&&c.id===190&&cd.sequence===4522719&&cd.code==='ACTOR_RECOVERY_STALLED'&&repair.id===192&&rd.repairId==='homeos-r146-route-boundary-continuity-v1'&&rd.repairedCheckpointHash==='923be976d0ddcd7609d159e312b429c89e8704b85ef9757cf6e16010be8a5e1f'&&rd.pendingDeliveriesPreserved===0&&rd.prunedDeliveriesRecovered===2&&rd.abandonedCount===0&&rd.inventedBiologicalTime===false&&rd.authorityChanged===false&&rd.resourceLimitsChanged===false&&latest.id===193&&latest.type==='resident.recovered'&&latest.core_id==='METAB'&&ld.checkpointHash==='722ea9378801bb36b6b6b23ccd1f2fbe0ef70c5a85f165a2cddc97c824e219f9'))process.exit(1);db.exec('COMMIT');}catch(e){try{db.exec('ROLLBACK')}catch{}throw e}finally{db.close()}
-NODE
+prepare_target(){
+  local controller_sha="$1" relative pointer_tmp
+  if [[ -e "$TARGET_RELEASE" || -L "$TARGET_RELEASE" ]]; then
+    verify_target "$controller_sha" || return 1
+  else
+    verify_previous_release || return 1
+    CANDIDATE="$(mktemp -d /opt/stay/releases/.p1r0-r150-r148.XXXXXX)" || return 1
+    cp -a --reflink=auto "$PREVIOUS_RELEASE/." "$CANDIDATE/" || return 1
+    while IFS= read -r relative; do
+      install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$relative" "$CANDIDATE/$relative" || return 1
+    done < <(awk '{sub(/^\.\//,"",$2);print $2}' "$WORK_ROOT/overlay/$MANIFEST")
+    install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$MANIFEST" "$CANDIDATE/$MANIFEST" || return 1
+    expected_release_env "$controller_sha" >"$WORK_ROOT/P1_R150_RELEASE.env"
+    install -o root -g root -m 0444 "$WORK_ROOT/P1_R150_RELEASE.env" "$CANDIDATE/P1_R150_RELEASE.env"
+    chown -R root:root "$CANDIDATE"
+    find -P "$CANDIDATE" -xdev -type d -exec chmod 0555 {} +
+    find -P "$CANDIDATE" -xdev -type f -exec chmod 0444 {} +
+    mv -T "$CANDIDATE" "$TARGET_RELEASE" || return 1
+    CANDIDATE=''
+    verify_target "$controller_sha" || return 1
+  fi
+  run_candidate_preflight || return 1
+  if [[ "$(readlink -f /opt/stay/current)" != "$TARGET_RELEASE" ]]; then
+    [[ "$(readlink -f /opt/stay/current)" == "$PREVIOUS_RELEASE" ]] || return 1
+    pointer_tmp="/opt/stay/.current-r150-r148.$$"
+    [[ ! -e "$pointer_tmp" && ! -L "$pointer_tmp" ]] || return 1
+    ln -s "$TARGET_RELEASE" "$pointer_tmp" && mv -Tf "$pointer_tmp" /opt/stay/current || return 1
+    POINTER_ADVANCED=1
+  fi
 }
 
-validate_r147_continuation_cohort(){
-  local preflight_root="$WORK_ROOT/r147-source-preflight" relative
-  [[ "$(readlink -f /opt/stay/current)" == "$PREVIOUS_HOMEOS_RELEASE" &&
-    "$(systemctl show stay.service -p ActiveState --value)" == inactive &&
+validate_stopped_r148(){
+  [[ "$(readlink -f /opt/stay/current)" == "$PREVIOUS_RELEASE" ||
+      "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" ]] || return 1
+  [[ "$(systemctl show stay.service -p ActiveState --value)" == inactive &&
     "$(systemctl show stay.service -p SubState --value)" == dead &&
     "$(systemctl show stay.service -p MainPID --value)" == 0 &&
-    "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null || true)" == inactive &&
-    ! -e "$FREEZE_DIR/R147.json" && ! -L "$FREEZE_DIR/R147.json" &&
-    ! -e /etc/systemd/system/stay.service.d/r147-homeos-shadow-recovery-once.conf &&
-    ! -L /etc/systemd/system/stay.service.d/r147-homeos-shadow-recovery-once.conf &&
-    ! -e /etc/stay/resident-promotions/resident-homeos-neutral-birth.json &&
-    ! -L /etc/stay/resident-promotions/resident-homeos-neutral-birth.json ]] || return 1
-  [[ -d "$PREVIOUS_HOMEOS_RELEASE" && ! -L "$PREVIOUS_HOMEOS_RELEASE" &&
-    "$(sha256_file "$PREVIOUS_HOMEOS_RELEASE/$MANIFEST")" == "$PREVIOUS_HOMEOS_MANIFEST_SHA256" &&
-    "$(<"$PREVIOUS_HOMEOS_RELEASE/P1_R150_RELEASE.env")" == "$(expected_previous_homeos_release_env)" ]] || return 1
-  validate_root_tree "$PREVIOUS_HOMEOS_RELEASE" &&
-    (cd "$PREVIOUS_HOMEOS_RELEASE" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
-  install -d -o root -g root -m 0700 "$preflight_root" || return 1
-  cp -a --reflink=auto "$PREVIOUS_HOMEOS_RELEASE/." "$preflight_root/" || return 1
-  while IFS= read -r relative; do
-    install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$relative" \
-      "$preflight_root/$relative" || return 1
-  done < <(awk '{sub(/^\.\//,"",$2);print $2}' "$WORK_ROOT/overlay/$MANIFEST")
-  install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$MANIFEST" \
-    "$preflight_root/$MANIFEST" || return 1
-  (cd "$preflight_root" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
-  /usr/local/bin/node "$preflight_root/$R147_FRAME_BOUNDARY_REPAIR" preflight \
-    "$DATABASE" "$preflight_root" > "$WORK_ROOT/r147-frame-boundary-cohort.json"
-}
-
-validate_r147_post_durable_cohort(){
-  local capture="$WORK_ROOT/r147-post-durable-cohort.json"
-  [[ "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" &&
-    "$(systemctl show stay.service -p ActiveState --value)" == failed &&
-    "$(systemctl show stay.service -p SubState --value)" == failed &&
-    "$(systemctl show stay.service -p MainPID --value)" == 0 &&
     "$(systemctl show stay.service -p NRestarts --value)" == 0 &&
-    "$(systemctl show stay.service -p Result --value)" == timeout &&
+    "$(systemctl show stay.service -p Result --value)" == success &&
     "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null || true)" == inactive &&
-    ! -e "$FREEZE_DIR/R147.json" && ! -L "$FREEZE_DIR/R147.json" &&
-    ! -e /etc/systemd/system/stay.service.d/r147-homeos-shadow-recovery-once.conf &&
-    ! -L /etc/systemd/system/stay.service.d/r147-homeos-shadow-recovery-once.conf &&
-    ! -e /etc/stay/resident-promotions/resident-homeos-neutral-birth.json &&
-    ! -L /etc/stay/resident-promotions/resident-homeos-neutral-birth.json &&
-    "$(stat -Lc '%U:%G:%a' /run/stay-r147-homeos-shadow-recovery.env)" == root:root:400 &&
-    "$(</run/stay-r147-homeos-shadow-recovery.env)" == "$(expected_current_r147_marker)" ]] || return 1
-  verify_bound_target || return 1
-  /usr/bin/timeout --signal=TERM --kill-after=5s 35s /usr/local/bin/node \
-    "$TARGET_RELEASE/$PROOF" capture "$DATABASE" >"$capture" || return 1
-  /usr/local/bin/node - "$capture" <<'NODE'
-'use strict';const fs=require('node:fs'),v=JSON.parse(fs.readFileSync(process.argv[2],'utf8')),resident=id=>v.residents.find(x=>x.residency_id===id),consumer=id=>v.consumers.find(x=>x.consumer_id===id),exact=(id,x)=>{const r=resident(id);return r?.core_id===x.core&&r.instance_id===x.instance&&r.version===x.version&&Number(r.state_schema)===x.schema&&r.status==='RUNNING'&&Number(r.checkpoint_generation)===x.generation&&r.checkpoint_hash===x.hash&&r.module_relative_path===x.module;},x={chrono:{core:'chronobiology',instance:'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',version:'1.0.0-c3rc.5',schema:2,generation:12390,hash:'d6374f44ba42dfa716cea7f291422f3c4684308fc73c95db1b2723d03639e022',module:'cores/chronobiology/c3r5/index.js'},homeos:{core:'HOMEOS',instance:'3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',version:'0.2.0-p1r0-shadow.1',schema:2,generation:572,hash:'fd002974ab74be5bfd3307de723768d70d561ac412ea591f538529357605b441',module:'cores/p1-r0/homeos-shadow/index.js'},metab:{core:'METAB',instance:'d424c722-ef31-44d4-a4ec-8f2553d8dc6f',version:'0.3.0-p1r0-homeos-feed.1',schema:3,generation:325403,hash:'ec9a31171e5dd07fbe09479aaad9eb5e66de929668c1241914d28a85f9bbc0fe',module:'cores/p1-r0/metab-homeos/index.js'},sntss:{core:'sntss',instance:'8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',version:'0.5.0-i4g1',schema:5,generation:2891347,hash:'76be4edfec7355aa2f21f1cd10f86928b54c51fe2897cc38ceefd6abde1ccd8a',module:'cores/sntss/i4g/index.js'}},a=v.authorities,fc=consumer('core:fetus-legacy'),hc=consumer('resident:homeos'),mc=consumer('resident:metab'),sc=consumer('resident:sntss'),cc=consumer('resident:chronobiology'),hs=v.checkpoints.homeos?.state?.neutralState?.engineState;if(!(v.quickCheck==='ok'&&v.queryOnly===true&&v.runtimeRevision===147&&v.pendingDeliveries===0&&v.failedDeliveries===0&&v.abandonedDeliveries===0&&v.pendingOutboxIntents===0&&v.p1Authority===0&&v.outputs.sntss===0&&v.outputs.homeos===0&&v.outputs.intero===0&&!resident('resident:intero')&&exact('resident:chronobiology',x.chrono)&&exact('resident:homeos',x.homeos)&&exact('resident:metab',x.metab)&&exact('resident:sntss',x.sntss)&&cc?.active===1&&cc.cursor===4575520&&cc.checkpoint_hash===x.chrono.hash&&hc?.active===1&&hc.cursor===4575520&&hc.checkpoint_hash===x.homeos.hash&&mc?.active===1&&mc.cursor===4575520&&mc.checkpoint_hash===x.metab.hash&&sc?.active===1&&sc.cursor===4575520&&sc.checkpoint_hash===x.sntss.hash&&fc?.active===1&&fc.cursor===4574204&&fc.checkpoint_hash==='4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf'&&a.length===1&&a[0].core_id==='fetus-legacy'&&a[0].instance_id==='82202211-8dd6-44d4-a4ec-8f2553d8dc6f'&&a[0].version==='0.6.0'&&a[0].checkpoint_hash==='b98888fa5beb39c3fdf909d38eceb522b96ac59134072074a8ae417b5c145280'&&v.capacitySource?.lastCommittedFrame===162684&&v.capacitySource.pending===null&&hs?.frameIndex===162685&&hs?.outputSequence==='0'&&v.checkpoints.homeos.state.neutralState.handledEvents===562))process.exit(1);
-NODE
-  STAY_DATABASE="$DATABASE" /usr/local/bin/node <<'NODE'
-'use strict';const{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.env.STAY_DATABASE,{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const row=id=>db.prepare('SELECT id,type,core_id,detail_json FROM recovery_records WHERE id=?').get(id),detail=r=>JSON.parse(r.detail_json),repair=row(231),begin=row(235),done=row(237),rd=detail(repair),bd=detail(begin),dd=detail(done),newer=Number(db.prepare('SELECT COUNT(*) AS n FROM recovery_records WHERE id>237').get().n);if(!(repair.type==='resident.r147-frame-boundary-repaired'&&repair.core_id==='HOMEOS'&&rd.repairId==='homeos-r147-committed-metab-frame-boundary-v1'&&rd.sourceCheckpointHash==='970a580617d3c298bd7ce3bee5a56791bbe9565d25df7a73cde204e7d41d7f76'&&rd.repairedCheckpointHash==='d4805d5951a38fc4e5502fb3b787d7dc093e3dc9bf5ca0fb6eb4bbe815563f61'&&rd.unknownCommittedSourceFrames===64398&&rd.retainedPairCount===16&&rd.pendingDeliveriesPreserved===492&&rd.abandonedCount===0&&rd.inventedBiologicalTime===false&&begin.type==='resident.r147-frame-boundary-replay-begin'&&bd.repairRecordId===231&&bd.pendingCount===492&&bd.eligibleReplayCount===492&&done.type==='resident.r147-frame-boundary-replayed'&&dd.replayedPendingCount===492&&dd.fromCursor===4574290&&dd.toCursor===4575520&&dd.abandonedCount===0&&dd.inventedBiologicalTime===false&&newer===0))process.exit(1);db.exec('COMMIT');}catch(e){try{db.exec('ROLLBACK')}catch{}throw e}finally{db.close()}
-NODE
+    ! -e "$FREEZE_DIR/R148.json" && ! -L "$FREEZE_DIR/R148.json" &&
+    ! -e "$RECOVERY_DROPIN" && ! -L "$RECOVERY_DROPIN" ]] || return 1
+  trusted_root_file "$R147_MARKER" && [[ "$(<"$R147_MARKER")" == "$(expected_r147_marker)" ]] || return 1
+  [[ -d "$SOURCE_EVIDENCE" && ! -L "$SOURCE_EVIDENCE" && "$(stat -Lc '%U:%G:%a' "$SOURCE_EVIDENCE")" == root:root:500 &&
+    "$(find -P "$SOURCE_EVIDENCE" -maxdepth 1 -type f | wc -l)" -eq 8 &&
+    "$(sha256_file "$SOURCE_EVIDENCE/before.proof.json")" == 92b0aabcabb95c29f0a706f3ed7bbfa3f498d6a007af1cd6cce847a7327b8623 &&
+    "$(sha256_file "$SOURCE_EVIDENCE/homeos.birth-certificate.json")" == a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c &&
+    "$(sha256_file "$SOURCE_EVIDENCE/parent.freeze.json")" == 352e34b1842777b42be99af710ca5256adec561c83e55666a2560db41d9e309d ]] || return 1
+  runuser -u staydeploy -- /usr/bin/timeout --signal=TERM --kill-after=5s 35s \
+    /usr/local/bin/node "$TARGET_RELEASE/$PREFLIGHT" "$DATABASE" >"$WORK_ROOT/r148.preflight.json"
 }
 
 install_atomic(){
   local source="$1" target="$2" mode="$3" temporary
-  temporary="$(mktemp "$(dirname "$target")/.r147-finalize.XXXXXX")"
-  install -o root -g root -m "$mode" "$source" "$temporary";mv -fT "$temporary" "$target"
+  temporary="$(mktemp "$(dirname "$target")/.r148-recovery.XXXXXX")"
+  install -o root -g root -m "$mode" "$source" "$temporary"
+  mv -fT "$temporary" "$target"
 }
 
-finalize_r147_post_durable(){
-  local controller_sha="$1" ready=0 attempt after_pid after_restarts final_evidence
-  FINALIZE_WORK="$(mktemp -d "$EVIDENCE_ROOT/.R147-HOMEOS-POST-DURABLE-FINALIZE-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
-  install -o root -g root -m 0400 "$FREEZE_DIR/R141.json" "$FINALIZE_WORK/parent.freeze.json"
-  install -o root -g root -m 0400 "$R147_HOMEOS_FAILURE_EVIDENCE/before.proof.json" "$FINALIZE_WORK/before.proof.json"
-  install -o root -g root -m 0400 "$R147_HOMEOS_FAILURE_EVIDENCE/homeos.birth-certificate.json" "$FINALIZE_WORK/homeos.birth-certificate.json"
-  install -o root -g root -m 0444 "$PUBLIC_KEY" "$FINALIZE_WORK/expansion-birth-authority.pub"
-  install -o root -g root -m 0400 "$WORK_ROOT/r147-post-durable-cohort.json" "$FINALIZE_WORK/post-durable.preflight.json"
-  [[ "$(sha256_file "$FINALIZE_WORK/before.proof.json")" == "$R147_HOMEOS_FAILURE_BEFORE_SHA256" &&
-    "$(sha256_file "$FINALIZE_WORK/homeos.birth-certificate.json")" == "$R147_HOMEOS_CERTIFICATE_SHA256" ]] || return 1
-  expected_release_env "$controller_sha" >"$FINALIZE_WORK/P1_R150_RELEASE.env"
-  find -P "$EVIDENCE_ROOT" -maxdepth 1 -type d \( -name 'FAILED-R147-HOMEOS-R147-RECOVERY-*' -o -name '.R147-HOMEOS-R147-RECOVERY-*' \) \
-    -printf '%f|%U:%G|%m|%TY-%Tm-%TdT%TH:%TM:%TSZ\n' | sort >"$FINALIZE_WORK/prior-recovery-attempts.txt"
-  [[ "$(wc -l <"$FINALIZE_WORK/prior-recovery-attempts.txt")" -eq 7 ]] || return 1
+recover_r148(){
+  local controller_sha="$1" snapshot_path snapshot_sha ready=0 attempt after_pid after_restarts final_evidence
+  RECOVERY_WORK="$(mktemp -d "$EVIDENCE_ROOT/.R148-HOMEOS-INIT-FORWARD-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+  install -o root -g root -m 0400 "$SOURCE_EVIDENCE/parent.freeze.json" "$RECOVERY_WORK/parent.freeze.json"
+  install -o root -g root -m 0400 "$SOURCE_EVIDENCE/before.proof.json" "$RECOVERY_WORK/before.proof.json"
+  install -o root -g root -m 0400 "$SOURCE_EVIDENCE/homeos.birth-certificate.json" "$RECOVERY_WORK/homeos.birth-certificate.json"
+  install -o root -g root -m 0444 "$PUBLIC_KEY" "$RECOVERY_WORK/expansion-birth-authority.pub"
+  install -o root -g root -m 0400 "$WORK_ROOT/r148.preflight.json" "$RECOVERY_WORK/r148.preflight.json"
+  install -o root -g root -m 0400 "$WORK_ROOT/focused-tests.tap" "$RECOVERY_WORK/focused-tests.tap"
+  install -o root -g root -m 0400 "$WORK_ROOT/real-entry.tap" "$RECOVERY_WORK/real-entry.tap"
+  expected_release_env "$controller_sha" >"$RECOVERY_WORK/P1_R150_RELEASE.env"
   /usr/local/bin/node - "$(systemctl show stay.service -p MainPID --value)" \
-    "$(systemctl show stay.service -p NRestarts --value)" "$TARGET_RELEASE" >"$FINALIZE_WORK/service.before.json" <<'NODE'
-'use strict';const[pid,restarts,currentRelease]=process.argv.slice(2);process.stdout.write(JSON.stringify({pid:Number(pid),restarts:Number(restarts),currentRelease,result:'timeout',accepted:false})+'\n');
+    "$(systemctl show stay.service -p NRestarts --value)" "$TARGET_RELEASE" >"$RECOVERY_WORK/service.before.json" <<'NODE'
+'use strict';const[pid,restarts,currentRelease]=process.argv.slice(2);process.stdout.write(JSON.stringify({pid:Number(pid),restarts:Number(restarts),currentRelease,result:'success',accepted:false})+'\n');
 NODE
+
+  runuser -u staydeploy -- /usr/local/bin/node "$TARGET_RELEASE/$SNAPSHOT_HELPER" \
+    "$DATA_ROOT" "$DATABASE" >"$WORK_ROOT/r148.snapshot.json" || return 1
+  install -o root -g root -m 0400 "$WORK_ROOT/r148.snapshot.json" "$RECOVERY_WORK/r148.snapshot.json"
+  readarray -t snapshot_identity < <(/usr/local/bin/node - "$WORK_ROOT/r148.snapshot.json" <<'NODE'
+'use strict';const fs=require('node:fs'),v=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));if(!(v?.result==='PASS'&&v.format==='stay-r148-init-forward-preflight-snapshot-v1'&&/^\/var\/lib\/stay\/data\/snapshots\/[A-Za-z0-9._:-]+$/.test(v.path)&&/^sha256:[0-9a-f]{64}$/.test(v.manifestSha256)))process.exit(1);process.stdout.write(v.path+'\n'+v.manifestSha256+'\n');
+NODE
+  ) || return 1
+  snapshot_path="${snapshot_identity[0]:-}"
+  snapshot_sha="${snapshot_identity[1]:-}"
+  [[ -d "$snapshot_path" && ! -L "$snapshot_path" && "$(stat -Lc '%U:%G:%a' "$snapshot_path")" == staydeploy:staydeploy:700 ]] || return 1
+
+  install -d -o root -g root -m 0755 "$(dirname "$RECOVERY_DROPIN")"
+  cat >"$WORK_ROOT/r148-homeos-init-recovery-once.conf" <<EOF
+[Service]
+Environment=STAY_HOMEOS_STRANDED_R148_INIT_RECOVERY_AUTHORIZATION=$RECOVERY_AUTHORIZATION
+Environment=STAY_R148_INIT_RECOVERY_PREFLIGHT_SNAPSHOT=$snapshot_path
+Environment=STAY_R148_INIT_RECOVERY_PREFLIGHT_SNAPSHOT_MANIFEST_SHA256=$snapshot_sha
+EOF
+  install_atomic "$WORK_ROOT/r148-homeos-init-recovery-once.conf" "$RECOVERY_DROPIN" 0444
+  DROPIN_INSTALLED=1
+  systemctl daemon-reload
   systemctl reset-failed stay.service
   systemctl start stay.service
   SERVICE_STARTED=1
-  for attempt in $(seq 1 100);do
+  for attempt in $(seq 1 100); do
     after_pid="$(systemctl show stay.service -p MainPID --value)"
     if [[ "$after_pid" =~ ^[1-9][0-9]*$ &&
       "$(systemctl show stay.service -p ActiveState --value)" == active &&
       "$(systemctl show stay.service -p SubState --value)" == running &&
       "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" &&
       -S /run/stay/resident-control.sock && ! -L /run/stay/resident-control.sock ]] &&
-      curl --fail --silent --max-time 1 http://127.0.0.1:8787/healthz | grep -q '"revision":147';then
-      ready=1;printf '%s\n' "$attempt" >"$FINALIZE_WORK/readiness.attempts";break
+      curl --fail --silent --max-time 1 http://127.0.0.1:8787/healthz | grep -q '"revision":148'; then
+      ready=1; printf '%s\n' "$attempt" >"$RECOVERY_WORK/readiness.attempts"; break
     fi
     sleep 0.75
   done
   [[ "$ready" -eq 1 ]] || return 1
+
+  rm -f -- "$RECOVERY_DROPIN"
+  DROPIN_INSTALLED=0
+  systemctl daemon-reload
+  [[ ! -e "$RECOVERY_DROPIN" && ! -L "$RECOVERY_DROPIN" ]] || return 1
+
   /usr/bin/timeout --signal=TERM --kill-after=5s 35s /usr/local/bin/node \
-    "$TARGET_RELEASE/$PROOF" capture "$DATABASE" >"$FINALIZE_WORK/database.after.json" || return 1
-  for id in sntss chronobiology metab homeos;do
-    /usr/local/bin/node "$TARGET_RELEASE/$CLIENT" status "resident:$id" >"$FINALIZE_WORK/$id.after.json" || return 1
+    "$TARGET_RELEASE/$PROOF" capture "$DATABASE" >"$RECOVERY_WORK/database.after.json" || return 1
+  for id in sntss chronobiology metab homeos; do
+    /usr/local/bin/node "$TARGET_RELEASE/$CLIENT" status "resident:$id" >"$RECOVERY_WORK/$id.after.json" || return 1
   done
-  curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta >"$FINALIZE_WORK/meta.after.json" || return 1
+  curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta >"$RECOVERY_WORK/meta.after.json" || return 1
   after_pid="$(systemctl show stay.service -p MainPID --value)"
   after_restarts="$(systemctl show stay.service -p NRestarts --value)"
-  /usr/local/bin/node - "$after_pid" "$after_restarts" "$TARGET_RELEASE" >"$FINALIZE_WORK/service.after.json" <<'NODE'
-'use strict';const[afterPid,afterRestarts,currentRelease]=process.argv.slice(2);process.stdout.write(JSON.stringify({recovery:true,originalBeforePid:492557,originalBeforeRestarts:0,recoveryBeforePid:0,afterPid:Number(afterPid),recoveryBeforeRestarts:0,afterRestarts:Number(afterRestarts),recoveryRestartCommands:1,restartCommands:2,currentRelease,postDurableFinalization:true})+'\n');
+  /usr/local/bin/node - "$after_pid" "$after_restarts" "$TARGET_RELEASE" >"$RECOVERY_WORK/service.after.json" <<'NODE'
+'use strict';const[afterPid,afterRestarts,currentRelease]=process.argv.slice(2);process.stdout.write(JSON.stringify({recovery:true,originalBeforePid:492557,originalBeforeRestarts:0,recoveryBeforePid:0,afterPid:Number(afterPid),recoveryBeforeRestarts:0,afterRestarts:Number(afterRestarts),recoveryRestartCommands:1,restartCommands:2,currentRelease,r148InitForwardRecovery:true})+'\n');
 NODE
-  /usr/local/bin/node - "$TARGET_RELEASE/$PROOF" "$FINALIZE_WORK" "$TARGET_RELEASE" >"$FINALIZE_WORK/after.proof.json" <<'NODE'
-'use strict';const fs=require('node:fs'),path=require('node:path'),[helper,root,targetRelease]=process.argv.slice(2),read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8')),statuses={sntss:read('sntss.after.json'),chronobiology:read('chronobiology.after.json'),metab:read('metab.after.json'),homeos:read('homeos.after.json')},{validateR147After}=require(helper);process.stdout.write(JSON.stringify(validateR147After({before:read('before.proof.json'),database:read('database.after.json'),statuses,meta:read('meta.after.json'),service:read('service.after.json'),targetRelease}))+'\n');
+  /usr/local/bin/node - "$TARGET_RELEASE/$PROOF" "$RECOVERY_WORK" "$TARGET_RELEASE" >"$RECOVERY_WORK/after.proof.json" <<'NODE'
+'use strict';const fs=require('node:fs'),path=require('node:path'),[helper,root,targetRelease]=process.argv.slice(2),read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8')),statuses={sntss:read('sntss.after.json'),chronobiology:read('chronobiology.after.json'),metab:read('metab.after.json'),homeos:read('homeos.after.json')},{validateR148After}=require(helper);process.stdout.write(JSON.stringify(validateR148After({before:read('before.proof.json'),database:read('database.after.json'),statuses,meta:read('meta.after.json'),service:read('service.after.json'),targetRelease}))+'\n');
 NODE
-  [[ ! -e /etc/systemd/system/stay.service.d/r147-homeos-shadow-recovery-once.conf &&
-    ! -L /etc/systemd/system/stay.service.d/r147-homeos-shadow-recovery-once.conf &&
-    ! -e /etc/stay/resident-promotions/resident-homeos-neutral-birth.json &&
-    ! -L /etc/stay/resident-promotions/resident-homeos-neutral-birth.json ]] || return 1
-  /usr/local/bin/node "$TARGET_RELEASE/$FREEZER" homeos-r147 "$FINALIZE_WORK" >"$FINALIZE_WORK/target.freeze.json" || return 1
-  install_atomic "$FINALIZE_WORK/target.freeze.json" "$FREEZE_DIR/R147.json" 0444
-  curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta >"$FINALIZE_WORK/meta.frozen.json" || return 1
-  /usr/local/bin/node - "$FINALIZE_WORK/meta.frozen.json" <<'NODE'
-'use strict';const m=require(process.argv[2]),chip=id=>m.chipProjection?.lifecycle?.find(v=>v.coreId===id);if(!(m.ok===true&&m.revision===147&&m.revisionFrozen===true&&m.revisionLabel==='R147F'&&chip('bsf')?.state==='LIVE'&&['sntss','chronobiology','metab','homeos'].every(id=>chip(id)?.state==='SHADOW')&&m.chipProjection?.roadmap?.some(v=>v.coreId==='intero')))process.exit(1);
+  /usr/local/bin/node "$TARGET_RELEASE/$FREEZER" homeos-r148-recovery "$RECOVERY_WORK" >"$RECOVERY_WORK/target.freeze.json" || return 1
+  install_atomic "$RECOVERY_WORK/target.freeze.json" "$FREEZE_DIR/R148.json" 0444
+  FREEZE_INSTALLED=1
+  curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta >"$RECOVERY_WORK/meta.frozen.json" || return 1
+  /usr/local/bin/node - "$RECOVERY_WORK/meta.frozen.json" <<'NODE'
+'use strict';const m=require(process.argv[2]),chip=id=>m.chipProjection?.lifecycle?.find(v=>v.coreId===id);if(!(m.ok===true&&m.revision===148&&m.revisionFrozen===true&&m.revisionLabel==='R148F'&&chip('bsf')?.state==='LIVE'&&['sntss','chronobiology','metab','homeos'].every(id=>chip(id)?.state==='SHADOW')&&m.chipProjection?.roadmap?.some(v=>v.coreId==='intero')))process.exit(1);
 NODE
-  trusted_root_file /run/stay-r147-homeos-shadow-recovery.env || return 1
-  [[ "$(</run/stay-r147-homeos-shadow-recovery.env)" == "$(expected_current_r147_marker)" ]] || return 1
-  rm -f -- /run/stay-r147-homeos-shadow-recovery.env
-  final_evidence="$EVIDENCE_ROOT/R147F-HOMEOS-SHADOW-POST-DURABLE-FINALIZED-$(date -u +'%Y%m%dT%H%M%SZ')"
+  trusted_root_file "$R147_MARKER" && [[ "$(<"$R147_MARKER")" == "$(expected_r147_marker)" ]] || return 1
+  rm -f -- "$R147_MARKER"
+  final_evidence="$EVIDENCE_ROOT/R148F-HOMEOS-INIT-FORWARD-RECOVERED-$(date -u +'%Y%m%dT%H%M%SZ')"
   [[ ! -e "$final_evidence" && ! -L "$final_evidence" ]]
-  mv -T "$FINALIZE_WORK" "$final_evidence";FINALIZE_WORK='';chmod -R a-w "$final_evidence"
-  printf '%s\n' 'R147_HOMEOS_POST_DURABLE_FINALIZATION=PASS' 'RUNTIME_REVISION=147' \
-    'REVISION_LABEL=R147F' "CURRENT_RELEASE=$TARGET_RELEASE" 'RECOVERY_RESTART_COMMANDS=1' \
+  mv -T "$RECOVERY_WORK" "$final_evidence"; RECOVERY_WORK=''; chmod -R a-w "$final_evidence"
+  printf '%s\n' 'R148_HOMEOS_INIT_FORWARD_RECOVERY=PASS' 'RUNTIME_REVISION=148' \
+    'REVISION_LABEL=R148F' "CURRENT_RELEASE=$TARGET_RELEASE" 'RECOVERY_RESTART_COMMANDS=1' \
     'P1_AUTHORITY=NONE' 'FETUS_CONTINUITY=PASS' 'PROMOTION_AUTHORITY_ACTIVE=NO' \
-    'BENCHMARK_ACTIVE=NO' "FREEZE_FILE=$FREEZE_DIR/R147.json" "EVIDENCE_ROOT=$final_evidence"
-}
-
-prepare_target(){
-  local controller_sha="$1" relative base="$SOURCE_RELEASE" recovery_upgrade=0 pointer_tmp
-  if [[ "$STAGE" == homeos-r147 && "$FORWARD_OPERATION" -eq 0 &&
-    "$(readlink -f /opt/stay/current)" == "$PREVIOUS_HOMEOS_RELEASE" ]];then
-    base="$PREVIOUS_HOMEOS_RELEASE";recovery_upgrade=1
-    [[ -d "$base" && ! -L "$base" &&
-      "$(sha256_file "$base/$MANIFEST")" == "$PREVIOUS_HOMEOS_MANIFEST_SHA256" &&
-      "$(<"$base/P1_R150_RELEASE.env")" == "$(expected_previous_homeos_release_env)" ]]||return 1
-    validate_root_tree "$base"&&(cd "$base"&&sha256sum -c "$MANIFEST" >/dev/null)||return 1
-  fi
-  if [[ -e "$TARGET_RELEASE" || -L "$TARGET_RELEASE" ]];then
-    verify_target "$TARGET_RELEASE" "$controller_sha"||return 1
-    if [[ "$recovery_upgrade" -eq 1 ]];then
-      pointer_tmp="/opt/stay/.current-r150-recovery.$$"
-      [[ ! -e "$pointer_tmp" && ! -L "$pointer_tmp" ]]||return 1
-      ln -s "$TARGET_RELEASE" "$pointer_tmp"&&mv -Tf "$pointer_tmp" /opt/stay/current||return 1
-    fi
-    return
-  fi
-  if [[ "$recovery_upgrade" -eq 0 ]];then
-    [[ "$STAGE" == homeos && "$(readlink -f /opt/stay/current)" == "$SOURCE_RELEASE" &&
-      "$(sha256_file "$SOURCE_RELEASE/$SOURCE_MANIFEST")" == "$SOURCE_MANIFEST_SHA256" ]]||return 1
-    validate_root_tree "$SOURCE_RELEASE"&&(cd "$SOURCE_RELEASE"&&sha256sum -c "$SOURCE_MANIFEST" >/dev/null)||return 1
-  fi
-  CANDIDATE="$(mktemp -d /opt/stay/releases/.p1r0-r150.XXXXXX)"||return 1
-  cp -a --reflink=auto "$base/." "$CANDIDATE/"||return 1
-  while IFS= read -r relative;do install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$relative" "$CANDIDATE/$relative"||return 1;done < <(awk '{sub(/^\.\//,"",$2);print $2}' "$WORK_ROOT/overlay/$MANIFEST")
-  install -D -o root -g root -m 0444 "$WORK_ROOT/overlay/$MANIFEST" "$CANDIDATE/$MANIFEST"||return 1
-  expected_release_env "$controller_sha">"$WORK_ROOT/P1_R150_RELEASE.env"
-  install -o root -g root -m 0444 "$WORK_ROOT/P1_R150_RELEASE.env" "$CANDIDATE/P1_R150_RELEASE.env"
-  chown -R root:root "$CANDIDATE";find -P "$CANDIDATE" -xdev -type d -exec chmod 0555 {} +;find -P "$CANDIDATE" -xdev -type f -exec chmod 0444 {} +
-  verify_target "$CANDIDATE" "$controller_sha"&&run_candidate_preflight "$CANDIDATE"||return 1
-  mv -T "$CANDIDATE" "$TARGET_RELEASE";CANDIDATE='';verify_target "$TARGET_RELEASE" "$controller_sha"||return 1
-  if [[ "$recovery_upgrade" -eq 1 ]];then
-    pointer_tmp="/opt/stay/.current-r150-recovery.$$"
-    [[ ! -e "$pointer_tmp" && ! -L "$pointer_tmp" ]]||return 1
-    ln -s "$TARGET_RELEASE" "$pointer_tmp"&&mv -Tf "$pointer_tmp" /opt/stay/current||return 1
-  fi
-}
-
-run_transition(){
-  local controller_sha="$1" script auth_name auth_value child_status tee_status;local -a statuses
-  if [[ "$FORWARD_OPERATION" -eq 1 ]];then script="$FORWARD";auth_name=STAY_R150_FORWARD_AUTHORIZATION;auth_value="$FORWARD_SCRIPT_AUTH";else script="$RECOVERY";auth_name=STAY_R150_RECOVERY_AUTHORIZATION;auth_value="$RECOVERY_SCRIPT_AUTH";fi
-  set +e
-  env -i PATH="$PATH" LC_ALL=C STAY_R150_STAGE="$STAGE" "$auth_name=$auth_value" \
-    STAY_R150_TARGET_RELEASE="$TARGET_RELEASE" STAY_R150_RELEASE_TAG="$RELEASE_TAG" STAY_R150_RELEASE_COMMIT="$RELEASE_COMMIT" \
-    STAY_R150_RELEASE_TREE="$RELEASE_TREE" STAY_R150_ARCHIVE_SHA256="sha256:$ARCHIVE_SHA256" \
-    STAY_R150_MANIFEST_SHA256="sha256:$MANIFEST_SHA256" STAY_R150_CONTROLLER_SHA256="sha256:$controller_sha" \
-    STAY_R150_EXPANSION_PUBLIC_KEY_SHA256="sha256:$PUBLIC_KEY_SHA256" \
-    STAY_R150_CERTIFICATE_FILE="${WORK_ROOT:-/nonexistent}/$STAGE.birth-certificate.json" \
-    STAY_R150_CERTIFICATE_SHA256="$CERTIFICATE_SHA256" STAY_R150_DOSSIER_SHA256="$DOSSIER_SHA256" \
-    /usr/bin/timeout --signal=TERM --kill-after=15s "${RUNTIME_SECONDS}s" /bin/bash "$TARGET_RELEASE/$script" 2>&1|tee "$WORK_ROOT/controller-output.log"
-  statuses=("${PIPESTATUS[@]}");set -e;child_status="${statuses[0]:-125}";tee_status="${statuses[1]:-125}"
-  [[ "$tee_status" -eq 0 ]]||return 125;return "$child_status"
+    'INTERO=ABSENT' 'BENCHMARK_ACTIVE=NO' "FREEZE_FILE=$FREEZE_DIR/R148.json" \
+    "EVIDENCE_ROOT=$final_evidence"
 }
 
 validate_live(){
-  local target_revision="$1" controller_sha="$2" pid meta
+  local controller_sha="$1" pid
   pid="$(systemctl show stay.service -p MainPID --value)"
-  /usr/bin/timeout --signal=TERM --kill-after=5s 35s /usr/local/bin/node \
-    "$TARGET_RELEASE/$PROOF" capture "$DATABASE">"$WORK_ROOT/live.database.json"||return 1
-  for id in sntss chronobiology metab homeos;do /usr/local/bin/node "$TARGET_RELEASE/deploy/live-physiology-transplant/p1-resident-control-client.js" status "resident:$id">"$WORK_ROOT/live.$id.json"||return 1;done
-  [[ "$target_revision" -eq 150 ]]&&/usr/local/bin/node "$TARGET_RELEASE/deploy/live-physiology-transplant/p1-resident-control-client.js" status resident:intero>"$WORK_ROOT/live.intero.json"
-  curl --fail --silent --max-time 3 http://127.0.0.1:8787/__stay/meta>"$WORK_ROOT/live.meta.json"||return 1
-  STAY_LIVE_ROOT="$WORK_ROOT" STAY_RELEASE="$TARGET_RELEASE" STAY_REVISION="$target_revision" STAY_CONTROLLER="sha256:$controller_sha" /usr/local/bin/node <<'NODE'
-'use strict';const fs=require('node:fs'),path=require('node:path'),root=process.env.STAY_LIVE_ROOT,read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8')),db=read('live.database.json'),m=read('live.meta.json'),r=Number(process.env.STAY_REVISION),freeze=JSON.parse(fs.readFileSync(`/var/lib/stay/evidence/runtime-freezes/R${r}.json`,'utf8')),{validateRevisionFreeze}=require(path.join(process.env.STAY_RELEASE,'runtime/revision-freeze')),chip=id=>m.chipProjection?.lifecycle?.find(v=>v.coreId===id),status=id=>read(`live.${id}.json`).resident,contained=(v,version,mode)=>{const p=v?.host?.resourceGovernor?.policy,l=v?.host?.osContainment?.limits;return v?.status==='RUNNING'&&v.running===true&&v.version===version&&v.authorityOwned===false&&v.health?.ok===true&&(mode===undefined||v.health?.mode===mode)&&v.host?.quarantined===false&&v.host?.osContainment?.required===true&&v.host?.osContainment?.available===true&&v.host?.osContainment?.payloadSandboxed===true&&v.host?.osContainment?.payloadAttachedBeforeInit===true&&v.host?.osContainment?.supervisorChargedToKernel===true&&p?.softRamBytes===67108864&&p?.hardRamBytes===100663296&&p?.hardCpuDuty===0.2&&p?.handlerTimeoutMs===250&&p?.pidsMax===16&&l?.['memory.high']==='67108864'&&l?.['memory.max']==='100663296'&&l?.['cpu.max']==='20000 100000'&&l?.['pids.max']==='16';};const ids=r===150?['bsf','sntss','chronobiology','metab','homeos','intero']:['bsf','sntss','chronobiology','metab','homeos'];if(!(db.quickCheck==='ok'&&db.runtimeRevision===r&&db.pendingDeliveries===0&&db.pendingOutboxIntents===0&&db.failedDeliveries===0&&db.p1Authority===0&&db.outputs.sntss===0&&db.outputs.intero===0&&m.ok===true&&m.revision===r&&m.revisionFrozen===true&&m.revisionLabel===`R${r}F`&&chip('bsf')?.state==='LIVE'&&ids.slice(1).every(id=>chip(id)?.state==='SHADOW')&&contained(status('sntss'),'0.5.0-i4g1')&&contained(status('chronobiology'),'1.0.0-c3rc.5','NEUTRAL')&&contained(status('metab'),r===150?'0.4.0-p1r0-intero-feed.1':'0.3.0-p1r0-homeos-feed.1','SHADOW')&&contained(status('homeos'),r===150?'0.3.0-p1r0-intero-feed.1':'0.2.0-p1r0-shadow.1','SHADOW')&&(r!==150||contained(status('intero'),'0.2.0-p1r0-shadow.1','SHADOW'))&&validateRevisionFreeze(freeze,r)&&freeze.release?.path===process.env.STAY_RELEASE&&freeze.release?.controllerSha256===process.env.STAY_CONTROLLER&&freeze.benchmark?.started===false))process.exit(1);
-NODE
   [[ "$pid" =~ ^[1-9][0-9]*$ && "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" &&
-    "$(systemctl show stay.service -p ActiveState --value)" == active && "$(systemctl show stay.service -p SubState --value)" == running &&
-    "$(systemctl show stay.service -p User --value)" == staydeploy && "$(systemctl show stay.service -p Group --value)" == staydeploy &&
-    "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null||true)" == inactive ]]
+    "$(systemctl show stay.service -p ActiveState --value)" == active &&
+    "$(systemctl show stay.service -p SubState --value)" == running &&
+    "$(systemctl show stay.service -p User --value)" == staydeploy &&
+    "$(systemctl show stay.service -p Group --value)" == staydeploy &&
+    "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null || true)" == inactive &&
+    ! -e "$RECOVERY_DROPIN" && ! -L "$RECOVERY_DROPIN" &&
+    ! -e "$R147_MARKER" && ! -L "$R147_MARKER" ]] || return 1
+  verify_target "$controller_sha" && trusted_root_file "$FREEZE_DIR/R148.json"
 }
 
 main(){
-  local operation="${1:-}" requested_root="${2:-}" authorization="${3:-}" supplied_cert="${4:-}" supplied_dossier="${5:-}" controller_sha child_status target_revision
-  [[ "$#" -eq 5 ]]||abort_controller 64 ARGUMENT_VALIDATION_FAILED exactly-five-arguments-required
-  [[ "$EUID" -eq 0 ]]||abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
-  trusted_root_file "$0"&&[[ -x "$0" ]]||abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
-  [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]]||abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
-  case "$operation:$authorization" in
-    finalize-r147-homeos:AUTHORIZE_R147_HOMEOS_POST_DURABLE_FINALIZATION_V1) STAGE=homeos-r147-finalize;FORWARD_OPERATION=0;target_revision=147;;
-    *)abort_controller 74 AUTHORIZATION_FAILED authorization-missing;;esac
-  CERTIFICATE_SHA256='sha256:0000000000000000000000000000000000000000000000000000000000000000';DOSSIER_SHA256="$CERTIFICATE_SHA256"
-  [[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]]||abort_controller 75 ARGUMENT_VALIDATION_FAILED finalization-hash-must-be-none
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v24-[0-9]+$ ]]||abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
-  validate_run_root "$requested_root"||abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
-  RUN_ROOT="$requested_root";trap finish_controller EXIT;CLEANUP_ARMED=1
-  verify_staged_release||abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
-  prepare_overlay||abort_controller 81 STAGED_IDENTITY_FAILED private-overlay-invalid
-  trusted_root_file "$PUBLIC_KEY"&&[[ "$(sha256_file "$PUBLIC_KEY")" == "$PUBLIC_KEY_SHA256" ]]||abort_controller 82 TRUST_ROOT_FAILED expansion-public-key-invalid
+  local operation="${1:-}" requested_root="${2:-}" authorization="${3:-}" supplied_cert="${4:-}" supplied_dossier="${5:-}" controller_sha
+  [[ "$#" -eq 5 ]] || abort_controller 64 ARGUMENT_VALIDATION_FAILED exactly-five-arguments-required
+  [[ "$EUID" -eq 0 ]] || abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
+  trusted_root_file "$0" && [[ -x "$0" ]] || abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
+  [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]] || abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
+  [[ "$operation" == recover-r148-homeos-init && "$authorization" == AUTHORIZE_R148_HOMEOS_INIT_FORWARD_RECOVERY_V1 ]] ||
+    abort_controller 74 AUTHORIZATION_FAILED authorization-missing
+  [[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]] ||
+    abort_controller 75 ARGUMENT_VALIDATION_FAILED recovery-hashes-must-be-none
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v25-[0-9]+$ ]] ||
+    abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
+  validate_run_root "$requested_root" || abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
+  RUN_ROOT="$requested_root"; trap finish_controller EXIT; CLEANUP_ARMED=1
+  verify_staged_release || abort_controller 80 STAGED_IDENTITY_FAILED staged-release-invalid
+  prepare_overlay || abort_controller 81 STAGED_IDENTITY_FAILED private-overlay-invalid
+  trusted_root_file "$PUBLIC_KEY" && [[ "$(sha256_file "$PUBLIC_KEY")" == "$PUBLIC_KEY_SHA256" ]] ||
+    abort_controller 82 TRUST_ROOT_FAILED expansion-public-key-invalid
   controller_sha="$(sha256_file "$0")"
-  validate_r147_post_durable_cohort||abort_controller 83 CANDIDATE_FAILED post-durable-r147-cohort-changed
-  finalize_r147_post_durable "$controller_sha"||abort_controller 84 EXECUTION_FAILED post-durable-finalization-failed
-  validate_live "$target_revision" "$controller_sha"||abort_controller 86 LIVE_ACCEPTANCE_FAILED independent-live-proof-failed
+  verify_previous_release || abort_controller 83 CANDIDATE_FAILED previous-release-invalid
+  prepare_target "$controller_sha" || abort_controller 84 CANDIDATE_FAILED candidate-validation-failed
+  validate_stopped_r148 || abort_controller 85 CANDIDATE_FAILED stopped-r148-cohort-changed
+  recover_r148 "$controller_sha" || abort_controller 86 EXECUTION_FAILED r148-init-forward-recovery-failed
+  validate_live "$controller_sha" || abort_controller 87 LIVE_ACCEPTANCE_FAILED independent-live-proof-failed
   SERVICE_STARTED=0
-  FAILURE_CLASS='NONE';printf 'R150_CONTROLLER_STAGE=%s\nR150_CONTROLLER_REVISION=R%sF\nR150_CONTROLLER_RESULT=PASS\n' "$STAGE" "$target_revision"
+  POINTER_ADVANCED=0
+  FREEZE_INSTALLED=0
+  FAILURE_CLASS='NONE'
+  printf '%s\n' 'R150_CONTROLLER_STAGE=homeos-r148-recovery' \
+    'R150_CONTROLLER_REVISION=R148F' 'R150_CONTROLLER_RESULT=PASS'
 }
+
 main "$@"

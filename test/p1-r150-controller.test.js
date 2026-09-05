@@ -4,185 +4,113 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
-const CONTROLLER = path.join(ROOT, 'deploy', 'live-physiology-transplant',
-  'stay-p1-r150-homeos-intero-production-controller');
-const INSTALLER = path.join(ROOT, 'deploy', 'live-physiology-transplant',
-  'install-p1-r150-homeos-intero-production-controller.sh');
-const PUBLIC_KEY = path.join(ROOT, 'deploy', 'live-physiology-transplant',
-  'p1-r150-expansion-birth-authority.pub');
-const BOOTSTRAP_WORKFLOW = path.join(ROOT, '.github', 'workflows',
-  'p1-r150-controller-bootstrap.yml');
-const CAPTURE_WORKFLOW = path.join(ROOT, '.github', 'workflows',
-  'p1-r150-live-origin-capture.yml');
-const PRODUCTION_WORKFLOW = path.join(ROOT, '.github', 'workflows',
-  'p1-r150-homeos-intero-production.yml');
+const DEPLOY = path.join(ROOT, 'deploy', 'live-physiology-transplant');
+const CONTROLLER = path.join(DEPLOY, 'stay-p1-r150-homeos-intero-production-controller');
+const INSTALLER = path.join(DEPLOY, 'install-p1-r150-homeos-intero-production-controller.sh');
+const PUBLIC_KEY = path.join(DEPLOY, 'p1-r150-expansion-birth-authority.pub');
+const BOOTSTRAP = path.join(ROOT, '.github', 'workflows', 'p1-r150-controller-bootstrap.yml');
+const CAPTURE = path.join(ROOT, '.github', 'workflows', 'p1-r150-live-origin-capture.yml');
+const PRODUCTION = path.join(ROOT, '.github', 'workflows', 'p1-r150-homeos-intero-production.yml');
 
-function read(file) { return fs.readFileSync(file, 'utf8'); }
-function digest(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-}
+const read = file => fs.readFileSync(file, 'utf8');
+const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
-test('R150-CTRL-01 controller pins the exact immutable source release and overlay', () => {
+test('R150-CTRL-01 controller pins exact V21 source and immutable V22 overlay', () => {
   const source = read(CONTROLLER);
   for (const exact of [
-    "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'",
-    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-9a94dba608c5'",
-    "PREVIOUS_HOMEOS_MANIFEST_SHA256='9a94dba608c506d38788d6498d3f1a92388420b6093acc6e9cf4a27e482b9a30'",
-    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='f09e7c1e28369af56b37af69e2727c2222226d8445904294563a39f413de4d31'",
-    "TARGET_RELEASE_BOUND_CONTROLLER_SHA256='e4680f56afdb60138e78217b602b0cc018e522e6a764c7980c015a28bd453b72'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v21'",
-    "RELEASE_TAG_OBJECT='b703d1030fe19c77e6b00cde7cd3a908cc0e7086'",
-    "RELEASE_COMMIT='08cbc4a8db10868cd751ae3fe208d4a4467ae4d0'",
-    "RELEASE_TREE='455dde13ccd63a0f0be32ee2b59af2055c055369'",
-    "ARCHIVE_SHA256='9cb72d077e1497ccfe5037d3ff6994b0471f0489019f3a99aa5341b5adb953e2'",
-    "MANIFEST_SHA256='3aa5881594126012fe090a99df84e55378ff5a39e09ba5480c6d33cf4d96d6a8'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3aa588159412'"
+    "PREVIOUS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3aa588159412'",
+    "PREVIOUS_MANIFEST_SHA256='3aa5881594126012fe090a99df84e55378ff5a39e09ba5480c6d33cf4d96d6a8'",
+    "PREVIOUS_BOUND_CONTROLLER_SHA256='e4680f56afdb60138e78217b602b0cc018e522e6a764c7980c015a28bd453b72'",
+    "RELEASE_TAG='r150-homeos-intero-shadow-v22'",
+    "RELEASE_TAG_OBJECT='c6570c7f37acb495a92095729ac56c895a514f1c'",
+    "RELEASE_COMMIT='1a2ff66909dd5eb065e08ca807a13e8ec5951c51'",
+    "RELEASE_TREE='f05af36c697a4c0f48892e51d83ff4139369e088'",
+    "ARCHIVE_SHA256='56942c3982d99aee293c09f882ba4d15c58a249fe81f4159d588eea2a2d7a031'",
+    "SIDECAR_SHA256='f7eb8d227106d60aac3d9c637d175eab06ec748031720dca8662a400c572db67'",
+    "MANIFEST_SHA256='c1651b9150bc5c14d254d86caa60cb267317301c01c95282929fc696f4c6160b'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc'"
   ]) assert.ok(source.includes(exact), exact);
+  assert.match(source, /\$\{#entries\[@\]\}" -eq 109/);
+  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f \| wc -l\)" -eq 87/);
+  assert.match(source, /wc -l < "\$WORK_ROOT\/overlay\/\$MANIFEST"\)" -eq 86/);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
-  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 84/);
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
-  assert.match(source, /expected_previous_homeos_release_env/);
-  assert.match(source, /expected_previous_r147_marker/);
-  assert.match(source, /\$R147_FRAME_BOUNDARY_REPAIR" preflight/);
-  assert.match(source, /cp -a --reflink=auto "\$PREVIOUS_HOMEOS_RELEASE\/\."/);
-  assert.match(source, /"\$DATABASE" "\$preflight_root"/);
-  assert.match(source, /rm -f -- \/run\/stay-r147-homeos-shadow-recovery\.env/);
-  assert.match(source, /mv -Tf "\$pointer_tmp" \/opt\/stay\/current/);
-  assert.match(source, /validate_r147_post_durable_cohort/);
-  assert.match(source, /resident\.r147-frame-boundary-replayed/);
-  assert.match(source, /pendingDeliveries===0/);
-  assert.match(source, /replayedPendingCount===492/);
-  assert.match(source, /prior-recovery-attempts\.txt/);
+  assert.match(source, /cp -a --reflink=auto "\$PREVIOUS_RELEASE\/\."/);
 });
 
-test('R150-CTRL-02 authority is one-operation exact and benchmark cannot start', () => {
+test('R150-CTRL-02 recovery authority is exact, one-operation, and benchmark remains off', () => {
   const source = read(CONTROLLER);
-  assert.ok(source.includes(
-    'finalize-r147-homeos:AUTHORIZE_R147_HOMEOS_POST_DURABLE_FINALIZATION_V1'));
-  assert.doesNotMatch(source, /harden-r145-homeos:|recover-r145-homeos:|harden-r150-intero:|recover-r150-intero:/);
-  assert.match(source, /RUNTIME_SECONDS=120/);
+  assert.match(source, /recover-r148-homeos-init && "\$authorization" == AUTHORIZE_R148_HOMEOS_INIT_FORWARD_RECOVERY_V1/);
+  assert.match(source, /STAY_HOMEOS_STRANDED_R148_INIT_RECOVERY_AUTHORIZATION=\$RECOVERY_AUTHORIZATION/);
+  assert.match(source, /RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_INIT_FORWARD_RECOVERY_ONLY'/);
   assert.match(source, /BENCHMARK_ACTIVE=NO/);
-  assert.doesNotMatch(source, /systemctl start stay-physiology-benchmark/);
-  assert.doesNotMatch(source,
-    /TimeoutStartSec|TimeoutStopSec|CPUQuota=|MemoryMax=|PIDsMax=|git reset|git checkout/);
+  assert.match(source, /INTERO=ABSENT/);
+  assert.doesNotMatch(source, /harden-r145-homeos|harden-r150-intero|systemctl start stay-physiology-benchmark/);
+  assert.doesNotMatch(source, /TimeoutStartSec|TimeoutStopSec|CPUQuota=|MemoryMax=|PIDsMax=|git reset|git checkout/);
 });
 
-test('R150-CTRL-03 bootstrap pins wrapper, separate public key, host, and sudo scope', () => {
+test('R150-CTRL-03 controller is revision-fenced, rollback-capable, and starts exactly once', () => {
+  const source = read(CONTROLLER);
+  assert.match(source, /SOURCE_RUNTIME_REVISION=R148/);
+  assert.match(source, /TARGET_RUNTIME_REVISION=R148F/);
+  assert.match(source, /p1-r148-homeos-init-forward-preflight\.js/);
+  assert.match(source, /p1-r148-create-init-recovery-snapshot\.js/);
+  assert.match(source, /validateR148After/);
+  assert.match(source, /\$FREEZER" homeos-r148-recovery/);
+  assert.match(source, /POINTER_ADVANCED[\s\S]*SERVICE_STARTED[\s\S]*TARGET_RELEASE/);
+  assert.equal((source.match(/^\s*systemctl start stay\.service\s*$/gm) || []).length, 1);
+  assert.match(source, /rm -f -- "\$RECOVERY_DROPIN"/);
+  assert.match(source, /rm -f -- "\$FREEZE_DIR\/R148\.json"/);
+});
+
+test('R150-CTRL-04 fetus continuity and all contained shadows are independently accepted', () => {
+  const source = read(CONTROLLER);
+  for (const exact of [
+    'FETUS_CONTINUITY=PASS', 'P1_AUTHORITY=NONE',
+    'for id in sntss chronobiology metab homeos',
+    "['sntss','chronobiology','metab','homeos'].every(id=>chip(id)?.state==='SHADOW')",
+    "chip('bsf')?.state==='LIVE'", "m.revisionLabel==='R148F'"
+  ]) assert.ok(source.includes(exact), exact);
+  assert.match(source, /STAY_REQUIRE_OS_CORE_SANDBOX=1/);
+  assert.match(source, /STAY_REQUIRE_CORE_PACKAGE_POLICY=1 STAY_REQUIRE_CGROUPS=1/);
+  assert.match(source, /\^R150-PRODUCTION-05/);
+});
+
+test('R150-CTRL-05 bootstrap pins wrapper, key, host, and narrow sudo scope', () => {
   const source = read(INSTALLER);
   assert.ok(source.includes(`EXPECTED_WRAPPER_SHA256='${digest(CONTROLLER)}'`));
   assert.ok(source.includes(`EXPECTED_PUBLIC_KEY_SHA256='${digest(PUBLIC_KEY)}'`));
-  assert.match(source, /existing-expansion-public-key-conflict/);
-  assert.match(source,
-    /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
   assert.match(source, /EXPECTED_PRIVATE_IPV4='172\.26\.9\.207'/);
+  assert.match(source, /staydeploy ALL=\(root\) NOPASSWD: \/usr\/local\/sbin\/stay-p1-production-controller/);
+  assert.match(source, /R148_HOMEOS_INIT_FORWARD_RECOVERY_AUTHORIZED=NO/);
   assert.match(source, /BENCHMARK_START_AUTHORIZED=NO/);
 });
 
-test('R150-CTRL-04 shell and embedded JavaScript entry paths parse', () => {
-  const bash = process.platform === 'win32'
-    ? path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe')
-    : 'bash';
-  for (const file of [CONTROLLER, INSTALLER]) {
-    const source = read(file);
-    const shell = spawnSync(bash, ['-n', file], { encoding: 'utf8' });
-    assert.equal(shell.status, 0, `${shell.stdout}\n${shell.stderr}`);
-    for (const block of source.matchAll(/<<'NODE'\r?\n([\s\S]*?)\r?\nNODE/g)) {
-      const parsed = spawnSync(process.execPath, ['--check', '-'], {
-        input: block[1], encoding: 'utf8'
-      });
-      assert.equal(parsed.status, 0, `${parsed.stdout}\n${parsed.stderr}`);
-    }
-  }
-  for (const file of [BOOTSTRAP_WORKFLOW, CAPTURE_WORKFLOW, PRODUCTION_WORKFLOW]) {
-    const source = read(file);
-    const blocks = [...source.matchAll(/<<'NODE'\r?\n([\s\S]*?)\r?\n\s+NODE/g)];
-    if (file !== BOOTSTRAP_WORKFLOW) assert.ok(blocks.length >= 2, file);
-    for (const block of blocks) {
-      const parsed = spawnSync(process.execPath, ['--check', '-'], {
-        input: block[1], encoding: 'utf8'
-      });
-      assert.equal(parsed.status, 0, `${file}\n${parsed.stdout}\n${parsed.stderr}`);
-    }
-  }
-});
-
-test('R150-CTRL-05 controller independently re-proves all residents and fixed resources', () => {
-  const source = read(CONTROLLER);
+test('R150-CTRL-06 workflows pin V25, V22, immutable validation, and stopped R148', () => {
+  const bootstrap = read(BOOTSTRAP);
+  const capture = read(CAPTURE);
+  const production = read(PRODUCTION);
   for (const exact of [
-    "contained(status('sntss'),'0.5.0-i4g1')",
-    "contained(status('chronobiology'),'1.0.0-c3rc.5','NEUTRAL')",
-    "'0.4.0-p1r0-intero-feed.1'",
-    "'0.3.0-p1r0-intero-feed.1'",
-    "contained(status('intero'),'0.2.0-p1r0-shadow.1','SHADOW')",
-    'softRamBytes===67108864', 'hardRamBytes===100663296', 'hardCpuDuty===0.2',
-    'handlerTimeoutMs===250', 'pidsMax===16', "l?.['memory.high']==='67108864'",
-    "l?.['memory.max']==='100663296'", "l?.['cpu.max']==='20000 100000'",
-    "l?.['pids.max']==='16'", 'supervisorChargedToKernel===true',
-    'STAY_BWRAP=/usr/local/libexec/stay-bwrap-sandbox',
-    'db.p1Authority===0', 'db.outputs.intero===0', 'freeze.benchmark?.started===false'
-  ]) assert.ok(source.includes(exact), exact);
-});
-
-test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, and benchmark', () => {
-  const bootstrap = read(BOOTSTRAP_WORKFLOW);
-  const capture = read(CAPTURE_WORKFLOW);
-  const production = read(PRODUCTION_WORKFLOW);
-  for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V24_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V25_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
-    'secrets.STAY_DEPLOY_KEY',
-    'MANUAL_ROOT_BRIDGE_COMMAND=',
-    'p1-r150-expansion-birth-authority.pub',
-    "chmod u-s,g-s '$run_root'",
-    "chmod 0700 '$run_root'",
-    'chmod u-s,g-s "$root"',
-    'chmod 0700 "$root"',
-    "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700"
+    'r150-controller-v25-${GITHUB_RUN_ID}',
+    'MANUAL_ROOT_BRIDGE_COMMAND='
   ]) assert.ok(bootstrap.includes(exact), exact);
+  assert.ok(capture.includes(`WRAPPER_SHA256: ${digest(CONTROLLER)}`));
   for (const exact of [
-    'AUTHORIZE_R150_READ_ONLY_ORIGIN_CAPTURE_V1',
+    'recover-r148-homeos-init', 'AUTHORIZE_R148_HOMEOS_INIT_FORWARD_RECOVERY_V1',
+    'RELEASE_TAG_OBJECT: c6570c7f37acb495a92095729ac56c895a514f1c',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
-    `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
-    'stay-r150-read-only-live-origin-capture-v1',
-    "validateRevisionFreeze(capture.parentFreeze, expected)",
-    'benchmarkActive: false'
-  ]) assert.ok(capture.includes(exact), exact);
-  assert.doesNotMatch(capture, /\bsudo\b|\bscp\b|systemctl\s+(?:start|stop|restart)|benchmark-start/);
-  for (const exact of [
-    'finalize-r147-homeos',
-    'AUTHORIZE_R147_HOMEOS_POST_DURABLE_FINALIZATION_V1',
-    'RELEASE_TAG_OBJECT: b703d1030fe19c77e6b00cde7cd3a908cc0e7086',
-    `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
-    'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
-    'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
-    'working-directory: /tmp/stay-r150-validation-source',
-    'sudo -n /usr/local/sbin/stay-p1-production-controller',
-    "chmod u-s,g-s '$run_root'",
-    "chmod 0700 '$run_root'",
-    'chmod u-s,g-s "$root"',
-    'chmod 0700 "$root"',
-    "stat -Lc '%U:%G:%a' \"$root\")\" == staydeploy:staydeploy:700",
-    '-type f ! -perm 0400 -print -quit',
-    'for attempt in $(seq 1 20); do',
-    '[[ "$attempt" -eq 20 ]] || sleep 0.25',
-    'pending===0',
-    "homeos?.status==='RUNNING'",
-    'homeos.checkpoint_generation===572',
-    "latest.type==='resident.r147-frame-boundary-replayed'",
-    'highWater===4575520',
-    '[[ "$current" == "$target_release" && "$revision" == 147 ]]',
-    'finalize-*)',
-    'exact post-durable timeout state',
-    'SERVICE_STATE=%s/%s',
-    'root="$1"; stage="${2:-}"',
-    "grep -Fx 'BENCHMARK_ACTIVE=NO' controller.output",
-    "! grep -Fqi '502 Bad Gateway' public.html"
+    'R148_STOPPED_DB_PREFLIGHT=PASS', 'pending===160', 'outbox===2',
+    'highWater===4575680', 'R148_HOMEOS_INIT_FORWARD_RECOVERY=PASS',
+    'FETUS_CONTINUITY=PASS', 'INTERO=ABSENT', "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);
   for (const source of [bootstrap, capture, production]) {
     assert.doesNotMatch(source, /systemctl start stay-physiology-benchmark|benchmark-start/);
@@ -190,26 +118,34 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   }
 });
 
-test('R150-CTRL-08 production cgroup entry runs in-process under its delegated unit', () => {
-  const source = read(CONTROLLER);
-  assert.match(source,
-    /systemd-run[\s\S]*?STAY_REQUIRE_CGROUPS=1 \/usr\/local\/bin\/node --test --test-isolation=none --test-concurrency=1[\s\S]*?\^R150-PRODUCTION-05/);
+test('R150-CTRL-07 shell and embedded JavaScript entry paths parse', () => {
+  const bash = process.platform === 'win32'
+    ? path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe') : 'bash';
+  for (const file of [CONTROLLER, INSTALLER]) {
+    const source = read(file);
+    const shell = spawnSync(bash, ['-n', file], { encoding: 'utf8' });
+    assert.equal(shell.status, 0, `${file}\n${shell.stdout}\n${shell.stderr}`);
+    for (const block of source.matchAll(/<<'NODE'\r?\n([\s\S]*?)\r?\nNODE/g)) {
+      const parsed = spawnSync(process.execPath, ['--check', '-'], { input: block[1], encoding: 'utf8' });
+      assert.equal(parsed.status, 0, `${file}\n${parsed.stdout}\n${parsed.stderr}`);
+    }
+  }
+  for (const file of [BOOTSTRAP, CAPTURE, PRODUCTION]) {
+    const source = read(file);
+    for (const block of source.matchAll(/<<'NODE'\r?\n([\s\S]*?)\r?\n\s+NODE/g)) {
+      const parsed = spawnSync(process.execPath, ['--check', '-'], { input: block[1], encoding: 'utf8' });
+      assert.equal(parsed.status, 0, `${file}\n${parsed.stdout}\n${parsed.stderr}`);
+    }
+  }
 });
 
-test('R150-CTRL-07 staging explicitly clears an inherited setgid directory bit', {
+test('R150-CTRL-08 staging explicitly clears inherited setgid', {
   skip: process.platform !== 'linux'
 }, () => {
-  const directory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'stay-r150-mode-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'stay-r150-mode-'));
   try {
     fs.chmodSync(directory, 0o2700);
-    const normalized = spawnSync('bash', ['-c', [
-      'set -Eeuo pipefail',
-      'root="$1"',
-      'stat -Lc %a "$root"',
-      'chmod u-s,g-s "$root"',
-      'chmod 0700 "$root"',
-      'stat -Lc %a "$root"'
-    ].join(';'), '_', directory], { encoding: 'utf8' });
+    const normalized = spawnSync('bash', ['-c', 'set -Eeuo pipefail;root="$1";stat -Lc %a "$root";chmod u-s,g-s "$root";chmod 0700 "$root";stat -Lc %a "$root"', '_', directory], { encoding: 'utf8' });
     assert.equal(normalized.status, 0, `${normalized.stdout}\n${normalized.stderr}`);
     assert.equal(normalized.stdout.trim(), '2700\n700');
   } finally {

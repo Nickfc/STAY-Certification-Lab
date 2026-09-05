@@ -18,6 +18,12 @@ const STAGES = Object.freeze({
     progression: [141, 142, 143, 144, 145, 146, 147],
     certificateName: 'homeos', coreId: 'HOMEOS'
   }),
+  'homeos-r148-recovery': Object.freeze({
+    revision: 148, label: 'R148F', parentRevision: 141,
+    freezeType: 'R148_RECOVERED_HOMEOS_INIT_OUTPUT_FIREWALLED_SHADOW',
+    progression: [141, 142, 143, 144, 145, 146, 147, 148],
+    certificateName: 'homeos', coreId: 'HOMEOS'
+  }),
   intero: Object.freeze({
     revision: 150, label: 'R150F', parentRevision: 145,
     freezeType: 'R150_INTERO_PERCEPTION_ONLY_SHADOW',
@@ -49,7 +55,7 @@ function evidenceHashes(root) {
 
 function buildFreeze(stageName, root) {
   const stage = STAGES[stageName];
-  if (!stage) fail('stage must be homeos, homeos-r147, or intero');
+  if (!stage) fail('stage must be homeos, homeos-r147, homeos-r148-recovery, or intero');
   const parent = readJson(path.join(root, 'parent.freeze.json'));
   const before = readJson(path.join(root, 'before.proof.json'));
   const after = readJson(path.join(root, 'after.proof.json'));
@@ -105,7 +111,7 @@ function buildFreeze(stageName, root) {
 }
 
 function main(argv = process.argv.slice(2)) {
-  if (argv.length !== 2) fail('usage: p1-r150-homeos-intero-freeze.js <homeos|homeos-r147|intero> <evidence-root>');
+  if (argv.length !== 2) fail('usage: p1-r150-homeos-intero-freeze.js <homeos|homeos-r147|homeos-r148-recovery|intero> <evidence-root>');
   process.stdout.write(`${JSON.stringify(buildFreeze(argv[0], path.resolve(argv[1])))}\n`);
 }
 
