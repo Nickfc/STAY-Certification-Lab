@@ -291,7 +291,7 @@ validate_stopped_r148(){
     "$(sha256_file "$SOURCE_EVIDENCE/before.proof.json")" == 92b0aabcabb95c29f0a706f3ed7bbfa3f498d6a007af1cd6cce847a7327b8623 &&
     "$(sha256_file "$SOURCE_EVIDENCE/homeos.birth-certificate.json")" == a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c &&
     "$(sha256_file "$SOURCE_EVIDENCE/parent.freeze.json")" == 352e34b1842777b42be99af710ca5256adec561c83e55666a2560db41d9e309d ]] || return 1
-  runuser -u staydeploy -- /usr/bin/timeout --signal=TERM --kill-after=5s 35s \
+  runuser -u staydeploy -- /usr/bin/timeout --signal=TERM --kill-after=5s 120s \
     /usr/local/bin/node - "$TARGET_RELEASE" "$DATABASE" >"$WORK_ROOT/r148.sntss-restart-anchor-preflight.json" <<'NODE'
 'use strict';
 const crypto = require('node:crypto');
@@ -648,8 +648,8 @@ NODE
     return 1
   }
 
-  for attempt in $(seq 1 20); do
-    /usr/bin/timeout --signal=TERM --kill-after=5s 35s /usr/local/bin/node \
+  for attempt in $(seq 1 5); do
+    /usr/bin/timeout --signal=TERM --kill-after=5s 120s /usr/local/bin/node \
       "$TARGET_RELEASE/$PROOF" capture "$DATABASE" >"$RECOVERY_WORK/database.after.json" || return 1
     for id in sntss chronobiology metab homeos; do
       /usr/local/bin/node "$TARGET_RELEASE/$CLIENT" status "resident:$id" >"$RECOVERY_WORK/$id.after.json" || return 1

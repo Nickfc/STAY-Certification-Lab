@@ -70,7 +70,7 @@ test('R150-CTRL-03 controller is revision-fenced, rollback-capable, and starts e
   assert.match(source, /rm -f -- "\$FREEZE_DIR\/R148\.json"/);
   assert.match(source, /for attempt in \$\(seq 1 240\)/);
   assert.match(source, /for attempt in \$\(seq 1 120\)/);
-  assert.match(source, /for attempt in \$\(seq 1 20\)/);
+  assert.match(source, /for attempt in \$\(seq 1 5\)/);
   assert.match(source, /proof_ready=1/);
   assert.match(source, /after\.proof\.error/);
   assert.match(source, /resident\.r148-restart-clock-anchored/);
