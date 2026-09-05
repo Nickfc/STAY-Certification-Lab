@@ -121,6 +121,8 @@ test('R150-CTRL-06 workflows pin V29, V26, immutable validation, and stopped R14
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     'R148_SNTSS_RESTART_ANCHOR_DB_PREFLIGHT=PASS', "status='PENDING'", "status='FAILED'",
     'highWater===4576105', 'R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY=PASS',
+    'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
+    'working-directory: /tmp/stay-r150-validation-source',
     'FETUS_CONTINUITY=PASS', 'INTERO=ABSENT', "! grep -Fqi '502 Bad Gateway' public.html"
   ]) assert.ok(production.includes(exact), exact);
   for (const source of [bootstrap, capture, production]) {

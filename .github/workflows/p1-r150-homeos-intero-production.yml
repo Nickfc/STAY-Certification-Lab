@@ -139,9 +139,17 @@ jobs:
           RECOVERY_SHA256=$RECOVERY_SHA256
           TARGET_RELEASE=$TARGET_RELEASE
           EOF
+      - name: Prepare sandbox-readable validation tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-hardlinks release-source /tmp/stay-r150-validation-source
+          [[ "$(git -C /tmp/stay-r150-validation-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
+          [[ -z "$(git -C /tmp/stay-r150-validation-source status --porcelain)" ]]
+          find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +
       - name: Run focused regressions and real Bubblewrap entry
         shell: bash
-        working-directory: release-source
+        working-directory: /tmp/stay-r150-validation-source
         run: |
           set -euo pipefail
           STAY_BWRAP=/usr/local/bin/stay-ci-bwrap STAY_REQUIRE_OS_CORE_SANDBOX=1 node --disable-sigusr1 --test --test-isolation=none --test-concurrency=1 test/p1-r147-continuation-recovery.test.js test/p1-r148-homeos-init-forward-recovery.test.js test/p1-r150-production-gates.test.js
