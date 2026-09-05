@@ -19,6 +19,7 @@ CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
 METAB_REPAIR='deploy/live-physiology-transplant/p1-r146-metab-q48-implementation-repair.js'
 R147_CONTINUATION_PREFLIGHT='deploy/live-physiology-transplant/p1-r147-homeos-continuation-preflight.js'
 R147_CONTINUATION_SNAPSHOT='deploy/live-physiology-transplant/p1-r147-create-continuation-snapshot.js'
+R147_FRAME_BOUNDARY_REPAIR='deploy/live-physiology-transplant/p1-r147-homeos-frame-boundary-repair.js'
 PREVIOUS_HOMEOS_TARGET='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-8421f172c6f8'
 PREVIOUS_HOMEOS_TAG='r150-homeos-intero-shadow-v11'
 PREVIOUS_HOMEOS_COMMIT='10618886fb1cf20fb4a0b69171a8e0f191a2f7fe'
@@ -172,6 +173,7 @@ for file in "$DATABASE" "$PARENT_FREEZE" "$RECOVERY_MARKER" "$ACTIVE_PUBLIC_KEY"
   "$STAY_R150_TARGET_RELEASE/$CLIENT" "$STAY_R150_TARGET_RELEASE/$METAB_REPAIR" \
   "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_PREFLIGHT" \
   "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_SNAPSHOT" \
+  "$STAY_R150_TARGET_RELEASE/$R147_FRAME_BOUNDARY_REPAIR" \
   "$STAY_R150_TARGET_RELEASE/P1_R150_RELEASE.env"; do
   [[ -f "$file" && ! -L "$file" ]] || abort recovery-input-invalid 3607
 done
@@ -246,6 +248,10 @@ fi
 
 WORK="$(mktemp -d "$EVIDENCE_ROOT/.R${TARGET_REVISION}-${STAY_R150_STAGE^^}-RECOVERY-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
 if [[ "$STAY_R150_STAGE" == homeos-r147 ]]; then
+  /usr/local/bin/node "$STAY_R150_TARGET_RELEASE/$R147_FRAME_BOUNDARY_REPAIR" preflight \
+    "$DATABASE" "$STAY_R150_TARGET_RELEASE" > "$WORK/frame-boundary-repair.preflight.json"
+  /usr/local/bin/node "$STAY_R150_TARGET_RELEASE/$R147_FRAME_BOUNDARY_REPAIR" apply \
+    "$DATABASE" "$STAY_R150_TARGET_RELEASE" > "$WORK/frame-boundary-repair.applied.json"
   /usr/local/bin/node "$STAY_R150_TARGET_RELEASE/$R147_CONTINUATION_PREFLIGHT" "$DATABASE" \
     > "$WORK/continuation.preflight.json"
   runuser -u staydeploy -- /usr/local/bin/node \

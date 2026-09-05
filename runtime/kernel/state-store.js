@@ -7331,6 +7331,142 @@ class StateStore {
   }
 
 
+  beginExactR147FrameBoundaryBacklogReplay({
+    residencyId,
+    coreId,
+    checkpointHash,
+    runtimeRevision,
+    maximumPending
+  }) {
+    const expected = Object.freeze({
+      residencyId: 'resident:homeos', coreId: 'HOMEOS',
+      instanceId: '3f32bdc9-fa49-4eea-8c13-b9afe6b47c0f',
+      version: '0.2.0-p1r0-shadow.1', stateSchema: 2,
+      moduleRelativePath: 'cores/p1-r0/homeos-shadow/index.js',
+      moduleHash: 'sha256:28ce93b507a070fef823e40cce3e7368928466077fed943c98a1a88b5a84299a',
+      manifestHash: 'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
+      packagePolicyHash: 'sha256:1afd6096fed7727491847e702d2506aa9492f8ad7d1424300b99ca3645d8b161',
+      checkpointGeneration: 78,
+      checkpointHash: 'd4805d5951a38fc4e5502fb3b787d7dc093e3dc9bf5ca0fb6eb4bbe815563f61',
+      checkpointId: 'homeos-r147-frame-boundary-repair-78', checkpointBytes: 3943,
+      inputCursor: 4574287, consumerCursor: 4574290,
+      topics: Object.freeze(['metab.energy.availability.v1', 'metab.energy.reserve.v1',
+        'runtime.homeos.shadow-activation', 'runtime.organism.binding']),
+      topicsHash: 'abea82189093d4bb54bee213ed9f9a7ebdd9b2b0b76f6f77dcc2762555e75231',
+      pendingCount: 492, firstPendingSequence: 4574291, lastPendingSequence: 4575520,
+      repairRecordId: 231,
+      repairId: 'homeos-r147-committed-metab-frame-boundary-v1'
+    });
+    if (residencyId !== expected.residencyId || coreId !== expected.coreId ||
+        checkpointHash !== expected.checkpointHash || runtimeRevision !== 147 ||
+        maximumPending !== 1023) {
+      throw Object.assign(new Error('R147 frame-boundary replay contract is invalid'), {
+        code: 'P1_R147_FRAME_BOUNDARY_REPLAY_CONTRACT'
+      });
+    }
+    const at = new Date().toISOString();
+    const replayId = crypto.randomUUID();
+    let result;
+    try {
+      result = this.withTransaction(() => {
+        const resident = this.db.prepare('SELECT * FROM resident_instances WHERE residency_id=?')
+          .get(residencyId);
+        const consumer = this.db.prepare('SELECT * FROM biological_consumers WHERE consumer_id=?')
+          .get(residencyId);
+        const checkpoint = this.db.prepare(`SELECT * FROM resident_checkpoints
+          WHERE residency_id=? AND generation=?`).get(residencyId, expected.checkpointGeneration);
+        const pending = this.db.prepare(`SELECT d.sequence,e.topic
+          FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+          WHERE d.consumer_id=? AND d.status='PENDING' ORDER BY d.sequence`).all(residencyId);
+        const otherPending = Number(this.db.prepare(`SELECT COUNT(*) count FROM biological_deliveries
+          WHERE consumer_id!=? AND status='PENDING'`).get(residencyId)?.count || 0);
+        const markers = expected.topics.map(() => '?').join(',');
+        const eligibleReplayCount = Number(this.db.prepare(`SELECT COUNT(*) count
+          FROM biological_events WHERE sequence>? AND topic IN (${markers})`)
+          .get(expected.consumerCursor, ...expected.topics)?.count || 0);
+        const invalidPending = Number(this.db.prepare(`SELECT COUNT(*) count
+          FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+          WHERE d.consumer_id=? AND d.status='PENDING' AND
+            e.topic NOT IN (${markers})`).get(residencyId, ...expected.topics)?.count || 0);
+        const highWater = Number(this.db.prepare(
+          'SELECT COALESCE(MAX(sequence),0) value FROM biological_events'
+        ).get()?.value || 0);
+        const authorityCount = Number(this.db.prepare(`SELECT COUNT(*) count FROM authority
+          WHERE core_id IN ('METAB','HOMEOS','INTERO','sntss','chronobiology')`).get()?.count || 0);
+        const pendingOutputCount = Number(this.db.prepare(`SELECT COUNT(*) count
+          FROM biological_outbox_intents WHERE status!='PUBLISHED'`).get()?.count || 0);
+        const repair = this.db.prepare(`SELECT id,type,core_id,detail_json FROM recovery_records
+          WHERE id=?`).get(expected.repairRecordId);
+        let repairDetail = null;
+        try { repairDetail = JSON.parse(repair?.detail_json || 'null'); } catch {}
+        if (
+          resident?.core_id !== coreId || resident?.instance_id !== expected.instanceId ||
+          resident?.version !== expected.version || Number(resident?.state_schema) !== expected.stateSchema ||
+          resident?.module_relative_path !== expected.moduleRelativePath ||
+          resident?.module_hash !== expected.moduleHash || resident?.manifest_hash !== expected.manifestHash ||
+          resident?.package_policy_hash !== expected.packagePolicyHash ||
+          resident?.status !== 'RESYNC_REQUIRED' ||
+          Number(resident?.checkpoint_generation) !== expected.checkpointGeneration ||
+          resident?.checkpoint_hash !== expected.checkpointHash ||
+          checkpoint?.checkpoint_id !== expected.checkpointId ||
+          checkpoint?.instance_id !== expected.instanceId || checkpoint?.version !== expected.version ||
+          Number(checkpoint?.state_schema) !== expected.stateSchema ||
+          Number(checkpoint?.generation) !== expected.checkpointGeneration ||
+          checkpoint?.blob_hash !== expected.checkpointHash ||
+          Number(checkpoint?.byte_length) !== expected.checkpointBytes ||
+          Number(checkpoint?.input_cursor) !== expected.inputCursor ||
+          consumer?.core_id !== coreId || Number(consumer?.required) !== 0 ||
+          Number(consumer?.active) !== 0 || Number(consumer?.cursor) !== expected.consumerCursor ||
+          Number(consumer?.authority_epoch) !== 0 || consumer?.topics_sha256 !== expected.topicsHash ||
+          consumer?.checkpoint_hash !== expected.checkpointHash ||
+          pending.length !== expected.pendingCount ||
+          Number(pending[0]?.sequence) !== expected.firstPendingSequence ||
+          Number(pending.at(-1)?.sequence) !== expected.lastPendingSequence ||
+          pending.some(row => !expected.topics.includes(row.topic)) ||
+          eligibleReplayCount !== expected.pendingCount || eligibleReplayCount > maximumPending ||
+          invalidPending !== 0 || otherPending !== 0 || highWater !== 4575520 ||
+          authorityCount !== 0 || pendingOutputCount !== 0 ||
+          Number(repair?.id) !== expected.repairRecordId ||
+          repair?.type !== 'resident.r147-frame-boundary-repaired' || repair?.core_id !== coreId ||
+          repairDetail?.repairId !== expected.repairId ||
+          repairDetail?.repairedCheckpointHash !== expected.checkpointHash ||
+          repairDetail?.pendingDeliveriesPreserved !== expected.pendingCount ||
+          repairDetail?.biologicalEventsDeleted !== 0 || repairDetail?.abandonedCount !== 0 ||
+          repairDetail?.inventedBiologicalTime !== false || repairDetail?.authorityChanged !== false
+        ) {
+          throw Object.assign(new Error('R147 frame-boundary replay state changed'), {
+            code: 'P1_R147_FRAME_BOUNDARY_REPLAY_STATE'
+          });
+        }
+        const detail = {
+          cohort: 'r147-homeos-frame-boundary-continuation-v1', replayId, residencyId,
+          repairRecordId: expected.repairRecordId, repairId: expected.repairId,
+          checkpointHash, checkpointGeneration: expected.checkpointGeneration,
+          runtimeRevision, fromCursor: expected.consumerCursor, toCursor: highWater,
+          pendingCount: expected.pendingCount, eligibleReplayCount, maximumPending,
+          abandonedCount: 0, inventedBiologicalTime: false, authorityChanged: false
+        };
+        const updated = this.db.prepare(`UPDATE resident_instances SET status='RECOVERING',updated_at=?
+          WHERE residency_id=? AND status='RESYNC_REQUIRED' AND checkpoint_hash=?`)
+          .run(at, residencyId, checkpointHash);
+        if (updated.changes !== 1) throw Object.assign(
+          new Error('R147 frame-boundary replay lost the resident fence'),
+          { code: 'RESIDENT_IDENTITY_CONFLICT' }
+        );
+        this.db.prepare(`INSERT INTO recovery_records(type,core_id,detail_json,created_at)
+          VALUES('resident.r147-frame-boundary-replay-begin',?,?,?)`)
+          .run(coreId, JSON.stringify(detail), at);
+        return detail;
+      });
+    } catch (error) {
+      this.markWriteFailure(error);
+      throw error;
+    }
+    this.markWriteSuccess();
+    return result;
+  }
+
+
   beginExactR147ContinuationBacklogReplay({
     residencyId,
     coreId,
