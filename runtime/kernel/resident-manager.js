@@ -4748,7 +4748,8 @@ class ResidentManager {
         binding,
         checkpoint,
         backfillInactiveGap:
-          !containedChronobiologyBacklog && !containedR146HomeosBacklog,
+          !containedChronobiologyBacklog && !containedR146HomeosBacklog &&
+          !containedR147ContinuationBacklog,
         replayDebtLimit:
           containedChronobiologyBacklog
             ? 8192

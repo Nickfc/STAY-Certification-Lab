@@ -7346,21 +7346,17 @@ class StateStore {
         moduleHash: 'sha256:28ce93b507a070fef823e40cce3e7368928466077fed943c98a1a88b5a84299a',
         manifestHash: 'sha256:36a34d27e58035063c94cbf2acc7f8646679ee472b1d03f0459c9b4ccaa79179',
         packagePolicyHash: 'sha256:1afd6096fed7727491847e702d2506aa9492f8ad7d1424300b99ca3645d8b161',
-        checkpointGeneration: 75,
+        checkpointGeneration: 76,
         checkpointHash: '970a580617d3c298bd7ce3bee5a56791bbe9565d25df7a73cde204e7d41d7f76',
-        checkpointId: 'eed95af7-03f4-4349-89c5-32fafe52d2c3', checkpointBytes: 47620,
+        checkpointId: 'b3a93ad3-a9ce-443d-9e51-a5ec600b0908', checkpointBytes: 47620,
         inputCursor: 4574287, consumerCursor: 4574290,
         topics: Object.freeze(['metab.energy.availability.v1', 'metab.energy.reserve.v1',
           'runtime.homeos.shadow-activation', 'runtime.organism.binding']),
         topicsHash: 'abea82189093d4bb54bee213ed9f9a7ebdd9b2b0b76f6f77dcc2762555e75231',
-        pending: Object.freeze([
-          Object.freeze({ sequence: 4574291, topic: 'metab.energy.availability.v1',
-            deduplicationKey: 'core-output:241118f896bf22f9e7fdc76ac282ab598b2223ea617c76635edbef2e6e125e58' }),
-          Object.freeze({ sequence: 4574292, topic: 'metab.energy.reserve.v1',
-            deduplicationKey: 'core-output:900f2c215b6e2d3d729f1e00857d46c8d92a2bee5960456ad43a995e22ba404e' })
-        ]),
-        eligibleReplayCount: 492, failureRecordId: 211,
-        failureSequence: 4574291, failureCode: 'P1_RESIDENT_PENDING_BOUND'
+        pendingCount: 1230, firstPendingSequence: 4574291, lastPendingSequence: 4575520,
+        eligibleReplayCount: 492, invalidPendingCount: 738,
+        replayBeginRecordId: 215, failureRecordId: 216,
+        failureSequence: 4574291, failureCode: 'RESIDENT_REPLAY_BOUNDED'
       }),
       'resident:sntss': Object.freeze({
         coreId: 'sntss', instanceId: '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
@@ -7369,21 +7365,17 @@ class StateStore {
         moduleHash: 'sha256:4e96f1882ddbe35fc0e8f2afcdabae2b5e75812d8e9a392b09bcc8040b335ea7',
         manifestHash: 'sha256:c1d0db3d4520556cb022864f4d1eb487a99628d61f3564942aa65cc0f204499a',
         packagePolicyHash: 'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d',
-        checkpointGeneration: 2891082,
+        checkpointGeneration: 2891083,
         checkpointHash: '16a0224ff3f8dbeac51ebb27c05ad6e5bef8a1d831f308367470f7cb639cd5a0',
-        checkpointId: '4ffc8006-ecbb-47cc-abcf-47f41aac33ae', checkpointBytes: 4971,
+        checkpointId: 'cb00ab19-2a1e-45cd-9e03-7c31a3c0e629', checkpointBytes: 4971,
         inputCursor: 4574207, consumerCursor: 4574211,
         topics: Object.freeze(['runtime.organism.binding', 'runtime.sntss.continuity-genesis',
           'runtime.time.pulse']),
         topicsHash: 'b752d8eebb09ac925c4c193810d31f5527315e42e36fbedafa1f30ef25a97501',
-        pending: Object.freeze([
-          Object.freeze({ sequence: 4574212, topic: 'runtime.time.pulse', deduplicationKey: 'runtime.time.pulse:147:3' }),
-          Object.freeze({ sequence: 4574217, topic: 'runtime.time.pulse', deduplicationKey: 'runtime.time.pulse:147:4' }),
-          Object.freeze({ sequence: 4574223, topic: 'runtime.time.pulse', deduplicationKey: 'runtime.time.pulse:147:5' }),
-          Object.freeze({ sequence: 4574228, topic: 'runtime.time.pulse', deduplicationKey: 'runtime.time.pulse:147:6' })
-        ]),
-        eligibleReplayCount: 261, failureRecordId: 210,
-        failureSequence: 4574212, failureCode: 'CORE_WORKER_TIMEOUT'
+        pendingCount: 1294, firstPendingSequence: 4574212, lastPendingSequence: 4575520,
+        eligibleReplayCount: 261, invalidPendingCount: 1033,
+        replayBeginRecordId: 218, failureRecordId: 219,
+        failureSequence: 4574212, failureCode: 'RESIDENT_REPLAY_BOUNDED'
       })
     });
     const expected = expectedByResidency[residencyId];
@@ -7416,8 +7408,25 @@ class StateStore {
         ).get()?.value || 0);
         const failure = this.db.prepare(`SELECT id,detail_json FROM recovery_records
           WHERE type='resident.resync-required' AND core_id=? ORDER BY id DESC LIMIT 1`).get(coreId);
+        const replayBegin = this.db.prepare(`SELECT id,detail_json FROM recovery_records
+          WHERE type='resident.r147-continuation-replay-begin' AND core_id=?
+          ORDER BY id DESC LIMIT 1`).get(coreId);
         let failureDetail = null;
         try { failureDetail = JSON.parse(failure?.detail_json || 'null'); } catch {}
+        let replayBeginDetail = null;
+        try { replayBeginDetail = JSON.parse(replayBegin?.detail_json || 'null'); } catch {}
+        const invalidPendingCount = Number(this.db.prepare(`SELECT COUNT(*) count
+          FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+          WHERE d.consumer_id=? AND d.status='PENDING' AND d.sequence>? AND
+            e.topic NOT IN (${markers})`).get(
+          residencyId, expected.consumerCursor, ...expected.topics
+        )?.count || 0);
+        const relevantPendingCount = Number(this.db.prepare(`SELECT COUNT(*) count
+          FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+          WHERE d.consumer_id=? AND d.status='PENDING' AND d.sequence>? AND
+            e.topic IN (${markers})`).get(
+          residencyId, expected.consumerCursor, ...expected.topics
+        )?.count || 0);
         const authorityCount = Number(this.db.prepare(`SELECT COUNT(*) count FROM authority
           WHERE core_id IN ('METAB','HOMEOS','INTERO','sntss','chronobiology')`).get()?.count || 0);
         const pendingOutputCount = Number(this.db.prepare(`SELECT COUNT(*) count
@@ -7442,25 +7451,64 @@ class StateStore {
           Number(consumer?.active) !== 0 || Number(consumer?.cursor) !== expected.consumerCursor ||
           Number(consumer?.authority_epoch) !== 0 || consumer?.topics_sha256 !== expected.topicsHash ||
           consumer?.checkpoint_hash !== expected.checkpointHash ||
-          pending.length !== expected.pending.length || pending.some((row, index) =>
-            Number(row.sequence) !== expected.pending[index].sequence ||
-            row.topic !== expected.pending[index].topic ||
-            row.deduplication_key !== expected.pending[index].deduplicationKey) ||
+          pending.length !== expected.pendingCount ||
+          Number(pending[0]?.sequence) !== expected.firstPendingSequence ||
+          Number(pending[pending.length - 1]?.sequence) !== expected.lastPendingSequence ||
+          relevantPendingCount !== expected.eligibleReplayCount ||
+          invalidPendingCount !== expected.invalidPendingCount ||
           eligibleReplayCount !== expected.eligibleReplayCount || eligibleReplayCount > maximumPending ||
           highWater !== 4575520 || Number(failure?.id) !== expected.failureRecordId ||
           failureDetail?.residencyId !== residencyId ||
           failureDetail?.sequence !== expected.failureSequence || failureDetail?.code !== expected.failureCode ||
+          Number(replayBegin?.id) !== expected.replayBeginRecordId ||
+          replayBeginDetail?.cohort !== 'r147-homeos-sntss-sequential-continuation-v1' ||
+          replayBeginDetail?.residencyId !== residencyId ||
+          replayBeginDetail?.pendingCount !== (residencyId === 'resident:homeos' ? 2 : 4) ||
+          replayBeginDetail?.eligibleReplayCount !== expected.eligibleReplayCount ||
+          replayBeginDetail?.abandonedCount !== 0 ||
+          replayBeginDetail?.inventedBiologicalTime !== false ||
+          replayBeginDetail?.authorityChanged !== false ||
           authorityCount !== 0 || pendingOutputCount !== 0
         ) {
           throw Object.assign(new Error('R147 continuation replay state changed'), {
             code: 'P1_R147_CONTINUATION_REPLAY_STATE'
           });
         }
+        const deleted = this.db.prepare(`DELETE FROM biological_deliveries
+          WHERE consumer_id=? AND status='PENDING' AND sequence IN (
+            SELECT sequence FROM biological_events WHERE sequence>? AND
+              topic NOT IN (${markers})
+          )`).run(residencyId, expected.consumerCursor, ...expected.topics);
+        if (deleted.changes !== expected.invalidPendingCount) {
+          throw Object.assign(new Error('R147 invalid backfill prune lost its exact fence'), {
+            code: 'P1_R147_CONTINUATION_PRUNE_FENCE'
+          });
+        }
+        const retained = this.db.prepare(`SELECT d.sequence,e.topic
+          FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+          WHERE d.consumer_id=? AND d.status='PENDING' ORDER BY d.sequence`).all(residencyId);
+        if (retained.length !== expected.eligibleReplayCount ||
+            retained.some(row => !expected.topics.includes(row.topic))) {
+          throw Object.assign(new Error('R147 continuation prune changed the replay cohort'), {
+            code: 'P1_R147_CONTINUATION_PRUNE_STATE'
+          });
+        }
+        this.db.prepare(`INSERT INTO recovery_records(type,core_id,detail_json,created_at)
+          VALUES('resident.r147-invalid-backfill-pruned',?,?,?)`).run(coreId, JSON.stringify({
+          cohort: 'r147-post-failure-invalid-delivery-repair-v1', replayId, residencyId,
+          sourceReplayBeginRecordId: expected.replayBeginRecordId,
+          sourceFailureRecordId: expected.failureRecordId,
+          removedInvalidDeliveryCount: expected.invalidPendingCount,
+          retainedEligibleDeliveryCount: expected.eligibleReplayCount,
+          biologicalEventsDeleted: 0, abandonedCount: 0,
+          inventedBiologicalTime: false, authorityChanged: false
+        }), at);
         const detail = {
           cohort: 'r147-homeos-sntss-sequential-continuation-v1', replayId, residencyId,
           checkpointHash, checkpointGeneration: expected.checkpointGeneration,
           runtimeRevision, fromCursor: expected.consumerCursor, toCursor: highWater,
-          pendingCount: expected.pending.length, eligibleReplayCount, maximumPending,
+          pendingCount: expected.eligibleReplayCount, eligibleReplayCount, maximumPending,
+          removedInvalidDeliveryCount: expected.invalidPendingCount,
           abandonedCount: 0, inventedBiologicalTime: false, authorityChanged: false
         };
         const updated = this.db.prepare(`UPDATE resident_instances SET status='RECOVERING',updated_at=?

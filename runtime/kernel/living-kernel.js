@@ -255,7 +255,7 @@ const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
     'AUTHORIZE_STRANDED_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_ONLY',
   runtimeRevision: 147,
   highWater: 4575520,
-  latestRecoveryRecordId: 212,
+  latestRecoveryRecordId: 220,
   fetusResolutionRecordId: 194,
   capacitySource: Object.freeze({
     runtimeRevision: 128,
@@ -267,9 +267,9 @@ const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
     residencyId: 'resident:metab', coreId: 'METAB',
     instanceId: R145_HOMEOS_SHADOW.metabInstanceId,
     version: '0.3.0-p1r0-homeos-feed.1', stateSchema: 3,
-    status: 'RECOVERING', checkpointGeneration: 325399,
+    status: 'RUNNING', checkpointGeneration: 325400,
     checkpointHash: 'ec9a31171e5dd07fbe09479aaad9eb5e66de929668c1241914d28a85f9bbc0fe',
-    checkpointId: 'd8bee226-7317-45bc-92a4-afc5fb865fae',
+    checkpointId: '09f2b7b0-719b-4737-9cef-8d8eb6ba22ff',
     checkpointBytes: 5008, inputCursor: 4575518, consumerCursor: 4575520,
     moduleRelativePath: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleRelativePath,
     moduleHash: R146_METAB_Q48_HOMEOS_RECOVERY.partialMetabModuleHash,
@@ -281,45 +281,49 @@ const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
     residencyId: 'resident:homeos', coreId: 'HOMEOS',
     instanceId: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosInstanceId,
     version: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosVersion, stateSchema: 2,
-    status: 'RESYNC_REQUIRED', checkpointGeneration: 75,
+    status: 'RESYNC_REQUIRED', checkpointGeneration: 76,
     checkpointHash: '970a580617d3c298bd7ce3bee5a56791bbe9565d25df7a73cde204e7d41d7f76',
-    checkpointId: 'eed95af7-03f4-4349-89c5-32fafe52d2c3',
+    checkpointId: 'b3a93ad3-a9ce-443d-9e51-a5ec600b0908',
     checkpointBytes: 47620, inputCursor: 4574287, consumerCursor: 4574290,
     moduleRelativePath: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosModuleRelativePath,
     moduleHash: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosModuleHash,
     manifestHash: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosManifestHash,
     packagePolicyHash: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosPackagePolicyHash,
     topicsHash: R146_METAB_Q48_HOMEOS_RECOVERY.finalHomeosTopicsHash,
-    failureRecordId: 211, failureSequence: 4574291,
-    failureCode: 'P1_RESIDENT_PENDING_BOUND', pendingCount: 2,
-    firstPendingSequence: 4574291, lastPendingSequence: 4574292,
-    eligibleReplayCount: 492
+    failureRecordId: 216, failureSequence: 4574291,
+    failureCode: 'RESIDENT_REPLAY_BOUNDED', pendingCount: 1230,
+    firstPendingSequence: 4574291, lastPendingSequence: 4575520,
+    eligibleReplayCount: 492, invalidPendingCount: 738,
+    topics: Object.freeze(['metab.energy.availability.v1', 'metab.energy.reserve.v1',
+      'runtime.homeos.shadow-activation', 'runtime.organism.binding'])
   }),
   sntss: Object.freeze({
     residencyId: 'resident:sntss', coreId: 'sntss',
     instanceId: '8c65a965-5236-46e1-a2f1-e2f8cfc1ac0f',
     version: '0.5.0-i4g1', stateSchema: 5,
-    status: 'RESYNC_REQUIRED', checkpointGeneration: 2891082,
+    status: 'RESYNC_REQUIRED', checkpointGeneration: 2891083,
     checkpointHash: '16a0224ff3f8dbeac51ebb27c05ad6e5bef8a1d831f308367470f7cb639cd5a0',
-    checkpointId: '4ffc8006-ecbb-47cc-abcf-47f41aac33ae',
+    checkpointId: 'cb00ab19-2a1e-45cd-9e03-7c31a3c0e629',
     checkpointBytes: 4971, inputCursor: 4574207, consumerCursor: 4574211,
     moduleRelativePath: 'cores/sntss/i4g/index.js',
     moduleHash: 'sha256:4e96f1882ddbe35fc0e8f2afcdabae2b5e75812d8e9a392b09bcc8040b335ea7',
     manifestHash: 'sha256:c1d0db3d4520556cb022864f4d1eb487a99628d61f3564942aa65cc0f204499a',
     packagePolicyHash: 'sha256:ba12622fcc9c782c8c48f0544a5b019c96dc198dcbb7fb209c1dad47de64639d',
     topicsHash: 'b752d8eebb09ac925c4c193810d31f5527315e42e36fbedafa1f30ef25a97501',
-    failureRecordId: 210, failureSequence: 4574212,
-    failureCode: 'CORE_WORKER_TIMEOUT', pendingCount: 4,
-    firstPendingSequence: 4574212, lastPendingSequence: 4574228,
-    eligibleReplayCount: 261
+    failureRecordId: 219, failureSequence: 4574212,
+    failureCode: 'RESIDENT_REPLAY_BOUNDED', pendingCount: 1294,
+    firstPendingSequence: 4574212, lastPendingSequence: 4575520,
+    eligibleReplayCount: 261, invalidPendingCount: 1033,
+    topics: Object.freeze(['runtime.organism.binding', 'runtime.sntss.continuity-genesis',
+      'runtime.time.pulse'])
   }),
   chronobiology: Object.freeze({
     residencyId: 'resident:chronobiology', coreId: 'chronobiology',
     instanceId: 'f1e1ae54-9ea0-4d64-a9c6-6e4a301c5e8a',
     version: '1.0.0-c3rc.5', stateSchema: 2,
-    status: 'RUNNING', checkpointGeneration: 12386,
+    status: 'RUNNING', checkpointGeneration: 12387,
     checkpointHash: 'd6374f44ba42dfa716cea7f291422f3c4684308fc73c95db1b2723d03639e022',
-    checkpointId: '1aa3f028-1e6b-4cd1-bbda-69d0caca9ca2',
+    checkpointId: '07ebe290-b267-4af9-84e3-e8dee435cc66',
     checkpointBytes: 49187, inputCursor: 4575400, consumerCursor: 4575520,
     moduleRelativePath: 'cores/chronobiology/c3r5/index.js',
     moduleHash: 'sha256:ecac9b25bf5897d6344cbca702a6ce30ab76c5ff69af76ad17f1aea734e54867',
@@ -332,9 +336,9 @@ const R147_HOMEOS_CONTINUATION_RECOVERY = Object.freeze({
     instanceId: '82202211-8dd6-44d4-a4ec-8f2553d8dc6f', version: '0.6.0',
     authorityEpoch: 1, consumerCursor: 4574204,
     consumerCheckpointHash: '4e1e648fb80c66d6c21d5c1c550ae50f702f581ab52bbda60805ce66b33078bf',
-    checkpointGeneration: 206,
-    checkpointHash: 'a2d5c969616196220a578530c910239ecc1443a7b4dbef2bdf1c5e024ab7204b',
-    checkpointBytes: 58540,
+    checkpointGeneration: 207,
+    checkpointHash: '2e532d20a1cddb41896ea8127f3ffc1d3f1612e134bba06b497d51d0e51a6c68',
+    checkpointBytes: 59402,
     topicsHash: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945'
   })
 });
@@ -1778,7 +1782,7 @@ class LivingKernel {
     if (
       this.stateStore.listAuthority().some(entry =>
         ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId)) ||
-      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status!='ACKED'") !== 6 ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status!='ACKED'") !== 2524 ||
       count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status!='PUBLISHED'") !== 0 ||
       count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE producer_core_id IN ('sntss','SNTSS','HOMEOS','INTERO')") !== 0 ||
       Number(this.stateStore.db.prepare(
@@ -1797,12 +1801,23 @@ class LivingKernel {
       `).get(fence.coreId);
       let detail = null;
       try { detail = JSON.parse(failure?.detail_json || 'null'); } catch {}
+      const markers = fence.topics.map(() => '?').join(',');
+      const relevantPending = count(`SELECT COUNT(*) count FROM biological_deliveries d
+        JOIN biological_events e ON e.sequence=d.sequence
+        WHERE d.consumer_id=? AND d.status='PENDING' AND d.sequence>? AND
+          e.topic IN (${markers})`, fence.residencyId, fence.consumerCursor, ...fence.topics);
+      const invalidPending = count(`SELECT COUNT(*) count FROM biological_deliveries d
+        JOIN biological_events e ON e.sequence=d.sequence
+        WHERE d.consumer_id=? AND d.status='PENDING' AND d.sequence>? AND
+          e.topic NOT IN (${markers})`, fence.residencyId, fence.consumerCursor, ...fence.topics);
       if (Number(pending?.count) !== fence.pendingCount ||
           Number(pending?.minimum) !== fence.firstPendingSequence ||
           Number(pending?.maximum) !== fence.lastPendingSequence ||
           Number(failure?.id) !== fence.failureRecordId ||
           detail?.residencyId !== fence.residencyId ||
-          detail?.sequence !== fence.failureSequence || detail?.code !== fence.failureCode) return false;
+          detail?.sequence !== fence.failureSequence || detail?.code !== fence.failureCode ||
+          relevantPending !== fence.eligibleReplayCount ||
+          invalidPending !== fence.invalidPendingCount) return false;
     }
     const latest = this.stateStore.db.prepare(
       'SELECT id,type,core_id,detail_json FROM recovery_records ORDER BY id DESC LIMIT 1'
@@ -1817,11 +1832,10 @@ class LivingKernel {
     let fetusDetail = null;
     try { fetusDetail = JSON.parse(fetusResolution?.detail_json || 'null'); } catch {}
     if (Number(latest?.id) !== expected.latestRecoveryRecordId ||
-        latest?.type !== 'resident.recovered' || latest?.core_id !== expected.chronobiology.coreId ||
-        latestDetail?.residencyId !== expected.chronobiology.residencyId ||
-        latestDetail?.instanceId !== expected.chronobiology.instanceId ||
-        latestDetail?.version !== expected.chronobiology.version ||
-        latestDetail?.checkpointHash !== expected.chronobiology.checkpointHash ||
+        latest?.type !== 'resident.cold-recovery-failed' || latest?.core_id !== expected.sntss.coreId ||
+        latestDetail?.residencyId !== expected.sntss.residencyId ||
+        latestDetail?.expectedRevision !== expected.runtimeRevision ||
+        latestDetail?.code !== expected.sntss.failureCode ||
         Number(fetusResolution?.id) !== expected.fetusResolutionRecordId ||
         fetusDetail?.cohort !== 'r146-fetus-empty-input-continuity-v1' ||
         fetusDetail?.toCursor !== 4574204 || fetusDetail?.abandonedCount !== 0 ||

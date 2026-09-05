@@ -20,21 +20,6 @@ const { createCapacitySourceState } = require('../runtime/p1-r0/metab-capacity-s
 const AT = '2026-09-04T19:20:00.000Z';
 const IDENTITY_HASH = '9'.repeat(64);
 const execFileAsync = promisify(execFile);
-const PENDING = Object.freeze({
-  'resident:homeos': Object.freeze([
-    Object.freeze({ sequence: 4574291,
-      deduplicationKey: 'core-output:241118f896bf22f9e7fdc76ac282ab598b2223ea617c76635edbef2e6e125e58' }),
-    Object.freeze({ sequence: 4574292,
-      deduplicationKey: 'core-output:900f2c215b6e2d3d729f1e00857d46c8d92a2bee5960456ad43a995e22ba404e' })
-  ]),
-  'resident:sntss': Object.freeze([
-    Object.freeze({ sequence: 4574212, deduplicationKey: 'runtime.time.pulse:147:3' }),
-    Object.freeze({ sequence: 4574217, deduplicationKey: 'runtime.time.pulse:147:4' }),
-    Object.freeze({ sequence: 4574223, deduplicationKey: 'runtime.time.pulse:147:5' }),
-    Object.freeze({ sequence: 4574228, deduplicationKey: 'runtime.time.pulse:147:6' })
-  ])
-});
-
 function continuationHarness() {
   const expected = R147_HOMEOS_CONTINUATION_RECOVERY;
   const residents = Object.fromEntries(
@@ -134,12 +119,14 @@ function continuationHarness() {
                 byte_length: expected.fetus.checkpointBytes
               };
             }
-            if (sql.includes("status!='ACKED'")) return { count: 6 };
+            if (sql.includes("status!='ACKED'")) return { count: 2524 };
             if (sql.includes('biological_outbox_intents')) return { count: 0 };
             if (sql.includes('COALESCE(MAX(sequence),0)')) return { value: expected.highWater };
             if (sql.includes("status='PENDING'")) {
               const fence = residents[args[0]];
               if (!fence) return { count: 0, minimum: null, maximum: null };
+              if (sql.includes('e.topic NOT IN')) return { count: fence.invalidPendingCount };
+              if (sql.includes('e.topic IN')) return { count: fence.eligibleReplayCount };
               return {
                 count: fence.pendingCount,
                 minimum: fence.firstPendingSequence,
@@ -161,13 +148,12 @@ function continuationHarness() {
                 !sql.includes("type='biological.consumer-resynchronized'")) {
               return {
                 id: expected.latestRecoveryRecordId,
-                type: 'resident.recovered',
-                core_id: expected.chronobiology.coreId,
+                type: 'resident.cold-recovery-failed',
+                core_id: expected.sntss.coreId,
                 detail_json: JSON.stringify({
-                  residencyId: expected.chronobiology.residencyId,
-                  instanceId: expected.chronobiology.instanceId,
-                  version: expected.chronobiology.version,
-                  checkpointHash: expected.chronobiology.checkpointHash
+                  residencyId: expected.sntss.residencyId,
+                  expectedRevision: expected.runtimeRevision,
+                  code: expected.sntss.failureCode
                 })
               };
             }
@@ -213,16 +199,16 @@ function insertEvent(store, sequence, topic, deduplicationKey) {
   );
 }
 
-test('R147-CONTINUATION-01 preserves only the exact stopped six-delivery cohort', () => {
+test('R147-CONTINUATION-01 preserves only the exact post-failure materialized cohort', () => {
   const { expected, harness, residents } = continuationHarness();
   assert.deepEqual({
     generation: expected.fetus.checkpointGeneration,
     hash: expected.fetus.checkpointHash,
     bytes: expected.fetus.checkpointBytes
   }, {
-    generation: 206,
-    hash: 'a2d5c969616196220a578530c910239ecc1443a7b4dbef2bdf1c5e024ab7204b',
-    bytes: 58540
+    generation: 207,
+    hash: '2e532d20a1cddb41896ea8127f3ffc1d3f1612e134bba06b497d51d0e51a6c68',
+    bytes: 59402
   });
   assert.equal(
     LivingKernel.prototype.preserveExactR147HomeosContinuationRevision.call(harness),
@@ -241,7 +227,7 @@ test('R147-CONTINUATION-01 preserves only the exact stopped six-delivery cohort'
   assert.equal(harness.r147DeferredResidentRecovery, false);
 });
 
-test('R147-CONTINUATION-02 exact HOMEOS and SNTSS admission is atomic and bounded at 1023', async t => {
+test('R147-CONTINUATION-02 exact repair prunes only invalid delivery assignments and remains bounded at 1023', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r147-continuation-'));
   const store = new StateStore(root);
   await store.init();
@@ -284,26 +270,34 @@ test('R147-CONTINUATION-02 exact HOMEOS and SNTSS admission is atomic and bounde
       );
     }
 
-    for (let sequence = 4574291; sequence <= 4574782; sequence += 1) {
-      const topic = sequence % 2 === 0
-        ? 'metab.energy.reserve.v1' : 'metab.energy.availability.v1';
-      const exact = PENDING['resident:homeos'].find(value => value.sequence === sequence);
-      insertEvent(store, sequence, topic, exact?.deduplicationKey || `homeos:${sequence}`);
+    for (let sequence = 4574212; sequence <= expected.highWater; sequence += 1) {
+      const topic = sequence === 4574212 || (sequence >= 4574231 && sequence <= 4574490)
+        ? 'runtime.time.pulse'
+        : sequence >= 4574491 && sequence <= 4574982
+          ? (sequence % 2 === 0
+            ? 'metab.energy.reserve.v1' : 'metab.energy.availability.v1')
+          : 'unrelated.topic';
+      insertEvent(store, sequence, topic, `r147:${sequence}`);
     }
-    const sntssSequences = [];
-    for (let sequence = 4574212; sequence <= 4574290; sequence += 1) sntssSequences.push(sequence);
-    for (let sequence = 4574783; sequence <= 4574964; sequence += 1) sntssSequences.push(sequence);
-    assert.equal(sntssSequences.length, expected.sntss.eligibleReplayCount);
-    for (const sequence of sntssSequences) {
-      const exact = PENDING['resident:sntss'].find(value => value.sequence === sequence);
-      insertEvent(store, sequence, 'runtime.time.pulse', exact?.deduplicationKey || `sntss:${sequence}`);
-    }
-    insertEvent(store, expected.highWater, 'unrelated.topic', 'r147:high-water');
     for (const fence of fences) {
-      for (const pending of PENDING[fence.residencyId]) {
+      for (let sequence = fence.consumerCursor + 1; sequence <= expected.highWater; sequence += 1) {
+        const status = fence.residencyId === 'resident:sntss' &&
+          sequence >= 4574213 && sequence <= 4574227 ? 'ACKED' : 'PENDING';
         store.db.prepare(`INSERT INTO biological_deliveries(sequence,consumer_id,status)
-          VALUES(?,?,'PENDING')`).run(pending.sequence, fence.residencyId);
+          VALUES(?,?,?)`).run(sequence, fence.residencyId, status);
       }
+      store.db.prepare(`INSERT INTO recovery_records(id,type,core_id,detail_json,created_at)
+        VALUES(?,?,?,?,?)`).run(
+        fence.residencyId === 'resident:homeos' ? 215 : 218,
+        'resident.r147-continuation-replay-begin', fence.coreId,
+        JSON.stringify({
+          cohort: 'r147-homeos-sntss-sequential-continuation-v1',
+          residencyId: fence.residencyId,
+          pendingCount: fence.residencyId === 'resident:homeos' ? 2 : 4,
+          eligibleReplayCount: fence.eligibleReplayCount,
+          abandonedCount: 0, inventedBiologicalTime: false, authorityChanged: false
+        }), AT
+      );
       store.db.prepare(`INSERT INTO recovery_records(id,type,core_id,detail_json,created_at)
         VALUES(?,?,?,?,?)`).run(
         fence.failureRecordId, 'resident.resync-required', fence.coreId,
@@ -324,6 +318,9 @@ test('R147-CONTINUATION-02 exact HOMEOS and SNTSS admission is atomic and bounde
     maximumPending: 1024
   }), { code: 'P1_R147_CONTINUATION_REPLAY_CONTRACT' });
 
+  const biologicalEventCount = store.db.prepare(
+    'SELECT COUNT(*) count FROM biological_events'
+  ).get().count;
   for (const fence of fences) {
     const record = store.beginExactR147ContinuationBacklogReplay({
       residencyId: fence.residencyId,
@@ -332,8 +329,9 @@ test('R147-CONTINUATION-02 exact HOMEOS and SNTSS admission is atomic and bounde
       runtimeRevision: 147,
       maximumPending: 1023
     });
-    assert.equal(record.pendingCount, fence.pendingCount);
+    assert.equal(record.pendingCount, fence.eligibleReplayCount);
     assert.equal(record.eligibleReplayCount, fence.eligibleReplayCount);
+    assert.equal(record.removedInvalidDeliveryCount, fence.invalidPendingCount);
     assert.equal(record.maximumPending, 1023);
     assert.equal(record.abandonedCount, 0);
     assert.equal(record.inventedBiologicalTime, false);
@@ -341,9 +339,13 @@ test('R147-CONTINUATION-02 exact HOMEOS and SNTSS admission is atomic and bounde
     assert.equal(store.getResident(fence.residencyId).status, 'RECOVERING');
   }
   assert.equal(store.db.prepare(`SELECT COUNT(*) count FROM biological_deliveries
-    WHERE status='PENDING'`).get().count, 6);
+    WHERE status='PENDING'`).get().count, 753);
   assert.equal(store.db.prepare(`SELECT COUNT(*) count FROM biological_deliveries
-    WHERE status='ACKED'`).get().count, 0);
+    WHERE status='ACKED'`).get().count, 15);
+  assert.equal(store.db.prepare('SELECT COUNT(*) count FROM biological_events').get().count,
+    biologicalEventCount);
+  assert.equal(store.db.prepare(`SELECT COUNT(*) count FROM recovery_records
+    WHERE type='resident.r147-invalid-backfill-pruned'`).get().count, 2);
   assert.equal(store.db.prepare(`SELECT COUNT(*) count FROM biological_outbox_intents
     WHERE status='PENDING'`).get().count, 0);
 });
@@ -403,6 +405,10 @@ test('R147-CONTINUATION-03 fetus installs before sequential recovery and HTTP ex
   assert.match(recoveryScript, /STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT=/);
   assert.match(recoveryScript, /STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT_MANIFEST_SHA256=/);
   assert.match(recoveryScript, /systemctl stop stay\.service/);
+  const residentManager = await fs.readFile(path.resolve(__dirname, '..', 'runtime', 'kernel',
+    'resident-manager.js'), 'utf8');
+  assert.match(residentManager,
+    /backfillInactiveGap:\s*!containedChronobiologyBacklog\s*&&\s*!containedR146HomeosBacklog\s*&&\s*!containedR147ContinuationBacklog/);
   assert.doesNotMatch(`${recoveryScript}\n${preflight}`,
     /handlerTimeoutMs=|hardRamBytes=|hardCpuDuty=|TimeoutStartSec|TimeoutStopSec/);
 
