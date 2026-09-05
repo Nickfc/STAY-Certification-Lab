@@ -9,7 +9,8 @@ const test = require('node:test');
 
 const {
   LivingKernel,
-  R148_HOMEOS_INIT_FORWARD_RECOVERY
+  R148_HOMEOS_INIT_FORWARD_RECOVERY,
+  R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION
 } = require('../runtime/kernel/living-kernel');
 const { StateStore } = require('../runtime/kernel/state-store');
 
@@ -18,8 +19,7 @@ const REVISION_JSON =
 const CAPACITY_JSON =
   '{"protocol":"stay-p1-r0-metab-capacity-source-v1","residencyId":"resident:metab","instanceId":"d424c722-ef31-44b0-8201-ba68c418d14a","residentVersion":"0.3.0-p1r0-homeos-feed.1","runtimeRevision":128,"lastCommittedFrame":162715,"lastTrustedTimeUs":1011923537625,"lastContinuityEpoch":1,"pending":{"continuityEpoch":1,"eligiblePayload":{"capacityClass":"HOST_RESOURCE_HEADROOM_V1","eligibleCapacityQ48":"163221394184393","safetyCeilingQ48":"281474976710656","sampleFrame":162716},"eligibleSignalId":"runtime.metab.capacity.eligible:r128:f162716","observedAtMs":1011924235,"pulseId":"metab-capacity-r128-f162716","qualityPayload":{"ceilingVerified":true,"qualityQ48":"281474976710656","reasonCodes":["TRUSTED_ORGANISM_TIME","KERNEL_CPU_HEADROOM","KERNEL_MEMORY_HEADROOM"],"status":"VALID"},"qualitySignalId":"runtime.metab.capacity.quality:r128:f162716","sampleFrame":162716,"trustedTimeUs":1011924235209}}';
 
-function r148Harness() {
-  const expected = R148_HOMEOS_INIT_FORWARD_RECOVERY;
+function r148Harness(expected = R148_HOMEOS_INIT_FORWARD_RECOVERY, { postDurable = false } = {}) {
   const residents = Object.fromEntries(Object.values(expected.residents)
     .map(fence => [fence.residencyId, { ...fence }]));
   const consumers = Object.fromEntries(Object.values(expected.residents)
@@ -34,7 +34,7 @@ function r148Harness() {
     checkpointHash: expected.fetus.consumerCheckpointHash,
     topicsHash: expected.fetus.topicsHash
   };
-  const outbox = expected.pendingOutbox.map(fence => ({
+  const outbox = (expected.pendingOutbox || []).map(fence => ({
     producer_event_id: fence.producerEventId, intent_sha256: fence.intentHash,
     producer_core_id: 'METAB', stream_sequence: fence.streamSequence,
     cause_sequence: fence.causeSequence, topic: fence.topic,
@@ -43,7 +43,9 @@ function r148Harness() {
   }));
   const harness = {
     runtimeRevision: 148,
-    homeosStrandedR148InitRecoveryAuthorization: expected.authorization,
+    homeosStrandedR148InitRecoveryAuthorization: postDurable ? '' : expected.authorization,
+    homeosR148InitPostDurableFinalizationAuthorization:
+      postDurable ? expected.authorization : '',
     homeosStrandedR147RecoveryAuthorization: '', homeosNeutralBirthAuthorization: '',
     metabHomeosRouteAuthorization: '', homeosShadowPromotionAuthorization: '',
     interoNeutralBirthAuthorization: '', metabInteroRouteAuthorization: '',
@@ -75,7 +77,7 @@ function r148Harness() {
               }
               if (sql.includes('COALESCE(MAX(sequence),0)')) return { value: expected.highWater };
               if (sql.includes('MIN(sequence)')) return {
-                count: expected.pendingFetusDeliveries,
+                count: expected.pendingFetusDeliveries || 0,
                 minimum: expected.pendingFetusFirstSequence,
                 maximum: expected.pendingFetusLastSequence
               };
@@ -83,12 +85,12 @@ function r148Harness() {
                 return { count: 0 };
               }
               if (sql.includes("biological_deliveries WHERE status='PENDING'")) {
-                return { count: expected.pendingFetusDeliveries };
+                return { count: expected.pendingFetusDeliveries || 0 };
               }
               if (sql.includes("biological_deliveries WHERE status='FAILED'") ||
                   sql.includes("biological_deliveries WHERE status='ABANDONED'")) return { count: 0 };
               if (sql.includes("biological_outbox_intents WHERE status='PENDING'")) {
-                return { count: expected.pendingOutbox.length };
+                return { count: (expected.pendingOutbox || []).length };
               }
               if (sql.includes("status!='PUBLISHED' AND producer_core_id!='METAB'") ||
                   sql.includes("producer_core_id IN ('sntss','SNTSS','HOMEOS','INTERO')")) {
@@ -104,7 +106,15 @@ function r148Harness() {
                   sha256: crypto.createHash('sha256').update(CAPACITY_JSON).digest('hex')
                 };
               }
-              if (sql.includes('FROM recovery_records')) return {
+              if (sql.includes('FROM recovery_records')) return postDurable ? {
+                id: expected.latestRecoveryRecordId, type: 'resident.recovered',
+                core_id: 'sntss', detail_json: JSON.stringify({
+                  residencyId: 'resident:sntss',
+                  instanceId: expected.residents['resident:sntss'].instanceId,
+                  version: expected.residents['resident:sntss'].version,
+                  checkpointHash: expected.residents['resident:sntss'].checkpointHash
+                })
+              } : {
                 id: expected.latestRecoveryRecordId, type: 'resident.delivery-retry',
                 core_id: 'sntss', detail_json: JSON.stringify({
                   residencyId: 'resident:sntss', sequence: 4575528, attempt: 1,
@@ -231,6 +241,7 @@ test('R148-INIT-05 accepts only a verified exact-cohort preflight snapshot', asy
   const body = await fs.readFile(path.join(snapshot.path, 'SNAPSHOT_MANIFEST.json'));
   const harness = {
     r148DeferredResidentRecovery: true,
+    r148HomeosInitForwardRecoveryActive: true,
     r148InitRecoveryPreflightSnapshot: snapshot.path,
     r148InitRecoveryPreflightSnapshotManifestSha256:
       `sha256:${crypto.createHash('sha256').update(body).digest('hex')}`,
@@ -244,4 +255,56 @@ test('R148-INIT-05 accepts only a verified exact-cohort preflight snapshot', asy
     LivingKernel.prototype.verifyExactR148InitRecoveryPreflightSnapshot.call(harness),
     { code: 'P1_R148_INIT_SNAPSHOT_TRUST' }
   );
+});
+
+test('R148-FINAL-01 preserves only the exact post-durable recovered cohort', () => {
+  const expected = R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
+  const { harness, residents } = r148Harness(expected, { postDurable: true });
+  assert.equal(
+    LivingKernel.prototype.preserveExactR148HomeosInitPostDurableFinalizationRevision
+      .call(harness),
+    true
+  );
+  assert.equal(harness.r148DeferredResidentRecovery, true);
+  assert.equal(harness.r148HomeosInitPostDurableFinalizationActive, true);
+  assert.equal(harness.p1ExpansionFetusInstallRevisionPreservation, 148);
+  residents['resident:homeos'].checkpointGeneration--;
+  harness.r148DeferredResidentRecovery = false;
+  assert.throws(
+    () => LivingKernel.prototype.preserveExactR148HomeosInitPostDurableFinalizationRevision
+      .call(harness),
+    { code: 'P1_R148_INIT_FINALIZATION_IDENTITY' }
+  );
+});
+
+test('R148-FINAL-02 reconstructs the same four residents only after fetus install', async () => {
+  const expected = R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
+  const calls = [];
+  const harness = {
+    r148DeferredResidentRecovery: true,
+    r148HomeosInitPostDurableFinalizationActive: true,
+    runtimeRevision: 148, p1ExpansionFetusInstallPreserved: true,
+    heartbeatTimer: null, snapshotTimer: null,
+    recoverDurableResidents: async options => {
+      calls.push('residents');
+      assert.deepEqual([...options.exactCurrentCheckpointFences.keys()].sort(),
+        Object.keys(expected.residents).sort());
+      return Object.keys(expected.residents)
+        .map(residencyId => ({ residencyId, recovered: true, status: 'RUNNING' }));
+    },
+    startMaintenance: () => calls.push('maintenance'),
+    stateStore: {
+      getResident: () => null,
+      listAuthority: () => [{ coreId: 'fetus-legacy' }],
+      db: { prepare: () => ({ get: () => ({ count: 0 }) }) }
+    },
+    statusCache: {}
+  };
+  await LivingKernel.prototype.completeExactR148PostDurableResidentFinalization.call(harness);
+  assert.deepEqual(calls, ['residents', 'maintenance']);
+  assert.equal(harness.r148DeferredResidentRecovery, false);
+  assert.equal(harness.r148HomeosInitPostDurableFinalizationActive, false);
+  const source = await fs.readFile(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.ok(source.indexOf('await kernel.installCore(process.env.STAY_BOOT_CORE)') <
+    source.indexOf('await kernel.completeExactR148PostDurableResidentFinalization()'));
 });

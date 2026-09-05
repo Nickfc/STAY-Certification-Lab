@@ -515,6 +515,51 @@ const R148_HOMEOS_INIT_FORWARD_RECOVERY = Object.freeze({
   })
 });
 
+const R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION = Object.freeze({
+  authorization: 'AUTHORIZE_STRANDED_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_ONLY',
+  runtimeRevision: 148,
+  highWater: 4575682,
+  latestRecoveryRecordId: 246,
+  runtimeRevisionMetadataHash:
+    '95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0',
+  capacitySourceMetadataHash:
+    'e9a6efb7deff7c43d2adffe10b90f85a3327a3b9ffe5a7f9df0da4067f75b0b4',
+  residents: Object.freeze({
+    'resident:chronobiology': Object.freeze({
+      ...R148_HOMEOS_INIT_FORWARD_RECOVERY.residents['resident:chronobiology'],
+      checkpointGeneration: 12394,
+      checkpointId: '958a0163-fb2e-4f75-8ade-8569f24e5852',
+      consumerCursor: 4575682
+    }),
+    'resident:homeos': Object.freeze({
+      ...R148_HOMEOS_INIT_FORWARD_RECOVERY.residents['resident:homeos'],
+      checkpointGeneration: 639,
+      checkpointHash: '039b15ff0fe06db56964a054d1c738283fc007ff490f8cf03c44ff418fda94aa',
+      checkpointId: 'e0c38bbf-7d9c-4434-bf26-a3b68c29332a',
+      inputCursor: 4575682, consumerCursor: 4575682
+    }),
+    'resident:metab': Object.freeze({
+      ...R148_HOMEOS_INIT_FORWARD_RECOVERY.residents['resident:metab'],
+      checkpointGeneration: 325470,
+      checkpointId: '929f299e-85c2-44c3-b10c-f48f7f6490d1',
+      consumerCursor: 4575682
+    }),
+    'resident:sntss': Object.freeze({
+      ...R148_HOMEOS_INIT_FORWARD_RECOVERY.residents['resident:sntss'],
+      checkpointGeneration: 2891382,
+      checkpointId: '66071c31-2bee-45e9-98dc-384fa6cf798d',
+      consumerCursor: 4575682
+    })
+  }),
+  fetus: Object.freeze({
+    ...R148_HOMEOS_INIT_FORWARD_RECOVERY.fetus,
+    consumerCursor: 4575682,
+    checkpointGeneration: 214,
+    checkpointHash: '706123370dc9b7194c847a0b2e186f48d9e83b796a9e4d6f79403a4c1a9b6114',
+    checkpointBytes: 61986
+  })
+});
+
 const R150_INTERO_SHADOW = Object.freeze({
   birthAuthorization: 'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY',
   metabRouteAuthorization: 'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY',
@@ -862,6 +907,9 @@ class LivingKernel {
     homeosStrandedR148InitRecoveryAuthorization =
       process.env.STAY_HOMEOS_STRANDED_R148_INIT_RECOVERY_AUTHORIZATION || '',
 
+    homeosR148InitPostDurableFinalizationAuthorization =
+      process.env.STAY_HOMEOS_R148_INIT_POST_DURABLE_FINALIZATION_AUTHORIZATION || '',
+
     r148InitRecoveryPreflightSnapshot =
       process.env.STAY_R148_INIT_RECOVERY_PREFLIGHT_SNAPSHOT || '',
 
@@ -1051,6 +1099,9 @@ class LivingKernel {
     this.homeosStrandedR148InitRecoveryAuthorization =
       String(homeosStrandedR148InitRecoveryAuthorization);
 
+    this.homeosR148InitPostDurableFinalizationAuthorization =
+      String(homeosR148InitPostDurableFinalizationAuthorization);
+
     this.r148InitRecoveryPreflightSnapshot =
       String(r148InitRecoveryPreflightSnapshot);
 
@@ -1069,6 +1120,7 @@ class LivingKernel {
     this.r147HomeosFrameBoundaryRecoveryActive = false;
     this.r147DeferredResidentRecovery = false;
     this.r148HomeosInitForwardRecoveryActive = false;
+    this.r148HomeosInitPostDurableFinalizationActive = false;
     this.r148DeferredResidentRecovery = false;
     this.p1ExpansionFetusInstallRevisionPreservation = null;
     this.p1ExpansionFetusInstallPreserved = false;
@@ -1445,6 +1497,7 @@ class LivingKernel {
     this.startedAt = new Date().toISOString();
     const preservedRecoveryRevision =
       await this.preserveExactR127MetabRecoveryRevision() ||
+      this.preserveExactR148HomeosInitPostDurableFinalizationRevision() ||
       this.preserveExactR148HomeosInitForwardRecoveryRevision() ||
       this.preserveExactR147HomeosFrameBoundaryRevision() ||
       this.preserveExactR147HomeosContinuationRevision() ||
@@ -1529,7 +1582,7 @@ class LivingKernel {
     });
 
     await this.writeHeartbeat();
-    if (this.r148DeferredResidentRecovery) {
+    if (this.r148HomeosInitForwardRecoveryActive) {
       await this.stateStore.appendJournal({
         type: 'state.snapshot-reused',
         at: new Date().toISOString(),
@@ -1559,7 +1612,7 @@ class LivingKernel {
   async verifyExactR148InitRecoveryPreflightSnapshot() {
     const snapshotPath = this.r148InitRecoveryPreflightSnapshot;
     const manifestSha256 = this.r148InitRecoveryPreflightSnapshotManifestSha256;
-    if (!this.r148DeferredResidentRecovery) {
+    if (!this.r148HomeosInitForwardRecoveryActive) {
       if (snapshotPath || manifestSha256) {
         throw Object.assign(
           new Error('R148 init-forward snapshot is outside its exact recovery boundary'),
@@ -2052,6 +2105,120 @@ class LivingKernel {
     return true;
   }
 
+  preserveExactR148HomeosInitPostDurableFinalizationRevision() {
+    const expected = R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
+    if (this.homeosR148InitPostDurableFinalizationAuthorization !== expected.authorization) {
+      return false;
+    }
+    const reject = () => {
+      throw Object.assign(new Error('authorized R148 post-durable cohort changed'), {
+        code: 'P1_R148_INIT_FINALIZATION_IDENTITY'
+      });
+    };
+    if (
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.homeosStrandedR148InitRecoveryAuthorization ||
+      this.homeosStrandedR147RecoveryAuthorization ||
+      this.homeosNeutralBirthAuthorization || this.metabHomeosRouteAuthorization ||
+      this.homeosShadowPromotionAuthorization || this.interoNeutralBirthAuthorization ||
+      this.metabInteroRouteAuthorization || this.homeosInteroRouteAuthorization ||
+      this.interoShadowPromotionAuthorization ||
+      this.stateStore.getResident('resident:intero') ||
+      this.stateStore.listResidents().length !== Object.keys(expected.residents).length
+    ) return reject();
+
+    const count = (sql, ...args) =>
+      Number(this.stateStore.db.prepare(sql).get(...args)?.count || 0);
+    const exactMetadataHash = (key, hash) => {
+      const row = this.stateStore.db.prepare('SELECT json,sha256 FROM metadata WHERE key=?').get(key);
+      return row?.sha256 === hash &&
+        crypto.createHash('sha256').update(row?.json || '').digest('hex') === hash;
+    };
+    const exactResident = fence => {
+      const resident = this.stateStore.getResident(fence.residencyId);
+      const consumer = this.stateStore.getBiologicalConsumer(fence.residencyId);
+      const checkpoint = this.stateStore.db.prepare(`
+        SELECT checkpoint_id,instance_id,version,state_schema,generation,blob_hash,
+          byte_length,input_cursor FROM resident_checkpoints
+        WHERE residency_id=? AND generation=?
+      `).get(fence.residencyId, fence.checkpointGeneration);
+      return resident?.residencyId === fence.residencyId && resident?.coreId === fence.coreId &&
+        resident?.instanceId === fence.instanceId && resident?.version === fence.version &&
+        resident?.stateSchema === fence.stateSchema && resident?.status === fence.status &&
+        resident?.checkpointGeneration === fence.checkpointGeneration &&
+        resident?.checkpointHash === fence.checkpointHash &&
+        resident?.moduleRelativePath === fence.moduleRelativePath &&
+        resident?.moduleHash === fence.moduleHash && resident?.manifestHash === fence.manifestHash &&
+        resident?.packagePolicyHash === fence.packagePolicyHash &&
+        consumer?.coreId === fence.coreId && consumer?.required === false &&
+        consumer?.active === true && consumer?.authorityEpoch === 0 &&
+        consumer?.cursor === fence.consumerCursor && consumer?.checkpointHash === fence.checkpointHash &&
+        consumer?.topicsHash === fence.topicsHash &&
+        checkpoint?.checkpoint_id === fence.checkpointId &&
+        checkpoint?.instance_id === fence.instanceId && checkpoint?.version === fence.version &&
+        Number(checkpoint?.state_schema) === fence.stateSchema &&
+        Number(checkpoint?.generation) === fence.checkpointGeneration &&
+        checkpoint?.blob_hash === fence.checkpointHash &&
+        Number(checkpoint?.byte_length) === fence.checkpointBytes &&
+        Number(checkpoint?.input_cursor) === fence.inputCursor;
+    };
+    if (!Object.values(expected.residents).every(exactResident)) return reject();
+
+    const highWater = Number(this.stateStore.db.prepare(
+      'SELECT COALESCE(MAX(sequence),0) value FROM biological_events'
+    ).get()?.value || 0);
+    const latest = this.stateStore.db.prepare(
+      'SELECT id,type,core_id,detail_json FROM recovery_records ORDER BY id DESC LIMIT 1'
+    ).get();
+    let recovery = null;
+    try { recovery = JSON.parse(latest?.detail_json || 'null'); } catch {}
+    if (
+      highWater !== expected.highWater ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='FAILED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='ABANDONED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE producer_core_id IN ('sntss','SNTSS','HOMEOS','INTERO')") !== 0 ||
+      !exactMetadataHash('life:runtime-revision', expected.runtimeRevisionMetadataHash) ||
+      !exactMetadataHash('life:p1-r0-metab-capacity-source', expected.capacitySourceMetadataHash) ||
+      Number(latest?.id) !== expected.latestRecoveryRecordId ||
+      latest?.type !== 'resident.recovered' || latest?.core_id !== 'sntss' ||
+      recovery?.residencyId !== 'resident:sntss' ||
+      recovery?.instanceId !== expected.residents['resident:sntss'].instanceId ||
+      recovery?.version !== expected.residents['resident:sntss'].version ||
+      recovery?.checkpointHash !== expected.residents['resident:sntss'].checkpointHash
+    ) return reject();
+
+
+    const fetus = expected.fetus;
+    const fetusConsumer = this.stateStore.getBiologicalConsumer(fetus.consumerId);
+    const fetusAuthority = this.stateStore.db.prepare('SELECT * FROM authority WHERE core_id=?').get(fetus.coreId);
+    const fetusCheckpoint = this.stateStore.db.prepare(
+      'SELECT * FROM checkpoints WHERE core_id=? ORDER BY generation DESC LIMIT 1'
+    ).get(fetus.coreId);
+    if (
+      this.stateStore.listAuthority().some(entry =>
+        ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId)) ||
+      fetusConsumer?.coreId !== fetus.coreId || fetusConsumer?.required !== true ||
+      fetusConsumer?.active !== true || fetusConsumer?.cursor !== fetus.consumerCursor ||
+      fetusConsumer?.authorityEpoch !== fetus.authorityEpoch ||
+      fetusConsumer?.checkpointHash !== fetus.consumerCheckpointHash ||
+      fetusConsumer?.topicsHash !== fetus.topicsHash ||
+      fetusAuthority?.instance_id !== fetus.instanceId || fetusAuthority?.version !== fetus.version ||
+      Number(fetusAuthority?.epoch) !== fetus.authorityEpoch ||
+      fetusAuthority?.checkpoint_hash !== fetus.checkpointHash ||
+      fetusCheckpoint?.instance_id !== fetus.instanceId || fetusCheckpoint?.version !== fetus.version ||
+      Number(fetusCheckpoint?.authority_epoch) !== fetus.authorityEpoch ||
+      Number(fetusCheckpoint?.generation) !== fetus.checkpointGeneration ||
+      fetusCheckpoint?.blob_hash !== fetus.checkpointHash ||
+      Number(fetusCheckpoint?.byte_length) !== fetus.checkpointBytes
+    ) return reject();
+
+    this.r148HomeosInitPostDurableFinalizationActive = true;
+    this.r148DeferredResidentRecovery = true;
+    this.p1ExpansionFetusInstallRevisionPreservation = this.runtimeRevision;
+    return true;
+  }
   preserveExactR147HomeosRecoveryRevision() {
     const expected = R147_HOMEOS_FORWARD_RECOVERY;
     if (
@@ -7439,6 +7606,48 @@ class LivingKernel {
     return this.lastResidentRecovery;
   }
 
+  async completeExactR148PostDurableResidentFinalization() {
+    const expected = R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
+    if (
+      this.r148DeferredResidentRecovery !== true ||
+      this.r148HomeosInitPostDurableFinalizationActive !== true ||
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.p1ExpansionFetusInstallPreserved !== true ||
+      this.heartbeatTimer !== null || this.snapshotTimer !== null
+    ) throw Object.assign(new Error('R148 post-durable finalization boundary changed'), {
+      code: 'P1_R148_INIT_FINALIZATION_BOUNDARY'
+    });
+
+    const ordinaryRecovery = await this.recoverDurableResidents({
+      exactCurrentCheckpointFences: new Map(
+        Object.values(expected.residents).map(fence => [fence.residencyId, fence])
+      )
+    });
+    const recovered = new Map(ordinaryRecovery.map(row => [row.residencyId, row]));
+    const count = (sql, ...args) =>
+      Number(this.stateStore.db.prepare(sql).get(...args)?.count || 0);
+    if (
+      ordinaryRecovery.length !== Object.keys(expected.residents).length ||
+      recovered.size !== Object.keys(expected.residents).length ||
+      !Object.keys(expected.residents).every(id => recovered.get(id)?.recovered === true) ||
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.stateStore.getResident('resident:intero') ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status IN ('PENDING','FAILED','ABANDONED')") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !== 0 ||
+      this.stateStore.listAuthority().some(entry =>
+        ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId))
+    ) throw Object.assign(new Error('R148 post-durable contained cohort was not restored'), {
+      code: 'P1_R148_INIT_FINALIZATION_COHORT'
+    });
+
+    this.lastResidentRecovery = Object.freeze(ordinaryRecovery);
+    this.r148DeferredResidentRecovery = false;
+    this.r148HomeosInitPostDurableFinalizationActive = false;
+    this.startMaintenance();
+    this.statusCache = null;
+    return this.lastResidentRecovery;
+  }
+
   async publishTimePulse(clockStatus = 'trusted') {
     if (!['trusted', 'degraded', 'uncertain'].includes(clockStatus)) throw Object.assign(new Error('invalid runtime clock status'), { code: 'RUNTIME_CLOCK_STATUS' });
 
@@ -8183,6 +8392,7 @@ module.exports = {
   R147_HOMEOS_CONTINUATION_RECOVERY,
   R147_HOMEOS_FRAME_BOUNDARY_RECOVERY,
   R148_HOMEOS_INIT_FORWARD_RECOVERY,
+  R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
   R150_INTERO_SHADOW,
   isBoundedMetabPromotionTail,
   defaultMetabCapacitySampler,
