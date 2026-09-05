@@ -606,6 +606,61 @@ const R148_HOMEOS_POST_FINALIZATION_RESTART = Object.freeze({
   })
 });
 
+/*
+ * The first restart of the post-durable R148 cohort rebuilt all four
+ * residents, but deferred recovery meant the hardened trusted-time scheduler
+ * was not resumed. METAB had already durably accepted capacity frame 162716;
+ * only the source ledger acknowledgement remained pending. This fence admits
+ * the exact stopped result of that restart so startup can idempotently
+ * re-observe the already-persisted pair, commit the source acknowledgement,
+ * and resume the schedulers without advancing the runtime revision.
+ */
+const R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION = Object.freeze({
+  authorization: 'AUTHORIZE_STRANDED_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_ONLY',
+  runtimeRevision: 148,
+  highWater: 4575682,
+  latestRecoveryRecordId: 254,
+  runtimeRevisionMetadataHash:
+    '95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0',
+  capacitySourceMetadataHash:
+    'e9a6efb7deff7c43d2adffe10b90f85a3327a3b9ffe5a7f9df0da4067f75b0b4',
+  committedCapacitySourceMetadataHash:
+    'ad3e6e4a829a9dd82261d44f795c888bdd74ed4a9aee183e837a9aa762920667',
+  capacitySource: Object.freeze({
+    lastCommittedFrame: 162716,
+    lastTrustedTimeUs: 1011924235209,
+    lastContinuityEpoch: 1
+  }),
+  residents: Object.freeze({
+    'resident:chronobiology': Object.freeze({
+      ...R148_HOMEOS_POST_FINALIZATION_RESTART.residents['resident:chronobiology'],
+      checkpointGeneration: 12398,
+      checkpointId: '7a944b2c-81c7-4039-be84-580392946918'
+    }),
+    'resident:homeos': Object.freeze({
+      ...R148_HOMEOS_POST_FINALIZATION_RESTART.residents['resident:homeos'],
+      checkpointGeneration: 643,
+      checkpointId: '41040104-f61f-4c0a-8dcd-30b9a98a74a4'
+    }),
+    'resident:metab': Object.freeze({
+      ...R148_HOMEOS_POST_FINALIZATION_RESTART.residents['resident:metab'],
+      checkpointGeneration: 325474,
+      checkpointId: 'a844ee26-489b-4729-987b-44b8f4b6ca63'
+    }),
+    'resident:sntss': Object.freeze({
+      ...R148_HOMEOS_POST_FINALIZATION_RESTART.residents['resident:sntss'],
+      checkpointGeneration: 2891386,
+      checkpointId: '929a3875-d7df-476e-b1d0-de5c1a1fe691'
+    })
+  }),
+  fetus: Object.freeze({
+    ...R148_HOMEOS_POST_FINALIZATION_RESTART.fetus,
+    checkpointGeneration: 220,
+    checkpointHash: '7e38f6099e9f2749fd2a76d8dcd5141012f7d4e78f9ad1c593eaf787c521e24b',
+    checkpointBytes: 63710
+  })
+});
+
 const R150_INTERO_SHADOW = Object.freeze({
   birthAuthorization: 'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY',
   metabRouteAuthorization: 'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY',
@@ -2155,7 +2210,8 @@ class LivingKernel {
   preserveExactR148HomeosInitPostDurableFinalizationRevision() {
     const expected = [
       R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
-      R148_HOMEOS_POST_FINALIZATION_RESTART
+      R148_HOMEOS_POST_FINALIZATION_RESTART,
+      R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION
     ].find(fence =>
       this.homeosR148InitPostDurableFinalizationAuthorization === fence.authorization);
     if (!expected) return false;
@@ -7661,7 +7717,8 @@ class LivingKernel {
       R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
     if (
       ![R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
-        R148_HOMEOS_POST_FINALIZATION_RESTART].includes(expected) ||
+        R148_HOMEOS_POST_FINALIZATION_RESTART,
+        R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION].includes(expected) ||
       this.r148DeferredResidentRecovery !== true ||
       this.r148HomeosInitPostDurableFinalizationActive !== true ||
       this.runtimeRevision !== expected.runtimeRevision ||
@@ -7693,11 +7750,53 @@ class LivingKernel {
       code: 'P1_R148_INIT_FINALIZATION_COHORT'
     });
 
+    if (expected === R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION) {
+      const capacityFinalized = await this.publishMetabCapacitySample();
+      const capacityRow = this.stateStore.db.prepare(`
+        SELECT json,sha256 FROM metadata
+        WHERE key='life:p1-r0-metab-capacity-source'
+      `).get();
+      const metabCheckpoint = await this.stateStore.readResidentCheckpoint('resident:metab');
+      let capacitySource = null;
+      try {
+        const { validateCapacitySourceState } = require('../p1-r0/metab-capacity-source');
+        capacitySource = validateCapacitySourceState(JSON.parse(capacityRow?.json || 'null'), {
+          instanceId: expected.residents['resident:metab'].instanceId,
+          residentVersion: expected.residents['resident:metab'].version
+        });
+      } catch {}
+      if (
+        capacityFinalized !== true ||
+        capacityRow?.sha256 !== expected.committedCapacitySourceMetadataHash ||
+        crypto.createHash('sha256').update(capacityRow?.json || '').digest('hex') !==
+          expected.committedCapacitySourceMetadataHash ||
+        capacitySource?.lastCommittedFrame !== expected.capacitySource.lastCommittedFrame ||
+        capacitySource?.lastTrustedTimeUs !== expected.capacitySource.lastTrustedTimeUs ||
+        capacitySource?.lastContinuityEpoch !== expected.capacitySource.lastContinuityEpoch ||
+        capacitySource?.pending !== null ||
+        metabCheckpoint?.state?.sourceState?.lastAcceptedFrame !==
+          expected.capacitySource.lastCommittedFrame ||
+        metabCheckpoint?.state?.sourceState?.pendingEligible !== null ||
+        metabCheckpoint?.state?.sourceState?.pendingQuality !== null ||
+        Number(this.stateStore.db.prepare(
+          'SELECT COALESCE(MAX(sequence),0) value FROM biological_events'
+        ).get()?.value || 0) !== expected.highWater ||
+        count("SELECT COUNT(*) count FROM biological_deliveries WHERE status IN ('PENDING','FAILED','ABANDONED')") !== 0 ||
+        count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !== 0 ||
+        this.stateStore.listAuthority().some(entry =>
+          ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId))
+      ) throw Object.assign(new Error('R148 capacity source acknowledgement was not finalized'), {
+        code: 'P1_R148_CAPACITY_SOURCE_FINALIZATION'
+      });
+    }
+
     this.lastResidentRecovery = Object.freeze(ordinaryRecovery);
     this.r148DeferredResidentRecovery = false;
     this.r148HomeosInitPostDurableFinalizationActive = false;
     this.r148HomeosInitPostDurableFinalizationExpected = null;
     this.startMaintenance();
+    this.startTrustedTimePulseScheduler?.();
+    this.startTrustedOrganismTimePulseScheduler?.();
     this.statusCache = null;
     return this.lastResidentRecovery;
   }
@@ -8448,6 +8547,7 @@ module.exports = {
   R148_HOMEOS_INIT_FORWARD_RECOVERY,
   R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
   R148_HOMEOS_POST_FINALIZATION_RESTART,
+  R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION,
   R150_INTERO_SHADOW,
   isBoundedMetabPromotionTail,
   defaultMetabCapacitySampler,

@@ -11,10 +11,12 @@ const {
   LivingKernel,
   R148_HOMEOS_INIT_FORWARD_RECOVERY,
   R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
-  R148_HOMEOS_POST_FINALIZATION_RESTART
+  R148_HOMEOS_POST_FINALIZATION_RESTART,
+  R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION
 } = require('../runtime/kernel/living-kernel');
 const { StateStore } = require('../runtime/kernel/state-store');
 const { FORMAT, validateRequest } = require('../runtime/kernel/resident-control-socket');
+const { commitCapacitySample } = require('../runtime/p1-r0/metab-capacity-source');
 
 const REVISION_JSON =
   '{"revision":148,"reason":"kernel.start","at":"2026-09-05T02:17:05.453Z","kernelVersion":"0.8.11.3","version":"0.8.11.3","pid":595505}';
@@ -333,4 +335,73 @@ test('R148-FINAL-03 exact post-finalization restart is revision-preserving and H
       .call(harness),
     { code: 'P1_R148_INIT_FINALIZATION_IDENTITY' }
   );
+});
+
+test('R148-FINAL-04 capacity-source finalization admits only the exact stopped cohort', () => {
+  const expected = R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION;
+  const { harness, residents } = r148Harness(expected, { postDurable: true });
+  assert.equal(
+    LivingKernel.prototype.preserveExactR148HomeosInitPostDurableFinalizationRevision
+      .call(harness),
+    true
+  );
+  assert.equal(harness.r148HomeosInitPostDurableFinalizationExpected, expected);
+  residents['resident:metab'].checkpointGeneration--;
+  assert.throws(
+    () => LivingKernel.prototype.preserveExactR148HomeosInitPostDurableFinalizationRevision
+      .call(harness),
+    { code: 'P1_R148_INIT_FINALIZATION_IDENTITY' }
+  );
+});
+
+test('R148-FINAL-05 commits the accepted capacity frame and resumes recovered schedulers', async () => {
+  const expected = R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION;
+  const committed = commitCapacitySample(JSON.parse(CAPACITY_JSON));
+  const capacityJson = JSON.stringify(committed);
+  const calls = [];
+  const harness = {
+    r148DeferredResidentRecovery: true,
+    r148HomeosInitPostDurableFinalizationActive: true,
+    r148HomeosInitPostDurableFinalizationExpected: expected,
+    runtimeRevision: 148, p1ExpansionFetusInstallPreserved: true,
+    heartbeatTimer: null, snapshotTimer: null,
+    recoverDurableResidents: async options => {
+      calls.push('residents');
+      assert.deepEqual([...options.exactCurrentCheckpointFences.keys()].sort(),
+        Object.keys(expected.residents).sort());
+      return Object.keys(expected.residents)
+        .map(residencyId => ({ residencyId, recovered: true, status: 'RUNNING' }));
+    },
+    publishMetabCapacitySample: async () => { calls.push('capacity'); return true; },
+    startMaintenance: () => calls.push('maintenance'),
+    startTrustedTimePulseScheduler: () => calls.push('trusted-time'),
+    startTrustedOrganismTimePulseScheduler: () => calls.push('organism-time'),
+    stateStore: {
+      getResident: () => null,
+      listAuthority: () => [{ coreId: 'fetus-legacy' }],
+      readResidentCheckpoint: async () => ({
+        state: { sourceState: {
+          lastAcceptedFrame: expected.capacitySource.lastCommittedFrame,
+          pendingEligible: null, pendingQuality: null
+        } }
+      }),
+      db: { prepare: sql => ({
+        get: () => {
+          if (sql.includes("key='life:p1-r0-metab-capacity-source'")) return {
+            json: capacityJson,
+            sha256: crypto.createHash('sha256').update(capacityJson).digest('hex')
+          };
+          if (sql.includes('COALESCE(MAX(sequence),0)')) return { value: expected.highWater };
+          return { count: 0 };
+        }
+      }) }
+    },
+    statusCache: {}
+  };
+  await LivingKernel.prototype.completeExactR148PostDurableResidentFinalization.call(harness);
+  assert.deepEqual(calls,
+    ['residents', 'capacity', 'maintenance', 'trusted-time', 'organism-time']);
+  assert.equal(harness.r148DeferredResidentRecovery, false);
+  assert.equal(harness.r148HomeosInitPostDurableFinalizationActive, false);
+  assert.equal(harness.r148HomeosInitPostDurableFinalizationExpected, null);
 });
