@@ -46,6 +46,9 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
   assert.match(source, /expected_previous_homeos_release_env/);
   assert.match(source, /expected_previous_r147_marker/);
+  assert.match(source, /\$R147_FRAME_BOUNDARY_REPAIR" preflight/);
+  assert.match(source, /cp -a --reflink=auto "\$PREVIOUS_HOMEOS_RELEASE\/\."/);
+  assert.match(source, /"\$DATABASE" "\$preflight_root"/);
   assert.match(source, /mv -fT "\$marker_tmp" \/run\/stay-r147-homeos-shadow-recovery\.env/);
   assert.match(source, /mv -Tf "\$pointer_tmp" \/opt\/stay\/current/);
 });
@@ -123,7 +126,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V22_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V23_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
