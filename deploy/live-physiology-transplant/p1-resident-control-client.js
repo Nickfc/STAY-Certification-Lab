@@ -6,7 +6,9 @@ const net = require('node:net');
 const SOCKET = '/run/stay/resident-control.sock';
 const FORMAT = 'stay-resident-control-v1';
 const OPERATIONS = new Set(['status', 'attach', 'birth', 'detach', 'promote', 'resynchronize']);
-const RESIDENCIES = new Set(['resident:sntss', 'resident:chronobiology', 'resident:metab']);
+const RESIDENCIES = new Set([
+  'resident:sntss', 'resident:chronobiology', 'resident:metab', 'resident:homeos'
+]);
 
 function timeoutMs() {
   const value = Number(process.env.STAY_RESIDENT_CONTROL_TIMEOUT_MS || 5000);
@@ -20,7 +22,8 @@ function validateArguments(argv) {
     !RESIDENCIES.has(residencyId) ||
     argv.length !== 2 ||
     (operation === 'birth' && residencyId !== 'resident:metab') ||
-    (residencyId === 'resident:metab' && !['status', 'birth'].includes(operation))
+    (residencyId === 'resident:metab' && !['status', 'birth'].includes(operation)) ||
+    (residencyId === 'resident:homeos' && operation !== 'status')
   ) {
     throw Object.assign(new Error('fixed operation and residency required'), { code: 'RESIDENT_CONTROL_CLIENT_USAGE' });
   }

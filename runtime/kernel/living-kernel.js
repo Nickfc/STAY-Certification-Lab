@@ -515,6 +515,266 @@ const R148_HOMEOS_INIT_FORWARD_RECOVERY = Object.freeze({
   })
 });
 
+const R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION = Object.freeze({
+  authorization: 'AUTHORIZE_STRANDED_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_ONLY',
+  runtimeRevision: 148,
+  highWater: 4575682,
+  latestRecoveryRecordId: 246,
+  runtimeRevisionMetadataHash:
+    '95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0',
+  capacitySourceMetadataHash:
+    'e9a6efb7deff7c43d2adffe10b90f85a3327a3b9ffe5a7f9df0da4067f75b0b4',
+  residents: Object.freeze({
+    'resident:chronobiology': Object.freeze({
+      ...R148_HOMEOS_INIT_FORWARD_RECOVERY.residents['resident:chronobiology'],
+      checkpointGeneration: 12394,
+      checkpointId: '958a0163-fb2e-4f75-8ade-8569f24e5852',
+      consumerCursor: 4575682
+    }),
+    'resident:homeos': Object.freeze({
+      ...R148_HOMEOS_INIT_FORWARD_RECOVERY.residents['resident:homeos'],
+      checkpointGeneration: 639,
+      checkpointHash: '039b15ff0fe06db56964a054d1c738283fc007ff490f8cf03c44ff418fda94aa',
+      checkpointId: 'e0c38bbf-7d9c-4434-bf26-a3b68c29332a',
+      inputCursor: 4575682, consumerCursor: 4575682
+    }),
+    'resident:metab': Object.freeze({
+      ...R148_HOMEOS_INIT_FORWARD_RECOVERY.residents['resident:metab'],
+      checkpointGeneration: 325470,
+      checkpointId: '929f299e-85c2-44c3-b10c-f48f7f6490d1',
+      consumerCursor: 4575682
+    }),
+    'resident:sntss': Object.freeze({
+      ...R148_HOMEOS_INIT_FORWARD_RECOVERY.residents['resident:sntss'],
+      checkpointGeneration: 2891382,
+      checkpointId: '66071c31-2bee-45e9-98dc-384fa6cf798d',
+      consumerCursor: 4575682
+    })
+  }),
+  fetus: Object.freeze({
+    ...R148_HOMEOS_INIT_FORWARD_RECOVERY.fetus,
+    consumerCursor: 4575682,
+    checkpointGeneration: 214,
+    checkpointHash: '706123370dc9b7194c847a0b2e186f48d9e83b796a9e4d6f79403a4c1a9b6114',
+    checkpointBytes: 61986
+  })
+});
+
+/*
+ * The first exact post-durable finalization reconstructed all four residents,
+ * but its external acceptance client reached a server-side status allowlist
+ * that still excluded HOMEOS.  Fail-closed cleanup stopped the service after
+ * the reconstruction was committed.  This fence permits only that resulting
+ * R148 cohort to restart without replaying events or advancing to R149.
+ */
+const R148_HOMEOS_POST_FINALIZATION_RESTART = Object.freeze({
+  authorization: 'AUTHORIZE_STRANDED_R148_HOMEOS_POST_FINALIZATION_RESTART_ONLY',
+  runtimeRevision: 148,
+  highWater: 4575682,
+  latestRecoveryRecordId: 250,
+  runtimeRevisionMetadataHash:
+    '95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0',
+  capacitySourceMetadataHash:
+    'e9a6efb7deff7c43d2adffe10b90f85a3327a3b9ffe5a7f9df0da4067f75b0b4',
+  residents: Object.freeze({
+    'resident:chronobiology': Object.freeze({
+      ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.residents['resident:chronobiology'],
+      checkpointGeneration: 12396,
+      checkpointId: '508c0ce9-bd8c-46d0-8dc2-5332f409d6e1'
+    }),
+    'resident:homeos': Object.freeze({
+      ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.residents['resident:homeos'],
+      checkpointGeneration: 641,
+      checkpointId: 'cd5ac03d-8f56-4dc5-92b1-ba531ded973e'
+    }),
+    'resident:metab': Object.freeze({
+      ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.residents['resident:metab'],
+      checkpointGeneration: 325472,
+      checkpointId: '2796adc0-92a4-415d-9d2f-3f628f6c8483'
+    }),
+    'resident:sntss': Object.freeze({
+      ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.residents['resident:sntss'],
+      checkpointGeneration: 2891384,
+      checkpointId: '3eee91b2-07cb-4e20-b222-3d7c32279e9e'
+    })
+  }),
+  fetus: Object.freeze({
+    ...R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION.fetus,
+    checkpointGeneration: 217,
+    checkpointHash: 'dcfd5507220929e87bf28ec222170fc7bc537ff764d2056ba911be3ec2ab128e',
+    checkpointBytes: 62848
+  })
+});
+
+/*
+ * The first restart of the post-durable R148 cohort rebuilt all four
+ * residents, but deferred recovery meant the hardened trusted-time scheduler
+ * was not resumed. METAB had already durably accepted capacity frame 162716;
+ * only the source ledger acknowledgement remained pending. This fence admits
+ * the exact stopped result of that restart so startup can idempotently
+ * re-observe the already-persisted pair, commit the source acknowledgement,
+ * and resume the schedulers without advancing the runtime revision.
+ */
+const R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION = Object.freeze({
+  authorization: 'AUTHORIZE_STRANDED_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_ONLY',
+  runtimeRevision: 148,
+  highWater: 4575682,
+  latestRecoveryRecordId: 254,
+  runtimeRevisionMetadataHash:
+    '95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0',
+  capacitySourceMetadataHash:
+    'e9a6efb7deff7c43d2adffe10b90f85a3327a3b9ffe5a7f9df0da4067f75b0b4',
+  committedCapacitySourceMetadataHash:
+    'ad3e6e4a829a9dd82261d44f795c888bdd74ed4a9aee183e837a9aa762920667',
+  capacitySource: Object.freeze({
+    lastCommittedFrame: 162716,
+    lastTrustedTimeUs: 1011924235209,
+    lastContinuityEpoch: 1
+  }),
+  residents: Object.freeze({
+    'resident:chronobiology': Object.freeze({
+      ...R148_HOMEOS_POST_FINALIZATION_RESTART.residents['resident:chronobiology'],
+      checkpointGeneration: 12398,
+      checkpointId: '7a944b2c-81c7-4039-be84-580392946918'
+    }),
+    'resident:homeos': Object.freeze({
+      ...R148_HOMEOS_POST_FINALIZATION_RESTART.residents['resident:homeos'],
+      checkpointGeneration: 643,
+      checkpointId: '41040104-f61f-4c0a-8dcd-30b9a98a74a4'
+    }),
+    'resident:metab': Object.freeze({
+      ...R148_HOMEOS_POST_FINALIZATION_RESTART.residents['resident:metab'],
+      checkpointGeneration: 325474,
+      checkpointId: 'a844ee26-489b-4729-987b-44b8f4b6ca63'
+    }),
+    'resident:sntss': Object.freeze({
+      ...R148_HOMEOS_POST_FINALIZATION_RESTART.residents['resident:sntss'],
+      checkpointGeneration: 2891386,
+      checkpointId: '929a3875-d7df-476e-b1d0-de5c1a1fe691'
+    })
+  }),
+  fetus: Object.freeze({
+    ...R148_HOMEOS_POST_FINALIZATION_RESTART.fetus,
+    checkpointGeneration: 220,
+    checkpointHash: '7e38f6099e9f2749fd2a76d8dcd5141012f7d4e78f9ad1c593eaf787c521e24b',
+    checkpointBytes: 63710
+  })
+});
+
+/*
+ * The exact capacity-source finalizer resumed the trusted-time and capacity
+ * schedulers after a long stopped interval. METAB committed the source stream
+ * cleanly, but SNTSS correctly refused to integrate the 2.9-hour wall-clock
+ * gap as physiology and entered RESYNC_REQUIRED on the first trusted pulse.
+ * The remaining scheduler output is a contiguous, contained shadow cohort.
+ * This fence admits only that stopped result so the stale trusted pulse can be
+ * acknowledged, the unchanged SNTSS checkpoint reconstructed, and a new
+ * uncertain clock anchor committed before either scheduler resumes.
+ */
+const R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY = Object.freeze({
+  authorization: 'AUTHORIZE_STRANDED_R148_HOMEOS_SNTSS_RESTART_ANCHOR_ONLY',
+  runtimeRevision: 148,
+  highWater: 4576105,
+  latestRecoveryRecordId: 259,
+  pendingDeliveries: 1,
+  runtimeRevisionMetadataHash:
+    '95006d8102f40df4d7e9f94d26b7ef6fc73ce0e965526b17b812515c8cbe78d0',
+  capacitySourceMetadataHash:
+    '0ad42db71f8300602376c0188e78b54479c1117b2099466e12b0a4a0ce840cd3',
+  capacitySource: Object.freeze({
+    lastCommittedFrame: 162800,
+    lastTrustedTimeUs: 1022392296483,
+    lastContinuityEpoch: 1
+  }),
+  residents: Object.freeze({
+    'resident:chronobiology': Object.freeze({
+      ...R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION.residents['resident:chronobiology'],
+      checkpointGeneration: 12402,
+      checkpointHash: 'f44d299960f6feed2723e984d5a22bac1806466be33c55ebcc5dc32450c61872',
+      checkpointId: 'f35f0f6d-7b87-4a38-acf5-ee449c1b2964',
+      checkpointBytes: 49193,
+      inputCursor: 4575971,
+      consumerCursor: 4576105
+    }),
+    'resident:homeos': Object.freeze({
+      ...R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION.residents['resident:homeos'],
+      checkpointGeneration: 813,
+      checkpointHash: '67de8f9c8cd9e3cb1c6c57843ea1461a5c8a672de457009ece4806e9007c104c',
+      checkpointId: '8185db1a-810f-4302-a76c-c577c5f56763',
+      checkpointBytes: 3944,
+      inputCursor: 4576105,
+      consumerCursor: 4576105
+    }),
+    'resident:metab': Object.freeze({
+      ...R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION.residents['resident:metab'],
+      checkpointGeneration: 325644,
+      checkpointHash: '59359742d66ec0ce69c534e7b0eee34b4d2ea3f4b47a7413463397d82f409b91',
+      checkpointId: '99f6516d-0e16-4d51-84d6-aba7a3bc7201',
+      checkpointBytes: 5005,
+      inputCursor: 4576103,
+      consumerCursor: 4576105
+    }),
+    'resident:sntss': Object.freeze({
+      ...R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION.residents['resident:sntss'],
+      status: 'RESYNC_REQUIRED',
+      consumerActive: false,
+      checkpointGeneration: 2891387,
+      checkpointHash: 'cbd9ab3546e38c810523c54d63d0d3984327bef0dc4bf815691902dd8007af57',
+      checkpointId: '10e602f9-1cee-47b1-ac09-ca1ed3d0cf4d',
+      checkpointBytes: 4972,
+      inputCursor: 4575678,
+      consumerCursor: 4575684,
+      lastWallClockMs: 1788574703786,
+      lastPulseSequence: 32,
+      lastClockStatus: 'trusted',
+      acceptedPulses: 2891314,
+      integratedIntervals: 2655857
+    })
+  }),
+  fetus: Object.freeze({
+    ...R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION.fetus,
+    consumerCursor: 4576105,
+    checkpointGeneration: 223,
+    checkpointHash: 'e5ffb586b0d3ee2018100bff7befd0568d45e903eb56f85f959697e83d8ac47a',
+    checkpointBytes: 64572
+  }),
+  latestRecovery: Object.freeze({
+    type: 'resident.resync-required',
+    coreId: 'sntss',
+    detail: Object.freeze({
+      residencyId: 'resident:sntss',
+      sequence: 4575685,
+      topic: 'runtime.time.pulse',
+      code: 'SNTSS_I2_ADVANCE_BOUNDED',
+      message: 'regulated physiology advance exceeds bounded work limit'
+    })
+  }),
+  ledger: Object.freeze({
+    cohortFirstSequence: 4575683,
+    highWater: 4576105,
+    eventCount: 423,
+    canonicalSha256: '54fa597f26a7c4242c016afb1dd7ffa713333e2c9cdbaa2e19cd1ff9d627ba93',
+    pendingSequence: 4575685,
+    pendingEventId: 'evt-2q2md-7fc0651d9f4ca9e8',
+    pendingEnvelopeSha256: '0d6a9d954a4b2e4cc414b7cf77eb6b01ff5f6c71951f1b8ffecf852fcea4a49a',
+    firstTimePulseSequence: 33,
+    lastTimePulseSequence: 116,
+    timePulseCount: 84,
+    firstTrustedOrganismPulseSequence: 2,
+    lastTrustedOrganismPulseSequence: 3,
+    trustedOrganismTimePulseCount: 2,
+    topicCounts: Object.freeze({
+      'chronobiology.phase.summary': 1,
+      'metab.energy.availability.v1': 84,
+      'metab.energy.reserve.v1': 84,
+      'resource.capacity.eligible.v1': 84,
+      'resource.capacity.quality.v1': 84,
+      'runtime.time.pulse': 84,
+      'runtime.trusted-organism-time.pulse': 2
+    })
+  })
+});
+
 const R150_INTERO_SHADOW = Object.freeze({
   birthAuthorization: 'AUTHORIZE_R147_INTERO_NEUTRAL_BIRTH_ONLY',
   metabRouteAuthorization: 'AUTHORIZE_R148_METAB_INTERO_ROUTE_ONLY',
@@ -862,6 +1122,9 @@ class LivingKernel {
     homeosStrandedR148InitRecoveryAuthorization =
       process.env.STAY_HOMEOS_STRANDED_R148_INIT_RECOVERY_AUTHORIZATION || '',
 
+    homeosR148InitPostDurableFinalizationAuthorization =
+      process.env.STAY_HOMEOS_R148_INIT_POST_DURABLE_FINALIZATION_AUTHORIZATION || '',
+
     r148InitRecoveryPreflightSnapshot =
       process.env.STAY_R148_INIT_RECOVERY_PREFLIGHT_SNAPSHOT || '',
 
@@ -1051,6 +1314,9 @@ class LivingKernel {
     this.homeosStrandedR148InitRecoveryAuthorization =
       String(homeosStrandedR148InitRecoveryAuthorization);
 
+    this.homeosR148InitPostDurableFinalizationAuthorization =
+      String(homeosR148InitPostDurableFinalizationAuthorization);
+
     this.r148InitRecoveryPreflightSnapshot =
       String(r148InitRecoveryPreflightSnapshot);
 
@@ -1069,6 +1335,9 @@ class LivingKernel {
     this.r147HomeosFrameBoundaryRecoveryActive = false;
     this.r147DeferredResidentRecovery = false;
     this.r148HomeosInitForwardRecoveryActive = false;
+    this.r148HomeosInitPostDurableFinalizationActive = false;
+    this.r148HomeosInitPostDurableFinalizationExpected = null;
+    this.r148HomeosSntssRestartAnchorRecoveryActive = false;
     this.r148DeferredResidentRecovery = false;
     this.p1ExpansionFetusInstallRevisionPreservation = null;
     this.p1ExpansionFetusInstallPreserved = false;
@@ -1445,6 +1714,7 @@ class LivingKernel {
     this.startedAt = new Date().toISOString();
     const preservedRecoveryRevision =
       await this.preserveExactR127MetabRecoveryRevision() ||
+      this.preserveExactR148HomeosInitPostDurableFinalizationRevision() ||
       this.preserveExactR148HomeosInitForwardRecoveryRevision() ||
       this.preserveExactR147HomeosFrameBoundaryRevision() ||
       this.preserveExactR147HomeosContinuationRevision() ||
@@ -1463,6 +1733,9 @@ class LivingKernel {
     }
     if (this.r127PostRestartContinuityRecovery) {
       await this.repairExactR127PostRestartContinuity();
+    }
+    if (this.r148HomeosSntssRestartAnchorRecoveryActive) {
+      await this.repairExactR148HomeosSntssRestartContinuity();
     }
 
     /*
@@ -1529,7 +1802,7 @@ class LivingKernel {
     });
 
     await this.writeHeartbeat();
-    if (this.r148DeferredResidentRecovery) {
+    if (this.r148HomeosInitForwardRecoveryActive) {
       await this.stateStore.appendJournal({
         type: 'state.snapshot-reused',
         at: new Date().toISOString(),
@@ -1559,7 +1832,7 @@ class LivingKernel {
   async verifyExactR148InitRecoveryPreflightSnapshot() {
     const snapshotPath = this.r148InitRecoveryPreflightSnapshot;
     const manifestSha256 = this.r148InitRecoveryPreflightSnapshotManifestSha256;
-    if (!this.r148DeferredResidentRecovery) {
+    if (!this.r148HomeosInitForwardRecoveryActive) {
       if (snapshotPath || manifestSha256) {
         throw Object.assign(
           new Error('R148 init-forward snapshot is outside its exact recovery boundary'),
@@ -2052,6 +2325,137 @@ class LivingKernel {
     return true;
   }
 
+  preserveExactR148HomeosInitPostDurableFinalizationRevision() {
+    const expected = [
+      R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
+      R148_HOMEOS_POST_FINALIZATION_RESTART,
+      R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION,
+      R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY
+    ].find(fence =>
+      this.homeosR148InitPostDurableFinalizationAuthorization === fence.authorization);
+    if (!expected) return false;
+    const reject = () => {
+      throw Object.assign(new Error('authorized R148 post-durable cohort changed'), {
+        code: 'P1_R148_INIT_FINALIZATION_IDENTITY'
+      });
+    };
+    if (
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.homeosStrandedR148InitRecoveryAuthorization ||
+      this.homeosStrandedR147RecoveryAuthorization ||
+      this.homeosNeutralBirthAuthorization || this.metabHomeosRouteAuthorization ||
+      this.homeosShadowPromotionAuthorization || this.interoNeutralBirthAuthorization ||
+      this.metabInteroRouteAuthorization || this.homeosInteroRouteAuthorization ||
+      this.interoShadowPromotionAuthorization ||
+      this.stateStore.getResident('resident:intero') ||
+      this.stateStore.listResidents().length !== Object.keys(expected.residents).length
+    ) return reject();
+
+    const count = (sql, ...args) =>
+      Number(this.stateStore.db.prepare(sql).get(...args)?.count || 0);
+    const exactMetadataHash = (key, hash) => {
+      const row = this.stateStore.db.prepare('SELECT json,sha256 FROM metadata WHERE key=?').get(key);
+      return row?.sha256 === hash &&
+        crypto.createHash('sha256').update(row?.json || '').digest('hex') === hash;
+    };
+    const exactResident = fence => {
+      const resident = this.stateStore.getResident(fence.residencyId);
+      const consumer = this.stateStore.getBiologicalConsumer(fence.residencyId);
+      const checkpoint = this.stateStore.db.prepare(`
+        SELECT checkpoint_id,instance_id,version,state_schema,generation,blob_hash,
+          byte_length,input_cursor FROM resident_checkpoints
+        WHERE residency_id=? AND generation=?
+      `).get(fence.residencyId, fence.checkpointGeneration);
+      return resident?.residencyId === fence.residencyId && resident?.coreId === fence.coreId &&
+        resident?.instanceId === fence.instanceId && resident?.version === fence.version &&
+        resident?.stateSchema === fence.stateSchema && resident?.status === fence.status &&
+        resident?.checkpointGeneration === fence.checkpointGeneration &&
+        resident?.checkpointHash === fence.checkpointHash &&
+        resident?.moduleRelativePath === fence.moduleRelativePath &&
+        resident?.moduleHash === fence.moduleHash && resident?.manifestHash === fence.manifestHash &&
+        resident?.packagePolicyHash === fence.packagePolicyHash &&
+        consumer?.coreId === fence.coreId && consumer?.required === false &&
+        consumer?.active === (fence.consumerActive !== false) && consumer?.authorityEpoch === 0 &&
+        consumer?.cursor === fence.consumerCursor && consumer?.checkpointHash === fence.checkpointHash &&
+        consumer?.topicsHash === fence.topicsHash &&
+        checkpoint?.checkpoint_id === fence.checkpointId &&
+        checkpoint?.instance_id === fence.instanceId && checkpoint?.version === fence.version &&
+        Number(checkpoint?.state_schema) === fence.stateSchema &&
+        Number(checkpoint?.generation) === fence.checkpointGeneration &&
+        checkpoint?.blob_hash === fence.checkpointHash &&
+        Number(checkpoint?.byte_length) === fence.checkpointBytes &&
+        Number(checkpoint?.input_cursor) === fence.inputCursor;
+    };
+    if (!Object.values(expected.residents).every(exactResident)) return reject();
+
+    const highWater = Number(this.stateStore.db.prepare(
+      'SELECT COALESCE(MAX(sequence),0) value FROM biological_events'
+    ).get()?.value || 0);
+    const latest = this.stateStore.db.prepare(
+      'SELECT id,type,core_id,detail_json FROM recovery_records ORDER BY id DESC LIMIT 1'
+    ).get();
+    let recovery = null;
+    try { recovery = JSON.parse(latest?.detail_json || 'null'); } catch {}
+    const expectedLatestRecovery = expected.latestRecovery || {
+      type: 'resident.recovered',
+      coreId: 'sntss',
+      detail: {
+        residencyId: 'resident:sntss',
+        instanceId: expected.residents['resident:sntss'].instanceId,
+        version: expected.residents['resident:sntss'].version,
+        checkpointHash: expected.residents['resident:sntss'].checkpointHash
+      }
+    };
+    if (
+      highWater !== expected.highWater ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") !==
+        (expected.pendingDeliveries || 0) ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='FAILED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='ABANDONED'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE producer_core_id IN ('sntss','SNTSS','HOMEOS','INTERO')") !== 0 ||
+      !exactMetadataHash('life:runtime-revision', expected.runtimeRevisionMetadataHash) ||
+      !exactMetadataHash('life:p1-r0-metab-capacity-source', expected.capacitySourceMetadataHash) ||
+      Number(latest?.id) !== expected.latestRecoveryRecordId ||
+      latest?.type !== expectedLatestRecovery.type ||
+      latest?.core_id !== expectedLatestRecovery.coreId ||
+      !Object.entries(expectedLatestRecovery.detail)
+        .every(([key, value]) => recovery?.[key] === value)
+    ) return reject();
+
+
+    const fetus = expected.fetus;
+    const fetusConsumer = this.stateStore.getBiologicalConsumer(fetus.consumerId);
+    const fetusAuthority = this.stateStore.db.prepare('SELECT * FROM authority WHERE core_id=?').get(fetus.coreId);
+    const fetusCheckpoint = this.stateStore.db.prepare(
+      'SELECT * FROM checkpoints WHERE core_id=? ORDER BY generation DESC LIMIT 1'
+    ).get(fetus.coreId);
+    if (
+      this.stateStore.listAuthority().some(entry =>
+        ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId)) ||
+      fetusConsumer?.coreId !== fetus.coreId || fetusConsumer?.required !== true ||
+      fetusConsumer?.active !== true || fetusConsumer?.cursor !== fetus.consumerCursor ||
+      fetusConsumer?.authorityEpoch !== fetus.authorityEpoch ||
+      fetusConsumer?.checkpointHash !== fetus.consumerCheckpointHash ||
+      fetusConsumer?.topicsHash !== fetus.topicsHash ||
+      fetusAuthority?.instance_id !== fetus.instanceId || fetusAuthority?.version !== fetus.version ||
+      Number(fetusAuthority?.epoch) !== fetus.authorityEpoch ||
+      fetusAuthority?.checkpoint_hash !== fetus.checkpointHash ||
+      fetusCheckpoint?.instance_id !== fetus.instanceId || fetusCheckpoint?.version !== fetus.version ||
+      Number(fetusCheckpoint?.authority_epoch) !== fetus.authorityEpoch ||
+      Number(fetusCheckpoint?.generation) !== fetus.checkpointGeneration ||
+      fetusCheckpoint?.blob_hash !== fetus.checkpointHash ||
+      Number(fetusCheckpoint?.byte_length) !== fetus.checkpointBytes
+    ) return reject();
+
+    this.r148HomeosInitPostDurableFinalizationActive = true;
+    this.r148HomeosInitPostDurableFinalizationExpected = expected;
+    this.r148HomeosSntssRestartAnchorRecoveryActive =
+      expected === R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY;
+    this.r148DeferredResidentRecovery = true;
+    this.p1ExpansionFetusInstallRevisionPreservation = this.runtimeRevision;
+    return true;
+  }
   preserveExactR147HomeosRecoveryRevision() {
     const expected = R147_HOMEOS_FORWARD_RECOVERY;
     if (
@@ -3700,6 +4104,730 @@ class LivingKernel {
     this.stateStore.recordRecovery(
       'resident.r127-restart-clock-anchored',
       expected.coreId,
+      detail
+    );
+    this.statusCache = null;
+    return Object.freeze(detail);
+  }
+
+  async repairExactR148HomeosSntssRestartContinuity() {
+    const expected = R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY;
+    if (
+      this.r148HomeosSntssRestartAnchorRecoveryActive !== true ||
+      this.r148HomeosInitPostDurableFinalizationExpected !== expected ||
+      this.homeosR148InitPostDurableFinalizationAuthorization !== expected.authorization ||
+      this.runtimeRevision !== expected.runtimeRevision
+    ) throw Object.assign(new Error('R148 SNTSS restart recovery is not authorized'), {
+      code: 'P1_R148_SNTSS_RESTART_AUTHORIZATION'
+    });
+
+    const existing = this.stateStore.db.prepare(`
+      SELECT detail_json FROM recovery_records
+      WHERE type='runtime.r148-homeos-sntss-restart-continuity-recovered'
+      ORDER BY id DESC LIMIT 1
+    `).get();
+    if (existing) {
+      let detail = null;
+      try { detail = JSON.parse(existing.detail_json || 'null'); } catch {}
+      if (!(detail?.cohort === 'r148-homeos-sntss-restart-anchor-v1' &&
+        detail.runtimeRevision === 148 && detail.acknowledgedPendingDeliveryCount === 1 &&
+        detail.abandonedCount === 0 && detail.inventedBiologicalTime === false &&
+        detail.authorityChanged === false)) {
+        throw Object.assign(new Error('R148 SNTSS restart recovery evidence is invalid'), {
+          code: 'P1_R148_SNTSS_RESTART_EVIDENCE'
+        });
+      }
+      return Object.freeze({ ...detail, idempotent: true });
+    }
+
+    const sntssExpected = expected.residents['resident:sntss'];
+    const resident = this.stateStore.getResident(sntssExpected.residencyId);
+    const consumer = this.stateStore.getBiologicalConsumer(sntssExpected.residencyId);
+    const checkpoint = await this.stateStore.readResidentCheckpoint(sntssExpected.residencyId);
+    const pending = this.stateStore.db.prepare(`
+      SELECT d.status,d.transition_id,d.checkpoint_hash,d.acknowledged_at,
+        e.sequence,e.event_id,e.topic,e.event_class,e.envelope_json,e.envelope_sha256,
+        e.deduplication_key
+      FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+      WHERE d.consumer_id=? AND d.sequence=?
+    `).get(sntssExpected.residencyId, expected.ledger.pendingSequence);
+    const recoveryRow = this.stateStore.db.prepare(`
+      SELECT id,type,core_id,detail_json FROM recovery_records WHERE id=?
+    `).get(expected.latestRecoveryRecordId);
+    let pendingEnvelope = null;
+    let recoveryDetail = null;
+    try {
+      pendingEnvelope = JSON.parse(pending?.envelope_json || 'null');
+      recoveryDetail = JSON.parse(recoveryRow?.detail_json || 'null');
+    } catch {}
+    const trustedTime = checkpoint?.state?.trustedTime;
+    const topicsHash = consumer?.topics
+      ? crypto.createHash('sha256').update(stableStringify(consumer.topics)).digest('hex')
+      : null;
+    const pendingEnvelopeHash = pending?.envelope_json
+      ? crypto.createHash('sha256').update(pending.envelope_json).digest('hex')
+      : null;
+    if (!(resident?.coreId === sntssExpected.coreId &&
+      resident?.instanceId === sntssExpected.instanceId &&
+      resident?.version === sntssExpected.version &&
+      resident?.stateSchema === sntssExpected.stateSchema &&
+      resident?.status === 'RESYNC_REQUIRED' &&
+      resident?.checkpointGeneration === sntssExpected.checkpointGeneration &&
+      resident?.checkpointHash === sntssExpected.checkpointHash &&
+      checkpoint?.checkpointId === sntssExpected.checkpointId &&
+      checkpoint?.generation === sntssExpected.checkpointGeneration &&
+      checkpoint?.blobHash === sntssExpected.checkpointHash &&
+      checkpoint?.byteLength === sntssExpected.checkpointBytes &&
+      checkpoint?.inputCursor === sntssExpected.inputCursor &&
+      consumer?.coreId === sntssExpected.coreId && consumer?.required === false &&
+      consumer?.active === false && consumer?.authorityEpoch === 0 &&
+      consumer?.cursor === sntssExpected.consumerCursor &&
+      consumer?.checkpointHash === sntssExpected.checkpointHash &&
+      consumer?.topicsHash === sntssExpected.topicsHash && topicsHash === sntssExpected.topicsHash &&
+      trustedTime?.lastWallClockMs === sntssExpected.lastWallClockMs &&
+      trustedTime?.lastPulseSequence === sntssExpected.lastPulseSequence &&
+      trustedTime?.lastRuntimeRevision === expected.runtimeRevision &&
+      trustedTime?.lastClockStatus === sntssExpected.lastClockStatus &&
+      trustedTime?.acceptedPulses === sntssExpected.acceptedPulses &&
+      trustedTime?.integratedIntervals === sntssExpected.integratedIntervals &&
+      this.stateStore.countPendingBiologicalEvents(sntssExpected.residencyId) === 1 &&
+      pending?.status === 'PENDING' && pending?.transition_id == null &&
+      pending?.checkpoint_hash == null && pending?.acknowledged_at == null &&
+      Number(pending?.sequence) === expected.ledger.pendingSequence &&
+      pending?.event_id === expected.ledger.pendingEventId &&
+      pending?.topic === 'runtime.time.pulse' && pending?.event_class === 'durable' &&
+      pending?.envelope_sha256 === expected.ledger.pendingEnvelopeSha256 &&
+      pendingEnvelopeHash === expected.ledger.pendingEnvelopeSha256 &&
+      pending?.deduplication_key ===
+        `runtime.time.pulse:148:${expected.ledger.firstTimePulseSequence}` &&
+      pendingEnvelope?.id === expected.ledger.pendingEventId &&
+      pendingEnvelope?.sequence === expected.ledger.pendingSequence &&
+      pendingEnvelope?.payload?.runtimeRevision === expected.runtimeRevision &&
+      pendingEnvelope?.payload?.pulseSequence === expected.ledger.firstTimePulseSequence &&
+      pendingEnvelope?.payload?.clockStatus === 'trusted' &&
+      pendingEnvelope?.meta?.sourceCore === 'living-kernel' &&
+      Number(recoveryRow?.id) === expected.latestRecoveryRecordId &&
+      recoveryRow?.type === expected.latestRecovery.type &&
+      recoveryRow?.core_id === expected.latestRecovery.coreId &&
+      Object.entries(expected.latestRecovery.detail)
+        .every(([key, value]) => recoveryDetail?.[key] === value))) {
+      throw Object.assign(new Error('R148 SNTSS restart resident cohort changed'), {
+        code: 'P1_R148_SNTSS_RESTART_RESIDENT'
+      });
+    }
+
+    const count = (sql, ...args) =>
+      Number(this.stateStore.db.prepare(sql).get(...args)?.count || 0);
+    const highWater = Number(this.stateStore.db.prepare(`
+      SELECT COALESCE(MAX(sequence),0) value FROM biological_events
+    `).get()?.value || 0);
+    if (highWater !== expected.ledger.highWater ||
+        count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") !== 1 ||
+        count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='FAILED'") !== 0 ||
+        count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='ABANDONED'") !== 0 ||
+        count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !== 0 ||
+        this.stateStore.listAuthority().some(entry =>
+          ['sntss', 'chronobiology', 'METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId))) {
+      throw Object.assign(new Error('R148 SNTSS restart containment boundary changed'), {
+        code: 'P1_R148_SNTSS_RESTART_LEDGER'
+      });
+    }
+
+    const cohortRows = this.stateStore.db.prepare(`
+      SELECT sequence,event_id,topic,event_class,envelope_sha256,deduplication_key,envelope_json
+      FROM biological_events WHERE sequence BETWEEN ? AND ? ORDER BY sequence
+    `).all(expected.ledger.cohortFirstSequence, expected.ledger.highWater);
+    const topicCounts = new Map(Object.keys(expected.ledger.topicCounts).map(topic => [topic, 0]));
+    let timePulseSequence = expected.ledger.firstTimePulseSequence - 1;
+    let trustedOrganismPulseSequence = expected.ledger.firstTrustedOrganismPulseSequence - 1;
+    if (cohortRows.length !== expected.ledger.eventCount) {
+      throw Object.assign(new Error('R148 SNTSS restart cohort is not exact'), {
+        code: 'P1_R148_SNTSS_RESTART_LEDGER'
+      });
+    }
+    for (let index = 0; index < cohortRows.length; index += 1) {
+      const row = cohortRows[index];
+      const sequence = expected.ledger.cohortFirstSequence + index;
+      let envelope = null;
+      try { envelope = JSON.parse(row.envelope_json); } catch {}
+      const envelopeHash = crypto.createHash('sha256').update(row.envelope_json || '').digest('hex');
+      if (Number(row.sequence) !== sequence || row.event_class !== 'durable' ||
+          !topicCounts.has(row.topic) || envelopeHash !== row.envelope_sha256 ||
+          envelope?.id !== row.event_id || envelope?.sequence !== sequence ||
+          envelope?.topic !== row.topic || envelope?.class !== row.event_class ||
+          envelope?.meta?.deduplicationKey !== row.deduplication_key) {
+        throw Object.assign(new Error('R148 SNTSS restart event identity changed'), {
+          code: 'P1_R148_SNTSS_RESTART_LEDGER'
+        });
+      }
+      topicCounts.set(row.topic, topicCounts.get(row.topic) + 1);
+      if (row.topic === 'runtime.time.pulse') {
+        timePulseSequence += 1;
+        if (envelope.payload?.runtimeRevision !== 148 ||
+            envelope.payload?.pulseSequence !== timePulseSequence ||
+            row.deduplication_key !== `runtime.time.pulse:148:${timePulseSequence}` ||
+            envelope.meta?.sourceCore !== 'living-kernel') {
+          throw Object.assign(new Error('R148 SNTSS restart time-pulse fence changed'), {
+            code: 'P1_R148_SNTSS_RESTART_LEDGER'
+          });
+        }
+      } else if (row.topic === 'runtime.trusted-organism-time.pulse') {
+        trustedOrganismPulseSequence += 1;
+        if (envelope.payload?.runtimeRevision !== 148 ||
+            envelope.payload?.pulseSequence !== trustedOrganismPulseSequence ||
+            row.deduplication_key !==
+              `runtime.trusted-organism-time.pulse:148:${trustedOrganismPulseSequence}` ||
+            envelope.meta?.sourceCore !== 'living-kernel') {
+          throw Object.assign(new Error('R148 trusted-organism pulse fence changed'), {
+            code: 'P1_R148_SNTSS_RESTART_LEDGER'
+          });
+        }
+      }
+    }
+    const cohortProjection = cohortRows.map(row => ({
+      sequence: Number(row.sequence),
+      event_id: row.event_id,
+      topic: row.topic,
+      event_class: row.event_class,
+      envelope_sha256: row.envelope_sha256,
+      deduplication_key: row.deduplication_key
+    }));
+    const cohortHash = crypto.createHash('sha256')
+      .update(JSON.stringify(cohortProjection)).digest('hex');
+    if (cohortHash !== expected.ledger.canonicalSha256 ||
+        timePulseSequence !== expected.ledger.lastTimePulseSequence ||
+        trustedOrganismPulseSequence !== expected.ledger.lastTrustedOrganismPulseSequence ||
+        [...topicCounts].some(([topic, value]) => value !== expected.ledger.topicCounts[topic])) {
+      throw Object.assign(new Error('R148 SNTSS restart event cohort hash changed'), {
+        code: 'P1_R148_SNTSS_RESTART_LEDGER'
+      });
+    }
+
+    const at = new Date().toISOString();
+    const repaired = this.stateStore.withTransaction(() => {
+      const transitionId = `r148-restart-time-pulse-superseded:${expected.ledger.pendingSequence}`;
+      const acknowledged = this.stateStore.db.prepare(`
+        UPDATE biological_deliveries SET status='ACKED',transition_id=?,checkpoint_hash=?,
+          acknowledged_at=? WHERE consumer_id=? AND sequence=? AND status='PENDING'
+          AND transition_id IS NULL AND checkpoint_hash IS NULL AND acknowledged_at IS NULL
+      `).run(transitionId, sntssExpected.checkpointHash, at, sntssExpected.residencyId,
+        expected.ledger.pendingSequence).changes;
+      if (acknowledged !== 1) throw new Error('R148 stale SNTSS pulse acknowledgement was not atomic');
+      const cursorChanged = this.stateStore.db.prepare(`
+        UPDATE biological_consumers SET cursor=?,checkpoint_hash=?,updated_at=?
+        WHERE consumer_id=? AND required=0 AND active=0 AND cursor=? AND checkpoint_hash=?
+      `).run(highWater, sntssExpected.checkpointHash, at, sntssExpected.residencyId,
+        sntssExpected.consumerCursor, sntssExpected.checkpointHash).changes;
+      if (cursorChanged !== 1) throw new Error('R148 SNTSS cursor repair was not atomic');
+      const residentChanged = this.stateStore.db.prepare(`
+        UPDATE resident_instances SET status='RECOVERING',updated_at=?
+        WHERE residency_id=? AND status='RESYNC_REQUIRED' AND checkpoint_generation=?
+          AND checkpoint_hash=?
+      `).run(at, sntssExpected.residencyId, sntssExpected.checkpointGeneration,
+        sntssExpected.checkpointHash).changes;
+      if (residentChanged !== 1) throw new Error('R148 SNTSS recovery transition was not atomic');
+
+      const residentDetail = {
+        cohort: 'r148-homeos-sntss-restart-anchor-v1',
+        residencyId: sntssExpected.residencyId,
+        sourceRecoveryRecordId: expected.latestRecoveryRecordId,
+        sequence: expected.ledger.pendingSequence,
+        fromCursor: sntssExpected.consumerCursor,
+        toCursor: highWater,
+        topic: 'runtime.time.pulse',
+        rejectedPulseSequence: expected.ledger.firstTimePulseSequence,
+        durableLastAcceptedPulseSequence: sntssExpected.lastPulseSequence,
+        durableLedgerLastPulseSequence: expected.ledger.lastTimePulseSequence,
+        supersededTimePulseCount: expected.ledger.timePulseCount,
+        unassignedTimePulseCount: expected.ledger.timePulseCount - 1,
+        nonSntssEventCount: expected.ledger.eventCount - expected.ledger.timePulseCount,
+        checkpointHash: sntssExpected.checkpointHash,
+        checkpointGeneration: sntssExpected.checkpointGeneration,
+        checkpointBytesChanged: false,
+        biologicalStateChanged: false,
+        physiologyApplied: 0,
+        abandonedCount: 0,
+        inventedBiologicalTime: false,
+        authorityChanged: false
+      };
+      this.stateStore.db.prepare(`
+        INSERT INTO recovery_records(type,core_id,detail_json,created_at)
+        VALUES('resident.restart-pulse-superseded',?,?,?)
+      `).run(sntssExpected.coreId, JSON.stringify(residentDetail), at);
+      const detail = {
+        cohort: 'r148-homeos-sntss-restart-anchor-v1',
+        runtimeRevision: 148,
+        fromCursor: sntssExpected.consumerCursor,
+        toCursor: highWater,
+        sntssCheckpointHash: sntssExpected.checkpointHash,
+        acknowledgedPendingDeliveryCount: 1,
+        supersededTimePulseCount: expected.ledger.timePulseCount,
+        containedEventCount: expected.ledger.eventCount,
+        containedEventCohortSha256: expected.ledger.canonicalSha256,
+        abandonedCount: 0,
+        inventedBiologicalTime: false,
+        authorityChanged: false
+      };
+      this.stateStore.db.prepare(`
+        INSERT INTO recovery_records(type,core_id,detail_json,created_at)
+        VALUES('runtime.r148-homeos-sntss-restart-continuity-recovered',NULL,?,?)
+      `).run(JSON.stringify(detail), at);
+      if (count("SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") !== 0 ||
+          this.stateStore.getResident(sntssExpected.residencyId)?.status !== 'RECOVERING' ||
+          this.stateStore.getBiologicalConsumer(sntssExpected.residencyId)?.cursor !== highWater) {
+        throw new Error('R148 SNTSS continuity evidence did not seal atomically');
+      }
+      return detail;
+    });
+    this.statusCache = null;
+    return Object.freeze(repaired);
+  }
+
+  async anchorExactR148HomeosSntssRestartTrustedTime() {
+    const expected = R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY;
+    if (
+      this.r148HomeosSntssRestartAnchorRecoveryActive !== true ||
+      this.r148HomeosInitPostDurableFinalizationExpected !== expected ||
+      this.runtimeRevision !== 148 ||
+      this.trustedTimePulseSequence !== expected.ledger.lastTimePulseSequence
+    ) throw Object.assign(new Error('R148 trusted-time anchor is outside its exact fence'), {
+      code: 'P1_R148_SNTSS_RESTART_TIME_ANCHOR'
+    });
+
+    const continuity = this.stateStore.db.prepare(`
+      SELECT detail_json FROM recovery_records
+      WHERE type='runtime.r148-homeos-sntss-restart-continuity-recovered'
+      ORDER BY id DESC LIMIT 1
+    `).get();
+    let continuityDetail = null;
+    try { continuityDetail = JSON.parse(continuity?.detail_json || 'null'); } catch {}
+    if (!(continuityDetail?.cohort === 'r148-homeos-sntss-restart-anchor-v1' &&
+      continuityDetail.acknowledgedPendingDeliveryCount === 1 &&
+      continuityDetail.abandonedCount === 0 &&
+      continuityDetail.inventedBiologicalTime === false &&
+      continuityDetail.authorityChanged === false)) {
+      throw Object.assign(new Error('R148 trusted-time continuity repair is not sealed'), {
+        code: 'P1_R148_SNTSS_RESTART_TIME_ANCHOR'
+      });
+    }
+
+    const sntssExpected = expected.residents['resident:sntss'];
+    const manager = this.ensureResidentManager();
+    await manager.drain(sntssExpected.residencyId, expected.ledger.highWater);
+    const beforeResident = this.stateStore.getResident(sntssExpected.residencyId);
+    const beforeConsumer = this.stateStore.getBiologicalConsumer(sntssExpected.residencyId);
+    const beforeCheckpoint = await this.stateStore.readResidentCheckpoint(sntssExpected.residencyId);
+    const beforeStatus = await manager.status(sntssExpected.residencyId);
+    const beforeTime = beforeCheckpoint?.state?.trustedTime;
+    const recoveryCheckpoints = this.stateStore.db.prepare(`
+      SELECT generation,blob_hash,input_cursor FROM resident_checkpoints
+      WHERE residency_id=? AND generation>? ORDER BY generation
+    `).all(sntssExpected.residencyId, sntssExpected.checkpointGeneration);
+    const recoveryCheckpointSetIsExact =
+      recoveryCheckpoints.length >= 1 && recoveryCheckpoints.length <= 2 &&
+      recoveryCheckpoints.every((row, index) =>
+        Number(row.generation) === sntssExpected.checkpointGeneration + index + 1 &&
+        row.blob_hash === sntssExpected.checkpointHash &&
+        Number(row.input_cursor) === sntssExpected.inputCursor);
+    const beforeHighWater = Number(this.stateStore.db.prepare(`
+      SELECT COALESCE(MAX(sequence),0) value FROM biological_events
+    `).get()?.value || 0);
+    if (!(beforeResident?.status === 'RUNNING' && recoveryCheckpointSetIsExact &&
+      beforeResident?.checkpointGeneration === beforeCheckpoint?.generation &&
+      beforeResident?.checkpointHash === sntssExpected.checkpointHash &&
+      beforeConsumer?.active === true && beforeConsumer?.required === false &&
+      beforeConsumer?.authorityEpoch === 0 && beforeConsumer?.cursor === expected.ledger.highWater &&
+      beforeConsumer?.checkpointHash === sntssExpected.checkpointHash &&
+      beforeCheckpoint?.generation === Number(recoveryCheckpoints.at(-1)?.generation) &&
+      beforeCheckpoint?.blobHash === sntssExpected.checkpointHash &&
+      beforeCheckpoint?.inputCursor === sntssExpected.inputCursor &&
+      beforeStatus?.status === 'RUNNING' && beforeStatus?.running === true &&
+      beforeStatus?.checkpointGeneration === beforeCheckpoint?.generation &&
+      beforeStatus?.checkpointHash === sntssExpected.checkpointHash &&
+      beforeStatus?.pendingDeliveries === 0 && beforeStatus?.observedOutputs === 0 &&
+      beforeStatus?.authorityOwned === false && beforeStatus?.lastError === null &&
+      beforeTime?.lastWallClockMs === sntssExpected.lastWallClockMs &&
+      beforeTime?.lastPulseSequence === sntssExpected.lastPulseSequence &&
+      beforeTime?.lastRuntimeRevision === 148 &&
+      beforeTime?.lastClockStatus === sntssExpected.lastClockStatus &&
+      beforeTime?.acceptedPulses === sntssExpected.acceptedPulses &&
+      beforeTime?.integratedIntervals === sntssExpected.integratedIntervals &&
+      beforeHighWater === expected.ledger.highWater)) {
+      throw Object.assign(new Error('R148 trusted-time anchor precondition changed'), {
+        code: 'P1_R148_SNTSS_RESTART_TIME_ANCHOR'
+      });
+    }
+
+    const physiologyProjectionHash = state => {
+      const {
+        lastWallClockMs,
+        lastPulseSequence,
+        lastRuntimeRevision,
+        lastClockStatus,
+        acceptedPulses,
+        ...preservedTrustedTime
+      } = state.trustedTime;
+      void lastWallClockMs;
+      void lastPulseSequence;
+      void lastRuntimeRevision;
+      void lastClockStatus;
+      void acceptedPulses;
+      return sha256Bytes(stableStringify({ ...state, trustedTime: preservedTrustedTime }));
+    };
+    const beforePhysiologyHash = physiologyProjectionHash(beforeCheckpoint.state);
+    const bridgeFirstPulseSequence = sntssExpected.lastPulseSequence + 1;
+    const bridgeLastPulseSequence = expected.ledger.lastTimePulseSequence;
+    const bridgePulseCount = bridgeLastPulseSequence - bridgeFirstPulseSequence + 1;
+    const bridgeIdentity = pulseSequence =>
+      `runtime.time.recovery-anchor:148:${pulseSequence}:r148-homeos-sntss-restart-v1`;
+    if (bridgePulseCount !== expected.ledger.timePulseCount) {
+      throw Object.assign(new Error('R148 trusted-time bridge bound changed'), {
+        code: 'P1_R148_SNTSS_RESTART_TIME_ANCHOR'
+      });
+    }
+    const bridgeWallClockMs = Number(this.clock());
+    if (!Number.isSafeInteger(bridgeWallClockMs) ||
+        bridgeWallClockMs < beforeTime.lastWallClockMs) {
+      throw Object.assign(new Error('R148 trusted-time bridge clock is invalid'), {
+        code: 'P1_R148_SNTSS_RESTART_TIME_ANCHOR'
+      });
+    }
+    for (let pulseSequence = bridgeFirstPulseSequence;
+      pulseSequence <= bridgeLastPulseSequence; pulseSequence += 1) {
+      const signalId = bridgeIdentity(pulseSequence);
+      const signal = createSignal({
+        signalId,
+        topic: 'runtime.time.pulse',
+        payload: {
+          wallClockMs: bridgeWallClockMs,
+          runtimeRevision: 148,
+          pulseSequence,
+          clockStatus: 'uncertain'
+        },
+        trustedTime: {
+          source: 'kernel',
+          observedAtMs: bridgeWallClockMs,
+          pulseId: `r148-restart-anchor-${pulseSequence}`
+        },
+        provenance: {
+          producerType: 'kernel',
+          producerId: 'living-kernel',
+          authorityEpoch: 148
+        },
+        durability: DURABILITY.DURABLE
+      });
+      const event = await this.fabric.publishBiologicalSignal(signal, {
+        eventClass: 'durable',
+        sourceVersion: KERNEL_VERSION
+      });
+      const expectedEventSequence =
+        beforeHighWater + pulseSequence - bridgeFirstPulseSequence + 1;
+      if (event?.sequence !== expectedEventSequence) {
+        throw Object.assign(new Error('R148 trusted-time bridge lost ledger exclusivity'), {
+          code: 'P1_R148_SNTSS_RESTART_TIME_ANCHOR'
+        });
+      }
+      // Yield to the resident after each durable insert. Publishing the entire
+      // bridge synchronously can starve the CoreHost reply long enough to trip
+      // its operation timeout even though the event was handled correctly.
+      await manager.drain(sntssExpected.residencyId, expectedEventSequence);
+    }
+    const anchorSequence = beforeHighWater + bridgePulseCount;
+    await manager.drain(sntssExpected.residencyId, anchorSequence);
+
+    const afterResident = this.stateStore.getResident(sntssExpected.residencyId);
+    const afterConsumer = this.stateStore.getBiologicalConsumer(sntssExpected.residencyId);
+    const afterCheckpoint = await this.stateStore.readResidentCheckpoint(sntssExpected.residencyId);
+    const afterStatus = await manager.status(sntssExpected.residencyId);
+    const afterTime = afterCheckpoint?.state?.trustedTime;
+    const anchorCheckpoints = this.stateStore.db.prepare(`
+      SELECT generation,blob_hash,input_cursor FROM resident_checkpoints
+      WHERE residency_id=? AND generation>? ORDER BY generation
+    `).all(sntssExpected.residencyId, beforeCheckpoint.generation);
+    const retainedAnchorCheckpointCount = Math.min(32, bridgePulseCount);
+    const anchorCheckpointSetIsExact =
+      afterCheckpoint?.generation === beforeCheckpoint.generation + bridgePulseCount &&
+      anchorCheckpoints.length === retainedAnchorCheckpointCount &&
+      anchorCheckpoints.every((row, index) =>
+        Number(row.generation) ===
+          afterCheckpoint.generation - retainedAnchorCheckpointCount + index + 1 &&
+        Number(row.input_cursor) ===
+          anchorSequence - retainedAnchorCheckpointCount + index + 1) &&
+      anchorCheckpoints.at(-1)?.blob_hash === afterCheckpoint?.blobHash &&
+      Number(anchorCheckpoints.at(-1)?.input_cursor) === anchorSequence;
+    const bridgeEvents = this.stateStore.db.prepare(`
+      SELECT sequence,event_id,topic,event_class,envelope_json,envelope_sha256,deduplication_key
+      FROM biological_events WHERE sequence BETWEEN ? AND ? ORDER BY sequence
+    `).all(beforeHighWater + 1, anchorSequence);
+    const bridgeEventsAreExact = bridgeEvents.length === bridgePulseCount &&
+      bridgeEvents.every((event, index) => {
+        let envelope = null;
+        try { envelope = JSON.parse(event.envelope_json); } catch {}
+        const pulseSequence = bridgeFirstPulseSequence + index;
+        const sequence = beforeHighWater + index + 1;
+        return Number(event.sequence) === sequence &&
+          event.topic === 'runtime.time.pulse' && event.event_class === 'durable' &&
+          event.envelope_sha256 === crypto.createHash('sha256')
+            .update(event.envelope_json || '').digest('hex') &&
+          event.deduplication_key === bridgeIdentity(pulseSequence) &&
+          envelope?.id === event.event_id && envelope?.sequence === sequence &&
+          envelope?.topic === 'runtime.time.pulse' && envelope?.class === 'durable' &&
+          envelope?.payload?.runtimeRevision === 148 &&
+          envelope?.payload?.pulseSequence === pulseSequence &&
+          envelope?.payload?.clockStatus === 'uncertain' &&
+          envelope?.payload?.wallClockMs === bridgeWallClockMs &&
+          envelope?.meta?.sourceCore === 'living-kernel' &&
+          envelope?.meta?.deduplicationKey === bridgeIdentity(pulseSequence);
+      });
+    const event = bridgeEvents.at(-1);
+    let envelope = null;
+    try { envelope = JSON.parse(event?.envelope_json || 'null'); } catch {}
+    const envelopeHash = event?.envelope_json
+      ? crypto.createHash('sha256').update(event.envelope_json).digest('hex')
+      : null;
+    const afterPhysiologyHash = afterCheckpoint?.state
+      ? physiologyProjectionHash(afterCheckpoint.state)
+      : null;
+    const capacityRow = this.stateStore.db.prepare(`
+      SELECT json,sha256 FROM metadata WHERE key='life:p1-r0-metab-capacity-source'
+    `).get();
+    const count = sql => Number(this.stateStore.db.prepare(sql).get()?.count || 0);
+    if (!(afterResident?.status === 'RUNNING' && anchorCheckpointSetIsExact &&
+      bridgeEventsAreExact &&
+      afterResident?.checkpointGeneration === afterCheckpoint?.generation &&
+      afterResident?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterResident?.checkpointHash !== sntssExpected.checkpointHash &&
+      afterConsumer?.active === true && afterConsumer?.required === false &&
+      afterConsumer?.authorityEpoch === 0 && afterConsumer?.cursor === anchorSequence &&
+      afterConsumer?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterCheckpoint?.generation === Number(anchorCheckpoints.at(-1)?.generation) &&
+      afterCheckpoint?.inputCursor === anchorSequence &&
+      afterStatus?.status === 'RUNNING' && afterStatus?.running === true &&
+      afterStatus?.checkpointGeneration === afterCheckpoint?.generation &&
+      afterStatus?.checkpointHash === afterCheckpoint?.blobHash &&
+      afterStatus?.pendingDeliveries === 0 && afterStatus?.observedOutputs === 0 &&
+      afterStatus?.authorityOwned === false && afterStatus?.lastError === null &&
+      this.trustedTimePulseSequence === expected.ledger.lastTimePulseSequence &&
+      afterTime?.lastRuntimeRevision === 148 &&
+      afterTime?.lastPulseSequence === expected.ledger.lastTimePulseSequence &&
+      afterTime?.lastClockStatus === 'uncertain' &&
+      afterTime?.lastWallClockMs === bridgeWallClockMs &&
+      afterTime?.acceptedPulses === beforeTime.acceptedPulses + bridgePulseCount &&
+      afterTime?.integratedIntervals === beforeTime.integratedIntervals &&
+      afterPhysiologyHash === beforePhysiologyHash &&
+      event?.topic === 'runtime.time.pulse' && event?.event_class === 'durable' &&
+      event?.envelope_sha256 === envelopeHash &&
+      event?.deduplication_key === bridgeIdentity(bridgeLastPulseSequence) &&
+      envelope?.id === event?.event_id && envelope?.sequence === anchorSequence &&
+      envelope?.payload?.runtimeRevision === 148 &&
+      envelope?.payload?.pulseSequence === expected.ledger.lastTimePulseSequence &&
+      envelope?.payload?.clockStatus === 'uncertain' &&
+      envelope?.meta?.sourceCore === 'living-kernel' &&
+      capacityRow?.sha256 === expected.capacitySourceMetadataHash &&
+      crypto.createHash('sha256').update(capacityRow?.json || '').digest('hex') ===
+        expected.capacitySourceMetadataHash &&
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status IN ('PENDING','FAILED','ABANDONED')") === 0 &&
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") === 0 &&
+      !this.stateStore.listAuthority().some(entry =>
+        ['sntss', 'chronobiology', 'METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)))) {
+      throw Object.assign(new Error('R148 trusted-time anchor changed containment'), {
+        code: 'P1_R148_SNTSS_RESTART_TIME_ANCHOR'
+      });
+    }
+
+    const detail = {
+      cohort: 'r148-homeos-sntss-restart-anchor-v1',
+      residencyId: sntssExpected.residencyId,
+      runtimeRevision: 148,
+      eventSequence: anchorSequence,
+      fromAcceptedPulseSequence: sntssExpected.lastPulseSequence,
+      fromDurableLedgerPulseSequence: expected.ledger.lastTimePulseSequence,
+      bridgeFirstPulseSequence,
+      bridgeLastPulseSequence,
+      bridgePulseCount,
+      toPulseSequence: expected.ledger.lastTimePulseSequence,
+      clockStatus: 'uncertain',
+      checkpointGenerationBefore: beforeCheckpoint.generation,
+      checkpointGenerationAfter: afterCheckpoint.generation,
+      idempotentCheckpointCommits: bridgePulseCount,
+      retainedCheckpointCount: anchorCheckpoints.length,
+      physiologyStateHashBefore: beforePhysiologyHash,
+      physiologyStateHashAfter: afterPhysiologyHash,
+      physiologyApplied: 0,
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    };
+    this.stateStore.recordRecovery(
+      'resident.r148-restart-clock-anchored',
+      sntssExpected.coreId,
+      detail
+    );
+    this.statusCache = null;
+    return Object.freeze(detail);
+  }
+
+  async warmExactR148HomeosCapacitySourceBeforeTrustedTime() {
+    const expected = R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY;
+    if (
+      this.r148HomeosSntssRestartAnchorRecoveryActive !== true ||
+      this.r148HomeosInitPostDurableFinalizationExpected !== expected ||
+      this.runtimeRevision !== 148
+    ) throw Object.assign(new Error('R148 capacity warm-up is outside its exact fence'), {
+      code: 'P1_R148_CAPACITY_WARMUP'
+    });
+
+    const anchorRow = this.stateStore.db.prepare(`
+      SELECT id,detail_json FROM recovery_records
+      WHERE type='resident.r148-restart-clock-anchored'
+      ORDER BY id DESC LIMIT 1
+    `).get();
+    let anchor = null;
+    try { anchor = JSON.parse(anchorRow?.detail_json || 'null'); } catch {}
+    const anchorSequence = expected.ledger.highWater + expected.ledger.timePulseCount;
+    const beforeCapacityRow = this.stateStore.db.prepare(`
+      SELECT json,sha256 FROM metadata WHERE key='life:p1-r0-metab-capacity-source'
+    `).get();
+    let beforeCapacity = null;
+    try { beforeCapacity = JSON.parse(beforeCapacityRow?.json || 'null'); } catch {}
+    const beforeSntss = await this.stateStore.readResidentCheckpoint('resident:sntss');
+    const beforeHighWater = Number(this.stateStore.db.prepare(`
+      SELECT COALESCE(MAX(sequence),0) value FROM biological_events
+    `).get()?.value || 0);
+    if (!(anchor?.cohort === 'r148-homeos-sntss-restart-anchor-v1' &&
+      anchor?.eventSequence === anchorSequence && anchor?.physiologyApplied === 0 &&
+      anchor?.inventedBiologicalTime === false && anchor?.authorityChanged === false &&
+      beforeHighWater === anchorSequence &&
+      beforeCapacityRow?.sha256 === expected.capacitySourceMetadataHash &&
+      crypto.createHash('sha256').update(beforeCapacityRow?.json || '').digest('hex') ===
+        expected.capacitySourceMetadataHash &&
+      beforeCapacity?.lastCommittedFrame === expected.capacitySource.lastCommittedFrame &&
+      beforeCapacity?.lastTrustedTimeUs === expected.capacitySource.lastTrustedTimeUs &&
+      beforeCapacity?.lastContinuityEpoch === expected.capacitySource.lastContinuityEpoch &&
+      beforeCapacity?.pending === null &&
+      beforeSntss?.generation === anchor.checkpointGenerationAfter &&
+      beforeSntss?.blobHash && beforeSntss?.inputCursor === anchorSequence &&
+      beforeSntss?.state?.trustedTime?.lastPulseSequence ===
+        expected.ledger.lastTimePulseSequence &&
+      beforeSntss?.state?.trustedTime?.lastClockStatus === 'uncertain')) {
+      throw Object.assign(new Error('R148 capacity warm-up precondition changed'), {
+        code: 'P1_R148_CAPACITY_WARMUP'
+      });
+    }
+
+    if (await this.publishMetabCapacitySample() !== true) {
+      throw Object.assign(new Error('R148 capacity source did not warm'), {
+        code: 'P1_R148_CAPACITY_WARMUP'
+      });
+    }
+    const warmSequence = anchorSequence + 4;
+    const manager = this.ensureResidentManager();
+    for (const residencyId of Object.keys(expected.residents)) {
+      await manager.drain(residencyId, warmSequence);
+    }
+
+    const afterHighWater = Number(this.stateStore.db.prepare(`
+      SELECT COALESCE(MAX(sequence),0) value FROM biological_events
+    `).get()?.value || 0);
+    const afterCapacityRow = this.stateStore.db.prepare(`
+      SELECT json,sha256 FROM metadata WHERE key='life:p1-r0-metab-capacity-source'
+    `).get();
+    let afterCapacity = null;
+    try { afterCapacity = JSON.parse(afterCapacityRow?.json || 'null'); } catch {}
+    const afterSntss = await this.stateStore.readResidentCheckpoint('resident:sntss');
+    const afterSntssConsumer = this.stateStore.getBiologicalConsumer('resident:sntss');
+    const afterSntssStatus = await manager.status('resident:sntss');
+    const events = this.stateStore.db.prepare(`
+      SELECT sequence,event_id,topic,event_class,envelope_json,envelope_sha256,
+        deduplication_key FROM biological_events
+      WHERE sequence>? AND sequence<=? ORDER BY sequence
+    `).all(anchorSequence, warmSequence);
+    const expectedTopics = [
+      'resource.capacity.eligible.v1',
+      'resource.capacity.quality.v1',
+      'metab.energy.availability.v1',
+      'metab.energy.reserve.v1'
+    ];
+    const parsedEvents = events.map(event => {
+      let envelope = null;
+      try { envelope = JSON.parse(event.envelope_json); } catch {}
+      return { event, envelope };
+    });
+    const warmEventsAreExact = parsedEvents.length === expectedTopics.length &&
+      parsedEvents.every(({ event, envelope }, index) =>
+        Number(event.sequence) === anchorSequence + index + 1 &&
+        event.topic === expectedTopics[index] && event.event_class === 'durable' &&
+        event.envelope_sha256 === crypto.createHash('sha256')
+          .update(event.envelope_json || '').digest('hex') &&
+        envelope?.id === event.event_id && envelope?.sequence === Number(event.sequence) &&
+        envelope?.topic === event.topic && envelope?.class === 'durable' &&
+        envelope?.meta?.deduplicationKey === event.deduplication_key) &&
+      parsedEvents[0]?.envelope?.payload?.sampleFrame ===
+        expected.capacitySource.lastCommittedFrame + 1 &&
+      parsedEvents[0]?.envelope?.meta?.sourceCore === 'kernel-resource' &&
+      parsedEvents[1]?.envelope?.payload?.status === 'VALID' &&
+      parsedEvents[1]?.envelope?.meta?.sourceCore === 'kernel-resource' &&
+      parsedEvents.slice(2).every(({ envelope }) =>
+        envelope?.payload?.committedFrame === expected.capacitySource.lastCommittedFrame + 1 &&
+        envelope?.meta?.sourceCore === 'METAB' &&
+        envelope?.meta?.authorityMode === 'shadow' &&
+        envelope?.meta?.physiologicalAuthority === false &&
+        envelope?.meta?.causeSequence === anchorSequence + 2 &&
+        envelope?.meta?.causalParent === parsedEvents[1]?.event?.event_id);
+    const count = sql => Number(this.stateStore.db.prepare(sql).get()?.count || 0);
+    if (!(afterHighWater === warmSequence && warmEventsAreExact &&
+      afterCapacityRow?.sha256 === crypto.createHash('sha256')
+        .update(afterCapacityRow?.json || '').digest('hex') &&
+      afterCapacity?.protocol === beforeCapacity.protocol &&
+      afterCapacity?.residencyId === beforeCapacity.residencyId &&
+      afterCapacity?.instanceId === beforeCapacity.instanceId &&
+      afterCapacity?.residentVersion === beforeCapacity.residentVersion &&
+      afterCapacity?.runtimeRevision === beforeCapacity.runtimeRevision &&
+      afterCapacity?.lastCommittedFrame === expected.capacitySource.lastCommittedFrame + 1 &&
+      afterCapacity?.lastTrustedTimeUs > expected.capacitySource.lastTrustedTimeUs &&
+      afterCapacity?.lastContinuityEpoch === expected.capacitySource.lastContinuityEpoch &&
+      afterCapacity?.pending === null &&
+      afterSntss?.generation === beforeSntss.generation &&
+      afterSntss?.blobHash === beforeSntss.blobHash &&
+      afterSntss?.inputCursor === beforeSntss.inputCursor &&
+      afterSntssConsumer?.active === true && afterSntssConsumer?.required === false &&
+      afterSntssConsumer?.authorityEpoch === 0 &&
+      afterSntssConsumer?.cursor === warmSequence &&
+      afterSntssConsumer?.checkpointHash === beforeSntss.blobHash &&
+      afterSntssStatus?.status === 'RUNNING' && afterSntssStatus?.running === true &&
+      afterSntssStatus?.pendingDeliveries === 0 && afterSntssStatus?.lastError === null &&
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status IN ('PENDING','FAILED','ABANDONED')") === 0 &&
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") === 0 &&
+      count(`SELECT COUNT(*) count FROM recovery_records
+        WHERE id>${Number(anchorRow?.id) || 0} AND type='resident.delivery-retry'`) === 0 &&
+      !this.stateStore.listAuthority().some(entry =>
+        ['sntss', 'chronobiology', 'METAB', 'HOMEOS', 'INTERO'].includes(entry.coreId)))) {
+      throw Object.assign(new Error('R148 capacity warm-up changed containment'), {
+        code: 'P1_R148_CAPACITY_WARMUP'
+      });
+    }
+
+    const detail = {
+      cohort: 'r148-homeos-sntss-restart-capacity-warm-v1',
+      runtimeRevision: 148,
+      anchorEventSequence: anchorSequence,
+      firstEventSequence: anchorSequence + 1,
+      lastEventSequence: warmSequence,
+      eventCount: 4,
+      capacityFrameBefore: expected.capacitySource.lastCommittedFrame,
+      capacityFrameAfter: afterCapacity.lastCommittedFrame,
+      capacityMetadataHashAfter: afterCapacityRow.sha256,
+      sntssCheckpointHashBefore: beforeSntss.blobHash,
+      sntssCheckpointHashAfter: afterSntss.blobHash,
+      sntssCheckpointChanged: false,
+      sntssClockStatus: 'uncertain',
+      abandonedCount: 0,
+      inventedBiologicalTime: false,
+      authorityChanged: false
+    };
+    this.stateStore.recordRecovery(
+      'runtime.r148-post-anchor-capacity-warmed',
+      null,
       detail
     );
     this.statusCache = null;
@@ -7439,6 +8567,102 @@ class LivingKernel {
     return this.lastResidentRecovery;
   }
 
+  async completeExactR148PostDurableResidentFinalization() {
+    const expected = this.r148HomeosInitPostDurableFinalizationExpected ||
+      R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION;
+    if (
+      ![R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
+        R148_HOMEOS_POST_FINALIZATION_RESTART,
+        R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION,
+        R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY].includes(expected) ||
+      this.r148DeferredResidentRecovery !== true ||
+      this.r148HomeosInitPostDurableFinalizationActive !== true ||
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.p1ExpansionFetusInstallPreserved !== true ||
+      this.heartbeatTimer !== null || this.snapshotTimer !== null
+    ) throw Object.assign(new Error('R148 post-durable finalization boundary changed'), {
+      code: 'P1_R148_INIT_FINALIZATION_BOUNDARY'
+    });
+
+    const ordinaryRecovery = await this.recoverDurableResidents({
+      exactCurrentCheckpointFences: new Map(
+        Object.values(expected.residents).map(fence => [fence.residencyId, fence])
+      )
+    });
+    const recovered = new Map(ordinaryRecovery.map(row => [row.residencyId, row]));
+    const count = (sql, ...args) =>
+      Number(this.stateStore.db.prepare(sql).get(...args)?.count || 0);
+    if (
+      ordinaryRecovery.length !== Object.keys(expected.residents).length ||
+      recovered.size !== Object.keys(expected.residents).length ||
+      !Object.keys(expected.residents).every(id => recovered.get(id)?.recovered === true) ||
+      this.runtimeRevision !== expected.runtimeRevision ||
+      this.stateStore.getResident('resident:intero') ||
+      count("SELECT COUNT(*) count FROM biological_deliveries WHERE status IN ('PENDING','FAILED','ABANDONED')") !== 0 ||
+      count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !== 0 ||
+      this.stateStore.listAuthority().some(entry =>
+        ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId))
+    ) throw Object.assign(new Error('R148 post-durable contained cohort was not restored'), {
+      code: 'P1_R148_INIT_FINALIZATION_COHORT'
+    });
+
+    if (expected === R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION) {
+      const capacityFinalized = await this.publishMetabCapacitySample();
+      const capacityRow = this.stateStore.db.prepare(`
+        SELECT json,sha256 FROM metadata
+        WHERE key='life:p1-r0-metab-capacity-source'
+      `).get();
+      const metabCheckpoint = await this.stateStore.readResidentCheckpoint('resident:metab');
+      let capacitySource = null;
+      try {
+        const { validateCapacitySourceState } = require('../p1-r0/metab-capacity-source');
+        capacitySource = validateCapacitySourceState(JSON.parse(capacityRow?.json || 'null'), {
+          instanceId: expected.residents['resident:metab'].instanceId,
+          residentVersion: expected.residents['resident:metab'].version
+        });
+      } catch {}
+      if (
+        capacityFinalized !== true ||
+        capacityRow?.sha256 !== expected.committedCapacitySourceMetadataHash ||
+        crypto.createHash('sha256').update(capacityRow?.json || '').digest('hex') !==
+          expected.committedCapacitySourceMetadataHash ||
+        capacitySource?.lastCommittedFrame !== expected.capacitySource.lastCommittedFrame ||
+        capacitySource?.lastTrustedTimeUs !== expected.capacitySource.lastTrustedTimeUs ||
+        capacitySource?.lastContinuityEpoch !== expected.capacitySource.lastContinuityEpoch ||
+        capacitySource?.pending !== null ||
+        metabCheckpoint?.state?.sourceState?.lastAcceptedFrame !==
+          expected.capacitySource.lastCommittedFrame ||
+        metabCheckpoint?.state?.sourceState?.pendingEligible !== null ||
+        metabCheckpoint?.state?.sourceState?.pendingQuality !== null ||
+        Number(this.stateStore.db.prepare(
+          'SELECT COALESCE(MAX(sequence),0) value FROM biological_events'
+        ).get()?.value || 0) !== expected.highWater ||
+        count("SELECT COUNT(*) count FROM biological_deliveries WHERE status IN ('PENDING','FAILED','ABANDONED')") !== 0 ||
+        count("SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") !== 0 ||
+        this.stateStore.listAuthority().some(entry =>
+          ['METAB', 'HOMEOS', 'INTERO', 'sntss', 'chronobiology'].includes(entry.coreId))
+      ) throw Object.assign(new Error('R148 capacity source acknowledgement was not finalized'), {
+        code: 'P1_R148_CAPACITY_SOURCE_FINALIZATION'
+      });
+    }
+
+    if (expected === R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY) {
+      await this.anchorExactR148HomeosSntssRestartTrustedTime();
+      await this.warmExactR148HomeosCapacitySourceBeforeTrustedTime();
+    }
+
+    this.lastResidentRecovery = Object.freeze(ordinaryRecovery);
+    this.r148DeferredResidentRecovery = false;
+    this.r148HomeosInitPostDurableFinalizationActive = false;
+    this.r148HomeosInitPostDurableFinalizationExpected = null;
+    this.r148HomeosSntssRestartAnchorRecoveryActive = false;
+    this.startMaintenance();
+    this.startTrustedTimePulseScheduler?.();
+    this.startTrustedOrganismTimePulseScheduler?.();
+    this.statusCache = null;
+    return this.lastResidentRecovery;
+  }
+
   async publishTimePulse(clockStatus = 'trusted') {
     if (!['trusted', 'degraded', 'uncertain'].includes(clockStatus)) throw Object.assign(new Error('invalid runtime clock status'), { code: 'RUNTIME_CLOCK_STATUS' });
 
@@ -8183,6 +9407,10 @@ module.exports = {
   R147_HOMEOS_CONTINUATION_RECOVERY,
   R147_HOMEOS_FRAME_BOUNDARY_RECOVERY,
   R148_HOMEOS_INIT_FORWARD_RECOVERY,
+  R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION,
+  R148_HOMEOS_POST_FINALIZATION_RESTART,
+  R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION,
+  R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY,
   R150_INTERO_SHADOW,
   isBoundedMetabPromotionTail,
   defaultMetabCapacitySampler,

@@ -686,7 +686,9 @@ async function main() {
     await kernel.completeExactR147DeferredResidentRecovery();
   }
 
-  if (kernel.r148DeferredResidentRecovery === true) {
+  if (kernel.r148HomeosInitPostDurableFinalizationActive === true) {
+    await kernel.completeExactR148PostDurableResidentFinalization();
+  } else if (kernel.r148DeferredResidentRecovery === true) {
     await kernel.completeExactR148DeferredResidentRecovery();
   }
 

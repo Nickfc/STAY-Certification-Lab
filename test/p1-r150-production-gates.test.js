@@ -272,17 +272,19 @@ test('R150-PRODUCTION-06 immutable overlay inventory is sorted, safe, unique, an
     entries.set(match[2], match[1]);
   }
   assert.deepEqual([...entries.keys()], [...entries.keys()].toSorted());
-  assert.equal(entries.size, 86);
+  assert.equal(entries.size, 88);
   for (const required of [
     'runtime/kernel/hardened-living-kernel.js',
-    'runtime/kernel/living-kernel.js', 'runtime/kernel/resident-manager.js',
+    'runtime/kernel/living-kernel.js', 'runtime/kernel/resident-control-socket.js',
+    'runtime/kernel/resident-manager.js',
     'runtime/kernel/state-store.js', 'runtime/p1-r0/production-persistence.js',
     'runtime/p1-r0/deterministic-noise.js',
     'runtime/p1-r0/homeos-contract.js', 'runtime/p1-r0/homeos-contract.json',
     'runtime/p1-r0/homeos-engine.js',
     'runtime/p1-r0/intero-contract.js', 'runtime/p1-r0/intero-contract.json',
     'runtime/p1-r0/intero-engine.js',
-    'server.js', 'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh',
+    'server.js', 'deploy/live-physiology-transplant/p1-resident-control-client.js',
+    'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh',
     'deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh',
     'deploy/live-physiology-transplant/p1-r147-create-continuation-snapshot.js',
     'deploy/live-physiology-transplant/p1-r147-homeos-continuation-preflight.js',
