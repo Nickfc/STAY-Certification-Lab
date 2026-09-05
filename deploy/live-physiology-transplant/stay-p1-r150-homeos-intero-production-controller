@@ -8,18 +8,18 @@ EXPECTED_PRIVATE_IPV4='172.26.9.207'
 PREVIOUS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc'
 PREVIOUS_MANIFEST_SHA256='c1651b9150bc5c14d254d86caa60cb267317301c01c95282929fc696f4c6160b'
 PREVIOUS_BOUND_CONTROLLER_SHA256='6f948c132325352469a51b1248d53292d98f7cdaad32c6a26d31aabbebcc1f64'
-RELEASE_TAG='r150-homeos-intero-shadow-v23'
-RELEASE_TAG_OBJECT='4742a729fb5b1824f1f07df6b75f159b6ac9411b'
-RELEASE_COMMIT='a8890e594e7f7240c8b26cc53d9d1feeedaea65f'
-RELEASE_TREE='a54a4816c617cd2e078e5dd2ec40a5f98fbcac5b'
-ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V23_BUNDLE_20260905.tar.gz'
-ARCHIVE_SHA256='0dbf9c243eb486735a9b2b76927e64bb77c16eef007a38f5881b5fb645e36af1'
-SIDECAR_SHA256='be63923352a1c8f45e6ff0c35f752975ac4f8cbf9ac2c081dcc47791764e0c75'
+RELEASE_TAG='r150-homeos-intero-shadow-v24'
+RELEASE_TAG_OBJECT='bc88ce9baab29bfc59c1ea21fa10006e72b9ea68'
+RELEASE_COMMIT='579ee569eca02e8e1c6241d3dfda9996f3675132'
+RELEASE_TREE='fc3019f7aeb2b0b95d0f1bdf817c5850c7c6d951'
+ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V24_BUNDLE_20260905.tar.gz'
+ARCHIVE_SHA256='d518444b3ae07749528f24932af2eac04e2733285dcd4cb90a922efa08d642db'
+SIDECAR_SHA256='90324d0ec58a289081e4a1769cf8c1f5a43c8b0095d5ca79c6cb1ebc153a9c4d'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-MANIFEST_SHA256='3ca9c07e23c65ce33c76b968915513bd6e4245c654b2eb5dc429beb21efbe006'
+MANIFEST_SHA256='292ef3caf1923acb8c0a2a0883862f1b0b87ec546e872785736a926214a87046'
 FORWARD_SHA256='98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c'
 RECOVERY_SHA256='1cd30b887134a6b4ad6257ce630cd57a763b49527e4f92ec3152cfd41c18c369'
-TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3ca9c07e23c6'
+TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-292ef3caf192'
 PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
 FREEZER='deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js'
 CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
@@ -30,8 +30,8 @@ FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
 EVIDENCE_ROOT='/var/lib/stay/evidence/production-hardening'
 SOURCE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R147-HOMEOS-POST-DURABLE-FINALIZE-20260905T021824Z.MDlt6q'
 R147_MARKER='/run/stay-r147-homeos-shadow-recovery.env'
-RECOVERY_DROPIN='/etc/systemd/system/stay.service.d/r148-homeos-init-post-durable-finalization-once.conf'
-RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_ONLY'
+RECOVERY_DROPIN='/etc/systemd/system/stay.service.d/r148-homeos-post-finalization-restart-once.conf'
+RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_POST_FINALIZATION_RESTART_ONLY'
 
 WORK_ROOT=''; CANDIDATE=''; RUN_ROOT=''; RECOVERY_WORK=''; SERVICE_STARTED=0; POINTER_ADVANCED=0
 CLEANUP_ARMED=0; DROPIN_INSTALLED=0; FREEZE_INSTALLED=0; FAILURE_CLASS='UNCLASSIFIED'
@@ -67,8 +67,8 @@ finish_controller(){
         cleanup=1
       fi
     fi
-    if [[ -n "$RECOVERY_WORK" && "$RECOVERY_WORK" =~ ^$EVIDENCE_ROOT/\.R148-HOMEOS-INIT-POST-DURABLE-[0-9TZ]+\.[A-Za-z0-9]+$ && -d "$RECOVERY_WORK" && ! -L "$RECOVERY_WORK" ]]; then
-      failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R148-HOMEOS-INIT-POST-DURABLE-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+    if [[ -n "$RECOVERY_WORK" && "$RECOVERY_WORK" =~ ^$EVIDENCE_ROOT/\.R148-HOMEOS-POST-FINALIZATION-RESTART-[0-9TZ]+\.[A-Za-z0-9]+$ && -d "$RECOVERY_WORK" && ! -L "$RECOVERY_WORK" ]]; then
+      failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R148-HOMEOS-POST-FINALIZATION-RESTART-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
       rmdir -- "$failed" && mv -T "$RECOVERY_WORK" "$failed" && chmod -R a-w "$failed" || cleanup=1
       RECOVERY_WORK=''
     fi
@@ -78,7 +78,7 @@ finish_controller(){
     if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-r148-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then
       rm -rf --one-file-system -- "$WORK_ROOT" || cleanup=1
     fi
-    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v26-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then
+    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v27-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then
       rm -rf --one-file-system -- "$RUN_ROOT" || cleanup=1
     fi
   fi
@@ -90,7 +90,7 @@ finish_controller(){
 
 validate_run_root(){
   local root="$1"
-  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v26-[0-9]+$ && -d "$root" && ! -L "$root" &&
+  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v27-[0-9]+$ && -d "$root" && ! -L "$root" &&
     "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 &&
     -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy -o -perm /077 \) -print -quit)" ]]
 }
@@ -171,7 +171,7 @@ verify_staged_release(){
     "$(sha256_file "$RUN_ROOT/$ARCHIVE.sha256")" == "$SIDECAR_SHA256" ]] || return 1
   (cd "$RUN_ROOT" && sha256sum -c "$ARCHIVE.sha256" >/dev/null) || return 1
   mapfile -t entries < <(tar -tzf "$RUN_ROOT/$ARCHIVE")
-  [[ "${#entries[@]}" -eq 110 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq 110 ]] || return 1
+  [[ "${#entries[@]}" -eq 111 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq 111 ]] || return 1
   for entry in "${entries[@]}"; do [[ -n "$entry" ]] && safe_relative "${entry%/}" || return 1; done
   tar -tvzf "$RUN_ROOT/$ARCHIVE" | awk 'substr($1,1,1)!~/[-d]/{bad=1}END{exit bad}'
 }
@@ -180,8 +180,8 @@ prepare_overlay(){
   WORK_ROOT="$(mktemp -d /run/stay-r150-r148-controller.XXXXXX)" || return 1
   install -d -o root -g root -m 0700 "$WORK_ROOT/overlay"
   tar -xzf "$RUN_ROOT/$ARCHIVE" -C "$WORK_ROOT/overlay" || return 1
-  [[ "$(find "$WORK_ROOT/overlay" -type f | wc -l)" -eq 88 &&
-    "$(wc -l < "$WORK_ROOT/overlay/$MANIFEST")" -eq 87 &&
+  [[ "$(find "$WORK_ROOT/overlay" -type f | wc -l)" -eq 89 &&
+    "$(wc -l < "$WORK_ROOT/overlay/$MANIFEST")" -eq 88 &&
     "$(sha256_file "$WORK_ROOT/overlay/$MANIFEST")" == "$MANIFEST_SHA256" ]] || return 1
   (cd "$WORK_ROOT/overlay" && sha256sum -c "$MANIFEST" >/dev/null) || return 1
   { awk '{sub(/^\.\//,"",$2);print $2}' "$WORK_ROOT/overlay/$MANIFEST"; printf '%s\n' "$MANIFEST"; } | sort >"$WORK_ROOT/expected"
@@ -289,14 +289,14 @@ validate_stopped_r148(){
     "$(sha256_file "$SOURCE_EVIDENCE/homeos.birth-certificate.json")" == a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c &&
     "$(sha256_file "$SOURCE_EVIDENCE/parent.freeze.json")" == 352e34b1842777b42be99af710ca5256adec561c83e55666a2560db41d9e309d ]] || return 1
   runuser -u staydeploy -- /usr/bin/timeout --signal=TERM --kill-after=5s 35s \
-    /usr/local/bin/node - "$TARGET_RELEASE" "$DATABASE" >"$WORK_ROOT/r148.post-durable-preflight.json" <<'NODE'
+    /usr/local/bin/node - "$TARGET_RELEASE" "$DATABASE" >"$WORK_ROOT/r148.post-finalization-restart-preflight.json" <<'NODE'
 'use strict';
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const [release, databasePath] = process.argv.slice(2);
-const { R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION: expected } =
+const { R148_HOMEOS_POST_FINALIZATION_RESTART: expected } =
   require(path.join(release, 'runtime/kernel/living-kernel'));
 const fail = message => { throw new Error(message); };
 const assert = (value, message) => { if (!value) fail(message); };
@@ -406,7 +406,7 @@ try {
   'latest recovery identity changed');
   database.exec('COMMIT');
   process.stdout.write(`${JSON.stringify({
-    format: 'stay-r148-homeos-init-post-durable-preflight-v1', result: 'PASS',
+    format: 'stay-r148-homeos-post-finalization-restart-preflight-v1', result: 'PASS',
     runtimeRevision: expected.runtimeRevision, highWater: expected.highWater,
     pendingDeliveries: 0, failedDeliveries: 0, abandonedDeliveries: 0,
     pendingOutboxIntents: 0, authorityOwned: false, fetusAuthority: true,
@@ -426,15 +426,15 @@ install_atomic(){
   mv -fT "$temporary" "$target"
 }
 
-finalize_r148(){
+restart_finalized_r148(){
   local controller_sha="$1" ready=0 attempt after_pid after_restarts final_evidence
-  RECOVERY_WORK="$(mktemp -d "$EVIDENCE_ROOT/.R148-HOMEOS-INIT-POST-DURABLE-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+  RECOVERY_WORK="$(mktemp -d "$EVIDENCE_ROOT/.R148-HOMEOS-POST-FINALIZATION-RESTART-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/parent.freeze.json" "$RECOVERY_WORK/parent.freeze.json"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/before.proof.json" "$RECOVERY_WORK/before.proof.json"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/homeos.birth-certificate.json" "$RECOVERY_WORK/homeos.birth-certificate.json"
   install -o root -g root -m 0444 "$PUBLIC_KEY" "$RECOVERY_WORK/expansion-birth-authority.pub"
-  install -o root -g root -m 0400 "$WORK_ROOT/r148.post-durable-preflight.json" \
-    "$RECOVERY_WORK/r148.post-durable-preflight.json"
+  install -o root -g root -m 0400 "$WORK_ROOT/r148.post-finalization-restart-preflight.json" \
+    "$RECOVERY_WORK/r148.post-finalization-restart-preflight.json"
   install -o root -g root -m 0400 "$WORK_ROOT/focused-tests.tap" "$RECOVERY_WORK/focused-tests.tap"
   install -o root -g root -m 0400 "$WORK_ROOT/real-entry.tap" "$RECOVERY_WORK/real-entry.tap"
   expected_release_env "$controller_sha" >"$RECOVERY_WORK/P1_R150_RELEASE.env"
@@ -444,11 +444,11 @@ finalize_r148(){
 NODE
 
   install -d -o root -g root -m 0755 "$(dirname "$RECOVERY_DROPIN")"
-  cat >"$WORK_ROOT/r148-homeos-init-post-durable-finalization-once.conf" <<EOF
+  cat >"$WORK_ROOT/r148-homeos-post-finalization-restart-once.conf" <<EOF
 [Service]
 Environment=STAY_HOMEOS_R148_INIT_POST_DURABLE_FINALIZATION_AUTHORIZATION=$RECOVERY_AUTHORIZATION
 EOF
-  install_atomic "$WORK_ROOT/r148-homeos-init-post-durable-finalization-once.conf" "$RECOVERY_DROPIN" 0444
+  install_atomic "$WORK_ROOT/r148-homeos-post-finalization-restart-once.conf" "$RECOVERY_DROPIN" 0444
   DROPIN_INSTALLED=1
   systemctl daemon-reload
   systemctl reset-failed stay.service
@@ -483,7 +483,7 @@ EOF
   after_restarts="$(systemctl show stay.service -p NRestarts --value)"
   /usr/local/bin/node - "$RECOVERY_WORK/before.proof.json" "$after_pid" "$after_restarts" \
     "$TARGET_RELEASE" >"$RECOVERY_WORK/service.after.json" <<'NODE'
-'use strict';const fs=require('node:fs'),[beforeFile,afterPid,afterRestarts,currentRelease]=process.argv.slice(2),before=JSON.parse(fs.readFileSync(beforeFile,'utf8'));process.stdout.write(JSON.stringify({recovery:true,originalBeforePid:Number(before.servicePid),originalBeforeRestarts:Number(before.serviceRestarts),recoveryBeforePid:0,afterPid:Number(afterPid),recoveryBeforeRestarts:Number(afterRestarts),afterRestarts:Number(afterRestarts),recoveryRestartCommands:1,restartCommands:2,currentRelease,r148InitPostDurableFinalization:true})+'\n');
+'use strict';const fs=require('node:fs'),[beforeFile,afterPid,afterRestarts,currentRelease]=process.argv.slice(2),before=JSON.parse(fs.readFileSync(beforeFile,'utf8'));process.stdout.write(JSON.stringify({recovery:true,originalBeforePid:Number(before.servicePid),originalBeforeRestarts:Number(before.serviceRestarts),recoveryBeforePid:0,afterPid:Number(afterPid),recoveryBeforeRestarts:Number(afterRestarts),afterRestarts:Number(afterRestarts),recoveryRestartCommands:1,restartCommands:2,currentRelease,r148HomeosPostFinalizationRestart:true})+'\n');
 NODE
   /usr/local/bin/node - "$TARGET_RELEASE/$PROOF" "$RECOVERY_WORK" "$TARGET_RELEASE" >"$RECOVERY_WORK/after.proof.json" <<'NODE'
 'use strict';const fs=require('node:fs'),path=require('node:path'),[helper,root,targetRelease]=process.argv.slice(2),read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8')),statuses={sntss:read('sntss.after.json'),chronobiology:read('chronobiology.after.json'),metab:read('metab.after.json'),homeos:read('homeos.after.json')},{validateR148After}=require(helper);process.stdout.write(JSON.stringify(validateR148After({before:read('before.proof.json'),database:read('database.after.json'),statuses,meta:read('meta.after.json'),service:read('service.after.json'),targetRelease}))+'\n');
@@ -497,11 +497,11 @@ NODE
 NODE
   trusted_root_file "$R147_MARKER" && [[ "$(<"$R147_MARKER")" == "$(expected_r147_marker)" ]] || return 1
   rm -f -- "$R147_MARKER"
-  final_evidence="$EVIDENCE_ROOT/R148F-HOMEOS-INIT-POST-DURABLE-FINALIZED-$(date -u +'%Y%m%dT%H%M%SZ')"
+  final_evidence="$EVIDENCE_ROOT/R148F-HOMEOS-POST-FINALIZATION-RESTARTED-$(date -u +'%Y%m%dT%H%M%SZ')"
   [[ ! -e "$final_evidence" && ! -L "$final_evidence" ]]
   mv -T "$RECOVERY_WORK" "$final_evidence"; RECOVERY_WORK=''; chmod -R a-w "$final_evidence"
-  printf '%s\n' 'R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION=PASS' 'RUNTIME_REVISION=148' \
-    'REVISION_LABEL=R148F' "CURRENT_RELEASE=$TARGET_RELEASE" 'FINALIZATION_RESTART_COMMANDS=1' \
+  printf '%s\n' 'R148_HOMEOS_POST_FINALIZATION_RESTART=PASS' 'RUNTIME_REVISION=148' \
+    'REVISION_LABEL=R148F' "CURRENT_RELEASE=$TARGET_RELEASE" 'RESTART_COMMANDS=1' \
     'P1_AUTHORITY=NONE' 'FETUS_CONTINUITY=PASS' 'PROMOTION_AUTHORITY_ACTIVE=NO' \
     'INTERO=ABSENT' 'BENCHMARK_ACTIVE=NO' "FREEZE_FILE=$FREEZE_DIR/R148.json" \
     "EVIDENCE_ROOT=$final_evidence"
@@ -527,11 +527,11 @@ main(){
   [[ "$EUID" -eq 0 ]] || abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
   trusted_root_file "$0" && [[ -x "$0" ]] || abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
   [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]] || abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
-  [[ "$operation" == finalize-r148-homeos-init && "$authorization" == AUTHORIZE_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_V1 ]] ||
+  [[ "$operation" == restart-r148-homeos-finalized && "$authorization" == AUTHORIZE_R148_HOMEOS_POST_FINALIZATION_RESTART_V1 ]] ||
     abort_controller 74 AUTHORIZATION_FAILED authorization-missing
   [[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]] ||
     abort_controller 75 ARGUMENT_VALIDATION_FAILED recovery-hashes-must-be-none
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v26-[0-9]+$ ]] ||
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v27-[0-9]+$ ]] ||
     abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
   validate_run_root "$requested_root" || abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
   RUN_ROOT="$requested_root"; trap finish_controller EXIT; CLEANUP_ARMED=1
@@ -543,13 +543,13 @@ main(){
   verify_previous_release || abort_controller 83 CANDIDATE_FAILED previous-release-invalid
   prepare_target "$controller_sha" || abort_controller 84 CANDIDATE_FAILED candidate-validation-failed
   validate_stopped_r148 || abort_controller 85 CANDIDATE_FAILED stopped-r148-cohort-changed
-  finalize_r148 "$controller_sha" || abort_controller 86 EXECUTION_FAILED r148-init-post-durable-finalization-failed
+  restart_finalized_r148 "$controller_sha" || abort_controller 86 EXECUTION_FAILED r148-post-finalization-restart-failed
   validate_live "$controller_sha" || abort_controller 87 LIVE_ACCEPTANCE_FAILED independent-live-proof-failed
   SERVICE_STARTED=0
   POINTER_ADVANCED=0
   FREEZE_INSTALLED=0
   FAILURE_CLASS='NONE'
-  printf '%s\n' 'R150_CONTROLLER_STAGE=homeos-r148-finalized' \
+  printf '%s\n' 'R150_CONTROLLER_STAGE=homeos-r148-finalized-restart' \
     'R150_CONTROLLER_REVISION=R148F' 'R150_CONTROLLER_RESULT=PASS'
 }
 

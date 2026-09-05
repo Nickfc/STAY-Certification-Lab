@@ -1,5 +1,5 @@
-name: R150 R148 HOMEOS post-durable finalization
-run-name: R150 R148 HOMEOS finalization · ${{ github.actor }}
+name: R150 R148 HOMEOS post-finalization restart
+run-name: R150 R148 HOMEOS restart · ${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -8,9 +8,9 @@ on:
         description: Fixed revision-fenced operation
         required: true
         type: choice
-        default: finalize-r148-homeos-init
+        default: restart-r148-homeos-finalized
         options:
-          - finalize-r148-homeos-init
+          - restart-r148-homeos-finalized
       authorization:
         description: Exact operation-specific authorization
         required: true
@@ -18,29 +18,29 @@ on:
         default: NO
         options:
           - NO
-          - AUTHORIZE_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_V1
+          - AUTHORIZE_R148_HOMEOS_POST_FINALIZATION_RESTART_V1
 
 permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-r148-homeos-init-post-durable-finalization-v26
+  group: stay-r150-r148-homeos-post-finalization-restart-v27
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v23
-  RELEASE_TAG_OBJECT: 4742a729fb5b1824f1f07df6b75f159b6ac9411b
-  RELEASE_COMMIT: a8890e594e7f7240c8b26cc53d9d1feeedaea65f
-  RELEASE_TREE: a54a4816c617cd2e078e5dd2ec40a5f98fbcac5b
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V23_BUNDLE_20260905.tar.gz
-  ARCHIVE_SHA256: 0dbf9c243eb486735a9b2b76927e64bb77c16eef007a38f5881b5fb645e36af1
-  SIDECAR_SHA256: be63923352a1c8f45e6ff0c35f752975ac4f8cbf9ac2c081dcc47791764e0c75
-  MANIFEST_SHA256: 3ca9c07e23c65ce33c76b968915513bd6e4245c654b2eb5dc429beb21efbe006
+  RELEASE_TAG: r150-homeos-intero-shadow-v24
+  RELEASE_TAG_OBJECT: bc88ce9baab29bfc59c1ea21fa10006e72b9ea68
+  RELEASE_COMMIT: 579ee569eca02e8e1c6241d3dfda9996f3675132
+  RELEASE_TREE: fc3019f7aeb2b0b95d0f1bdf817c5850c7c6d951
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V24_BUNDLE_20260905.tar.gz
+  ARCHIVE_SHA256: d518444b3ae07749528f24932af2eac04e2733285dcd4cb90a922efa08d642db
+  SIDECAR_SHA256: 90324d0ec58a289081e4a1769cf8c1f5a43c8b0095d5ca79c6cb1ebc153a9c4d
+  MANIFEST_SHA256: 292ef3caf1923acb8c0a2a0883862f1b0b87ec546e872785736a926214a87046
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
   RECOVERY_SHA256: 1cd30b887134a6b4ad6257ce630cd57a763b49527e4f92ec3152cfd41c18c369
   PREVIOUS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3ca9c07e23c6
-  WRAPPER_SHA256: ff2d33282ae58d3f8a8456841ecb5692334d470541efcdccb7df374a37db977e
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-292ef3caf192
+  WRAPPER_SHA256: 671f2c4b2b949ef979e6d97aa2af75e310fa879a7129088bfb880042fcc788fc
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -61,8 +61,8 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/main ]]
-          [[ "$OPERATION" == finalize-r148-homeos-init ]]
-          [[ "$AUTHORIZATION" == AUTHORIZE_R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION_V1 ]]
+          [[ "$OPERATION" == restart-r148-homeos-finalized ]]
+          [[ "$AUTHORIZATION" == AUTHORIZE_R148_HOMEOS_POST_FINALIZATION_RESTART_V1 ]]
       - name: Checkout exact certified release
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -93,7 +93,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          root="$RUNNER_TEMP/r150-v23-release"; extract="$root/extract"
+          root="$RUNNER_TEMP/r150-v24-release"; extract="$root/extract"
           install -d -m 0700 "$root" "$extract"
           [[ "$(git -C release-source rev-parse HEAD)" == "$RELEASE_COMMIT" ]]
           [[ "$(git -C release-source rev-parse HEAD^{tree})" == "$RELEASE_TREE" ]]
@@ -106,15 +106,15 @@ jobs:
           [[ "$(sha256sum "$root/$ARCHIVE.sha256" | awk '{print $1}')" == "$SIDECAR_SHA256" ]]
           (cd "$root" && sha256sum -c "$ARCHIVE.sha256")
           mapfile -t entries < <(tar -tzf "$root/$ARCHIVE")
-          [[ "${#entries[@]}" -eq 110 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq 110 ]]
+          [[ "${#entries[@]}" -eq 111 && "$(printf '%s\n' "${entries[@]}" | sort -u | wc -l)" -eq 111 ]]
           for entry in "${entries[@]}"; do
             [[ -n "$entry" && "$entry" != /* && ! "$entry" =~ (^|/)\.\.(/|$) && "$entry" != *\\* && ! "$entry" =~ ^[A-Za-z]: ]]
           done
           tar -tvzf "$root/$ARCHIVE" | awk 'substr($1,1,1)!~/[-d]/{bad=1}END{exit bad}'
           tar -xzf "$root/$ARCHIVE" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" -eq 88 ]]
-          [[ "$(wc -l < "$extract/$manifest")" -eq 87 ]]
+          [[ "$(find "$extract" -type f | wc -l)" -eq 89 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 88 ]]
           [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
@@ -148,11 +148,11 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r150-v23-validated-release-${{ github.run_id }}
+          name: r150-v24-validated-release-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/r150-v23-release/${{ env.ARCHIVE }}
-            ${{ runner.temp }}/r150-v23-release/${{ env.ARCHIVE }}.sha256
-            ${{ runner.temp }}/r150-v23-release/P1_R150_RELEASE.identity
+            ${{ runner.temp }}/r150-v24-release/${{ env.ARCHIVE }}
+            ${{ runner.temp }}/r150-v24-release/${{ env.ARCHIVE }}.sha256
+            ${{ runner.temp }}/r150-v24-release/P1_R150_RELEASE.identity
           if-no-files-found: error
           retention-days: 7
 
@@ -166,7 +166,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r150-v23-validated-release-${{ github.run_id }}
+          name: r150-v24-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -220,10 +220,10 @@ jobs:
             const highWater=Number(db.prepare('SELECT COALESCE(MAX(sequence),0) value FROM biological_events').get().value);
             const latest=db.prepare('SELECT id,type,core_id FROM recovery_records ORDER BY id DESC LIMIT 1').get();
             const fences={
-              'resident:chronobiology':[12394,'958a0163-fb2e-4f75-8ade-8569f24e5852',4575682],
-              'resident:homeos':[639,'e0c38bbf-7d9c-4434-bf26-a3b68c29332a',4575682],
-              'resident:metab':[325470,'929f299e-85c2-44c3-b10c-f48f7f6490d1',4575682],
-              'resident:sntss':[2891382,'66071c31-2bee-45e9-98dc-384fa6cf798d',4575682]
+              'resident:chronobiology':[12396,'508c0ce9-bd8c-46d0-8dc2-5332f409d6e1',4575682],
+              'resident:homeos':[641,'cd5ac03d-8f56-4dc5-92b1-ba531ded973e',4575682],
+              'resident:metab':[325472,'2796adc0-92a4-415d-9d2f-3f628f6c8483',4575682],
+              'resident:sntss':[2891384,'3eee91b2-07cb-4e20-b222-3d7c32279e9e',4575682]
             };
             const exact=Object.entries(fences).every(([id,[generation,checkpointId,cursor]])=>{
               const resident=db.prepare('SELECT checkpoint_generation FROM resident_instances WHERE residency_id=?').get(id);
@@ -234,8 +234,8 @@ jobs:
             if(!(q==='ok'&&valid&&rev.revision===148&&r.sha256==='95006d1bb78a323e580b6596fa6c91a955f079b72068662b5f47c3a6d0158c9c'&&
               pending===0&&failed===0&&abandoned===0&&outbox===0&&authority===0&&highWater===4575682&&
               count('resident_instances')===4&&count('authority')===1&&exact&&
-              latest?.id===246&&latest?.type==='resident.recovered'&&latest?.core_id==='sntss'))process.exit(1);
-            process.stdout.write('R148_POST_DURABLE_DB_PREFLIGHT=PASS\n');
+              latest?.id===250&&latest?.type==='resident.recovered'&&latest?.core_id==='sntss'))process.exit(1);
+            process.stdout.write('R148_POST_FINALIZATION_DB_PREFLIGHT=PASS\n');
           }finally{db.close();}
           NODE
           printf 'R150_READ_ONLY_PREFLIGHT=PASS\nRUNTIME_REVISION=148\nSERVICE_STATE=inactive/dead\nBENCHMARK_ACTIVE=NO\n'
@@ -247,14 +247,14 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v26-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v27-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" "set -euo pipefail; test ! -e '$run_root'; install -d -m 0700 '$run_root'; chmod u-s,g-s '$run_root'; chmod 0700 '$run_root'"
           scp "${ssh_options[@]}" release-assets/"$ARCHIVE" release-assets/"$ARCHIVE.sha256" release-assets/P1_R150_RELEASE.identity staydeploy@"$PRODUCTION_PUBLIC_IPV4":"$run_root/"
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" <<'REMOTE'
           set -euo pipefail
           root="$1"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v26-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v27-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"; chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
           [[ "$(find "$root" -maxdepth 1 -type f | wc -l)" -eq 3 ]]
@@ -266,8 +266,8 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" sudo -n /usr/local/sbin/stay-p1-production-controller "$OPERATION" "$run_root" "$AUTHORIZATION" NONE NONE 2>&1 | tee controller.output
           statuses=("${PIPESTATUS[@]}"); set -e
           [[ "${statuses[0]}" -eq 0 && "${statuses[1]}" -eq 0 ]]
-          grep -Fx 'R148_HOMEOS_INIT_POST_DURABLE_FINALIZATION=PASS' controller.output
-          grep -Fx 'R150_CONTROLLER_STAGE=homeos-r148-finalized' controller.output
+          grep -Fx 'R148_HOMEOS_POST_FINALIZATION_RESTART=PASS' controller.output
+          grep -Fx 'R150_CONTROLLER_STAGE=homeos-r148-finalized-restart' controller.output
           grep -Fx 'R150_CONTROLLER_REVISION=R148F' controller.output
           grep -Fx 'R150_CONTROLLER_RESULT=PASS' controller.output
           grep -Fx 'R150_CONTROLLER_FAILURE_CLASS=NONE' controller.output
