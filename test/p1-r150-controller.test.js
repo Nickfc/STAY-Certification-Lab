@@ -30,19 +30,19 @@ test('R150-CTRL-01 controller pins the exact immutable source release and overla
   const source = read(CONTROLLER);
   for (const exact of [
     "SOURCE_RELEASE='/opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd'",
-    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-270ff47d27c3'",
-    "PREVIOUS_HOMEOS_MANIFEST_SHA256='270ff47d27c3f78a3cb0a21be4cd34af933ac3ecd1bdf01b64361362e97a164d'",
-    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='d4578aadaaa9b1ca11cca562e2273530fa6fc855b77455933aafae1daffe35ba'",
-    "RELEASE_TAG='r150-homeos-intero-shadow-v20'",
-    "RELEASE_TAG_OBJECT='1218a61c63892469d62fb95fa405b21d02dbce87'",
-    "RELEASE_COMMIT='12687127c1bc60e6036f4d2c8bf2831c3ce0fa9e'",
-    "RELEASE_TREE='e277f6e2f31481346e9a52deedbc51d8d9633fd0'",
-    "ARCHIVE_SHA256='2132f84d7f01dc1400a1bdfa3c8d628f99f5ebe7048b38e21935592eee10813b'",
-    "MANIFEST_SHA256='9a94dba608c506d38788d6498d3f1a92388420b6093acc6e9cf4a27e482b9a30'",
-    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-9a94dba608c5'"
+    "PREVIOUS_HOMEOS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-9a94dba608c5'",
+    "PREVIOUS_HOMEOS_MANIFEST_SHA256='9a94dba608c506d38788d6498d3f1a92388420b6093acc6e9cf4a27e482b9a30'",
+    "PREVIOUS_HOMEOS_CONTROLLER_SHA256='f09e7c1e28369af56b37af69e2727c2222226d8445904294563a39f413de4d31'",
+    "RELEASE_TAG='r150-homeos-intero-shadow-v21'",
+    "RELEASE_TAG_OBJECT='b703d1030fe19c77e6b00cde7cd3a908cc0e7086'",
+    "RELEASE_COMMIT='08cbc4a8db10868cd751ae3fe208d4a4467ae4d0'",
+    "RELEASE_TREE='455dde13ccd63a0f0be32ee2b59af2055c055369'",
+    "ARCHIVE_SHA256='9cb72d077e1497ccfe5037d3ff6994b0471f0489019f3a99aa5341b5adb953e2'",
+    "MANIFEST_SHA256='3aa5881594126012fe090a99df84e55378ff5a39e09ba5480c6d33cf4d96d6a8'",
+    "TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3aa588159412'"
   ]) assert.ok(source.includes(exact), exact);
   assert.match(source, /sha256sum -c "\$MANIFEST"/);
-  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 83/);
+  assert.match(source, /find "\$WORK_ROOT\/overlay" -type f\|wc -l\)" -eq 84/);
   assert.match(source, /cmp "\$WORK_ROOT\/expected" "\$WORK_ROOT\/actual"/);
   assert.match(source, /expected_previous_homeos_release_env/);
   assert.match(source, /expected_previous_r147_marker/);
@@ -123,7 +123,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   const capture = read(CAPTURE_WORKFLOW);
   const production = read(PRODUCTION_WORKFLOW);
   for (const exact of [
-    'AUTHORIZE_R150_HOMEOS_INTERO_V21_PINNED_CONTROLLER_BOOTSTRAP',
+    'AUTHORIZE_R150_HOMEOS_INTERO_V22_PINNED_CONTROLLER_BOOTSTRAP',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     `INSTALLER_SHA256: ${digest(INSTALLER)}`,
     `PUBLIC_KEY_SHA256: ${digest(PUBLIC_KEY)}`,
@@ -148,7 +148,7 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
   for (const exact of [
     'continue-r147-homeos',
     'AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_V4',
-    'RELEASE_TAG_OBJECT: 1218a61c63892469d62fb95fa405b21d02dbce87',
+    'RELEASE_TAG_OBJECT: b703d1030fe19c77e6b00cde7cd3a908cc0e7086',
     `WRAPPER_SHA256: ${digest(CONTROLLER)}`,
     'git clone --no-hardlinks release-source /tmp/stay-r150-validation-source',
     'find /tmp/stay-r150-validation-source -type d -exec chmod a+rx {} +',
@@ -162,13 +162,11 @@ test('R150-CTRL-06 workflows fence bootstrap, read-only capture, transitions, an
     '-type f ! -perm 0400 -print -quit',
     'for attempt in $(seq 1 20); do',
     '[[ "$attempt" -eq 20 ]] || sleep 0.25',
-    'exactPending=pending.length===2',
+    'exactPending=pending.length===1',
     "h=pending.find(v=>v.consumerId==='resident:homeos')",
     'Number(h?.minimum)===4574291',
-    'Number(h?.count)===1230',
+    'Number(h?.count)===492',
     'Number(h?.maximum)===4575520',
-    'Number(s?.count)===1294',
-    'Number(s?.maximum)===4575520',
     'highWater===4575520',
     '[[ ( "$current" == "$previous_homeos_release" || "$current" == "$target_release" ) && "$revision" == 147 ]]',
     'continue-*)',

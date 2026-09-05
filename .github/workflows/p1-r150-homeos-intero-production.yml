@@ -24,24 +24,24 @@ permissions:
   contents: read
 
 concurrency:
-  group: stay-r150-homeos-intero-v20-production
+  group: stay-r150-homeos-intero-v21-production
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: r150-homeos-intero-shadow-v20
-  RELEASE_TAG_OBJECT: 1218a61c63892469d62fb95fa405b21d02dbce87
-  RELEASE_COMMIT: 12687127c1bc60e6036f4d2c8bf2831c3ce0fa9e
-  RELEASE_TREE: e277f6e2f31481346e9a52deedbc51d8d9633fd0
-  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V20_BUNDLE_20260905.tar.gz
-  ARCHIVE_SHA256: 2132f84d7f01dc1400a1bdfa3c8d628f99f5ebe7048b38e21935592eee10813b
-  SIDECAR_SHA256: 63a9ec4f8c66fdca95a30a8a7fc97bdc1ae583f2bd9d935c68e583375fba50a1
-  MANIFEST_SHA256: 9a94dba608c506d38788d6498d3f1a92388420b6093acc6e9cf4a27e482b9a30
+  RELEASE_TAG: r150-homeos-intero-shadow-v21
+  RELEASE_TAG_OBJECT: b703d1030fe19c77e6b00cde7cd3a908cc0e7086
+  RELEASE_COMMIT: 08cbc4a8db10868cd751ae3fe208d4a4467ae4d0
+  RELEASE_TREE: 455dde13ccd63a0f0be32ee2b59af2055c055369
+  ARCHIVE: STAY_P1_R150_HOMEOS_INTERO_SHADOW_V21_BUNDLE_20260905.tar.gz
+  ARCHIVE_SHA256: 9cb72d077e1497ccfe5037d3ff6994b0471f0489019f3a99aa5341b5adb953e2
+  SIDECAR_SHA256: 05e6bc1c155a09029f42bb1e199905c7361abc6dfb5c2698864d771c784defcc
+  MANIFEST_SHA256: 3aa5881594126012fe090a99df84e55378ff5a39e09ba5480c6d33cf4d96d6a8
   FORWARD_SHA256: 98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c
-  RECOVERY_SHA256: 63e74c3e991eb998b0081a31f54aff602e3fbc09ed7d6ffdd3586e1df0a3a4d7
-  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-9a94dba608c5
+  RECOVERY_SHA256: 1cd30b887134a6b4ad6257ce630cd57a763b49527e4f92ec3152cfd41c18c369
+  TARGET_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-3aa588159412
   SOURCE_RELEASE: /opt/stay/releases/0.8.11.3-p1m-r141-metab-shadow-recovery-6a1e6a9ffbfd
-  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-ba207ab379d2
-  WRAPPER_SHA256: f09e7c1e28369af56b37af69e2727c2222226d8445904294563a39f413de4d31
+  PREVIOUS_HOMEOS_RELEASE: /opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-9a94dba608c5
+  WRAPPER_SHA256: 50f662cefce8658cf3f2c7b7572cdb3195aa892c3c05bb67378273c5093e4760
   PUBLIC_KEY_SHA256: f02405d0f62529c35f34c43c0a349f88c7906aa460ce36111585577b119457dc
   PRODUCTION_PUBLIC_IPV4: 35.157.242.167
   PRODUCTION_PRIVATE_IPV4: 172.26.9.207
@@ -118,8 +118,8 @@ jobs:
           tar -tvzf "$root/$ARCHIVE" | awk 'substr($1,1,1) !~ /[-d]/ {bad=1} END {exit bad}'
           tar -xzf "$root/$ARCHIVE" -C "$extract"
           manifest='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-          [[ "$(find "$extract" -type f | wc -l)" -eq 83 ]]
-          [[ "$(wc -l < "$extract/$manifest")" -eq 82 ]]
+          [[ "$(find "$extract" -type f | wc -l)" -eq 84 ]]
+          [[ "$(wc -l < "$extract/$manifest")" -eq 83 ]]
           [[ "$(sha256sum "$extract/$manifest" | awk '{print $1}')" == "$MANIFEST_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward.sh" | awk '{print $1}')" == "$FORWARD_SHA256" ]]
           [[ "$(sha256sum "$extract/deploy/live-physiology-transplant/p1-r150-homeos-intero-forward-recovery.sh" | awk '{print $1}')" == "$RECOVERY_SHA256" ]]
@@ -167,7 +167,7 @@ jobs:
       - name: Upload independently validated release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: r150-homeos-intero-v20-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v21-validated-release-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}
             ${{ runner.temp }}/r150-homeos-intero-release/${{ env.ARCHIVE }}.sha256
@@ -185,7 +185,7 @@ jobs:
       - name: Download validated release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: r150-homeos-intero-v20-validated-release-${{ github.run_id }}
+          name: r150-homeos-intero-v21-validated-release-${{ github.run_id }}
           path: release-assets
       - name: Reverify isolated deployment inputs
         shell: bash
@@ -264,7 +264,7 @@ jobs:
           revision=''
           for attempt in $(seq 1 20); do
             if revision="$(node - /var/lib/stay/data/continuity.sqlite3 <<'NODE'
-          'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase(),r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get(),count=(t,w)=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value),ok=r&&crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256,pending=db.prepare("SELECT consumer_id consumerId,COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum FROM biological_deliveries WHERE status='PENDING' GROUP BY consumer_id ORDER BY consumer_id").all(),failed=db.prepare("SELECT consumer_id consumerId,sequence FROM biological_deliveries WHERE status='FAILED' ORDER BY consumer_id,sequence").all(),outbox=count('biological_outbox_intents',"status='PENDING'"),authority=count('authority',"core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')"),highWater=Number(db.prepare('SELECT COALESCE(MAX(sequence),0) value FROM biological_events').get().value),h=pending.find(v=>v.consumerId==='resident:homeos'),s=pending.find(v=>v.consumerId==='resident:sntss'),exactPending=pending.length===2&&Number(h?.count)===1230&&Number(h?.minimum)===4574291&&Number(h?.maximum)===4575520&&Number(s?.count)===1294&&Number(s?.minimum)===4574212&&Number(s?.maximum)===4575520,exactFailure=failed.length===0;if(!(q==='ok'&&ok&&exactPending&&exactFailure&&highWater===4575520&&outbox===0&&authority===0))process.exit(1);process.stdout.write(String(Number(JSON.parse(r.json).revision)));}finally{db.close();}
+          'use strict';const crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite'),db=new DatabaseSync(process.argv[2],{open:true,readOnly:true});try{db.exec('PRAGMA query_only=ON;BEGIN');const q=String(db.prepare('PRAGMA quick_check').get()?.quick_check||'').toLowerCase(),r=db.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get(),count=(t,w)=>Number(db.prepare(`SELECT COUNT(*) value FROM ${t} WHERE ${w}`).get().value),ok=r&&crypto.createHash('sha256').update(r.json).digest('hex')===r.sha256,pending=db.prepare("SELECT consumer_id consumerId,COUNT(*) count,MIN(sequence) minimum,MAX(sequence) maximum FROM biological_deliveries WHERE status='PENDING' GROUP BY consumer_id ORDER BY consumer_id").all(),failed=db.prepare("SELECT consumer_id consumerId,sequence FROM biological_deliveries WHERE status='FAILED' ORDER BY consumer_id,sequence").all(),outbox=count('biological_outbox_intents',"status='PENDING'"),authority=count('authority',"core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')"),highWater=Number(db.prepare('SELECT COALESCE(MAX(sequence),0) value FROM biological_events').get().value),h=pending.find(v=>v.consumerId==='resident:homeos'),exactPending=pending.length===1&&Number(h?.count)===492&&Number(h?.minimum)===4574291&&Number(h?.maximum)===4575520,exactFailure=failed.length===0;if(!(q==='ok'&&ok&&exactPending&&exactFailure&&highWater===4575520&&outbox===0&&authority===0))process.exit(1);process.stdout.write(String(Number(JSON.parse(r.json).revision)));}finally{db.close();}
           NODE
             )"; then break; fi
             revision=''
@@ -305,7 +305,7 @@ jobs:
           AUTHORIZATION: ${{ inputs.authorization }}
         run: |
           set -euo pipefail
-          run_root="/opt/stay/incoming/r150-controller-v21-${GITHUB_RUN_ID}"
+          run_root="/opt/stay/incoming/r150-controller-v22-${GITHUB_RUN_ID}"
           ssh_options=(-i ~/.ssh/stay_deploy -o IdentitiesOnly=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
@@ -324,7 +324,7 @@ jobs:
           ssh "${ssh_options[@]}" staydeploy@"$PRODUCTION_PUBLIC_IPV4" 'bash -s' -- "$run_root" "$stage" <<'REMOTE'
           set -euo pipefail
           root="$1"; stage="${2:-}"
-          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v21-[0-9]+$ && -d "$root" && ! -L "$root" ]]
+          [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v22-[0-9]+$ && -d "$root" && ! -L "$root" ]]
           chmod u-s,g-s "$root"
           chmod 0700 "$root"
           [[ "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 ]]
