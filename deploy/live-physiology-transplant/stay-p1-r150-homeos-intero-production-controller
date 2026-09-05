@@ -8,18 +8,18 @@ EXPECTED_PRIVATE_IPV4='172.26.9.207'
 PREVIOUS_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-c1651b9150bc'
 PREVIOUS_MANIFEST_SHA256='c1651b9150bc5c14d254d86caa60cb267317301c01c95282929fc696f4c6160b'
 PREVIOUS_BOUND_CONTROLLER_SHA256='6f948c132325352469a51b1248d53292d98f7cdaad32c6a26d31aabbebcc1f64'
-RELEASE_TAG='r150-homeos-intero-shadow-v25'
-RELEASE_TAG_OBJECT='7b1fdc0ed92aff76a27875faba302d9b3b72487a'
-RELEASE_COMMIT='b6225e45e09622348cbd553e383e3fe32766d231'
-RELEASE_TREE='e3a97304ede8a0f13bc9c914e1ffb33e2a9738b3'
-ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V25_BUNDLE_20260905.tar.gz'
-ARCHIVE_SHA256='4649ef16a0dd4c517577509d960cdbf55b17537cd70dd2fdd8c525caeafcfdbe'
-SIDECAR_SHA256='878fe8306b4281fed6b59ed6e576745568364aacceef1fc630f713a0bf5798ef'
+RELEASE_TAG='r150-homeos-intero-shadow-v26'
+RELEASE_TAG_OBJECT='65292bb8bbcfc3a36c1d64e5c681a783980357bf'
+RELEASE_COMMIT='27abcc86c7866df0bba863fb9aa137ca2ee33cac'
+RELEASE_TREE='96c93f3630e116ed7b238ef62ea76ff379160bf8'
+ARCHIVE='STAY_P1_R150_HOMEOS_INTERO_SHADOW_V26_BUNDLE_20260905.tar.gz'
+ARCHIVE_SHA256='75204be3fd9ebef157c2992f29012674b476fa11fa2054695dc463fd589ff8b9'
+SIDECAR_SHA256='48f55277e354160cb9368ee48213c4dabea5693d9b94eedab9182daf7a1c2c1a'
 MANIFEST='deploy/live-physiology-transplant/P1_PRODUCTION_HARDENING_R141F_TO_R150.sha256'
-MANIFEST_SHA256='75922efb166e68476fdf0f54893689809f6e5d22562270a119cd3eff3a8cf8be'
+MANIFEST_SHA256='1a019ed22b74f081855b0438098616a63c5d45a9b85ef5e1e818b64470fae201'
 FORWARD_SHA256='98d2a340d23f01e3e2c4fd9f0c7d0a86f60bc220027d015581f63120992f143c'
 RECOVERY_SHA256='1cd30b887134a6b4ad6257ce630cd57a763b49527e4f92ec3152cfd41c18c369'
-TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-75922efb166e'
+TARGET_RELEASE='/opt/stay/releases/0.8.11.3-p1r0-r150-homeos-intero-1a019ed22b74'
 PROOF='deploy/live-physiology-transplant/p1-r150-homeos-intero-live-proof.js'
 FREEZER='deploy/live-physiology-transplant/p1-r150-homeos-intero-freeze.js'
 CLIENT='deploy/live-physiology-transplant/p1-resident-control-client.js'
@@ -30,10 +30,12 @@ FREEZE_DIR='/var/lib/stay/evidence/runtime-freezes'
 EVIDENCE_ROOT='/var/lib/stay/evidence/production-hardening'
 SOURCE_EVIDENCE='/var/lib/stay/evidence/production-hardening/FAILED-R147-HOMEOS-POST-DURABLE-FINALIZE-20260905T021824Z.MDlt6q'
 R147_MARKER='/run/stay-r147-homeos-shadow-recovery.env'
-RECOVERY_DROPIN='/etc/systemd/system/stay.service.d/r148-homeos-capacity-source-finalization-once.conf'
-RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_ONLY'
+RECOVERY_DROPIN='/etc/systemd/system/stay.service.d/r148-homeos-sntss-restart-anchor-once.conf'
+LEGACY_RECOVERY_DROPIN='/etc/systemd/system/stay.service.d/r148-homeos-capacity-source-finalization-once.conf'
+RECOVERY_AUTHORIZATION='AUTHORIZE_STRANDED_R148_HOMEOS_SNTSS_RESTART_ANCHOR_ONLY'
 
-WORK_ROOT=''; CANDIDATE=''; RUN_ROOT=''; RECOVERY_WORK=''; SERVICE_STARTED=0; POINTER_ADVANCED=0
+WORK_ROOT=''; CANDIDATE=''; RUN_ROOT=''; RECOVERY_WORK=''; SERVICE_STARTED=0; SERVICE_EVER_STARTED=0; POINTER_ADVANCED=0
+ACCEPTED_PID=''; ACCEPTED_RESTARTS=''
 CLEANUP_ARMED=0; DROPIN_INSTALLED=0; FREEZE_INSTALLED=0; FAILURE_CLASS='UNCLASSIFIED'
 
 abort_controller(){ FAILURE_CLASS="$2"; printf 'R150_CONTROLLER_ABORT=%s\nR150_CONTROLLER_FAILURE_CLASS=%s\n' "$3" "$2" >&2; exit "$1"; }
@@ -57,7 +59,7 @@ finish_controller(){
     if [[ "$FREEZE_INSTALLED" -eq 1 && -f "$FREEZE_DIR/R148.json" && ! -L "$FREEZE_DIR/R148.json" ]]; then
       rm -f -- "$FREEZE_DIR/R148.json" || cleanup=1
     fi
-    if [[ "$POINTER_ADVANCED" -eq 1 && "$SERVICE_STARTED" -eq 0 &&
+    if [[ "$POINTER_ADVANCED" -eq 1 && "$SERVICE_STARTED" -eq 0 && "$SERVICE_EVER_STARTED" -eq 0 &&
       "$(readlink -f /opt/stay/current 2>/dev/null)" == "$TARGET_RELEASE" ]]; then
       pointer_rollback="/opt/stay/.current-r150-r148-rollback.$$"
       if [[ ! -e "$pointer_rollback" && ! -L "$pointer_rollback" ]]; then
@@ -67,8 +69,8 @@ finish_controller(){
         cleanup=1
       fi
     fi
-    if [[ -n "$RECOVERY_WORK" && "$RECOVERY_WORK" =~ ^$EVIDENCE_ROOT/\.R148-HOMEOS-CAPACITY-SOURCE-FINALIZATION-[0-9TZ]+\.[A-Za-z0-9]+$ && -d "$RECOVERY_WORK" && ! -L "$RECOVERY_WORK" ]]; then
-      failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R148-HOMEOS-CAPACITY-SOURCE-FINALIZATION-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+    if [[ -n "$RECOVERY_WORK" && "$RECOVERY_WORK" =~ ^$EVIDENCE_ROOT/\.R148-HOMEOS-SNTSS-RESTART-ANCHOR-[0-9TZ]+\.[A-Za-z0-9]+$ && -d "$RECOVERY_WORK" && ! -L "$RECOVERY_WORK" ]]; then
+      failed="$(mktemp -d "$EVIDENCE_ROOT/FAILED-R148-HOMEOS-SNTSS-RESTART-ANCHOR-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
       rmdir -- "$failed" && mv -T "$RECOVERY_WORK" "$failed" && chmod -R a-w "$failed" || cleanup=1
       RECOVERY_WORK=''
     fi
@@ -78,7 +80,7 @@ finish_controller(){
     if [[ -n "$WORK_ROOT" && "$WORK_ROOT" =~ ^/run/stay-r150-r148-controller\.[A-Za-z0-9]+$ && -d "$WORK_ROOT" && ! -L "$WORK_ROOT" ]]; then
       rm -rf --one-file-system -- "$WORK_ROOT" || cleanup=1
     fi
-    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v28-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then
+    if [[ -n "$RUN_ROOT" && "$RUN_ROOT" =~ ^/opt/stay/incoming/r150-controller-v29-[0-9]+$ && -d "$RUN_ROOT" && ! -L "$RUN_ROOT" ]]; then
       rm -rf --one-file-system -- "$RUN_ROOT" || cleanup=1
     fi
   fi
@@ -90,7 +92,7 @@ finish_controller(){
 
 validate_run_root(){
   local root="$1"
-  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v28-[0-9]+$ && -d "$root" && ! -L "$root" &&
+  [[ "$root" =~ ^/opt/stay/incoming/r150-controller-v29-[0-9]+$ && -d "$root" && ! -L "$root" &&
     "$(stat -Lc '%U:%G:%a' "$root")" == staydeploy:staydeploy:700 &&
     -z "$(find -P "$root" -xdev \( -type l -o ! -type f ! -type d -o ! -user staydeploy -o ! -group staydeploy -o -perm /077 \) -print -quit)" ]]
 }
@@ -281,7 +283,8 @@ validate_stopped_r148(){
     "$(systemctl show stay.service -p Result --value)" == success &&
     "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null || true)" == inactive &&
     ! -e "$FREEZE_DIR/R148.json" && ! -L "$FREEZE_DIR/R148.json" &&
-    ! -e "$RECOVERY_DROPIN" && ! -L "$RECOVERY_DROPIN" ]] || return 1
+    ! -e "$RECOVERY_DROPIN" && ! -L "$RECOVERY_DROPIN" &&
+    ! -e "$LEGACY_RECOVERY_DROPIN" && ! -L "$LEGACY_RECOVERY_DROPIN" ]] || return 1
   trusted_root_file "$R147_MARKER" && [[ "$(<"$R147_MARKER")" == "$(expected_r147_marker)" ]] || return 1
   [[ -d "$SOURCE_EVIDENCE" && ! -L "$SOURCE_EVIDENCE" && "$(stat -Lc '%U:%G:%a' "$SOURCE_EVIDENCE")" == root:root:500 &&
     "$(find -P "$SOURCE_EVIDENCE" -maxdepth 1 -type f | wc -l)" -eq 8 &&
@@ -289,14 +292,14 @@ validate_stopped_r148(){
     "$(sha256_file "$SOURCE_EVIDENCE/homeos.birth-certificate.json")" == a4a4c8d215d625cf5694a33f246a1953049846ad60e08959c65463fbb03ec31c &&
     "$(sha256_file "$SOURCE_EVIDENCE/parent.freeze.json")" == 352e34b1842777b42be99af710ca5256adec561c83e55666a2560db41d9e309d ]] || return 1
   runuser -u staydeploy -- /usr/bin/timeout --signal=TERM --kill-after=5s 35s \
-    /usr/local/bin/node - "$TARGET_RELEASE" "$DATABASE" >"$WORK_ROOT/r148.capacity-source-finalization-preflight.json" <<'NODE'
+    /usr/local/bin/node - "$TARGET_RELEASE" "$DATABASE" >"$WORK_ROOT/r148.sntss-restart-anchor-preflight.json" <<'NODE'
 'use strict';
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const [release, databasePath] = process.argv.slice(2);
-const { R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION: expected } =
+const { R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY: expected } =
   require(path.join(release, 'runtime/kernel/living-kernel'));
 const fail = message => { throw new Error(message); };
 const assert = (value, message) => { if (!value) fail(message); };
@@ -353,7 +356,8 @@ try {
       resident.manifest_hash === fence.manifestHash && resident.package_policy_hash === fence.packagePolicyHash,
     `${residencyId} identity changed`);
     assert(consumer?.core_id === fence.coreId && Number(consumer.required) === 0 &&
-      Number(consumer.active) === 1 && Number(consumer.authority_epoch) === 0 &&
+      Number(consumer.active) === Number(fence.consumerActive !== false) &&
+      Number(consumer.authority_epoch) === 0 &&
       Number(consumer.cursor) === fence.consumerCursor && consumer.checkpoint_hash === fence.checkpointHash &&
       consumer.topics_sha256 === fence.topicsHash, `${residencyId} consumer changed`);
     assert(checkpoint?.checkpoint_id === fence.checkpointId && checkpoint.instance_id === fence.instanceId &&
@@ -387,7 +391,8 @@ try {
     Number(fetusCheckpoint.byte_length) === fetus.checkpointBytes && checkpointBlobIsExact(fetusCheckpoint),
   'fetus continuity changed');
 
-  assert(count(database, "SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") === 0 &&
+  assert(count(database, "SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") ===
+      expected.pendingDeliveries &&
     count(database, "SELECT COUNT(*) count FROM biological_deliveries WHERE status='FAILED'") === 0 &&
     count(database, "SELECT COUNT(*) count FROM biological_deliveries WHERE status='ABANDONED'") === 0,
   'delivery debt changed');
@@ -398,17 +403,32 @@ try {
     'SELECT id,type,core_id,detail_json FROM recovery_records ORDER BY id DESC LIMIT 1').get();
   let recovery = null;
   try { recovery = JSON.parse(latest?.detail_json || 'null'); } catch {}
-  assert(Number(latest?.id) === expected.latestRecoveryRecordId && latest.type === 'resident.recovered' &&
-    latest.core_id === 'sntss' && recovery?.residencyId === 'resident:sntss' &&
-    recovery?.instanceId === expected.residents['resident:sntss'].instanceId &&
-    recovery?.version === expected.residents['resident:sntss'].version &&
-    recovery?.checkpointHash === expected.residents['resident:sntss'].checkpointHash,
+  assert(Number(latest?.id) === expected.latestRecoveryRecordId &&
+    latest.type === expected.latestRecovery.type && latest.core_id === expected.latestRecovery.coreId &&
+    Object.entries(expected.latestRecovery.detail).every(([key, value]) => recovery?.[key] === value),
   'latest recovery identity changed');
+  const pending = database.prepare(`SELECT d.consumer_id,d.status,d.transition_id,d.checkpoint_hash,
+    d.acknowledged_at,e.sequence,e.event_id,e.topic,e.event_class,e.envelope_json,e.envelope_sha256,
+    e.deduplication_key FROM biological_deliveries d JOIN biological_events e ON e.sequence=d.sequence
+    WHERE d.status='PENDING'`).get();
+  let envelope = null;
+  try { envelope = JSON.parse(pending?.envelope_json || 'null'); } catch {}
+  assert(pending?.consumer_id === 'resident:sntss' && pending.status === 'PENDING' &&
+    pending.transition_id == null && pending.checkpoint_hash == null && pending.acknowledged_at == null &&
+    Number(pending.sequence) === expected.ledger.pendingSequence &&
+    pending.event_id === expected.ledger.pendingEventId && pending.topic === 'runtime.time.pulse' &&
+    pending.event_class === 'durable' && pending.envelope_sha256 === expected.ledger.pendingEnvelopeSha256 &&
+    sha256(pending.envelope_json) === expected.ledger.pendingEnvelopeSha256 &&
+    pending.deduplication_key === `runtime.time.pulse:148:${expected.ledger.firstTimePulseSequence}` &&
+    envelope?.id === expected.ledger.pendingEventId && envelope?.sequence === expected.ledger.pendingSequence &&
+    envelope?.payload?.runtimeRevision === 148 &&
+    envelope?.payload?.pulseSequence === expected.ledger.firstTimePulseSequence &&
+    envelope?.payload?.clockStatus === 'trusted', 'pending SNTSS pulse identity changed');
   database.exec('COMMIT');
   process.stdout.write(`${JSON.stringify({
-    format: 'stay-r148-homeos-capacity-source-finalization-preflight-v1', result: 'PASS',
+    format: 'stay-r148-homeos-sntss-restart-anchor-preflight-v1', result: 'PASS',
     runtimeRevision: expected.runtimeRevision, highWater: expected.highWater,
-    pendingDeliveries: 0, failedDeliveries: 0, abandonedDeliveries: 0,
+    pendingDeliveries: expected.pendingDeliveries, failedDeliveries: 0, abandonedDeliveries: 0,
     pendingOutboxIntents: 0, authorityOwned: false, fetusAuthority: true,
     residents: Object.keys(expected.residents).sort(), intero: 'ABSENT', benchmarkStarted: false
   })}\n`);
@@ -426,15 +446,15 @@ install_atomic(){
   mv -fT "$temporary" "$target"
 }
 
-finalize_capacity_source_r148(){
-  local controller_sha="$1" ready=0 proof_ready=0 attempt after_pid after_restarts final_evidence
-  RECOVERY_WORK="$(mktemp -d "$EVIDENCE_ROOT/.R148-HOMEOS-CAPACITY-SOURCE-FINALIZATION-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
+recover_sntss_restart_anchor_r148(){
+  local controller_sha="$1" ready=0 restart_ready=0 proof_ready=0 attempt after_pid after_restarts final_evidence
+  RECOVERY_WORK="$(mktemp -d "$EVIDENCE_ROOT/.R148-HOMEOS-SNTSS-RESTART-ANCHOR-$(date -u +'%Y%m%dT%H%M%SZ').XXXXXX")"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/parent.freeze.json" "$RECOVERY_WORK/parent.freeze.json"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/before.proof.json" "$RECOVERY_WORK/before.proof.json"
   install -o root -g root -m 0400 "$SOURCE_EVIDENCE/homeos.birth-certificate.json" "$RECOVERY_WORK/homeos.birth-certificate.json"
   install -o root -g root -m 0444 "$PUBLIC_KEY" "$RECOVERY_WORK/expansion-birth-authority.pub"
-  install -o root -g root -m 0400 "$WORK_ROOT/r148.capacity-source-finalization-preflight.json" \
-    "$RECOVERY_WORK/r148.capacity-source-finalization-preflight.json"
+  install -o root -g root -m 0400 "$WORK_ROOT/r148.sntss-restart-anchor-preflight.json" \
+    "$RECOVERY_WORK/r148.sntss-restart-anchor-preflight.json"
   install -o root -g root -m 0400 "$WORK_ROOT/focused-tests.tap" "$RECOVERY_WORK/focused-tests.tap"
   install -o root -g root -m 0400 "$WORK_ROOT/real-entry.tap" "$RECOVERY_WORK/real-entry.tap"
   expected_release_env "$controller_sha" >"$RECOVERY_WORK/P1_R150_RELEASE.env"
@@ -444,21 +464,23 @@ finalize_capacity_source_r148(){
 NODE
 
   install -d -o root -g root -m 0755 "$(dirname "$RECOVERY_DROPIN")"
-  cat >"$WORK_ROOT/r148-homeos-capacity-source-finalization-once.conf" <<EOF
+  cat >"$WORK_ROOT/r148-homeos-sntss-restart-anchor-once.conf" <<EOF
 [Service]
 Environment=STAY_HOMEOS_R148_INIT_POST_DURABLE_FINALIZATION_AUTHORIZATION=$RECOVERY_AUTHORIZATION
 EOF
-  install_atomic "$WORK_ROOT/r148-homeos-capacity-source-finalization-once.conf" "$RECOVERY_DROPIN" 0444
+  install_atomic "$WORK_ROOT/r148-homeos-sntss-restart-anchor-once.conf" "$RECOVERY_DROPIN" 0444
   DROPIN_INSTALLED=1
   systemctl daemon-reload
   systemctl reset-failed stay.service
   SERVICE_STARTED=1
+  SERVICE_EVER_STARTED=1
   systemctl start stay.service
-  for attempt in $(seq 1 100); do
+  for attempt in $(seq 1 240); do
     after_pid="$(systemctl show stay.service -p MainPID --value)"
     if [[ "$after_pid" =~ ^[1-9][0-9]*$ &&
       "$(systemctl show stay.service -p ActiveState --value)" == active &&
       "$(systemctl show stay.service -p SubState --value)" == running &&
+      "$(systemctl show stay.service -p NRestarts --value)" == 0 &&
       "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" &&
       -S /run/stay/resident-control.sock && ! -L /run/stay/resident-control.sock ]] &&
       curl --fail --silent --max-time 1 http://127.0.0.1:8787/healthz | grep -q '"revision":148'; then
@@ -473,7 +495,160 @@ EOF
   DROPIN_INSTALLED=0
   [[ ! -e "$RECOVERY_DROPIN" && ! -L "$RECOVERY_DROPIN" ]] || return 1
 
-  for attempt in $(seq 1 40); do
+  for attempt in $(seq 1 120); do
+    if /usr/bin/timeout --signal=TERM --kill-after=5s 20s /usr/local/bin/node - \
+      "$TARGET_RELEASE" "$DATABASE" >"$RECOVERY_WORK/restart-anchor.acceptance.json" \
+      2>"$RECOVERY_WORK/restart-anchor.acceptance.error" <<'NODE'
+'use strict';
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const { DatabaseSync } = require('node:sqlite');
+const [release, databasePath] = process.argv.slice(2);
+const { R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY: expected } =
+  require(path.join(release, 'runtime/kernel/living-kernel'));
+const fail = message => { throw new Error(message); };
+const assert = (value, message) => { if (!value) fail(message); };
+const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
+const count = (database, sql, ...args) => Number(database.prepare(sql).get(...args)?.count || 0);
+const parse = row => { try { return JSON.parse(row?.detail_json || 'null'); } catch { return null; } };
+const database = new DatabaseSync(databasePath, { open: true, readOnly: true });
+try {
+  database.exec('PRAGMA query_only=ON; BEGIN');
+  const revisionRow = database.prepare("SELECT json,sha256 FROM metadata WHERE key='life:runtime-revision'").get();
+  const revision = JSON.parse(revisionRow?.json || 'null');
+  assert(revisionRow?.sha256 === expected.runtimeRevisionMetadataHash &&
+    sha256(revisionRow?.json || '') === expected.runtimeRevisionMetadataHash &&
+    Number(revision?.revision) === 148, 'runtime revision changed');
+  const capacityRow = database.prepare(
+    "SELECT json,sha256 FROM metadata WHERE key='life:p1-r0-metab-capacity-source'").get();
+  const capacity = JSON.parse(capacityRow?.json || 'null');
+  assert(capacityRow?.sha256 === sha256(capacityRow?.json || '') && capacity?.pending === null &&
+    Number(capacity?.runtimeRevision) === 128 &&
+    Number(capacity?.lastCommittedFrame) >= expected.capacitySource.lastCommittedFrame + 3 &&
+    Number(capacity?.lastTrustedTimeUs) > expected.capacitySource.lastTrustedTimeUs &&
+    Number(capacity?.lastContinuityEpoch) === expected.capacitySource.lastContinuityEpoch,
+  'capacity scheduler did not resume exactly');
+
+  const continuityRow = database.prepare(`SELECT id,core_id,detail_json FROM recovery_records
+    WHERE type='runtime.r148-homeos-sntss-restart-continuity-recovered'
+    ORDER BY id DESC LIMIT 1`).get();
+  const anchorRow = database.prepare(`SELECT id,core_id,detail_json FROM recovery_records
+    WHERE type='resident.r148-restart-clock-anchored' ORDER BY id DESC LIMIT 1`).get();
+  const warmRow = database.prepare(`SELECT id,core_id,detail_json FROM recovery_records
+    WHERE type='runtime.r148-post-anchor-capacity-warmed' ORDER BY id DESC LIMIT 1`).get();
+  const continuity = parse(continuityRow), anchor = parse(anchorRow), warm = parse(warmRow);
+  const anchorSequence = expected.highWater + expected.ledger.timePulseCount;
+  assert(Number(continuityRow?.id) > expected.latestRecoveryRecordId &&
+    continuity?.cohort === 'r148-homeos-sntss-restart-anchor-v1' &&
+    continuity?.runtimeRevision === 148 && continuity?.acknowledgedPendingDeliveryCount === 1 &&
+    continuity?.abandonedCount === 0 && continuity?.inventedBiologicalTime === false &&
+    continuity?.authorityChanged === false, 'continuity repair evidence is incomplete');
+  assert(Number(anchorRow?.id) > Number(continuityRow?.id) && anchorRow?.core_id === 'sntss' &&
+    anchor?.cohort === 'r148-homeos-sntss-restart-anchor-v1' &&
+    anchor?.runtimeRevision === 148 && anchor?.eventSequence === anchorSequence &&
+    anchor?.fromAcceptedPulseSequence === expected.residents['resident:sntss'].lastPulseSequence &&
+    anchor?.fromDurableLedgerPulseSequence === expected.ledger.lastTimePulseSequence &&
+    anchor?.bridgeFirstPulseSequence === expected.residents['resident:sntss'].lastPulseSequence + 1 &&
+    anchor?.bridgeLastPulseSequence === expected.ledger.lastTimePulseSequence &&
+    anchor?.bridgePulseCount === expected.ledger.timePulseCount &&
+    anchor?.toPulseSequence === expected.ledger.lastTimePulseSequence &&
+    anchor?.clockStatus === 'uncertain' &&
+    anchor?.idempotentCheckpointCommits === expected.ledger.timePulseCount &&
+    anchor?.retainedCheckpointCount === 32 && anchor?.physiologyApplied === 0 &&
+    anchor?.physiologyStateHashAfter === anchor?.physiologyStateHashBefore &&
+    anchor?.abandonedCount === 0 && anchor?.inventedBiologicalTime === false &&
+    anchor?.authorityChanged === false, 'restart anchor evidence is incomplete');
+  assert(Number(warmRow?.id) > Number(anchorRow?.id) && warmRow?.core_id == null &&
+    warm?.cohort === 'r148-homeos-sntss-restart-capacity-warm-v1' &&
+    warm?.runtimeRevision === 148 && warm?.anchorEventSequence === anchorSequence &&
+    warm?.firstEventSequence === anchorSequence + 1 && warm?.lastEventSequence === anchorSequence + 4 &&
+    warm?.eventCount === 4 &&
+    warm?.capacityFrameBefore === expected.capacitySource.lastCommittedFrame &&
+    warm?.capacityFrameAfter === expected.capacitySource.lastCommittedFrame + 1 &&
+    warm?.sntssCheckpointChanged === false &&
+    warm?.sntssCheckpointHashAfter === warm?.sntssCheckpointHashBefore &&
+    warm?.sntssClockStatus === 'uncertain' && warm?.abandonedCount === 0 &&
+    warm?.inventedBiologicalTime === false && warm?.authorityChanged === false,
+  'capacity warm evidence is incomplete');
+
+  const resident = database.prepare("SELECT * FROM resident_instances WHERE residency_id='resident:sntss'").get();
+  const consumer = database.prepare("SELECT * FROM biological_consumers WHERE consumer_id='resident:sntss'").get();
+  const checkpoint = database.prepare(`SELECT * FROM resident_checkpoints
+    WHERE residency_id='resident:sntss' ORDER BY generation DESC LIMIT 1`).get();
+  const blobFile = path.join(path.dirname(databasePath), 'blobs', 'sha256',
+    checkpoint?.blob_hash?.slice(0, 2) || '', checkpoint?.blob_hash || '');
+  const blobStat = fs.lstatSync(blobFile);
+  const blob = fs.readFileSync(blobFile);
+  const checkpointState = JSON.parse(blob.toString('utf8'));
+  const trustedTime = checkpointState?.trustedTime;
+  assert(blobStat.isFile() && !blobStat.isSymbolicLink() &&
+    blob.length === Number(checkpoint?.byte_length) && sha256(blob) === checkpoint?.blob_hash &&
+    resident?.status === 'RUNNING' && Number(resident?.checkpoint_generation) === Number(checkpoint?.generation) &&
+    resident?.checkpoint_hash === checkpoint?.blob_hash && Number(consumer?.required) === 0 &&
+    Number(consumer?.active) === 1 && Number(consumer?.authority_epoch) === 0 &&
+    consumer?.checkpoint_hash === checkpoint?.blob_hash &&
+    Number(consumer?.cursor) >= Number(checkpoint?.input_cursor) &&
+    Number(checkpoint?.input_cursor) >= anchorSequence + 10 &&
+    Number(trustedTime?.lastRuntimeRevision) === 148 &&
+    Number(trustedTime?.lastPulseSequence) >= expected.ledger.lastTimePulseSequence + 2 &&
+    trustedTime?.lastClockStatus === 'trusted' &&
+    Number(trustedTime?.acceptedPulses) >=
+      expected.residents['resident:sntss'].acceptedPulses + expected.ledger.timePulseCount + 2 &&
+    Number(trustedTime?.integratedIntervals) >=
+      expected.residents['resident:sntss'].integratedIntervals + 1,
+  'SNTSS trusted-time scheduler did not resume exactly');
+
+  const highWater = Number(database.prepare(
+    'SELECT COALESCE(MAX(sequence),0) value FROM biological_events').get().value);
+  assert(highWater >= anchorSequence + 14 &&
+    count(database, "SELECT COUNT(*) count FROM biological_deliveries WHERE status='PENDING'") === 0 &&
+    count(database, "SELECT COUNT(*) count FROM biological_deliveries WHERE status='FAILED'") === 0 &&
+    count(database, "SELECT COUNT(*) count FROM biological_deliveries WHERE status='ABANDONED'") === 0 &&
+    count(database, "SELECT COUNT(*) count FROM biological_outbox_intents WHERE status='PENDING'") === 0 &&
+    count(database, "SELECT COUNT(*) count FROM recovery_records WHERE id>? AND type='resident.delivery-retry'",
+      expected.latestRecoveryRecordId) === 0 &&
+    count(database, "SELECT COUNT(*) count FROM authority WHERE core_id IN ('sntss','chronobiology','METAB','HOMEOS','INTERO')") === 0 &&
+    count(database, "SELECT COUNT(*) count FROM resident_instances") === 4 &&
+    count(database, "SELECT COUNT(*) count FROM resident_instances WHERE status='RUNNING'") === 4 &&
+    count(database, "SELECT COUNT(*) count FROM resident_instances WHERE residency_id='resident:intero'") === 0 &&
+    count(database, "SELECT COUNT(*) count FROM biological_consumers WHERE consumer_id='resident:intero'") === 0,
+  'post-anchor containment boundary is incomplete');
+  database.exec('COMMIT');
+  process.stdout.write(`${JSON.stringify({
+    format: 'stay-r148-homeos-sntss-restart-anchor-acceptance-v1', result: 'PASS',
+    runtimeRevision: 148, highWater, anchorRecoveryRecordId: Number(anchorRow.id),
+    warmRecoveryRecordId: Number(warmRow.id), anchorEventSequence: anchorSequence,
+    trustedTimePulseSequence: Number(trustedTime.lastPulseSequence),
+    acceptedPulses: Number(trustedTime.acceptedPulses),
+    integratedIntervals: Number(trustedTime.integratedIntervals),
+    capacityFrame: Number(capacity.lastCommittedFrame), pendingDeliveries: 0,
+    failedDeliveries: 0, abandonedDeliveries: 0, pendingOutboxIntents: 0,
+    authorityOwned: false, intero: 'ABSENT', benchmarkStarted: false
+  })}\n`);
+} catch (error) {
+  try { database.exec('ROLLBACK'); } catch {}
+  throw error;
+} finally { database.close(); }
+NODE
+    then
+      ACCEPTED_PID="$(systemctl show stay.service -p MainPID --value)"
+      ACCEPTED_RESTARTS="$(systemctl show stay.service -p NRestarts --value)"
+      if [[ "$ACCEPTED_PID" =~ ^[1-9][0-9]*$ && "$ACCEPTED_RESTARTS" == 0 ]]; then
+        restart_ready=1
+        printf '%s\n' "$attempt" >"$RECOVERY_WORK/restart-anchor.acceptance.attempts"
+        rm -f -- "$RECOVERY_WORK/restart-anchor.acceptance.error"
+        break
+      fi
+    fi
+    sleep 1
+  done
+  [[ "$restart_ready" -eq 1 ]] || {
+    cat "$RECOVERY_WORK/restart-anchor.acceptance.error" >&2
+    return 1
+  }
+
+  for attempt in $(seq 1 20); do
     /usr/bin/timeout --signal=TERM --kill-after=5s 35s /usr/local/bin/node \
       "$TARGET_RELEASE/$PROOF" capture "$DATABASE" >"$RECOVERY_WORK/database.after.json" || return 1
     for id in sntss chronobiology metab homeos; do
@@ -484,7 +659,7 @@ EOF
     after_restarts="$(systemctl show stay.service -p NRestarts --value)"
     /usr/local/bin/node - "$RECOVERY_WORK/before.proof.json" "$after_pid" "$after_restarts" \
       "$TARGET_RELEASE" >"$RECOVERY_WORK/service.after.json" <<'NODE'
-'use strict';const fs=require('node:fs'),[beforeFile,afterPid,afterRestarts,currentRelease]=process.argv.slice(2),before=JSON.parse(fs.readFileSync(beforeFile,'utf8'));process.stdout.write(JSON.stringify({recovery:true,originalBeforePid:Number(before.servicePid),originalBeforeRestarts:Number(before.serviceRestarts),recoveryBeforePid:0,afterPid:Number(afterPid),recoveryBeforeRestarts:Number(afterRestarts),afterRestarts:Number(afterRestarts),recoveryRestartCommands:1,restartCommands:2,currentRelease,r148HomeosCapacitySourceFinalization:true})+'\n');
+'use strict';const fs=require('node:fs'),[beforeFile,afterPid,afterRestarts,currentRelease]=process.argv.slice(2),before=JSON.parse(fs.readFileSync(beforeFile,'utf8'));process.stdout.write(JSON.stringify({recovery:true,originalBeforePid:Number(before.servicePid),originalBeforeRestarts:Number(before.serviceRestarts),recoveryBeforePid:0,afterPid:Number(afterPid),recoveryBeforeRestarts:Number(afterRestarts),afterRestarts:Number(afterRestarts),recoveryRestartCommands:1,restartCommands:2,currentRelease,r148HomeosSntssRestartAnchorRecovery:true})+'\n');
 NODE
     if /usr/local/bin/node - "$TARGET_RELEASE/$PROOF" "$RECOVERY_WORK" "$TARGET_RELEASE" \
       >"$RECOVERY_WORK/after.proof.json" 2>"$RECOVERY_WORK/after.proof.error" <<'NODE'
@@ -496,9 +671,11 @@ NODE
       rm -f -- "$RECOVERY_WORK/after.proof.error"
       break
     fi
-    sleep 0.25
+    sleep 1
   done
   [[ "$proof_ready" -eq 1 ]] || { cat "$RECOVERY_WORK/after.proof.error" >&2; return 1; }
+  [[ "$(systemctl show stay.service -p MainPID --value)" == "$ACCEPTED_PID" &&
+    "$(systemctl show stay.service -p NRestarts --value)" == "$ACCEPTED_RESTARTS" ]] || return 1
   /usr/local/bin/node "$TARGET_RELEASE/$FREEZER" homeos-r148-recovery "$RECOVERY_WORK" >"$RECOVERY_WORK/target.freeze.json" || return 1
   install_atomic "$RECOVERY_WORK/target.freeze.json" "$FREEZE_DIR/R148.json" 0444
   FREEZE_INSTALLED=1
@@ -508,10 +685,10 @@ NODE
 NODE
   trusted_root_file "$R147_MARKER" && [[ "$(<"$R147_MARKER")" == "$(expected_r147_marker)" ]] || return 1
   rm -f -- "$R147_MARKER"
-  final_evidence="$EVIDENCE_ROOT/R148F-HOMEOS-CAPACITY-SOURCE-FINALIZED-$(date -u +'%Y%m%dT%H%M%SZ')"
+  final_evidence="$EVIDENCE_ROOT/R148F-HOMEOS-SNTSS-RESTART-ANCHORED-$(date -u +'%Y%m%dT%H%M%SZ')"
   [[ ! -e "$final_evidence" && ! -L "$final_evidence" ]]
   mv -T "$RECOVERY_WORK" "$final_evidence"; RECOVERY_WORK=''; chmod -R a-w "$final_evidence"
-  printf '%s\n' 'R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION=PASS' 'RUNTIME_REVISION=148' \
+  printf '%s\n' 'R148_HOMEOS_SNTSS_RESTART_ANCHOR_RECOVERY=PASS' 'RUNTIME_REVISION=148' \
     'REVISION_LABEL=R148F' "CURRENT_RELEASE=$TARGET_RELEASE" 'RESTART_COMMANDS=1' \
     'P1_AUTHORITY=NONE' 'FETUS_CONTINUITY=PASS' 'PROMOTION_AUTHORITY_ACTIVE=NO' \
     'INTERO=ABSENT' 'BENCHMARK_ACTIVE=NO' "FREEZE_FILE=$FREEZE_DIR/R148.json" \
@@ -521,13 +698,17 @@ NODE
 validate_live(){
   local controller_sha="$1" pid
   pid="$(systemctl show stay.service -p MainPID --value)"
-  [[ "$pid" =~ ^[1-9][0-9]*$ && "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" &&
+  [[ "$pid" =~ ^[1-9][0-9]*$ && "$pid" == "$ACCEPTED_PID" &&
+    "$(systemctl show stay.service -p NRestarts --value)" == "$ACCEPTED_RESTARTS" &&
+    "$ACCEPTED_RESTARTS" == 0 && "$(systemctl show stay.service -p Result --value)" == success &&
+    "$(readlink -f /opt/stay/current)" == "$TARGET_RELEASE" &&
     "$(systemctl show stay.service -p ActiveState --value)" == active &&
     "$(systemctl show stay.service -p SubState --value)" == running &&
     "$(systemctl show stay.service -p User --value)" == staydeploy &&
     "$(systemctl show stay.service -p Group --value)" == staydeploy &&
     "$(systemctl is-active stay-physiology-benchmark-v3.service 2>/dev/null || true)" == inactive &&
     ! -e "$RECOVERY_DROPIN" && ! -L "$RECOVERY_DROPIN" &&
+    ! -e "$LEGACY_RECOVERY_DROPIN" && ! -L "$LEGACY_RECOVERY_DROPIN" &&
     ! -e "$R147_MARKER" && ! -L "$R147_MARKER" ]] || return 1
   verify_target "$controller_sha" && trusted_root_file "$FREEZE_DIR/R148.json"
 }
@@ -538,11 +719,11 @@ main(){
   [[ "$EUID" -eq 0 ]] || abort_controller 65 PRIVILEGE_BOUNDARY_FAILED root-required
   trusted_root_file "$0" && [[ -x "$0" ]] || abort_controller 66 PRIVILEGE_BOUNDARY_FAILED controller-identity-invalid
   [[ "$(observed_private_ipv4)" == "$EXPECTED_PRIVATE_IPV4" ]] || abort_controller 67 HOST_IDENTITY_FAILED host-identity-mismatch
-  [[ "$operation" == finalize-r148-homeos-capacity-source && "$authorization" == AUTHORIZE_R148_HOMEOS_CAPACITY_SOURCE_FINALIZATION_V1 ]] ||
+  [[ "$operation" == recover-r148-homeos-sntss-restart-anchor && "$authorization" == AUTHORIZE_R148_HOMEOS_SNTSS_RESTART_ANCHOR_V1 ]] ||
     abort_controller 74 AUTHORIZATION_FAILED authorization-missing
   [[ "$supplied_cert" == NONE && "$supplied_dossier" == NONE ]] ||
     abort_controller 75 ARGUMENT_VALIDATION_FAILED recovery-hashes-must-be-none
-  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v28-[0-9]+$ ]] ||
+  [[ "$requested_root" =~ ^/opt/stay/incoming/r150-controller-v29-[0-9]+$ ]] ||
     abort_controller 77 PATH_VALIDATION_FAILED run-root-pattern-invalid
   validate_run_root "$requested_root" || abort_controller 78 PATH_VALIDATION_FAILED run-root-invalid
   RUN_ROOT="$requested_root"; trap finish_controller EXIT; CLEANUP_ARMED=1
@@ -554,13 +735,13 @@ main(){
   verify_previous_release || abort_controller 83 CANDIDATE_FAILED previous-release-invalid
   prepare_target "$controller_sha" || abort_controller 84 CANDIDATE_FAILED candidate-validation-failed
   validate_stopped_r148 || abort_controller 85 CANDIDATE_FAILED stopped-r148-cohort-changed
-  finalize_capacity_source_r148 "$controller_sha" || abort_controller 86 EXECUTION_FAILED r148-capacity-source-finalization-failed
+  recover_sntss_restart_anchor_r148 "$controller_sha" || abort_controller 86 EXECUTION_FAILED r148-sntss-restart-anchor-recovery-failed
   validate_live "$controller_sha" || abort_controller 87 LIVE_ACCEPTANCE_FAILED independent-live-proof-failed
   SERVICE_STARTED=0
   POINTER_ADVANCED=0
   FREEZE_INSTALLED=0
   FAILURE_CLASS='NONE'
-  printf '%s\n' 'R150_CONTROLLER_STAGE=homeos-r148-capacity-source-finalization' \
+  printf '%s\n' 'R150_CONTROLLER_STAGE=homeos-r148-sntss-restart-anchor-recovery' \
     'R150_CONTROLLER_REVISION=R148F' 'R150_CONTROLLER_RESULT=PASS'
 }
 
