@@ -4542,6 +4542,8 @@ class ResidentManager {
       exactR146HomeosBacklog =
         false,
       exactR147ContinuationBacklog =
+        false,
+      exactR147FrameBoundaryBacklog =
         false
     } = {}
   ) {
@@ -4605,6 +4607,13 @@ class ResidentManager {
       exactR147ContinuationBacklog === true &&
       ['resident:homeos', 'resident:sntss'].includes(resident.residencyId) &&
       ['HOMEOS', 'sntss'].includes(resident.coreId) &&
+      resident.status === 'RESYNC_REQUIRED' && runtimeRevision === 147;
+
+    const containedR147FrameBoundaryBacklog =
+      exactR147FrameBoundaryBacklog === true &&
+      resident.residencyId === 'resident:homeos' &&
+      resident.coreId === 'HOMEOS' &&
+      resident.version === '0.2.0-p1r0-shadow.1' &&
       resident.status === 'RESYNC_REQUIRED' && runtimeRevision === 147;
 
     if (
@@ -4700,6 +4709,14 @@ class ResidentManager {
                 runtimeRevision,
                 maximumPending: 1023
               })
+          : containedR147FrameBoundaryBacklog
+            ? this.stateStore.beginExactR147FrameBoundaryBacklogReplay({
+                residencyId,
+                coreId: resident.coreId,
+                checkpointHash: checkpoint.blobHash,
+                runtimeRevision,
+                maximumPending: 1023
+              })
         : this.stateStore
             .resynchronizeResidentBiologicalConsumer({
               residencyId,
@@ -4729,7 +4746,7 @@ class ResidentManager {
     }
 
     if (!containedChronobiologyBacklog && !containedR146HomeosBacklog &&
-        !containedR147ContinuationBacklog) {
+        !containedR147ContinuationBacklog && !containedR147FrameBoundaryBacklog) {
       this.stateStore
         .setResidentStatus(
           residencyId,
@@ -4749,7 +4766,7 @@ class ResidentManager {
         checkpoint,
         backfillInactiveGap:
           !containedChronobiologyBacklog && !containedR146HomeosBacklog &&
-          !containedR147ContinuationBacklog,
+          !containedR147ContinuationBacklog && !containedR147FrameBoundaryBacklog,
         replayDebtLimit:
           containedChronobiologyBacklog
             ? 8192
@@ -4758,7 +4775,7 @@ class ResidentManager {
               : 1023,
         preserveConsumerOnFailure:
           containedChronobiologyBacklog || containedR146HomeosBacklog ||
-          containedR147ContinuationBacklog
+          containedR147ContinuationBacklog || containedR147FrameBoundaryBacklog
       });
 
     this.stateStore
@@ -4769,6 +4786,8 @@ class ResidentManager {
             ? 'resident.exact-backlog-replayed'
           : containedR147ContinuationBacklog
             ? 'resident.r147-continuation-replayed'
+          : containedR147FrameBoundaryBacklog
+            ? 'resident.r147-frame-boundary-replayed'
           : coldQuarantine
             ? 'resident.cold-quarantine-recovered'
           : 'resident.resynchronized',
@@ -4798,6 +4817,8 @@ class ResidentManager {
                 ? record.pendingCount
                 : containedR147ContinuationBacklog
                   ? record.eligibleReplayCount
+                  : containedR147FrameBoundaryBacklog
+                    ? record.eligibleReplayCount
                   : 0
         }
       );

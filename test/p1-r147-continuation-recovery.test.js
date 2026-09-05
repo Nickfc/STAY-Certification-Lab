@@ -11,7 +11,8 @@ const { promisify } = require('node:util');
 
 const {
   LivingKernel,
-  R147_HOMEOS_CONTINUATION_RECOVERY
+  R147_HOMEOS_CONTINUATION_RECOVERY,
+  R147_HOMEOS_FRAME_BOUNDARY_RECOVERY
 } = require('../runtime/kernel/living-kernel');
 const { ResidentManager } = require('../runtime/kernel/resident-manager');
 const { StateStore, sha256File } = require('../runtime/kernel/state-store');
@@ -350,6 +351,262 @@ test('R147-CONTINUATION-02 exact repair prunes only invalid delivery assignments
     WHERE status='PENDING'`).get().count, 0);
 });
 
+test('R147-FRAME-BOUNDARY-01 replays only the exact retained HOMEOS cohort without pruning', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'stay-r147-frame-boundary-'));
+  const store = new StateStore(root);
+  await store.init();
+  t.after(async () => {
+    try { store.close(); } catch {}
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const expected = R147_HOMEOS_FRAME_BOUNDARY_RECOVERY;
+  const homeos = expected.homeos;
+  store.withTransaction(() => {
+    store.db.prepare(`INSERT INTO resident_instances(
+      residency_id,core_id,role,instance_id,version,state_schema,module_relative_path,
+      module_hash,manifest_hash,package_policy_hash,organism_identity_hash,
+      checkpoint_hash,checkpoint_generation,status,attached_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      homeos.residencyId, homeos.coreId, 'optional', homeos.instanceId, homeos.version,
+      homeos.stateSchema, homeos.moduleRelativePath, homeos.moduleHash, homeos.manifestHash,
+      homeos.packagePolicyHash, IDENTITY_HASH, homeos.checkpointHash,
+      homeos.checkpointGeneration, 'RESYNC_REQUIRED', AT, AT
+    );
+    store.db.prepare(`INSERT INTO resident_checkpoints(
+      checkpoint_id,residency_id,instance_id,version,state_schema,generation,
+      blob_hash,byte_length,input_cursor,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
+      homeos.checkpointId, homeos.residencyId, homeos.instanceId, homeos.version,
+      homeos.stateSchema, homeos.checkpointGeneration, homeos.checkpointHash,
+      homeos.checkpointBytes, homeos.inputCursor, AT
+    );
+    store.db.prepare(`INSERT INTO biological_consumers(
+      consumer_id,core_id,required,active,topics_json,topics_sha256,cursor,
+      authority_epoch,checkpoint_hash,registered_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(
+      homeos.residencyId, homeos.coreId, 0, 0, JSON.stringify(homeos.topics),
+      homeos.topicsHash, homeos.consumerCursor, 0, homeos.checkpointHash, AT, AT
+    );
+    for (let index = 0; index < homeos.pendingCount; index += 1) {
+      const sequence = index === homeos.pendingCount - 1
+        ? homeos.lastPendingSequence
+        : homeos.firstPendingSequence + index;
+      const topic = index % 2 === 0
+        ? 'metab.energy.availability.v1'
+        : 'metab.energy.reserve.v1';
+      insertEvent(store, sequence, topic, `r147-frame:${sequence}`);
+      store.db.prepare(`INSERT INTO biological_deliveries(sequence,consumer_id,status)
+        VALUES(?,?,?)`).run(sequence, homeos.residencyId, 'PENDING');
+    }
+    store.db.prepare(`INSERT INTO recovery_records(id,type,core_id,detail_json,created_at)
+      VALUES(?,?,?,?,?)`).run(expected.latestRecoveryRecordId,
+      'resident.r147-frame-boundary-repaired', homeos.coreId, JSON.stringify({
+        repairId: expected.repairId,
+        repairedCheckpointHash: homeos.checkpointHash,
+        pendingDeliveriesPreserved: homeos.pendingCount,
+        biologicalEventsDeleted: 0,
+        abandonedCount: 0,
+        inventedBiologicalTime: false,
+        authorityChanged: false
+      }), AT);
+  });
+
+  assert.throws(() => store.beginExactR147FrameBoundaryBacklogReplay({
+    residencyId: homeos.residencyId,
+    coreId: homeos.coreId,
+    checkpointHash: homeos.checkpointHash,
+    runtimeRevision: 147,
+    maximumPending: 1024
+  }), { code: 'P1_R147_FRAME_BOUNDARY_REPLAY_CONTRACT' });
+
+  const eventCount = store.db.prepare('SELECT COUNT(*) count FROM biological_events').get().count;
+  const result = store.beginExactR147FrameBoundaryBacklogReplay({
+    residencyId: homeos.residencyId,
+    coreId: homeos.coreId,
+    checkpointHash: homeos.checkpointHash,
+    runtimeRevision: 147,
+    maximumPending: 1023
+  });
+  assert.equal(result.pendingCount, 492);
+  assert.equal(result.eligibleReplayCount, 492);
+  assert.equal(result.abandonedCount, 0);
+  assert.equal(result.inventedBiologicalTime, false);
+  assert.equal(result.authorityChanged, false);
+  assert.equal(store.getResident(homeos.residencyId).status, 'RECOVERING');
+  assert.equal(store.db.prepare(`SELECT COUNT(*) count FROM biological_deliveries
+    WHERE consumer_id=? AND status='PENDING'`).get(homeos.residencyId).count, 492);
+  assert.equal(store.db.prepare('SELECT COUNT(*) count FROM biological_events').get().count,
+    eventCount);
+});
+
+test('R147-FRAME-BOUNDARY-02 restores current SNTSS once and cold-recovers only HOMEOS', async () => {
+  const calls = [];
+  const expected = R147_HOMEOS_FRAME_BOUNDARY_RECOVERY;
+  const harness = {
+    r147DeferredResidentRecovery: true,
+    r147HomeosContinuationRecoveryActive: true,
+    r147HomeosFrameBoundaryRecoveryActive: true,
+    runtimeRevision: 147,
+    p1ExpansionFetusInstallPreserved: true,
+    heartbeatTimer: null,
+    snapshotTimer: null,
+    recoverDurableResidents: async options => {
+      calls.push('ordinary');
+      assert.deepEqual([...options.exactCurrentCheckpointFences.keys()],
+        [expected.chronobiology.residencyId, expected.metab.residencyId,
+          expected.sntss.residencyId]);
+      return [
+        { residencyId: 'resident:chronobiology', recovered: true },
+        { residencyId: 'resident:sntss', recovered: true },
+        { residencyId: 'resident:metab', recovered: true },
+        { residencyId: 'resident:homeos', skipped: true, status: 'RESYNC_REQUIRED' }
+      ];
+    },
+    recoverColdFailedResidents: async () => {
+      calls.push('cold');
+      return [{ residencyId: 'resident:homeos', recovered: true, abandonedCount: 0 }];
+    },
+    startMaintenance: () => calls.push('maintenance'),
+    statusCache: {}
+  };
+  await LivingKernel.prototype.completeExactR147DeferredResidentRecovery.call(harness);
+  assert.deepEqual(calls, ['ordinary', 'cold', 'maintenance']);
+  assert.equal(harness.r147DeferredResidentRecovery, false);
+  assert.equal(harness.r147HomeosFrameBoundaryRecoveryActive, false);
+  assert.equal(harness.lastResidentRecovery.length, 5);
+});
+
+test('R147-FRAME-BOUNDARY-03 preserves revision only for the repaired production identity', () => {
+  const expected = R147_HOMEOS_FRAME_BOUNDARY_RECOVERY;
+  const fences = [expected.metab, expected.homeos, expected.sntss, expected.chronobiology];
+  const residents = Object.fromEntries(fences.map(value => [value.residencyId, { ...value }]));
+  const consumers = Object.fromEntries(fences.map(value => [value.residencyId, {
+    coreId: value.coreId,
+    required: false,
+    active: ['RUNNING', 'RECOVERING'].includes(value.status),
+    authorityEpoch: 0,
+    cursor: value.consumerCursor,
+    checkpointHash: value.checkpointHash,
+    topicsHash: value.topicsHash
+  }]));
+  consumers[expected.fetus.consumerId] = {
+    coreId: expected.fetus.coreId,
+    required: true,
+    active: true,
+    authorityEpoch: expected.fetus.authorityEpoch,
+    cursor: expected.fetus.consumerCursor,
+    checkpointHash: expected.fetus.consumerCheckpointHash,
+    topicsHash: expected.fetus.topicsHash
+  };
+  const capacity = {
+    ...createCapacitySourceState({
+      instanceId: expected.metab.instanceId,
+      residentVersion: expected.metab.version
+    }),
+    ...R147_HOMEOS_CONTINUATION_RECOVERY.capacitySource,
+    pending: null
+  };
+  const capacityJson = JSON.stringify(capacity);
+  const harness = {
+    runtimeRevision: 147,
+    homeosNeutralBirthAuthorization: 'AUTHORIZE_R143_HOMEOS_NEUTRAL_BIRTH_ONLY',
+    metabHomeosRouteAuthorization: 'AUTHORIZE_R144_METAB_HOMEOS_ROUTE_ONLY',
+    homeosShadowPromotionAuthorization: 'AUTHORIZE_R145_HOMEOS_OUTPUT_FIREWALLED_SHADOW_ONLY',
+    homeosStrandedR147RecoveryAuthorization: expected.authorization,
+    homeosFinalR146RecoveryActive: false,
+    homeosFinalR147RecoveryActive: false,
+    fetusEmptyInputR147RecoveryActive: false,
+    r147HomeosContinuationRecoveryActive: false,
+    r147HomeosFrameBoundaryRecoveryActive: false,
+    r147DeferredResidentRecovery: false,
+    p1ExpansionFetusInstallRevisionPreservation: null,
+    stateStore: {
+      getResident: id => residents[id] || null,
+      getBiologicalConsumer: id => consumers[id] || null,
+      listAuthority: () => [{ coreId: 'fetus-legacy' }],
+      db: {
+        prepare(sql) {
+          return {
+            get(...args) {
+              if (sql.includes('FROM resident_checkpoints')) {
+                const fence = residents[args[0]];
+                return fence && Number(args[1]) === fence.checkpointGeneration ? {
+                  checkpoint_id: fence.checkpointId,
+                  instance_id: fence.instanceId,
+                  version: fence.version,
+                  state_schema: fence.stateSchema,
+                  generation: fence.checkpointGeneration,
+                  blob_hash: fence.checkpointHash,
+                  byte_length: fence.checkpointBytes,
+                  input_cursor: fence.inputCursor
+                } : null;
+              }
+              if (sql.includes('SUM(CASE')) return {
+                count: 492, minimum: 4574291, maximum: 4575520,
+                availability: 246, reserve: 246, invalid: 0
+              };
+              if (sql.includes('MAX(sequence)')) return { value: expected.highWater };
+              if (sql.includes("consumer_id!='resident:homeos'")) return { count: 0 };
+              if (sql.includes("consumer_id=? AND status='PENDING'")) return {
+                count: args[0] === expected.fetus.consumerId ? 0 : 492
+              };
+              if (sql.includes("status='PENDING'")) return { count: 492 };
+              if (sql.includes("status='ABANDONED'")) return { count: 0 };
+              if (sql.includes('biological_outbox_intents')) return { count: 0 };
+              if (sql.includes('ORDER BY id DESC LIMIT 1')) return {
+                id: expected.latestRecoveryRecordId,
+                type: 'resident.r147-frame-boundary-repaired',
+                core_id: 'HOMEOS',
+                detail_json: JSON.stringify({
+                  repairId: expected.repairId,
+                  repairedCheckpointHash: expected.repairCheckpointHash,
+                  pendingDeliveriesPreserved: 492,
+                  biologicalEventsDeleted: 0,
+                  abandonedCount: 0,
+                  inventedBiologicalTime: false,
+                  authorityChanged: false,
+                  biologicalOutputs: 0
+                })
+              };
+              if (sql.includes('FROM authority WHERE core_id=?')) return {
+                instance_id: expected.fetus.instanceId,
+                version: expected.fetus.version,
+                epoch: expected.fetus.authorityEpoch,
+                checkpoint_hash: expected.fetus.checkpointHash
+              };
+              if (sql.includes('FROM checkpoints WHERE core_id=?')) return {
+                instance_id: expected.fetus.instanceId,
+                version: expected.fetus.version,
+                authority_epoch: expected.fetus.authorityEpoch,
+                generation: expected.fetus.checkpointGeneration,
+                blob_hash: expected.fetus.checkpointHash,
+                byte_length: expected.fetus.checkpointBytes
+              };
+              if (sql.includes("key='life:p1-r0-metab-capacity-source'")) return {
+                json: capacityJson,
+                sha256: crypto.createHash('sha256').update(capacityJson).digest('hex')
+              };
+              return { count: 0 };
+            }
+          };
+        }
+      }
+    }
+  };
+  assert.equal(
+    LivingKernel.prototype.preserveExactR147HomeosFrameBoundaryRevision.call(harness),
+    true
+  );
+  assert.equal(harness.r147HomeosFrameBoundaryRecoveryActive, true);
+  assert.equal(harness.r147DeferredResidentRecovery, true);
+  residents['resident:homeos'].checkpointHash = `f${expected.homeos.checkpointHash.slice(1)}`;
+  harness.r147DeferredResidentRecovery = false;
+  assert.equal(
+    LivingKernel.prototype.preserveExactR147HomeosFrameBoundaryRevision.call(harness),
+    false
+  );
+});
+
 test('R147-CONTINUATION-03 fetus installs before sequential recovery and HTTP exposure', async () => {
   const calls = [];
   const harness = {
@@ -400,6 +657,7 @@ test('R147-CONTINUATION-03 fetus installs before sequential recovery and HTTP ex
   assert.match(recoveryScript, /AUTHORIZE_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_RECOVERY_ONLY/);
   assert.match(recoveryScript, /AUTHORIZE_STRANDED_R147_HOMEOS_POST_TIMEOUT_CONTINUATION_ONLY/);
   assert.match(recoveryScript, /p1-r147-homeos-continuation-preflight\.js/);
+  assert.match(recoveryScript, /p1-r147-homeos-frame-boundary-repair\.js/);
   assert.match(recoveryScript, /p1-r147-create-continuation-snapshot\.js/);
   assert.match(recoveryScript, /runuser -u staydeploy/);
   assert.match(recoveryScript, /STAY_R147_CONTINUATION_PREFLIGHT_SNAPSHOT=/);
